@@ -19,6 +19,15 @@ public class FusoDoEscritorioTests
     }
 
     [Fact]
+    public void Inicio_do_dia_local_vira_o_instante_utc_correspondente()
+    {
+        var fuso = new FusoDoEscritorio("America/Sao_Paulo");
+
+        fuso.InicioDoDiaEmUtc(new DateOnly(2026, 10, 7))
+            .Should().Be(new DateTime(2026, 10, 7, 3, 0, 0, DateTimeKind.Utc));
+    }
+
+    [Fact]
     public void Data_ausente_vira_travessao()
     {
         _fuso.Formatar(null).Should().Be("—");

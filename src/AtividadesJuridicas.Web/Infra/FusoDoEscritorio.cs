@@ -11,6 +11,10 @@ public sealed class FusoDoEscritorio(string idDoFuso)
     public DateTime ParaLocal(DateTime utc) =>
         TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utc, DateTimeKind.Utc), _fuso);
 
+    /// <summary>Instante UTC em que o dia começa no fuso do escritório.</summary>
+    public DateTime InicioDoDiaEmUtc(DateOnly dia) =>
+        TimeZoneInfo.ConvertTimeToUtc(dia.ToDateTime(TimeOnly.MinValue, DateTimeKind.Unspecified), _fuso);
+
     public string Formatar(DateTime? utc) =>
         utc is { } valor ? ParaLocal(valor).ToString("dd/MM/yyyy HH:mm", Cultura) : "—";
 }
