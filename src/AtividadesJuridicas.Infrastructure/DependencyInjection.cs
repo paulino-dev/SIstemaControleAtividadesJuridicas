@@ -1,3 +1,4 @@
+using AtividadesJuridicas.Application.Auditoria;
 using AtividadesJuridicas.Application.Comum;
 using AtividadesJuridicas.Application.Identidade;
 using AtividadesJuridicas.Infrastructure.Comum;
@@ -27,6 +28,7 @@ public static class DependencyInjection
 
         servicos.AddSingleton<IRelogio, RelogioDoSistema>();
         servicos.AddSingleton<IHasherDeSenha, HasherDeSenhaPbkdf2>();
+        servicos.AddScoped<IAuditoria, RegistradorDeAuditoria>();
         servicos.AddScoped<IUnidadeDeTrabalho, UnidadeDeTrabalho>();
         servicos.AddScoped<IUsuarioRepositorio, UsuarioRepositorio>();
         servicos.AddScoped<IPerfilRepositorio, PerfilRepositorio>();

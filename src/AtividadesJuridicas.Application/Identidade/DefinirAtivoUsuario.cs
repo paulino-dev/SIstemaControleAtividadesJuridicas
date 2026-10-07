@@ -1,3 +1,4 @@
+using AtividadesJuridicas.Application.Auditoria;
 using AtividadesJuridicas.Application.Comum;
 
 namespace AtividadesJuridicas.Application.Identidade;
@@ -8,7 +9,8 @@ public sealed class DefinirAtivoUsuarioManipulador(
     IContextoDeAcesso contexto,
     IUsuarioRepositorio usuarios,
     IPerfilRepositorio perfis,
-    IUnidadeDeTrabalho unidade) : IManipulador<DefinirAtivoUsuario, Resultado>
+    IUnidadeDeTrabalho unidade,
+    IAuditoria auditoria) : IManipulador<DefinirAtivoUsuario, Resultado>
 {
     public async Task<Resultado> ManipularAsync(DefinirAtivoUsuario requisicao, CancellationToken ct)
     {
@@ -19,15 +21,19 @@ public sealed class DefinirAtivoUsuarioManipulador(
         if (usuario is null)
             return Resultado.Falha(TipoErro.NaoEncontrado, "Usuário não encontrado.");
 
+        if (usuario.Ativo == requisicao.Ativo) return Resultado.Ok();
+
         if (requisicao.Ativo)
         {
             usuario.Ativar();
+            auditoria.Anotar(EventosDeSeguranca.UsuarioAtivado, "Usuario", usuario.Id);
         }
         else
         {
             if (await UltimoDiretor.EhAsync(usuario, usuarios, perfis, ct))
                 return Resultado.Falha(TipoErro.Conflito, UltimoDiretor.Mensagem);
             usuario.Inativar();
+            auditoria.Anotar(EventosDeSeguranca.UsuarioInativado, "Usuario", usuario.Id);
         }
 
         await unidade.SalvarAsync(ct);

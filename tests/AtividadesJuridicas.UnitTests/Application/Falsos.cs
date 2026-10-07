@@ -1,3 +1,4 @@
+using AtividadesJuridicas.Application.Auditoria;
 using AtividadesJuridicas.Application.Comum;
 using AtividadesJuridicas.Application.Identidade;
 using AtividadesJuridicas.Domain.Identidade;
@@ -88,6 +89,7 @@ public sealed class Cenario
     public UnidadeDeTrabalhoFalsa Unidade { get; } = new();
     public HasherFalso Hasher { get; } = new();
     public RelogioFixo Relogio { get; } = new();
+    public AuditoriaFalsa Auditoria { get; } = new();
     public Perfil PerfilDiretor { get; } = Perfil.Criar("Diretor", TipoPerfil.Diretoria);
     public Perfil PerfilProducao { get; } = Perfil.Criar("Produção", TipoPerfil.Producao);
     public Usuario Diretor { get; }
@@ -111,5 +113,22 @@ public sealed class Cenario
         if (usuario is null) return new ContextoDeAcessoFixo(null);
         var perfil = Perfis.Itens.First(p => p.Id == usuario.PerfilId);
         return new ContextoDeAcessoFixo(new UsuarioAutenticado(usuario.Id, usuario.Nome, perfil.Tipo));
+    }
+}
+
+public sealed record EventoAnotado(string Evento, string? Entidade, Guid? EntidadeId, object? Dados, bool Imediato);
+
+public sealed class AuditoriaFalsa : IAuditoria
+{
+    public List<EventoAnotado> Eventos { get; } = [];
+
+    public void Anotar(string evento, string? entidade = null, Guid? entidadeId = null, object? dados = null) =>
+        Eventos.Add(new EventoAnotado(evento, entidade, entidadeId, dados, Imediato: false));
+
+    public Task RegistrarAsync(string evento, string? entidade = null, Guid? entidadeId = null, object? dados = null,
+        CancellationToken ct = default)
+    {
+        Eventos.Add(new EventoAnotado(evento, entidade, entidadeId, dados, Imediato: true));
+        return Task.CompletedTask;
     }
 }

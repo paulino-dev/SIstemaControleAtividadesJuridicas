@@ -1,4 +1,5 @@
 using AtividadesJuridicas.Application;
+using AtividadesJuridicas.Application.Auditoria;
 using AtividadesJuridicas.Application.Comum;
 using AtividadesJuridicas.Infrastructure;
 using AtividadesJuridicas.Infrastructure.Persistencia;
@@ -74,10 +75,14 @@ app.UseAntiforgery();
 
 app.MapStaticAssets().AllowAnonymous();
 
-app.MapPost("/conta/sair", async (HttpContext contexto, IAntiforgery antiforgery) =>
+app.MapPost("/conta/sair", async (HttpContext contexto, IAntiforgery antiforgery, IAuditoria auditoria) =>
 {
     if (!await antiforgery.IsRequestValidAsync(contexto))
         return Results.BadRequest();
+
+    IdentidadeHttp.Definir(contexto);
+    await auditoria.RegistrarAsync(
+        EventosDeSeguranca.Logout, "Usuario", IdentidadeHttp.UsuarioId(contexto.User), ct: contexto.RequestAborted);
 
     await contexto.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
     return Results.LocalRedirect("/conta/entrar");

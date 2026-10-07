@@ -13,11 +13,11 @@ public class GestaoDeUsuariosTests
             .ManipularAsync(requisicao, default);
 
     private Task<Resultado> Editar(Usuario? ator, EditarUsuario requisicao) =>
-        new EditarUsuarioManipulador(_c.Como(ator), _c.Usuarios, _c.Perfis, _c.Unidade)
+        new EditarUsuarioManipulador(_c.Como(ator), _c.Usuarios, _c.Perfis, _c.Unidade, _c.Auditoria)
             .ManipularAsync(requisicao, default);
 
     private Task<Resultado> DefinirAtivo(Usuario? ator, Guid id, bool ativo) =>
-        new DefinirAtivoUsuarioManipulador(_c.Como(ator), _c.Usuarios, _c.Perfis, _c.Unidade)
+        new DefinirAtivoUsuarioManipulador(_c.Como(ator), _c.Usuarios, _c.Perfis, _c.Unidade, _c.Auditoria)
             .ManipularAsync(new DefinirAtivoUsuario(id, ativo), default);
 
     private CriarUsuario NovoPedido(string email = "paulo@x.com") =>

@@ -1,3 +1,4 @@
+using AtividadesJuridicas.Application.Auditoria;
 using AtividadesJuridicas.Application.Comum;
 
 namespace AtividadesJuridicas.Application.Identidade;
@@ -8,7 +9,8 @@ public sealed class AlterarMinhaSenhaManipulador(
     IContextoDeAcesso contexto,
     IUsuarioRepositorio usuarios,
     IHasherDeSenha hasher,
-    IUnidadeDeTrabalho unidade) : IManipulador<AlterarMinhaSenha, Resultado>
+    IUnidadeDeTrabalho unidade,
+    IAuditoria auditoria) : IManipulador<AlterarMinhaSenha, Resultado>
 {
     public async Task<Resultado> ManipularAsync(AlterarMinhaSenha requisicao, CancellationToken ct)
     {
@@ -26,6 +28,7 @@ public sealed class AlterarMinhaSenhaManipulador(
             return Resultado.Falha(TipoErro.Validacao, erro);
 
         usuario.DefinirSenha(hasher.Gerar(requisicao.NovaSenha));
+        auditoria.Anotar(EventosDeSeguranca.SenhaAlterada, "Usuario", usuario.Id);
         await unidade.SalvarAsync(ct);
         return Resultado.Ok();
     }

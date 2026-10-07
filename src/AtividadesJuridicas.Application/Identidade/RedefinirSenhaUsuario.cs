@@ -1,3 +1,4 @@
+using AtividadesJuridicas.Application.Auditoria;
 using AtividadesJuridicas.Application.Comum;
 
 namespace AtividadesJuridicas.Application.Identidade;
@@ -8,7 +9,8 @@ public sealed class RedefinirSenhaUsuarioManipulador(
     IContextoDeAcesso contexto,
     IUsuarioRepositorio usuarios,
     IHasherDeSenha hasher,
-    IUnidadeDeTrabalho unidade) : IManipulador<RedefinirSenhaUsuario, Resultado>
+    IUnidadeDeTrabalho unidade,
+    IAuditoria auditoria) : IManipulador<RedefinirSenhaUsuario, Resultado>
 {
     public async Task<Resultado> ManipularAsync(RedefinirSenhaUsuario requisicao, CancellationToken ct)
     {
@@ -23,6 +25,7 @@ public sealed class RedefinirSenhaUsuarioManipulador(
             return Resultado.Falha(TipoErro.NaoEncontrado, "Usuário não encontrado.");
 
         usuario.DefinirSenha(hasher.Gerar(requisicao.NovaSenha));
+        auditoria.Anotar(EventosDeSeguranca.SenhaRedefinida, "Usuario", usuario.Id);
         await unidade.SalvarAsync(ct);
         return Resultado.Ok();
     }

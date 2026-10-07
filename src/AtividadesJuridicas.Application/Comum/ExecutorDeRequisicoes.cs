@@ -1,4 +1,6 @@
 using System.Reflection;
+using AtividadesJuridicas.Application.Auditoria;
+using AtividadesJuridicas.Application.Identidade;
 using System.Runtime.ExceptionServices;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -8,7 +10,7 @@ namespace AtividadesJuridicas.Application.Comum;
 /// Ponto único por onde todo caso de uso roda, dentro do escopo já aberto para a requisição.
 /// É aqui que entram os comportamentos comuns a todos eles.
 /// </summary>
-public sealed class ExecutorDeRequisicoes(IServiceProvider servicos)
+public sealed class ExecutorDeRequisicoes(IServiceProvider servicos, IAuditoria auditoria)
 {
     public async Task<TResposta> ExecutarAsync<TResposta>(IRequisicao<TResposta> requisicao, CancellationToken ct)
     {
@@ -18,7 +20,14 @@ public sealed class ExecutorDeRequisicoes(IServiceProvider servicos)
 
         try
         {
-            return await (Task<TResposta>)metodo.Invoke(manipulador, [requisicao, ct])!;
+            var resposta = await (Task<TResposta>)metodo.Invoke(manipulador, [requisicao, ct])!;
+
+            // O login tem eventos próprios; as demais recusas são tentativas de acesso negadas.
+            if (resposta is Resultado { Erro: TipoErro.AcessoNegado } && requisicao is not AutenticarUsuario)
+                await auditoria.RegistrarAsync(
+                    EventosDeSeguranca.AcessoNegado, dados: new { requisicao = requisicao.GetType().Name }, ct: ct);
+
+            return resposta;
         }
         catch (TargetInvocationException ex) when (ex.InnerException is not null)
         {

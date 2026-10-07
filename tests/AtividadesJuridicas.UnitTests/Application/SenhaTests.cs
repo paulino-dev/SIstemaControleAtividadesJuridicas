@@ -35,7 +35,7 @@ public class SenhaTests
     {
         var alvo = _c.NovoUsuario("Pedro", "pedro@x.com", _c.PerfilProducao);
 
-        var resultado = await new RedefinirSenhaUsuarioManipulador(_c.Como(_c.Diretor), _c.Usuarios, _c.Hasher, _c.Unidade)
+        var resultado = await new RedefinirSenhaUsuarioManipulador(_c.Como(_c.Diretor), _c.Usuarios, _c.Hasher, _c.Unidade, _c.Auditoria)
             .ManipularAsync(new RedefinirSenhaUsuario(alvo.Id, "nova-senha-1"), default);
 
         resultado.Sucesso.Should().BeTrue();
@@ -47,7 +47,7 @@ public class SenhaTests
     {
         var producao = _c.NovoUsuario("Pedro", "pedro@x.com", _c.PerfilProducao);
 
-        var resultado = await new RedefinirSenhaUsuarioManipulador(_c.Como(producao), _c.Usuarios, _c.Hasher, _c.Unidade)
+        var resultado = await new RedefinirSenhaUsuarioManipulador(_c.Como(producao), _c.Usuarios, _c.Hasher, _c.Unidade, _c.Auditoria)
             .ManipularAsync(new RedefinirSenhaUsuario(_c.Diretor.Id, "nova-senha-1"), default);
 
         resultado.Erro.Should().Be(TipoErro.AcessoNegado);
@@ -59,7 +59,7 @@ public class SenhaTests
     {
         var producao = _c.NovoUsuario("Pedro", "pedro@x.com", _c.PerfilProducao);
 
-        var resultado = await new AlterarMinhaSenhaManipulador(_c.Como(producao), _c.Usuarios, _c.Hasher, _c.Unidade)
+        var resultado = await new AlterarMinhaSenhaManipulador(_c.Como(producao), _c.Usuarios, _c.Hasher, _c.Unidade, _c.Auditoria)
             .ManipularAsync(new AlterarMinhaSenha("senha-segura", "nova-senha-1"), default);
 
         resultado.Sucesso.Should().BeTrue();
@@ -69,7 +69,7 @@ public class SenhaTests
     [Fact]
     public async Task Senha_atual_errada_nao_altera_nada()
     {
-        var resultado = await new AlterarMinhaSenhaManipulador(_c.Como(_c.Diretor), _c.Usuarios, _c.Hasher, _c.Unidade)
+        var resultado = await new AlterarMinhaSenhaManipulador(_c.Como(_c.Diretor), _c.Usuarios, _c.Hasher, _c.Unidade, _c.Auditoria)
             .ManipularAsync(new AlterarMinhaSenha("errada", "nova-senha-1"), default);
 
         resultado.Erro.Should().Be(TipoErro.Validacao);
@@ -79,7 +79,7 @@ public class SenhaTests
     [Fact]
     public async Task Anonimo_nao_altera_senha()
     {
-        var resultado = await new AlterarMinhaSenhaManipulador(_c.Como(null), _c.Usuarios, _c.Hasher, _c.Unidade)
+        var resultado = await new AlterarMinhaSenhaManipulador(_c.Como(null), _c.Usuarios, _c.Hasher, _c.Unidade, _c.Auditoria)
             .ManipularAsync(new AlterarMinhaSenha("senha-segura", "nova-senha-1"), default);
 
         resultado.Erro.Should().Be(TipoErro.AcessoNegado);

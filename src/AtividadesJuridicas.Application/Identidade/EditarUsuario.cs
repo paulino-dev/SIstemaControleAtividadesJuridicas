@@ -1,3 +1,4 @@
+using AtividadesJuridicas.Application.Auditoria;
 using AtividadesJuridicas.Application.Comum;
 using AtividadesJuridicas.Domain.Comum;
 using AtividadesJuridicas.Domain.Identidade;
@@ -11,7 +12,8 @@ public sealed class EditarUsuarioManipulador(
     IContextoDeAcesso contexto,
     IUsuarioRepositorio usuarios,
     IPerfilRepositorio perfis,
-    IUnidadeDeTrabalho unidade) : IManipulador<EditarUsuario, Resultado>
+    IUnidadeDeTrabalho unidade,
+    IAuditoria auditoria) : IManipulador<EditarUsuario, Resultado>
 {
     private const string EmailEmUso = "Já existe um usuário com este e-mail.";
 
@@ -41,7 +43,12 @@ public sealed class EditarUsuarioManipulador(
 
         try
         {
-            if (perfil.Id != usuario.PerfilId) usuario.AlterarPerfil(perfil);
+            if (perfil.Id != usuario.PerfilId)
+            {
+                auditoria.Anotar(EventosDeSeguranca.PerfilAlterado, "Usuario", usuario.Id,
+                    new { de = usuario.PerfilId, para = perfil.Id });
+                usuario.AlterarPerfil(perfil);
+            }
             usuario.AlterarDados(requisicao.Nome, email, requisicao.NumeroOab);
             await unidade.SalvarAsync(ct);
             return Resultado.Ok();
