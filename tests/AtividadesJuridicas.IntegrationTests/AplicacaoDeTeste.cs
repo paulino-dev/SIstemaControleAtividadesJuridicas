@@ -89,7 +89,7 @@ public sealed partial class AplicacaoDeTeste(BancoFixture banco) : WebApplicatio
     public async Task<T> EmEscopoAsync<T>(Guid? usuarioId, Func<IServiceProvider, Task<T>> acao)
     {
         await using var escopo = Services.CreateAsyncScope();
-        escopo.ServiceProvider.GetRequiredService<IdentidadeAtual>().Definir(usuarioId);
+        escopo.ServiceProvider.GetRequiredService<IdentidadeAtual>().DefinirInterno(usuarioId);
         return await acao(escopo.ServiceProvider);
     }
 

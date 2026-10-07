@@ -10,7 +10,7 @@ public class ContextoDeAcessoTests
     private ContextoDeAcesso Criar(Guid? usuarioId)
     {
         var identidade = new IdentidadeAtual();
-        identidade.Definir(usuarioId);
+        identidade.DefinirInterno(usuarioId);
         return new ContextoDeAcesso(identidade, _cenario.Usuarios, _cenario.Perfis);
     }
 

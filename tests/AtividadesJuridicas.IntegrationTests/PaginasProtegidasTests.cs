@@ -34,7 +34,7 @@ public partial class PaginasProtegidasTests(BancoFixture banco) : IAsyncLifetime
         await using var escopo = _fabrica.Services.CreateAsyncScope();
         var sp = escopo.ServiceProvider;
         var diana = await sp.GetRequiredService<IUsuarioRepositorio>().ObterPorEmailAsync(Email.Criar("diana@x.com"), default);
-        sp.GetRequiredService<IdentidadeAtual>().Definir(diana!.Id);
+        sp.GetRequiredService<IdentidadeAtual>().DefinirInterno(diana!.Id);
         var producao = (await sp.GetRequiredService<IPerfilRepositorio>().ListarAtivosAsync(default))
             .Single(p => p.Tipo == TipoPerfil.Producao);
         var criado = await sp.GetRequiredService<IManipulador<CriarUsuario, Resultado<Guid>>>().ManipularAsync(

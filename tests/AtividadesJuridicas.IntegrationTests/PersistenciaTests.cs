@@ -40,7 +40,7 @@ public class PersistenciaTests(BancoFixture banco) : IAsyncLifetime
     private async Task<T> EmEscopoAsync<T>(Guid? usuarioId, Func<IServiceProvider, Task<T>> acao)
     {
         await using var escopo = _raiz.CreateAsyncScope();
-        escopo.ServiceProvider.GetRequiredService<IdentidadeAtual>().Definir(usuarioId);
+        escopo.ServiceProvider.GetRequiredService<IdentidadeAtual>().DefinirInterno(usuarioId);
         return await acao(escopo.ServiceProvider);
     }
 

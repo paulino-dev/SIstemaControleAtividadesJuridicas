@@ -38,8 +38,8 @@ public class SessaoWebTests(BancoFixture banco) : IAsyncLifetime
         var pedroId = await _app.CriarPedroAsync();
         var doPedro = await _app.ClienteAutenticadoAsync(AplicacaoDeTeste.EmailDoPedro, AplicacaoDeTeste.SenhaDoPedro);
 
-        await _app.ExecutarAsync(adminId, new DefinirAtivoUsuario(pedroId, false));
-        await _app.ExecutarAsync(adminId, new DefinirAtivoUsuario(pedroId, true));
+        (await _app.ExecutarAsync(adminId, new DefinirAtivoUsuario(pedroId, false))).Sucesso.Should().BeTrue();
+        (await _app.ExecutarAsync(adminId, new DefinirAtivoUsuario(pedroId, true))).Sucesso.Should().BeTrue();
 
         (await doPedro.GetAsync("/")).StatusCode.Should().Be(HttpStatusCode.Redirect);
     }
@@ -51,7 +51,8 @@ public class SessaoWebTests(BancoFixture banco) : IAsyncLifetime
         var pedroId = await _app.CriarPedroAsync();
         var doAdmin = await _app.ClienteAutenticadoAsync();
 
-        await _app.ExecutarAsync(adminId, new RedefinirSenhaUsuario(pedroId, "senha-nova-do-pedro"));
+        (await _app.ExecutarAsync(adminId, new RedefinirSenhaUsuario(pedroId, "senha-nova-do-pedro")))
+            .Sucesso.Should().BeTrue();
 
         (await doAdmin.GetAsync("/")).StatusCode.Should().Be(HttpStatusCode.OK);
     }
@@ -68,7 +69,9 @@ public class SessaoWebTests(BancoFixture banco) : IAsyncLifetime
                 .Single(p => p.Tipo == Domain.Identidade.TipoPerfil.Diretoria).Id);
         var dora = await _app.ExecutarAsync(adminId,
             new CriarUsuario("Dora", "dora@x.com", "senha-da-dora", diretoria, null));
-        await _app.ExecutarAsync(dora.Valor, new RedefinirSenhaUsuario(adminId, "senha-nova-da-diana"));
+        dora.Sucesso.Should().BeTrue(dora.Mensagem);
+        (await _app.ExecutarAsync(dora.Valor, new RedefinirSenhaUsuario(adminId, "senha-nova-da-diana")))
+            .Sucesso.Should().BeTrue();
 
         var resposta = await doAdmin.GetAsync("/usuarios");
 

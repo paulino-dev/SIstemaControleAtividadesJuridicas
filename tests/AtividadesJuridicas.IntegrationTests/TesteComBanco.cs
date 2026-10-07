@@ -44,7 +44,7 @@ public abstract class TesteComBanco(BancoFixture banco) : IAsyncLifetime
     protected async Task<T> EmEscopoAsync<T>(Guid? usuarioId, Func<IServiceProvider, Task<T>> acao)
     {
         await using var escopo = _raiz.CreateAsyncScope();
-        escopo.ServiceProvider.GetRequiredService<IdentidadeAtual>().Definir(usuarioId, "127.0.0.9");
+        escopo.ServiceProvider.GetRequiredService<IdentidadeAtual>().DefinirInterno(usuarioId, "127.0.0.9");
         return await acao(escopo.ServiceProvider);
     }
 

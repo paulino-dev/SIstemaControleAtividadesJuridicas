@@ -23,10 +23,25 @@ public sealed class IdentidadeAtual : IIdentidadeAtual
     public Guid? VersaoDeSessao { get; private set; }
     public Guid IdCorrelacao { get; } = Guid.CreateVersion7();
 
-    public void Definir(Guid? usuarioId, string? ip = null, Guid? versaoDeSessao = null)
+    /// <summary>
+    /// Para quem representa uma sessão de verdade (a Web). Com usuário, a versão da sessão é
+    /// obrigatória: sem ela o acesso não seria conferido contra o banco.
+    /// </summary>
+    public void Definir(Guid? usuarioId, string? ip, Guid? versaoDeSessao)
     {
+        if (usuarioId is not null && versaoDeSessao is null)
+            throw new ArgumentException("Um usuário identificado exige a versão da sessão.", nameof(versaoDeSessao));
+
         UsuarioId = usuarioId;
         Ip = ip;
         VersaoDeSessao = versaoDeSessao;
+    }
+
+    /// <summary>Para chamadores internos e confiáveis (testes, semeador, rotinas): sem versão de sessão.</summary>
+    public void DefinirInterno(Guid? usuarioId, string? ip = null)
+    {
+        UsuarioId = usuarioId;
+        Ip = ip;
+        VersaoDeSessao = null;
     }
 }
