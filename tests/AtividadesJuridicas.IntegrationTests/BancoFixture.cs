@@ -51,10 +51,19 @@ public sealed class BancoFixture : IAsyncLifetime
 
     public Task DisposeAsync() => _conteiner.DisposeAsync().AsTask();
 
+    // Cada classe de teste usa um banco próprio e, com ele, um pool de conexões próprio. Sem estes
+    // limites as conexões ociosas das classes já encerradas se acumulam até estourar o máximo do
+    // servidor (erro 53300, "too many clients").
     public string NovaConexao() =>
         new NpgsqlConnectionStringBuilder(_conteiner.GetConnectionString())
         {
             Database = "t_" + Guid.NewGuid().ToString("N"),
+            MaxPoolSize = 25,
+            ConnectionIdleLifetime = 5,
+            ConnectionPruningInterval = 2,
+            // Folga para máquina compartilhada: criar o banco de cada teste pode demorar sob carga.
+            Timeout = 60,
+            CommandTimeout = 180,
         }.ConnectionString;
 }
 
