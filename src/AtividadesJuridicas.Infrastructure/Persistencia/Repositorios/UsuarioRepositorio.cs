@@ -38,4 +38,8 @@ public sealed class UsuarioRepositorio(AppDbContext db) : IUsuarioRepositorio
     }
 
     public void Adicionar(Usuario usuario) => db.Usuarios.Add(usuario);
+
+    public Task RegistrarAcessoAsync(Guid usuarioId, DateTime agoraUtc, CancellationToken ct) =>
+        db.Usuarios.Where(u => u.Id == usuarioId)
+            .ExecuteUpdateAsync(c => c.SetProperty(u => u.UltimoAcessoEm, agoraUtc), ct);
 }

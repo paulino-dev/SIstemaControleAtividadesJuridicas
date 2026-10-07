@@ -9,6 +9,8 @@ public static class UrlLocal
     public static string Normalizar(string? url)
     {
         if (string.IsNullOrEmpty(url) || url[0] != '/') return "/";
+        // Navegadores descartam TAB/CR/LF: "/	/x" viraria "//x".
+        if (url.Any(char.IsControl)) return "/";
         if (url.Length > 1 && (url[1] == '/' || url[1] == '\\')) return "/";
         if (url.StartsWith("/conta/", StringComparison.OrdinalIgnoreCase)) return "/";
         return url;

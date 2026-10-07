@@ -26,6 +26,12 @@ public interface IUsuarioRepositorio
 
     Task<IReadOnlyList<UsuarioResumo>> ListarAsync(CancellationToken ct);
     void Adicionar(Usuario usuario);
+
+    /// <summary>
+    /// Grava somente a coluna de último acesso, fora da unidade de trabalho: registrar o acesso
+    /// não é uma atualização de negócio e não deve alterar os carimbos de atualização.
+    /// </summary>
+    Task RegistrarAcessoAsync(Guid usuarioId, DateTime agoraUtc, CancellationToken ct);
 }
 
 public interface IPerfilRepositorio

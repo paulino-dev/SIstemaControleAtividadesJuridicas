@@ -44,6 +44,12 @@ public sealed class UsuarioRepositorioFalso(PerfilRepositorioFalso perfis) : IUs
             })]);
 
     public void Adicionar(Usuario usuario) => Itens.Add(usuario);
+
+    public Task RegistrarAcessoAsync(Guid usuarioId, DateTime agoraUtc, CancellationToken ct)
+    {
+        Itens.First(u => u.Id == usuarioId).RegistrarAcesso(agoraUtc);
+        return Task.CompletedTask;
+    }
 }
 
 public sealed class UnidadeDeTrabalhoFalsa : IUnidadeDeTrabalho

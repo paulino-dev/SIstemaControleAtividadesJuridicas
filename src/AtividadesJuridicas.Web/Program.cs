@@ -34,6 +34,9 @@ builder.Services
     .AddCookie(opcoes =>
     {
         opcoes.Cookie.Name = "atividades.auth";
+        opcoes.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
+            ? CookieSecurePolicy.SameAsRequest
+            : CookieSecurePolicy.Always;
         opcoes.LoginPath = "/conta/entrar";
         opcoes.AccessDeniedPath = "/conta/entrar";
         opcoes.ExpireTimeSpan = TimeSpan.FromHours(8);

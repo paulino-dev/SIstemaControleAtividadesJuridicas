@@ -122,6 +122,33 @@ public class PersistenciaTests(BancoFixture banco) : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Login_registra_o_acesso_sem_alterar_os_carimbos_de_atualizacao()
+    {
+        var adminId = await IdDoAdminAsync();
+        await EmEscopoAsync(adminId, async sp =>
+        {
+            var usuario = await sp.GetRequiredService<IUsuarioRepositorio>().ObterPorIdAsync(adminId, default);
+            usuario!.AlterarDados("Diana D.", usuario.Email, null);
+            await sp.GetRequiredService<IUnidadeDeTrabalho>().SalvarAsync(default);
+            return 0;
+        });
+        var antes = await EmEscopoAsync(null, sp =>
+            sp.GetRequiredService<AppDbContext>().Usuarios.AsNoTracking().SingleAsync(u => u.Id == adminId));
+        antes.AtualizadoPor.Should().Be(adminId);
+
+        var login = await EmEscopoAsync(null, sp =>
+            sp.GetRequiredService<IManipulador<AutenticarUsuario, Resultado<UsuarioAutenticado>>>().ManipularAsync(
+                new AutenticarUsuario("diana@x.com", "senha-segura"), default));
+
+        login.Sucesso.Should().BeTrue();
+        var depois = await EmEscopoAsync(null, sp =>
+            sp.GetRequiredService<AppDbContext>().Usuarios.AsNoTracking().SingleAsync(u => u.Id == adminId));
+        depois.UltimoAcessoEm.Should().NotBeNull();
+        depois.AtualizadoPor.Should().Be(adminId);
+        depois.AtualizadoEm.Should().Be(antes.AtualizadoEm);
+    }
+
+    [Fact]
     public async Task Email_duplicado_gravado_direto_vira_excecao_de_conflito()
     {
         var acao = () => EmEscopoAsync(null, async sp =>

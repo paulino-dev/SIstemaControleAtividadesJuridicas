@@ -20,6 +20,9 @@ public class UrlLocalTests
     [InlineData("https://mal.example")]
     [InlineData("//mal.example")]
     [InlineData("/\\mal.example")]
+    [InlineData("/\t/mal.example")]
+    [InlineData("/\r/mal.example")]
+    [InlineData("/\n/mal.example")]
     [InlineData("/conta/entrar")]
     [InlineData("/conta/entrar?ReturnUrl=%2F")]
     public void Qualquer_outra_coisa_vira_a_raiz(string? entrada)

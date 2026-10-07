@@ -9,10 +9,10 @@ public sealed class AutenticarUsuarioManipulador(
     IUsuarioRepositorio usuarios,
     IPerfilRepositorio perfis,
     IHasherDeSenha hasher,
-    IUnidadeDeTrabalho unidade,
     IRelogio relogio) : IManipulador<AutenticarUsuario, Resultado<UsuarioAutenticado>>
 {
-    // Mensagem única: não revela se o e-mail existe nem se o usuário está inativo.
+    // Mensagem uniforme para todas as falhas de credencial (e-mail inexistente, usuário inativo,
+    // senha errada). Isto não impede inferência pelo tempo de resposta.
     private static readonly Resultado<UsuarioAutenticado> Invalido =
         Resultado<UsuarioAutenticado>.Falha(TipoErro.AcessoNegado, "E-mail ou senha inválidos.");
 
@@ -27,8 +27,7 @@ public sealed class AutenticarUsuarioManipulador(
         var perfil = await perfis.ObterPorIdAsync(usuario.PerfilId, ct);
         if (perfil is null) return Invalido;
 
-        usuario.RegistrarAcesso(relogio.AgoraUtc);
-        await unidade.SalvarAsync(ct);
+        await usuarios.RegistrarAcessoAsync(usuario.Id, relogio.AgoraUtc, ct);
 
         return Resultado<UsuarioAutenticado>.Ok(new UsuarioAutenticado(usuario.Id, usuario.Nome, perfil.Tipo));
     }
