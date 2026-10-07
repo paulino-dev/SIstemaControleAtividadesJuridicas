@@ -28,6 +28,17 @@ public sealed class RegistradorDeAuditoria(
         await isolado.SaveChangesAsync(ct);
     }
 
+    public async Task RegistrarAcessoAsync(IConsultaAuditavel consulta, CancellationToken ct = default)
+    {
+        if (identidade.UsuarioId is not { } usuarioId) return;
+
+        await using var isolado = new AppDbContext(opcoes);
+        isolado.Add(RegistroAcesso.Criar(
+            relogio.AgoraUtc, usuarioId, consulta.TipoRecurso, consulta.RecursoId, consulta.Acao,
+            consulta.Detalhe, identidade.Ip));
+        await isolado.SaveChangesAsync(ct);
+    }
+
     private RegistroAuditoria Criar(string evento, string? entidade, Guid? entidadeId, object? dados) =>
         RegistroAuditoria.DeEvento(
             relogio.AgoraUtc, identidade.UsuarioId, evento, entidade, entidadeId,

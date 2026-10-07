@@ -1,8 +1,14 @@
+using AtividadesJuridicas.Application.Auditoria;
 using AtividadesJuridicas.Application.Comum;
+using AtividadesJuridicas.Domain.Auditoria;
 
 namespace AtividadesJuridicas.Application.Identidade;
 
-public sealed record ListarPerfisAtivos : IRequisicao<Resultado<IReadOnlyList<PerfilResumo>>>;
+public sealed record ListarPerfisAtivos : IRequisicao<Resultado<IReadOnlyList<PerfilResumo>>>, IConsultaAuditavel
+{
+    public string TipoRecurso => "Perfil";
+    public AcaoDeAcesso Acao => AcaoDeAcesso.Listou;
+}
 
 public sealed class ListarPerfisAtivosManipulador(IContextoDeAcesso contexto, IPerfilRepositorio perfis)
     : IManipulador<ListarPerfisAtivos, Resultado<IReadOnlyList<PerfilResumo>>>

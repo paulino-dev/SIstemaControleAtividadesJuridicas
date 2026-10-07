@@ -1,3 +1,5 @@
+using AtividadesJuridicas.Domain.Auditoria;
+
 namespace AtividadesJuridicas.Application.Auditoria;
 
 public static class EventosDeSeguranca
@@ -14,6 +16,17 @@ public static class EventosDeSeguranca
     public const string AcessoNegado = "acesso_negado";
 }
 
+/// <summary>Marca uma requisição de consulta: o executor registra o acesso quando ela termina bem.</summary>
+public interface IConsultaAuditavel
+{
+    string TipoRecurso { get; }
+    AcaoDeAcesso Acao { get; }
+    Guid? RecursoId => null;
+
+    /// <summary>Filtros usados, quando houver.</summary>
+    string? Detalhe => null;
+}
+
 public interface IAuditoria
 {
     /// <summary>
@@ -28,4 +41,7 @@ public interface IAuditoria
     /// </summary>
     Task RegistrarAsync(string evento, string? entidade = null, Guid? entidadeId = null, object? dados = null,
         CancellationToken ct = default);
+
+    /// <summary>Grava imediatamente quem consultou o quê. Sem usuário identificado, não grava.</summary>
+    Task RegistrarAcessoAsync(IConsultaAuditavel consulta, CancellationToken ct = default);
 }

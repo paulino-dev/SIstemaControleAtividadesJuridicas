@@ -22,6 +22,59 @@ namespace AtividadesJuridicas.Infrastructure.Persistencia.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("AtividadesJuridicas.Domain.Auditoria.RegistroAcesso", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("Acao")
+                        .HasColumnType("integer")
+                        .HasColumnName("acao");
+
+                    b.Property<DateTime>("DataHora")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("data_hora");
+
+                    b.Property<string>("Detalhe")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("detalhe");
+
+                    b.Property<string>("Ip")
+                        .HasMaxLength(45)
+                        .HasColumnType("character varying(45)")
+                        .HasColumnName("ip");
+
+                    b.Property<Guid?>("RecursoId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("recurso_id");
+
+                    b.Property<string>("TipoRecurso")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("tipo_recurso");
+
+                    b.Property<Guid>("UsuarioId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("usuario_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_registros_acesso");
+
+                    b.HasIndex("DataHora")
+                        .HasDatabaseName("ix_registros_acesso_data_hora");
+
+                    b.HasIndex("UsuarioId")
+                        .HasDatabaseName("ix_registros_acesso_usuario_id");
+
+                    b.HasIndex("TipoRecurso", "RecursoId")
+                        .HasDatabaseName("ix_registros_acesso_tipo_recurso_recurso_id");
+
+                    b.ToTable("registros_acesso", (string)null);
+                });
+
             modelBuilder.Entity("AtividadesJuridicas.Domain.Auditoria.RegistroAuditoria", b =>
                 {
                     b.Property<Guid>("Id")

@@ -1,5 +1,6 @@
 using AtividadesJuridicas.Application.Auditoria;
 using AtividadesJuridicas.Application.Comum;
+using AtividadesJuridicas.Domain.Auditoria;
 
 namespace AtividadesJuridicas.UnitTests.Application;
 
@@ -105,5 +106,47 @@ public class ExecutorDeRequisicoesTests
         await executor.ExecutarAsync(new Invalida(), default);
 
         auditoria.Eventos.Should().BeEmpty();
+    }
+
+    private sealed record Listagem(bool Falhar) : IRequisicao<Resultado<int>>, IConsultaAuditavel
+    {
+        public string TipoRecurso => "Coisa";
+        public AcaoDeAcesso Acao => AcaoDeAcesso.Listou;
+        public string? Detalhe => "filtro=x";
+    }
+
+    private sealed class ListagemManipulador : IManipulador<Listagem, Resultado<int>>
+    {
+        public Task<Resultado<int>> ManipularAsync(Listagem requisicao, CancellationToken ct) => Task.FromResult(
+            requisicao.Falhar ? Resultado<int>.Falha(TipoErro.AcessoNegado, "Acesso negado.") : Resultado<int>.Ok(3));
+    }
+
+    [Fact]
+    public async Task Consulta_bem_sucedida_registra_o_acesso()
+    {
+        var auditoria = new AuditoriaFalsa();
+        var executor = new ExecutorDeRequisicoes(
+            new ProvedorFalso().Com<IManipulador<Listagem, Resultado<int>>>(new ListagemManipulador()), auditoria);
+
+        await executor.ExecutarAsync(new Listagem(Falhar: false), default);
+
+        var acesso = auditoria.Acessos.Should().ContainSingle().Subject;
+        acesso.TipoRecurso.Should().Be("Coisa");
+        acesso.Acao.Should().Be(AcaoDeAcesso.Listou);
+        acesso.Detalhe.Should().Be("filtro=x");
+        auditoria.Eventos.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Consulta_recusada_nao_registra_acesso_mas_registra_a_tentativa()
+    {
+        var auditoria = new AuditoriaFalsa();
+        var executor = new ExecutorDeRequisicoes(
+            new ProvedorFalso().Com<IManipulador<Listagem, Resultado<int>>>(new ListagemManipulador()), auditoria);
+
+        await executor.ExecutarAsync(new Listagem(Falhar: true), default);
+
+        auditoria.Acessos.Should().BeEmpty();
+        auditoria.Eventos.Should().ContainSingle().Which.Evento.Should().Be(EventosDeSeguranca.AcessoNegado);
     }
 }

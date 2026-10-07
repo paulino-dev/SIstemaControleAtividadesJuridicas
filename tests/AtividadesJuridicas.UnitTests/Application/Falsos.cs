@@ -122,6 +122,14 @@ public sealed class AuditoriaFalsa : IAuditoria
 {
     public List<EventoAnotado> Eventos { get; } = [];
 
+    public List<IConsultaAuditavel> Acessos { get; } = [];
+
+    public Task RegistrarAcessoAsync(IConsultaAuditavel consulta, CancellationToken ct = default)
+    {
+        Acessos.Add(consulta);
+        return Task.CompletedTask;
+    }
+
     public void Anotar(string evento, string? entidade = null, Guid? entidadeId = null, object? dados = null) =>
         Eventos.Add(new EventoAnotado(evento, entidade, entidadeId, dados, Imediato: false));
 

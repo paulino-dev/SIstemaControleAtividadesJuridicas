@@ -11,6 +11,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> opcoes) : DbCont
     public DbSet<Usuario> Usuarios => Set<Usuario>();
     public DbSet<Perfil> Perfis => Set<Perfil>();
     public DbSet<RegistroAuditoria> RegistrosAuditoria => Set<RegistroAuditoria>();
+    public DbSet<RegistroAcesso> RegistrosAcesso => Set<RegistroAcesso>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

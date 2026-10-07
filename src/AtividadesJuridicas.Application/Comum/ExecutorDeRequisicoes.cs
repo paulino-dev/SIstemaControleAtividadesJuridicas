@@ -27,6 +27,10 @@ public sealed class ExecutorDeRequisicoes(IServiceProvider servicos, IAuditoria 
                 await auditoria.RegistrarAsync(
                     EventosDeSeguranca.AcessoNegado, dados: new { requisicao = requisicao.GetType().Name }, ct: ct);
 
+            // Se o registro do acesso falhar, a exceção sobe e a consulta falha.
+            if (requisicao is IConsultaAuditavel consulta && resposta is not Resultado { Sucesso: false })
+                await auditoria.RegistrarAcessoAsync(consulta, ct);
+
             return resposta;
         }
         catch (TargetInvocationException ex) when (ex.InnerException is not null)

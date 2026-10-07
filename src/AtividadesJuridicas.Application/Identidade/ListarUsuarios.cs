@@ -1,8 +1,14 @@
+using AtividadesJuridicas.Application.Auditoria;
 using AtividadesJuridicas.Application.Comum;
+using AtividadesJuridicas.Domain.Auditoria;
 
 namespace AtividadesJuridicas.Application.Identidade;
 
-public sealed record ListarUsuarios : IRequisicao<Resultado<IReadOnlyList<UsuarioResumo>>>;
+public sealed record ListarUsuarios : IRequisicao<Resultado<IReadOnlyList<UsuarioResumo>>>, IConsultaAuditavel
+{
+    public string TipoRecurso => "Usuario";
+    public AcaoDeAcesso Acao => AcaoDeAcesso.Listou;
+}
 
 public sealed class ListarUsuariosManipulador(IContextoDeAcesso contexto, IUsuarioRepositorio usuarios)
     : IManipulador<ListarUsuarios, Resultado<IReadOnlyList<UsuarioResumo>>>
