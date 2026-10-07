@@ -159,7 +159,7 @@ Classe abstrata com duas derivadas, persistidas em uma tabela com discriminador.
 
 - `Cpf` e `Cnpj` validam dígitos verificadores.
 - O tipo do cliente (PF ou PJ) não muda depois de criado.
-- As áreas "Documentos Gerais" e "Contratos de Honorários" do cliente são consultas ao contexto Documentos filtradas por cliente e categoria; não são coleções do agregado `Cliente`.
+- As áreas "Documentos Gerais", "Contratos de Honorários" e "Documentos de Atividades" do cliente são consultas ao contexto Documentos filtradas por cliente e categoria; não são coleções do agregado `Cliente`.
 
 ### Processo
 
@@ -191,7 +191,7 @@ Regras:
 | `HashSha256` | Calculado no envio; imutável |
 | `ChaveArmazenamento` | Localização do arquivo no armazenamento; imutável |
 | `Categoria` | Enum: `DocumentoGeral`, `ContratoHonorarios`, `DocumentoAtividade`; imutável |
-| `ClienteId` | Obrigatório em `DocumentoGeral` e `ContratoHonorarios` |
+| `ClienteId` | Obrigatório em `DocumentoGeral` e `ContratoHonorarios`. Em `DocumentoAtividade` é sempre o cliente da atividade (nulo se ela for avulsa) |
 | `AtividadeId` | Obrigatório em `DocumentoAtividade` |
 
 Tabelas auxiliares, dentro do agregado:
@@ -220,11 +220,18 @@ Listagens exibem apenas documentos que o usuário pode acessar.
 |---|---|---|---|
 | `DocumentoGeral` | Todos os perfis ativos | Nenhuma | Diretoria |
 | `ContratoHonorarios` | Vazia | O domínio recusa incluir perfil de tipo `Producao` ou usuário de perfil `Producao`, sem exceção | Diretoria |
-| `DocumentoAtividade` | Usuários responsáveis da atividade | Nenhuma | Responsáveis da atividade enviam; Diretoria gerencia |
+| `DocumentoAtividade` | Usuários responsáveis da atividade | Nenhuma | Responsáveis, revisor e autor da atividade enviam; Diretoria gerencia |
 
 - Um perfil criado depois é incluído automaticamente na lista de acesso de todos os Documentos Gerais existentes.
 - Um usuário incluído como responsável de uma atividade recebe acesso aos documentos já anexados a ela. Removê-lo da atividade retira esse acesso.
-- As regras de `DocumentoAtividade` são uma definição inicial; o detalhamento dessa área será objeto de especificação própria.
+
+### Documentos de atividade
+
+- Anexam arquivos a uma atividade os seus responsáveis, o seu revisor e o seu autor. Revisor e autor são sempre de Diretoria, que já tem acesso total; a regra efetiva para Produção é ser responsável.
+- Todo documento de atividade fica vinculado também ao cliente da atividade: o `ClienteId` do documento é preenchido com o da atividade no envio. Em atividade avulsa ele fica nulo.
+- Se o cliente da atividade for alterado, o `ClienteId` dos documentos dela acompanha a alteração.
+- Na ficha do cliente esses documentos aparecem em uma terceira área, "Documentos de Atividades", ao lado de "Documentos Gerais" e "Contratos de Honorários", com a indicação da atividade de origem.
+- O vínculo com o cliente não amplia o acesso: a área lista apenas os documentos que o usuário pode acessar pela regra acima. Um usuário de Produção vê ali somente os documentos das atividades em que é responsável.
 
 ## 8. Atividades
 
