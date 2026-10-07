@@ -1,9 +1,30 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
+@inject IDespachante Despachante
 
-@Body
+<header class="topo">
+    <a class="marca" href="/">Atividades Jurídicas</a>
+    <nav>
+        <NavLink href="/" Match="NavLinkMatch.All">Início</NavLink>
+        @if (_ator is { EhDiretoria: true })
+        {
+            <NavLink href="/usuarios">Usuários</NavLink>
+        }
+        <NavLink href="/minha-senha">Minha senha</NavLink>
+    </nav>
+    <span class="quem">@_ator?.Nome</span>
+    <form method="post" action="/conta/sair">
+        <AntiforgeryToken />
+        <button type="submit">Sair</button>
+    </form>
+</header>
 
-<div id="blazor-error-ui" data-nosnippet>
-    An unhandled error has occurred.
-    <a href="." class="reload">Reload</a>
-    <span class="dismiss">🗙</span>
-</div>
+<main class="conteudo">
+    @Body
+</main>
+
+@code {
+    private UsuarioAutenticado? _ator;
+
+    protected override async Task OnInitializedAsync() =>
+        _ator = await Despachante.EnviarAsync(new ObterMeuAcesso());
+}

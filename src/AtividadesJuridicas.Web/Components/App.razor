@@ -1,5 +1,5 @@
 ﻿<!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR">
 
 <head>
     <meta charset="utf-8" />
@@ -9,13 +9,23 @@
     <link rel="stylesheet" href="@Assets["app.css"]" />
     <link rel="stylesheet" href="@Assets["AtividadesJuridicas.Web.styles.css"]" />
     <ImportMap />
-    <HeadOutlet @rendermode="InteractiveServer" />
+    <HeadOutlet @rendermode="ModoDaPagina" />
 </head>
 
 <body>
-    <Routes @rendermode="InteractiveServer" />
+    <Routes @rendermode="ModoDaPagina" />
     <ReconnectModal />
     <script src="@Assets["_framework/blazor.web.js"]"></script>
 </body>
 
 </html>
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    // As páginas de /conta são renderizadas no servidor sem circuito: só assim
+    // o HttpContext está disponível para gravar o cookie de autenticação.
+    private IComponentRenderMode? ModoDaPagina =>
+        HttpContext.Request.Path.StartsWithSegments("/conta") ? null : InteractiveServer;
+}

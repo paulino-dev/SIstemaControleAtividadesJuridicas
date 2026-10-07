@@ -1,0 +1,84 @@
+@page "/conta/entrar"
+@layout LayoutVazio
+@attribute [AllowAnonymous]
+@using System.ComponentModel.DataAnnotations
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authentication
+@using Microsoft.AspNetCore.Authentication.Cookies
+@inject IDespachante Despachante
+@inject NavigationManager Navegacao
+
+<PageTitle>Entrar</PageTitle>
+
+<h1>Atividades Jurídicas</h1>
+
+<EditForm Model="Entrada" FormName="entrar" OnValidSubmit="EntrarAsync" method="post" class="cartao">
+    <DataAnnotationsValidator />
+
+    @if (_erro is not null)
+    {
+        <p class="erro" role="alert">@_erro</p>
+    }
+
+    <label>
+        E-mail
+        <InputText @bind-Value="Entrada.Email" type="email" autocomplete="username" />
+        <ValidationMessage For="() => Entrada.Email" />
+    </label>
+
+    <label>
+        Senha
+        <InputText @bind-Value="Entrada.Senha" type="password" autocomplete="current-password" />
+        <ValidationMessage For="() => Entrada.Senha" />
+    </label>
+
+    <button type="submit">Entrar</button>
+</EditForm>
+
+@code {
+    private string? _erro;
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    // O inicializador é seguro aqui: o binder do formulário só sobrescreve a propriedade
+    // quando há um POST com os campos de "Entrada"; senão, o valor inicial permanece.
+#pragma warning disable BL0008
+    [SupplyParameterFromForm]
+    private Modelo Entrada { get; set; } = new();
+#pragma warning restore BL0008
+
+    [SupplyParameterFromQuery]
+    private string? ReturnUrl { get; set; }
+
+    private async Task EntrarAsync()
+    {
+        var resultado = await Despachante.EnviarAsync(new AutenticarUsuario(Entrada.Email, Entrada.Senha));
+        if (!resultado.Sucesso)
+        {
+            _erro = resultado.Mensagem;
+            return;
+        }
+
+        // O cookie guarda só a identidade. Perfil e estado ativo são lidos do banco a cada requisição.
+        var identidade = new ClaimsIdentity(
+        [
+            new Claim(ClaimTypes.NameIdentifier, resultado.Valor!.Id.ToString()),
+            new Claim(ClaimTypes.Name, resultado.Valor.Nome),
+        ], CookieAuthenticationDefaults.AuthenticationScheme);
+
+        await HttpContext.SignInAsync(
+            CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identidade));
+
+        Navegacao.NavigateTo(UrlLocal.Normalizar(ReturnUrl));
+    }
+
+    private sealed class Modelo
+    {
+        [Required(ErrorMessage = "Informe o e-mail.")]
+        public string Email { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Informe a senha.")]
+        public string Senha { get; set; } = string.Empty;
+    }
+}

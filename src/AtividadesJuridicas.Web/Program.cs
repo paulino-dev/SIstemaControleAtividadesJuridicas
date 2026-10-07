@@ -1,27 +1,82 @@
+using AtividadesJuridicas.Application;
+using AtividadesJuridicas.Application.Comum;
+using AtividadesJuridicas.Infrastructure;
+using AtividadesJuridicas.Infrastructure.Persistencia;
 using AtividadesJuridicas.Web.Components;
+using AtividadesJuridicas.Web.Infra;
+using Microsoft.AspNetCore.Antiforgery;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.WebEncoders;
+using System.Text.Encodings.Web;
+using System.Text.Unicode;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
+builder.Services.AddApplication();
+builder.Services.AddInfrastructure(sp =>
+    sp.GetRequiredService<IConfiguration>().GetConnectionString("Padrao")
+    ?? throw new InvalidOperationException("ConnectionStrings:Padrao não configurada."));
+
+// Sem isto o HTML sai com acentos como entidades numéricas (&#xE1;).
+builder.Services.Configure<WebEncoderOptions>(opcoes =>
+    opcoes.TextEncoderSettings = new TextEncoderSettings(UnicodeRanges.All));
+builder.Services.AddScoped<IDespachante, Despachante>();
+builder.Services.AddSingleton(new FusoDoEscritorio(
+    builder.Configuration["Escritorio:FusoHorario"] ?? "America/Sao_Paulo"));
+
+builder.Services.AddRazorComponents().AddInteractiveServerComponents();
+builder.Services.AddCascadingAuthenticationState();
+
+builder.Services
+    .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddCookie(opcoes =>
+    {
+        opcoes.Cookie.Name = "atividades.auth";
+        opcoes.LoginPath = "/conta/entrar";
+        opcoes.AccessDeniedPath = "/conta/entrar";
+        opcoes.ExpireTimeSpan = TimeSpan.FromHours(8);
+        opcoes.SlidingExpiration = true;
+        opcoes.Events.OnValidatePrincipal = ValidacaoDeSessao.ValidarAsync;
+    });
+
+// Toda rota exige usuário autenticado; o acesso anônimo é exceção declarada.
+builder.Services.AddAuthorizationBuilder()
+    .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
-if (!app.Environment.IsDevelopment())
+await using (var escopo = app.Services.CreateAsyncScope())
 {
-    app.UseExceptionHandler("/Error", createScopeForErrors: true);
-    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
-    app.UseHsts();
+    var secao = app.Configuration.GetSection("AdminInicial");
+    var admin = secao["Email"] is { Length: > 0 } email
+        ? new AdminInicialOpcoes(secao["Nome"] ?? "Administrador", email, secao["Senha"] ?? string.Empty)
+        : null;
+    await escopo.ServiceProvider.GetRequiredService<SemeadorInicial>().ExecutarAsync(admin);
 }
-app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
-app.UseHttpsRedirection();
 
+if (!app.Environment.IsDevelopment())
+    app.UseHsts();
+
+app.UseHttpsRedirection();
+app.UseAuthentication();
+app.UseAuthorization();
 app.UseAntiforgery();
 
-app.MapStaticAssets();
-app.MapRazorComponents<App>()
-    .AddInteractiveServerRenderMode();
+app.MapStaticAssets().AllowAnonymous();
+
+app.MapPost("/conta/sair", async (HttpContext contexto, IAntiforgery antiforgery) =>
+{
+    if (!await antiforgery.IsRequestValidAsync(contexto))
+        return Results.BadRequest();
+
+    await contexto.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+    return Results.LocalRedirect("/conta/entrar");
+}).DisableAntiforgery();
+
+app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 
 app.Run();
+
+public partial class Program;

@@ -1,7 +1,22 @@
-﻿@page "/"
+@page "/"
+@inject IDespachante Despachante
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Início</PageTitle>
 
-<h1>Hello, world!</h1>
+<h1>Início</h1>
 
-Welcome to your new app.
+@if (_ator is null)
+{
+    <p class="erro">Seu acesso foi encerrado. Entre novamente.</p>
+}
+else
+{
+    <p>Olá, <strong>@_ator.Nome</strong>. Seu perfil é de @(_ator.EhDiretoria ? "Diretoria" : "Produção").</p>
+}
+
+@code {
+    private UsuarioAutenticado? _ator;
+
+    protected override async Task OnInitializedAsync() =>
+        _ator = await Despachante.EnviarAsync(new ObterMeuAcesso());
+}
