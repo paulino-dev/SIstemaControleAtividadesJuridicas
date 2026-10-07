@@ -17,6 +17,9 @@ namespace AtividadesJuridicas.Infrastructure.Persistencia.Migrations
                 type: "uuid",
                 nullable: false,
                 defaultValue: new Guid("00000000-0000-0000-0000-000000000000"));
+
+            // Cada usuário existente recebe a própria versão; zeros nunca valem como sessão.
+            migrationBuilder.Sql("UPDATE usuarios SET versao_de_sessao = gen_random_uuid();");
         }
 
         /// <inheritdoc />

@@ -1,5 +1,7 @@
 using System.Net;
 using AtividadesJuridicas.Application.Identidade;
+using AtividadesJuridicas.Infrastructure.Persistencia;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace AtividadesJuridicas.IntegrationTests;
@@ -71,5 +73,20 @@ public class SessaoWebTests(BancoFixture banco) : IAsyncLifetime
         var resposta = await doAdmin.GetAsync("/usuarios");
 
         resposta.StatusCode.Should().Be(HttpStatusCode.Redirect);
+    }
+
+    [Fact]
+    public async Task Usuario_com_versao_armazenada_zerada_nao_aceita_o_cookie()
+    {
+        var pedroId = await _app.CriarPedroAsync();
+        var doPedro = await _app.ClienteAutenticadoAsync(AplicacaoDeTeste.EmailDoPedro, AplicacaoDeTeste.SenhaDoPedro);
+        (await doPedro.GetAsync("/")).StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // Simula uma linha anterior à migração.
+        await _app.EmEscopoAsync(null, async sp =>
+            await sp.GetRequiredService<AppDbContext>().Usuarios.Where(u => u.Id == pedroId)
+                .ExecuteUpdateAsync(c => c.SetProperty(u => u.VersaoDeSessao, Guid.Empty)));
+
+        (await doPedro.GetAsync("/")).StatusCode.Should().Be(HttpStatusCode.Redirect);
     }
 }

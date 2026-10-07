@@ -96,4 +96,13 @@ public class ContextoDeAcessoTests
     {
         (await CriarComVersao(_cenario.Diretor.Id, Guid.Empty).ObterAsync(default)).Should().BeNull();
     }
+
+    [Fact]
+    public async Task Usuario_com_versao_armazenada_vazia_nunca_aceita_sessao_vazia()
+    {
+        // Simula uma linha anterior à migração, cuja versão armazenada era só zeros.
+        typeof(Usuario).GetProperty(nameof(Usuario.VersaoDeSessao))!.SetValue(_cenario.Diretor, Guid.Empty);
+
+        (await CriarComVersao(_cenario.Diretor.Id, Guid.Empty).ObterAsync(default)).Should().BeNull();
+    }
 }

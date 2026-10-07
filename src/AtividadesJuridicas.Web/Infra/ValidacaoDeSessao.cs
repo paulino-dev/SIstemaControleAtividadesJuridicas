@@ -14,6 +14,7 @@ public static class ValidacaoDeSessao
         var principal = contexto.Principal;
         var valido =
             principal is not null &&
+            IdentidadeHttp.VersaoDeSessao(principal) != Guid.Empty &&
             IdentidadeHttp.UsuarioId(principal) is { } id &&
             await usuarios.ObterPorIdAsync(id, contexto.HttpContext.RequestAborted) is { Ativo: true } usuario &&
             usuario.VersaoDeSessao == IdentidadeHttp.VersaoDeSessao(principal);

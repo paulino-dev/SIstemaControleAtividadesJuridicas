@@ -10,7 +10,7 @@ public static class IdentidadeHttp
 
     public const string ClaimDaVersao = "atividades:sessao";
 
-    /// <summary>Cookie sem a claim devolve Guid.Empty, que nunca coincide com a versão de um usuário.</summary>
+    /// <summary>Cookie sem a claim (ou com ela malformada) devolve Guid.Empty, que é sempre recusado.</summary>
     public static Guid VersaoDeSessao(ClaimsPrincipal principal) =>
         Guid.TryParse(principal.FindFirstValue(ClaimDaVersao), out var versao) ? versao : Guid.Empty;
 

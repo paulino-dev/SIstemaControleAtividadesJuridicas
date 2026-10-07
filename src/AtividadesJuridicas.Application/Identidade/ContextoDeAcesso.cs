@@ -29,7 +29,9 @@ public sealed class ContextoDeAcesso(
         if (usuario is null || !usuario.Ativo) return null;
 
         // Sessão aberta antes de uma troca de senha ou de uma inativação.
-        if (identidade.VersaoDeSessao is { } versao && versao != usuario.VersaoDeSessao) return null;
+        // Versão vazia nunca vale, mesmo que seja a armazenada (linhas anteriores à migração).
+        if (identidade.VersaoDeSessao is { } versao &&
+            (versao == Guid.Empty || versao != usuario.VersaoDeSessao)) return null;
 
         var perfil = await perfis.ObterPorIdAsync(usuario.PerfilId, ct);
         if (perfil is null) return null;
