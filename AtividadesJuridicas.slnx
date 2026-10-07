@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AtividadesJuridicas.Application/AtividadesJuridicas.Application.csproj" />
+    <Project Path="src/AtividadesJuridicas.Domain/AtividadesJuridicas.Domain.csproj" />
+    <Project Path="src/AtividadesJuridicas.Infrastructure/AtividadesJuridicas.Infrastructure.csproj" />
+    <Project Path="src/AtividadesJuridicas.Web/AtividadesJuridicas.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AtividadesJuridicas.IntegrationTests/AtividadesJuridicas.IntegrationTests.csproj" />
+    <Project Path="tests/AtividadesJuridicas.UnitTests/AtividadesJuridicas.UnitTests.csproj" />
+  </Folder>
+</Solution>

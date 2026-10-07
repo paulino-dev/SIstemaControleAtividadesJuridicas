@@ -1,0 +1,13 @@
+services:
+  banco:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: atividades
+      POSTGRES_PASSWORD: atividades
+      POSTGRES_DB: atividades
+    ports:
+      - "5544:5432"
+    volumes:
+      - dados_banco:/var/lib/postgresql/data
+volumes:
+  dados_banco:
