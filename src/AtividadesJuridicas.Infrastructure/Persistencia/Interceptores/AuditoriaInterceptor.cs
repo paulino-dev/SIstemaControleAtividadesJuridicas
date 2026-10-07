@@ -8,6 +8,7 @@ using AtividadesJuridicas.Domain.Comum;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.EntityFrameworkCore.Metadata;
 
 namespace AtividadesJuridicas.Infrastructure.Persistencia.Interceptores;
 
@@ -85,9 +86,15 @@ public sealed class AuditoriaInterceptor(IIdentidadeAtual identidade, IRelogio r
         }
     }
 
-    private static bool Auditavel(PropertyEntry propriedade) =>
-        !ForaDosDados.Contains(propriedade.Metadata.Name) &&
-        propriedade.Metadata.PropertyInfo?.GetCustomAttribute<NaoAuditarAttribute>() is null;
+    /// <summary>Nomes das propriedades de <paramref name="tipo"/> que vão para os dados da auditoria.</summary>
+    public static IReadOnlyList<string> PropriedadesAuditadas(IEntityType tipo) =>
+        tipo.GetProperties().Where(Auditavel).Select(p => p.Name).ToList();
+
+    private static bool Auditavel(IProperty propriedade) =>
+        !ForaDosDados.Contains(propriedade.Name) &&
+        propriedade.PropertyInfo?.GetCustomAttribute<NaoAuditarAttribute>() is null;
+
+    private static bool Auditavel(PropertyEntry propriedade) => Auditavel(propriedade.Metadata);
 
     private static string Nome(PropertyEntry propriedade) => propriedade.Metadata.Name;
 

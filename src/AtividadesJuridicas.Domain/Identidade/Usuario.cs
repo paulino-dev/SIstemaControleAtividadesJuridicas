@@ -16,6 +16,7 @@ public sealed class Usuario : Entidade
     public Guid PerfilId { get; private set; }
     public string? NumeroOab { get; private set; }
     public bool Ativo { get; private set; }
+    [NaoAuditar]
     public DateTime? UltimoAcessoEm { get; private set; }
 
     public static Usuario Criar(string nome, Email email, string senhaHash, Perfil perfil, string? numeroOab = null)
