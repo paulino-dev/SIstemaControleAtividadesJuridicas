@@ -139,7 +139,7 @@ public sealed class Cenario
     }
 }
 
-public sealed record EventoAnotado(string Evento, string? Entidade, Guid? EntidadeId, object? Dados, bool Imediato);
+public sealed record EventoAnotado(string Evento, string? Entidade, Guid? EntidadeId, object? Dados, bool Imediato, Guid? Ator = null);
 
 public sealed class AuditoriaFalsa : IAuditoria
 {
@@ -157,9 +157,9 @@ public sealed class AuditoriaFalsa : IAuditoria
         Eventos.Add(new EventoAnotado(evento, entidade, entidadeId, dados, Imediato: false));
 
     public Task RegistrarAsync(string evento, string? entidade = null, Guid? entidadeId = null, object? dados = null,
-        CancellationToken ct = default)
+        Guid? ator = null, CancellationToken ct = default)
     {
-        Eventos.Add(new EventoAnotado(evento, entidade, entidadeId, dados, Imediato: true));
+        Eventos.Add(new EventoAnotado(evento, entidade, entidadeId, dados, Imediato: true, ator));
         return Task.CompletedTask;
     }
 }

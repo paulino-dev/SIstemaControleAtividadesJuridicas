@@ -159,4 +159,38 @@ public class AutenticarUsuarioTests
         _c.Auditoria.Eventos.Select(e => System.Text.Json.JsonSerializer.Serialize(e.Dados))
             .Should().NotContain(d => d.Contains("secreta"));
     }
+
+    [Fact]
+    public async Task Eventos_de_um_usuario_conhecido_tem_o_usuario_como_ator()
+    {
+        await Autenticar("diana@x.com", "senha-errada");
+        _c.Auditoria.Eventos.Last().Ator.Should().Be(_c.Diretor.Id);
+
+        await Autenticar("diana@x.com", "senha-segura");
+        _c.Auditoria.Eventos.Last().Should().BeEquivalentTo(new
+        {
+            Evento = EventosDeSeguranca.LoginSucesso, Ator = _c.Diretor.Id,
+        });
+    }
+
+    [Fact]
+    public async Task Evento_de_bloqueio_e_de_tentativa_recusada_tem_o_usuario_como_ator()
+    {
+        for (var i = 0; i < 5; i++) await Autenticar("diana@x.com", "senha-errada");
+        _c.Auditoria.Eventos.Last().Should().BeEquivalentTo(new
+        {
+            Evento = EventosDeSeguranca.LoginBloqueado, Ator = _c.Diretor.Id,
+        });
+
+        await Autenticar("diana@x.com", "senha-segura");
+        _c.Auditoria.Eventos.Last().Ator.Should().Be(_c.Diretor.Id);
+    }
+
+    [Fact]
+    public async Task Evento_de_email_desconhecido_nao_tem_ator()
+    {
+        await Autenticar("ninguem@x.com", "qualquer");
+
+        _c.Auditoria.Eventos.Last().Ator.Should().BeNull();
+    }
 }

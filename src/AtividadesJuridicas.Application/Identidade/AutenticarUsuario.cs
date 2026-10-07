@@ -46,7 +46,7 @@ public sealed class AutenticarUsuarioManipulador(
         if (tentativa == TentativaDeLogin.Recusada)
         {
             await auditoria.RegistrarAsync(EventosDeSeguranca.LoginFalha, "Usuario", usuario.Id,
-                new { motivo = "bloqueado" }, ct);
+                new { motivo = "bloqueado" }, ator: usuario.Id, ct: ct);
             return Bloqueado;
         }
 
@@ -55,19 +55,19 @@ public sealed class AutenticarUsuarioManipulador(
             var bloqueou = tentativa == TentativaDeLogin.AdmitidaEBloqueou;
             await auditoria.RegistrarAsync(
                 bloqueou ? EventosDeSeguranca.LoginBloqueado : EventosDeSeguranca.LoginFalha,
-                "Usuario", usuario.Id, ct: ct);
+                "Usuario", usuario.Id, ator: usuario.Id, ct: ct);
             return bloqueou ? Bloqueado : Invalido;
         }
 
         var perfil = await perfis.ObterPorIdAsync(usuario.PerfilId, ct);
         if (perfil is null)
         {
-            await auditoria.RegistrarAsync(EventosDeSeguranca.LoginFalha, "Usuario", usuario.Id, ct: ct);
+            await auditoria.RegistrarAsync(EventosDeSeguranca.LoginFalha, "Usuario", usuario.Id, ator: usuario.Id, ct: ct);
             return Invalido;
         }
 
         await usuarios.RegistrarLoginBemSucedidoAsync(usuario.Id, agora, ct);
-        await auditoria.RegistrarAsync(EventosDeSeguranca.LoginSucesso, "Usuario", usuario.Id, ct: ct);
+        await auditoria.RegistrarAsync(EventosDeSeguranca.LoginSucesso, "Usuario", usuario.Id, ator: usuario.Id, ct: ct);
 
         return Resultado<SessaoIniciada>.Ok(
             new SessaoIniciada(usuario.Id, usuario.Nome, perfil.Tipo, usuario.VersaoDeSessao));

@@ -20,11 +20,11 @@ public sealed class RegistradorDeAuditoria(
         db.Add(Criar(evento, entidade, entidadeId, dados));
 
     public async Task RegistrarAsync(string evento, string? entidade = null, Guid? entidadeId = null,
-        object? dados = null, CancellationToken ct = default)
+        object? dados = null, Guid? ator = null, CancellationToken ct = default)
     {
         // Contexto isolado: a gravação não arrasta nem descarta o que o escopo tiver pendente.
         await using var isolado = new AppDbContext(opcoes);
-        isolado.Add(Criar(evento, entidade, entidadeId, dados));
+        isolado.Add(Criar(evento, entidade, entidadeId, dados, ator));
         await isolado.SaveChangesAsync(ct);
     }
 
@@ -39,9 +39,9 @@ public sealed class RegistradorDeAuditoria(
         await isolado.SaveChangesAsync(ct);
     }
 
-    private RegistroAuditoria Criar(string evento, string? entidade, Guid? entidadeId, object? dados) =>
+    private RegistroAuditoria Criar(string evento, string? entidade, Guid? entidadeId, object? dados, Guid? ator = null) =>
         RegistroAuditoria.DeEvento(
-            relogio.AgoraUtc, identidade.UsuarioId, evento, entidade, entidadeId,
+            relogio.AgoraUtc, ator ?? identidade.UsuarioId, evento, entidade, entidadeId,
             dados is null ? null : JsonSerializer.Serialize(dados, Json),
             identidade.Ip, identidade.IdCorrelacao);
 }

@@ -152,4 +152,17 @@ public class ConsultaDeAuditoriaTests(BancoFixture banco) : TesteComBanco(banco)
 
         acessos.Valor!.Itens.Should().ContainSingle().Which.TipoRecurso.Should().Be("Usuario");
     }
+
+    [Fact]
+    public async Task Login_bem_sucedido_aparece_filtrado_pelo_usuario_com_o_nome_de_quem_entrou()
+    {
+        var adminId = await IdDoAdminAsync();
+        (await ExecutarAsync(null, new AutenticarUsuario(Admin.Email, Admin.Senha))).Sucesso.Should().BeTrue();
+
+        var pagina = await ConsultarAsync(adminId,
+            new FiltroDeAuditoria(UsuarioId: adminId));
+
+        pagina.Itens.Should().ContainSingle(r => r.Evento == EventosDeSeguranca.LoginSucesso)
+            .Which.UsuarioNome.Should().Be("Diana Diretora");
+    }
 }

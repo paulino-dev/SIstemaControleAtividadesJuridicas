@@ -38,9 +38,11 @@ public interface IAuditoria
     /// <summary>
     /// Grava o evento imediatamente, em conexão própria. Não grava nem descarta o que estiver
     /// pendente no escopo. Para fatos que não acompanham uma alteração (login, acesso negado).
+    /// Quando <paramref name="ator"/> é informado, ele é o autor do evento no lugar da identidade
+    /// atual (o login chega sem identidade, mas o evento é do usuário que tentou entrar).
     /// </summary>
     Task RegistrarAsync(string evento, string? entidade = null, Guid? entidadeId = null, object? dados = null,
-        CancellationToken ct = default);
+        Guid? ator = null, CancellationToken ct = default);
 
     /// <summary>Grava imediatamente quem consultou o quê. Sem usuário identificado, não grava.</summary>
     Task RegistrarAcessoAsync(IConsultaAuditavel consulta, CancellationToken ct = default);
