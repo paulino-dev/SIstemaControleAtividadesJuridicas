@@ -39,15 +39,32 @@ public sealed class UsuarioRepositorio(AppDbContext db) : IUsuarioRepositorio
 
     public void Adicionar(Usuario usuario) => db.Usuarios.Add(usuario);
 
-    public async Task GravarEstadoDeLoginAsync(Usuario usuario, CancellationToken ct)
+    public async Task<TentativaDeLogin> ReservarTentativaDeLoginAsync(
+        Guid usuarioId, DateTime agoraUtc, CancellationToken ct)
     {
-        await db.Usuarios.Where(u => u.Id == usuario.Id).ExecuteUpdateAsync(c => c
-            .SetProperty(u => u.UltimoAcessoEm, usuario.UltimoAcessoEm)
-            .SetProperty(u => u.FalhasDeLogin, usuario.FalhasDeLogin)
-            .SetProperty(u => u.BloqueadoAte, usuario.BloqueadoAte), ct);
+        var maximo = Usuario.MaximoDeFalhasDeLogin;
+        var bloqueadoAte = agoraUtc + Usuario.DuracaoDoBloqueio;
 
-        // Os valores já estão no banco: a entidade rastreada não pode ficar como alterada,
-        // ou uma gravação posterior no mesmo escopo a carimbaria e a auditaria.
-        db.Entry(usuario).State = EntityState.Unchanged;
+        // Um único UPDATE condicional: execuções simultâneas se serializam no PostgreSQL e cada uma
+        // reavalia a condição sobre a linha já atualizada. Colunas em snake_case, valores parametrizados.
+        // O filtro de exclusão lógica não se aplica a SQL cru, por isso excluido_em é testado aqui.
+        var linhas = await db.Database.SqlQuery<bool>($"""
+            UPDATE usuarios SET
+                falhas_de_login = CASE WHEN falhas_de_login + 1 >= {maximo} THEN 0 ELSE falhas_de_login + 1 END,
+                bloqueado_ate   = CASE WHEN falhas_de_login + 1 >= {maximo} THEN {bloqueadoAte} ELSE NULL END
+            WHERE id = {usuarioId}
+              AND excluido_em IS NULL
+              AND (bloqueado_ate IS NULL OR bloqueado_ate <= {agoraUtc})
+            RETURNING (bloqueado_ate IS NOT NULL) AS "Value"
+            """).ToListAsync(ct);
+
+        if (linhas.Count == 0) return TentativaDeLogin.Recusada;
+        return linhas[0] ? TentativaDeLogin.AdmitidaEBloqueou : TentativaDeLogin.Admitida;
     }
+
+    public async Task RegistrarLoginBemSucedidoAsync(Guid usuarioId, DateTime agoraUtc, CancellationToken ct) =>
+        await db.Usuarios.Where(u => u.Id == usuarioId).ExecuteUpdateAsync(c => c
+            .SetProperty(u => u.UltimoAcessoEm, (DateTime?)agoraUtc)
+            .SetProperty(u => u.FalhasDeLogin, 0)
+            .SetProperty(u => u.BloqueadoAte, (DateTime?)null), ct);
 }

@@ -46,11 +46,24 @@ public sealed class UsuarioRepositorioFalso(PerfilRepositorioFalso perfis) : IUs
 
     public void Adicionar(Usuario usuario) => Itens.Add(usuario);
 
-    public int GravacoesDeLogin { get; private set; }
+    public int Reservas { get; private set; }
 
-    public Task GravarEstadoDeLoginAsync(Usuario usuario, CancellationToken ct)
+    public int LoginsRegistrados { get; private set; }
+
+    public Task<TentativaDeLogin> ReservarTentativaDeLoginAsync(Guid usuarioId, DateTime agoraUtc, CancellationToken ct)
     {
-        GravacoesDeLogin++;
+        Reservas++;
+        var usuario = Itens.First(u => u.Id == usuarioId);
+        if (usuario.EstaBloqueado(agoraUtc)) return Task.FromResult(TentativaDeLogin.Recusada);
+        return Task.FromResult(usuario.RegistrarFalhaDeLogin(agoraUtc)
+            ? TentativaDeLogin.AdmitidaEBloqueou
+            : TentativaDeLogin.Admitida);
+    }
+
+    public Task RegistrarLoginBemSucedidoAsync(Guid usuarioId, DateTime agoraUtc, CancellationToken ct)
+    {
+        LoginsRegistrados++;
+        Itens.First(u => u.Id == usuarioId).RegistrarAcesso(agoraUtc);
         return Task.CompletedTask;
     }
 }

@@ -39,7 +39,11 @@ public sealed class AutenticarUsuarioManipulador(
 
         var agora = relogio.AgoraUtc;
 
-        if (usuario.EstaBloqueado(agora))
+        // A tentativa é contada de forma atômica ANTES de verificar a senha: o número de senhas
+        // verificadas por janela de bloqueio fica limitado, mesmo com requisições simultâneas.
+        var tentativa = await usuarios.ReservarTentativaDeLoginAsync(usuario.Id, agora, ct);
+
+        if (tentativa == TentativaDeLogin.Recusada)
         {
             await auditoria.RegistrarAsync(EventosDeSeguranca.LoginFalha, "Usuario", usuario.Id,
                 new { motivo = "bloqueado" }, ct);
@@ -48,8 +52,7 @@ public sealed class AutenticarUsuarioManipulador(
 
         if (!hasher.Verificar(senha, usuario.SenhaHash))
         {
-            var bloqueou = usuario.RegistrarFalhaDeLogin(agora);
-            await usuarios.GravarEstadoDeLoginAsync(usuario, ct);
+            var bloqueou = tentativa == TentativaDeLogin.AdmitidaEBloqueou;
             await auditoria.RegistrarAsync(
                 bloqueou ? EventosDeSeguranca.LoginBloqueado : EventosDeSeguranca.LoginFalha,
                 "Usuario", usuario.Id, ct: ct);
@@ -57,10 +60,13 @@ public sealed class AutenticarUsuarioManipulador(
         }
 
         var perfil = await perfis.ObterPorIdAsync(usuario.PerfilId, ct);
-        if (perfil is null) return Invalido;
+        if (perfil is null)
+        {
+            await auditoria.RegistrarAsync(EventosDeSeguranca.LoginFalha, "Usuario", usuario.Id, ct: ct);
+            return Invalido;
+        }
 
-        usuario.RegistrarAcesso(agora);
-        await usuarios.GravarEstadoDeLoginAsync(usuario, ct);
+        await usuarios.RegistrarLoginBemSucedidoAsync(usuario.Id, agora, ct);
         await auditoria.RegistrarAsync(EventosDeSeguranca.LoginSucesso, "Usuario", usuario.Id, ct: ct);
 
         return Resultado<SessaoIniciada>.Ok(

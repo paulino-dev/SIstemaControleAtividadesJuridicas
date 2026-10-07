@@ -27,7 +27,8 @@ public class AutenticarUsuarioTests
         resultado.Valor.Should().Be(new SessaoIniciada(
             _c.Diretor.Id, "Diana Diretora", TipoPerfil.Diretoria, _c.Diretor.VersaoDeSessao));
         _c.Diretor.UltimoAcessoEm.Should().Be(_c.Relogio.AgoraUtc);
-        _c.Usuarios.GravacoesDeLogin.Should().Be(1);
+        _c.Usuarios.Reservas.Should().Be(1);
+        _c.Usuarios.LoginsRegistrados.Should().Be(1);
         _c.Unidade.Salvamentos.Should().Be(0, "registrar o acesso não é alteração de negócio");
 
         var evento = _c.Auditoria.Eventos.Should().ContainSingle().Subject;
@@ -57,7 +58,7 @@ public class AutenticarUsuarioTests
         _c.Hasher.Verificacoes.Should().Be(1, "o tempo de resposta não deve distinguir e-mail inexistente");
         UltimoEvento().Should().Be(EventosDeSeguranca.LoginFalha);
         _c.Auditoria.Eventos.Last().EntidadeId.Should().BeNull();
-        _c.Usuarios.GravacoesDeLogin.Should().Be(0);
+        _c.Usuarios.Reservas.Should().Be(0);
     }
 
     [Fact]
@@ -78,7 +79,8 @@ public class AutenticarUsuarioTests
 
         resultado.Mensagem.Should().Be(Invalido);
         _c.Diretor.FalhasDeLogin.Should().Be(1);
-        _c.Usuarios.GravacoesDeLogin.Should().Be(1);
+        _c.Usuarios.Reservas.Should().Be(1);
+        _c.Usuarios.LoginsRegistrados.Should().Be(0);
         _c.Auditoria.Eventos.Last().Should().BeEquivalentTo(new
         {
             Evento = EventosDeSeguranca.LoginFalha, Entidade = "Usuario", EntidadeId = _c.Diretor.Id, Imediato = true,
@@ -132,6 +134,20 @@ public class AutenticarUsuarioTests
         _c.Diretor.FalhasDeLogin.Should().Be(0);
         for (var i = 0; i < 4; i++)
             (await Autenticar("diana@x.com", "senha-errada")).Mensagem.Should().Be(Invalido);
+    }
+
+    [Fact]
+    public async Task Senha_correta_com_perfil_ausente_recebe_a_mensagem_generica_e_registra_a_falha()
+    {
+        _c.Perfis.Itens.Clear();
+
+        var resultado = await Autenticar("diana@x.com", "senha-segura");
+
+        resultado.Mensagem.Should().Be(Invalido);
+        _c.Auditoria.Eventos.Last().Should().BeEquivalentTo(new
+        {
+            Evento = EventosDeSeguranca.LoginFalha, Entidade = "Usuario", EntidadeId = _c.Diretor.Id, Imediato = true,
+        });
     }
 
     [Fact]

@@ -15,6 +15,18 @@ public sealed record UsuarioResumo(
 
 public sealed record PerfilResumo(Guid Id, string Nome, TipoPerfil Tipo);
 
+public enum TentativaDeLogin
+{
+    /// <summary>A tentativa foi contada e pode verificar a senha.</summary>
+    Admitida,
+
+    /// <summary>A tentativa foi contada, pode verificar a senha, e foi ela que acionou o bloqueio.</summary>
+    AdmitidaEBloqueou,
+
+    /// <summary>O usuário já estava bloqueado: a senha não deve ser verificada.</summary>
+    Recusada,
+}
+
 public interface IUsuarioRepositorio
 {
     Task<Usuario?> ObterPorIdAsync(Guid id, CancellationToken ct);
@@ -28,10 +40,14 @@ public interface IUsuarioRepositorio
     void Adicionar(Usuario usuario);
 
     /// <summary>
-    /// Grava somente último acesso, falhas e bloqueio de login, fora da unidade de trabalho: não são
-    /// alteração de negócio e não devem mudar os carimbos nem gerar registro de alteração.
+    /// Conta uma tentativa de login de forma atômica, antes de a senha ser verificada, e aciona o
+    /// bloqueio quando ela é a de número <see cref="Usuario.MaximoDeFalhasDeLogin"/>. Fora da unidade
+    /// de trabalho: não muda carimbos nem gera registro de alteração.
     /// </summary>
-    Task GravarEstadoDeLoginAsync(Usuario usuario, CancellationToken ct);
+    Task<TentativaDeLogin> ReservarTentativaDeLoginAsync(Guid usuarioId, DateTime agoraUtc, CancellationToken ct);
+
+    /// <summary>Zera falhas e bloqueio e grava o último acesso. Fora da unidade de trabalho.</summary>
+    Task RegistrarLoginBemSucedidoAsync(Guid usuarioId, DateTime agoraUtc, CancellationToken ct);
 }
 
 public interface IPerfilRepositorio
