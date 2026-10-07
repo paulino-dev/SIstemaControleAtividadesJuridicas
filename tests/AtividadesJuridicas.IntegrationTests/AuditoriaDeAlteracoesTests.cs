@@ -155,4 +155,69 @@ public class AuditoriaDeAlteracoesTests(BancoFixture banco) : TesteComBanco(banc
         registro.UsuarioId.Should().BeNull();
         JsonDocument.Parse(registro.Dados!).RootElement.GetProperty("Tipo").GetString().Should().Be("Diretoria");
     }
+
+    [Fact]
+    public async Task Registro_de_auditoria_nao_pode_ser_excluido()
+    {
+        await IdDoAdminAsync();
+
+        var acao = () => EmEscopoAsync(null, async sp =>
+        {
+            var db = sp.GetRequiredService<AppDbContext>();
+            db.RegistrosAuditoria.Remove(await db.RegistrosAuditoria.FirstAsync());
+            return await db.SaveChangesAsync();
+        });
+
+        (await acao.Should().ThrowAsync<InvalidOperationException>()).Which.Message.Should().Contain("RegistroAuditoria");
+        (await AuditoriaAsync()).Should().NotBeEmpty();
+    }
+
+    [Fact]
+    public async Task Registro_de_auditoria_nao_pode_ser_alterado()
+    {
+        await IdDoAdminAsync();
+        var antes = (await AuditoriaAsync()).First();
+
+        var acao = () => EmEscopoAsync(null, async sp =>
+        {
+            var db = sp.GetRequiredService<AppDbContext>();
+            var linha = await db.RegistrosAuditoria.FirstAsync(r => r.Id == antes.Id);
+            db.Entry(linha).Property("Evento").CurrentValue = "x";
+            return await db.SaveChangesAsync();
+        });
+
+        (await acao.Should().ThrowAsync<InvalidOperationException>()).Which.Message.Should().Contain("RegistroAuditoria");
+        (await AuditoriaAsync()).First(r => r.Id == antes.Id).Evento.Should().Be(antes.Evento);
+    }
+
+    [Fact]
+    public async Task Registro_de_acesso_nao_pode_ser_excluido_nem_alterado()
+    {
+        var adminId = await IdDoAdminAsync();
+        await EmEscopoAsync(adminId, async sp =>
+        {
+            var db = sp.GetRequiredService<AppDbContext>();
+            db.Add(RegistroAcesso.Criar(DateTime.UtcNow, adminId, "Teste", null, AcaoDeAcesso.Listou, null, null));
+            return await db.SaveChangesAsync();
+        });
+
+        var excluir = () => EmEscopoAsync(null, async sp =>
+        {
+            var db = sp.GetRequiredService<AppDbContext>();
+            db.RegistrosAcesso.Remove(await db.RegistrosAcesso.FirstAsync());
+            return await db.SaveChangesAsync();
+        });
+        var alterar = () => EmEscopoAsync(null, async sp =>
+        {
+            var db = sp.GetRequiredService<AppDbContext>();
+            var linha = await db.RegistrosAcesso.FirstAsync();
+            db.Entry(linha).Property("TipoRecurso").CurrentValue = "x";
+            return await db.SaveChangesAsync();
+        });
+
+        (await excluir.Should().ThrowAsync<InvalidOperationException>()).Which.Message.Should().Contain("RegistroAcesso");
+        (await alterar.Should().ThrowAsync<InvalidOperationException>()).Which.Message.Should().Contain("RegistroAcesso");
+        (await EmEscopoAsync(null, sp => sp.GetRequiredService<AppDbContext>().RegistrosAcesso.CountAsync()))
+            .Should().Be(1);
+    }
 }

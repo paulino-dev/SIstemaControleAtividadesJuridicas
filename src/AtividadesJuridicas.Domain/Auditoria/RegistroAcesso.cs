@@ -10,6 +10,8 @@ public enum AcaoDeAcesso
 /// <summary>Uma consulta feita por um usuário. Somente inserção.</summary>
 public sealed class RegistroAcesso
 {
+    public const int TamanhoMaximoDetalhe = 2000;
+
     private RegistroAcesso() { }
 
     public Guid Id { get; private set; } = Guid.CreateVersion7();
@@ -33,7 +35,8 @@ public sealed class RegistroAcesso
         return new RegistroAcesso
         {
             DataHora = dataHoraUtc, UsuarioId = usuarioId, TipoRecurso = tipoRecurso, RecursoId = recursoId,
-            Acao = acao, Detalhe = detalhe, Ip = ip,
+            Acao = acao, Ip = ip,
+            Detalhe = detalhe is { Length: > TamanhoMaximoDetalhe } ? detalhe[..TamanhoMaximoDetalhe] : detalhe,
         };
     }
 }

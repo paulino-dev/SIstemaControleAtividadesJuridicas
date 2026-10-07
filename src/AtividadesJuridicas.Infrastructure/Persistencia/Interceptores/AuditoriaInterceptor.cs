@@ -47,6 +47,8 @@ public sealed class AuditoriaInterceptor(IIdentidadeAtual identidade, IRelogio r
     {
         if (db is null) return;
 
+        GarantirSomenteInsercao(db);
+
         var agora = relogio.AgoraUtc;
 
         foreach (var entrada in db.ChangeTracker.Entries<Entidade>().ToList())
@@ -57,6 +59,17 @@ public sealed class AuditoriaInterceptor(IIdentidadeAtual identidade, IRelogio r
                 agora, identidade.UsuarioId, operacao, entrada.Metadata.ClrType.Name, entrada.Entity.Id,
                 dados, identidade.Ip, identidade.IdCorrelacao));
         }
+    }
+
+    /// <summary>Os registros de auditoria e de acesso só podem ser inseridos, nunca alterados ou excluídos.</summary>
+    private static void GarantirSomenteInsercao(DbContext db)
+    {
+        var violacao = db.ChangeTracker.Entries()
+            .FirstOrDefault(e => e.Entity is RegistroAuditoria or RegistroAcesso &&
+                                 e.State is EntityState.Modified or EntityState.Deleted);
+        if (violacao is not null)
+            throw new InvalidOperationException(
+                $"{violacao.Metadata.ClrType.Name} é somente de inserção e não pode ser alterado nem excluído.");
     }
 
     private static (OperacaoAuditada Operacao, string Dados)? Descrever(EntityEntry<Entidade> entrada)

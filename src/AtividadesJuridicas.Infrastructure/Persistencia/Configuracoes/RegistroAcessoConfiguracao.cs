@@ -13,7 +13,7 @@ public sealed class RegistroAcessoConfiguracao : IEntityTypeConfiguration<Regist
         b.Property(r => r.Id).ValueGeneratedNever();
         b.Property(r => r.TipoRecurso).HasMaxLength(100).IsRequired();
         b.Property(r => r.Acao).HasConversion<int>();
-        b.Property(r => r.Detalhe).HasMaxLength(2000);
+        b.Property(r => r.Detalhe).HasMaxLength(RegistroAcesso.TamanhoMaximoDetalhe);
         b.Property(r => r.Ip).HasMaxLength(45);
 
         b.HasIndex(r => r.DataHora);
