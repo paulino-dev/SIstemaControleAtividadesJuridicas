@@ -5,7 +5,11 @@
 
 <h1>Início</h1>
 
-@if (_ator is null)
+@if (!_carregado)
+{
+    <p>Carregando…</p>
+}
+else if (_ator is null)
 {
     <p class="erro">Seu acesso foi encerrado. Entre novamente.</p>
 }
@@ -16,7 +20,11 @@ else
 
 @code {
     private UsuarioAutenticado? _ator;
+    private bool _carregado;
 
-    protected override async Task OnInitializedAsync() =>
+    protected override async Task OnInitializedAsync()
+    {
         _ator = await Despachante.EnviarAsync(new ObterMeuAcesso());
+        _carregado = true;
+    }
 }
