@@ -2,6 +2,7 @@ using AtividadesJuridicas.Application.Comum;
 using AtividadesJuridicas.Application.Identidade;
 using AtividadesJuridicas.Infrastructure.Comum;
 using AtividadesJuridicas.Infrastructure.Persistencia;
+using AtividadesJuridicas.Infrastructure.Persistencia.Interceptores;
 using AtividadesJuridicas.Infrastructure.Persistencia.Repositorios;
 using AtividadesJuridicas.Infrastructure.Seguranca;
 using Microsoft.EntityFrameworkCore;
@@ -14,9 +15,12 @@ public static class DependencyInjection
     public static IServiceCollection AddInfrastructure(
         this IServiceCollection servicos, Func<IServiceProvider, string> obterStringDeConexao)
     {
+        servicos.AddScoped<CarimbosInterceptor>();
+
         servicos.AddDbContext<AppDbContext>((sp, opcoes) => opcoes
             .UseNpgsql(obterStringDeConexao(sp))
-            .UseSnakeCaseNamingConvention());
+            .UseSnakeCaseNamingConvention()
+            .AddInterceptors(sp.GetRequiredService<CarimbosInterceptor>()));
 
         servicos.AddSingleton<IRelogio, RelogioDoSistema>();
         servicos.AddSingleton<IHasherDeSenha, HasherDeSenhaPbkdf2>();

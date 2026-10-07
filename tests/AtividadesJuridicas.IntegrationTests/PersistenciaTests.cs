@@ -244,4 +244,45 @@ public class PersistenciaTests(BancoFixture banco) : IAsyncLifetime
             Ativo = true,
         });
     }
+
+    [Fact]
+    public async Task Gravar_direto_pelo_contexto_tambem_carimba_e_exclui_logicamente()
+    {
+        var adminId = await IdDoAdminAsync();
+
+        var pedroId = await EmEscopoAsync(adminId, async sp =>
+        {
+            var db = sp.GetRequiredService<AppDbContext>();
+            var pedro = Usuario.Criar("Pedro", Email.Criar("pedro@x.com"), "hash", await db.Perfis.FirstAsync());
+            db.Usuarios.Add(pedro);
+            await db.SaveChangesAsync();
+            return pedro.Id;
+        });
+
+        await EmEscopoAsync(adminId, async sp =>
+        {
+            var db = sp.GetRequiredService<AppDbContext>();
+            db.Usuarios.Remove(await db.Usuarios.SingleAsync(u => u.Id == pedroId));
+            await db.SaveChangesAsync();
+            return 0;
+        });
+
+        var linha = await EmEscopoAsync(null, sp => sp.GetRequiredService<AppDbContext>()
+            .Usuarios.IgnoreQueryFilters().AsNoTracking().SingleAsync(u => u.Id == pedroId));
+
+        linha.CriadoPor.Should().Be(adminId);
+        linha.CriadoEm.Should().NotBe(default);
+        linha.ExcluidoEm.Should().NotBeNull("a linha não pode ser removida fisicamente");
+        linha.ExcluidoPor.Should().Be(adminId);
+    }
+
+    [Fact]
+    public async Task Semeador_carimba_a_criacao_como_sistema()
+    {
+        var usuario = await EmEscopoAsync(null, sp =>
+            sp.GetRequiredService<AppDbContext>().Usuarios.AsNoTracking().SingleAsync());
+
+        usuario.CriadoEm.Should().NotBe(default);
+        usuario.CriadoPor.Should().BeNull();
+    }
 }
