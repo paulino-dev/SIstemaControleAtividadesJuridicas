@@ -112,6 +112,8 @@ Semeado com dois perfis: "Diretor" (`Diretoria`) e "Produção" (`Producao`). Pe
 | `NumeroOab` | Opcional |
 | `Ativo` | Ver regras abaixo |
 | `UltimoAcessoEm` | Atualizado no login |
+| `VersaoDeSessao` | Identificador da geração de sessões do usuário; ver "Sessões" |
+| `FalhasDeLogin`, `BloqueadoAte` | Controle do bloqueio de login; ver "Bloqueio de login" |
 
 Regras:
 
@@ -128,6 +130,20 @@ Regras:
   2. a relação do usuário com o recurso (é responsável da atividade, está na lista de acesso do documento, participa do evento).
 - As regras são verificadas nos casos de uso da `Application`. A interface apenas oculta o que o usuário não pode fazer.
 - O perfil e o estado ativo do usuário são lidos do banco a cada operação, não de dados guardados no cookie, para que uma mudança de perfil ou inativação valha imediatamente.
+
+### Sessões
+
+- Cada usuário tem uma `VersaoDeSessao`. O cookie de autenticação carrega a versão vigente no momento do login.
+- A versão é renovada quando a senha do usuário é alterada ou redefinida e quando o usuário é inativado.
+- Uma sessão cuja versão difere da vigente é recusada na operação seguinte, tanto em requisições novas quanto em telas já abertas. Reativar um usuário não revive sessões antigas.
+- Quem altera a própria senha é levado de volta à tela de login.
+
+### Bloqueio de login
+
+- Após 5 tentativas seguidas com senha errada, o login do usuário fica bloqueado por 15 minutos. Durante o bloqueio nenhuma senha é aceita.
+- Um login bem-sucedido zera a contagem de falhas.
+- A redefinição de senha pela Diretoria remove o bloqueio.
+- Tentativas com e-mail inexistente ou de usuário inativo recebem a mesma mensagem de credenciais inválidas e não geram bloqueio.
 
 ### Matriz de acesso
 
@@ -366,8 +382,9 @@ Registra criação, alteração e exclusão de dados e eventos de segurança.
 | `Ip`, `IdCorrelacao` | Origem e identificador da requisição |
 
 - Gravado por um interceptor do EF Core, na mesma transação da alteração. Se a gravação do registro falhar, a operação inteira falha.
-- Eventos de segurança: login, falha de login, logout, troca e redefinição de senha, mudança de perfil, ativação e inativação de usuário, mudança na lista de acesso de documento, tentativa de acesso negada.
-- Hash de senha e tokens nunca entram em `Dados`.
+- Eventos de segurança: login, falha de login, bloqueio de login, logout, troca e redefinição de senha, mudança de perfil, ativação e inativação de usuário, mudança na lista de acesso de documento, tentativa de acesso negada.
+- Gravações que não são alteração de negócio (último acesso, contagem de falhas e bloqueio de login) não geram registro de alteração; os eventos de segurança correspondentes cobrem esses fatos.
+- `SenhaHash` e `VersaoDeSessao` nunca aparecem em `Dados`.
 
 ### RegistroAcesso
 
@@ -380,14 +397,15 @@ Registra consultas.
 | `Acao` | Enum: `Listou`, `Visualizou`, `Baixou` |
 | `Detalhe` | Filtros usados na listagem |
 
-- Gravado na `Application`, em cada caso de uso de consulta.
+- Gravado na `Application`, em cada caso de uso de consulta concluído com sucesso. Se o registro do acesso falhar, a consulta falha.
+- A consulta interna que a interface faz para saber quem é o usuário atual não gera registro.
 
 ### Regras comuns
 
 - As duas tabelas são somente-inserção: não há edição, exclusão nem exclusão lógica.
 - A consulta é exclusiva da Diretoria, com filtros por período, usuário, entidade ou recurso e operação.
 - Consultar a auditoria gera um `RegistroAcesso`.
-- Os registros são mantidos por tempo indeterminado. `RegistroAcesso` é particionada por mês para que o volume não degrade a consulta.
+- Os registros são mantidos por tempo indeterminado. As duas tabelas têm índice por data. O particionamento de `RegistroAcesso` por mês fica adiado até que o volume o justifique; a conversão é uma migration, sem impacto no domínio.
 - `AtividadeHistoricoStatus` não é substituído pela auditoria: ele é dado de negócio, exibido na tela da atividade.
 
 ## 11. Tratamento de erros
