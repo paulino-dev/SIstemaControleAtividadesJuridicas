@@ -93,6 +93,57 @@ public class UsuarioTests
         usuario.UltimoAcessoEm.Should().Be(agora);
     }
 
+    private static readonly DateTime Agora = new(2026, 10, 7, 12, 0, 0, DateTimeKind.Utc);
+
+    [Fact]
+    public void Quinta_falha_seguida_bloqueia_por_quinze_minutos()
+    {
+        var usuario = Novo();
+
+        for (var i = 1; i <= 4; i++)
+            usuario.RegistrarFalhaDeLogin(Agora).Should().BeFalse($"a falha {i} ainda não bloqueia");
+        usuario.EstaBloqueado(Agora).Should().BeFalse();
+
+        usuario.RegistrarFalhaDeLogin(Agora).Should().BeTrue();
+
+        usuario.EstaBloqueado(Agora).Should().BeTrue();
+        usuario.EstaBloqueado(Agora.AddMinutes(14).AddSeconds(59)).Should().BeTrue();
+        usuario.EstaBloqueado(Agora.AddMinutes(15)).Should().BeFalse();
+    }
+
+    [Fact]
+    public void Depois_do_bloqueio_a_contagem_recomeca()
+    {
+        var usuario = Novo();
+        for (var i = 0; i < 5; i++) usuario.RegistrarFalhaDeLogin(Agora);
+
+        usuario.RegistrarFalhaDeLogin(Agora.AddMinutes(16)).Should().BeFalse();
+    }
+
+    [Fact]
+    public void Acesso_bem_sucedido_zera_as_falhas()
+    {
+        var usuario = Novo();
+        for (var i = 0; i < 4; i++) usuario.RegistrarFalhaDeLogin(Agora);
+
+        usuario.RegistrarAcesso(Agora);
+
+        usuario.FalhasDeLogin.Should().Be(0);
+        for (var i = 0; i < 4; i++) usuario.RegistrarFalhaDeLogin(Agora).Should().BeFalse();
+    }
+
+    [Fact]
+    public void Desbloquear_remove_o_bloqueio_e_as_falhas()
+    {
+        var usuario = Novo();
+        for (var i = 0; i < 5; i++) usuario.RegistrarFalhaDeLogin(Agora);
+
+        usuario.Desbloquear();
+
+        usuario.EstaBloqueado(Agora).Should().BeFalse();
+        usuario.FalhasDeLogin.Should().Be(0);
+    }
+
     [Fact]
     public void Versao_de_sessao_nasce_preenchida_e_muda_ao_definir_senha_e_ao_inativar()
     {

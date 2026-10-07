@@ -39,7 +39,15 @@ public sealed class UsuarioRepositorio(AppDbContext db) : IUsuarioRepositorio
 
     public void Adicionar(Usuario usuario) => db.Usuarios.Add(usuario);
 
-    public Task RegistrarAcessoAsync(Guid usuarioId, DateTime agoraUtc, CancellationToken ct) =>
-        db.Usuarios.Where(u => u.Id == usuarioId)
-            .ExecuteUpdateAsync(c => c.SetProperty(u => u.UltimoAcessoEm, agoraUtc), ct);
+    public async Task GravarEstadoDeLoginAsync(Usuario usuario, CancellationToken ct)
+    {
+        await db.Usuarios.Where(u => u.Id == usuario.Id).ExecuteUpdateAsync(c => c
+            .SetProperty(u => u.UltimoAcessoEm, usuario.UltimoAcessoEm)
+            .SetProperty(u => u.FalhasDeLogin, usuario.FalhasDeLogin)
+            .SetProperty(u => u.BloqueadoAte, usuario.BloqueadoAte), ct);
+
+        // Os valores já estão no banco: a entidade rastreada não pode ficar como alterada,
+        // ou uma gravação posterior no mesmo escopo a carimbaria e a auditaria.
+        db.Entry(usuario).State = EntityState.Unchanged;
+    }
 }

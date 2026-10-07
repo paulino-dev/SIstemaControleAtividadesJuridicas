@@ -208,6 +208,10 @@ namespace AtividadesJuridicas.Infrastructure.Persistencia.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("atualizado_por");
 
+                    b.Property<DateTime?>("BloqueadoAte")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("bloqueado_ate");
+
                     b.Property<DateTime>("CriadoEm")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("criado_em");
@@ -229,6 +233,10 @@ namespace AtividadesJuridicas.Infrastructure.Persistencia.Migrations
                     b.Property<Guid?>("ExcluidoPor")
                         .HasColumnType("uuid")
                         .HasColumnName("excluido_por");
+
+                    b.Property<int>("FalhasDeLogin")
+                        .HasColumnType("integer")
+                        .HasColumnName("falhas_de_login");
 
                     b.Property<string>("Nome")
                         .IsRequired()

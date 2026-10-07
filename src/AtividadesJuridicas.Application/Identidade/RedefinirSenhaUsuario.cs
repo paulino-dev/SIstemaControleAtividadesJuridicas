@@ -25,6 +25,7 @@ public sealed class RedefinirSenhaUsuarioManipulador(
             return Resultado.Falha(TipoErro.NaoEncontrado, "Usuário não encontrado.");
 
         usuario.DefinirSenha(hasher.Gerar(requisicao.NovaSenha));
+        usuario.Desbloquear();
         auditoria.Anotar(EventosDeSeguranca.SenhaRedefinida, "Usuario", usuario.Id);
         await unidade.SalvarAsync(ct);
         return Resultado.Ok();

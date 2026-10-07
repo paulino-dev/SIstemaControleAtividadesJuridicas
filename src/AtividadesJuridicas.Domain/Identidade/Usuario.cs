@@ -6,6 +6,8 @@ public sealed class Usuario : Entidade
 {
     public const int TamanhoMaximoNome = 200;
     public const int TamanhoMaximoOab = 20;
+    public const int MaximoDeFalhasDeLogin = 5;
+    public static readonly TimeSpan DuracaoDoBloqueio = TimeSpan.FromMinutes(15);
 
     private Usuario() { }
 
@@ -18,6 +20,12 @@ public sealed class Usuario : Entidade
     public bool Ativo { get; private set; }
     [NaoAuditar]
     public DateTime? UltimoAcessoEm { get; private set; }
+
+    [NaoAuditar]
+    public int FalhasDeLogin { get; private set; }
+
+    [NaoAuditar]
+    public DateTime? BloqueadoAte { get; private set; }
 
     /// <summary>Geração das sessões do usuário. Uma sessão aberta com outra versão é recusada.</summary>
     [NaoAuditar]
@@ -73,7 +81,30 @@ public sealed class Usuario : Entidade
 
     public void Ativar() => Ativo = true;
 
-    public void RegistrarAcesso(DateTime agoraUtc) => UltimoAcessoEm = agoraUtc;
+    public bool EstaBloqueado(DateTime agoraUtc) => BloqueadoAte is { } ate && ate > agoraUtc;
+
+    /// <summary>Conta uma senha errada. Devolve verdadeiro quando esta falha causou o bloqueio.</summary>
+    public bool RegistrarFalhaDeLogin(DateTime agoraUtc)
+    {
+        FalhasDeLogin++;
+        if (FalhasDeLogin < MaximoDeFalhasDeLogin) return false;
+
+        FalhasDeLogin = 0;
+        BloqueadoAte = agoraUtc + DuracaoDoBloqueio;
+        return true;
+    }
+
+    public void RegistrarAcesso(DateTime agoraUtc)
+    {
+        UltimoAcessoEm = agoraUtc;
+        Desbloquear();
+    }
+
+    public void Desbloquear()
+    {
+        FalhasDeLogin = 0;
+        BloqueadoAte = null;
+    }
 
     private void RenovarSessao() => VersaoDeSessao = Guid.CreateVersion7();
 }

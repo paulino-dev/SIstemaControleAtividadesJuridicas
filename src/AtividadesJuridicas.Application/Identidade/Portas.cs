@@ -28,10 +28,10 @@ public interface IUsuarioRepositorio
     void Adicionar(Usuario usuario);
 
     /// <summary>
-    /// Grava somente a coluna de último acesso, fora da unidade de trabalho: registrar o acesso
-    /// não é uma atualização de negócio e não deve alterar os carimbos de atualização.
+    /// Grava somente último acesso, falhas e bloqueio de login, fora da unidade de trabalho: não são
+    /// alteração de negócio e não devem mudar os carimbos nem gerar registro de alteração.
     /// </summary>
-    Task RegistrarAcessoAsync(Guid usuarioId, DateTime agoraUtc, CancellationToken ct);
+    Task GravarEstadoDeLoginAsync(Usuario usuario, CancellationToken ct);
 }
 
 public interface IPerfilRepositorio
@@ -44,4 +44,7 @@ public interface IHasherDeSenha
 {
     string Gerar(string senha);
     bool Verificar(string senha, string hash);
+
+    /// <summary>Hash válido de uma senha que ninguém conhece, para gastar o mesmo tempo quando o usuário não existe.</summary>
+    string HashDeDescarte { get; }
 }

@@ -11,6 +11,13 @@ public sealed class HasherDeSenhaPbkdf2 : IHasherDeSenha
     private const int TamanhoSalt = 16;
     private const int TamanhoHash = 32;
 
+    private readonly Lazy<string> _descarte;
+
+    public HasherDeSenhaPbkdf2() =>
+        _descarte = new Lazy<string>(() => Gerar(Convert.ToBase64String(RandomNumberGenerator.GetBytes(32))));
+
+    public string HashDeDescarte => _descarte.Value;
+
     public string Gerar(string senha)
     {
         var salt = RandomNumberGenerator.GetBytes(TamanhoSalt);

@@ -46,9 +46,11 @@ public sealed class UsuarioRepositorioFalso(PerfilRepositorioFalso perfis) : IUs
 
     public void Adicionar(Usuario usuario) => Itens.Add(usuario);
 
-    public Task RegistrarAcessoAsync(Guid usuarioId, DateTime agoraUtc, CancellationToken ct)
+    public int GravacoesDeLogin { get; private set; }
+
+    public Task GravarEstadoDeLoginAsync(Usuario usuario, CancellationToken ct)
     {
-        Itens.First(u => u.Id == usuarioId).RegistrarAcesso(agoraUtc);
+        GravacoesDeLogin++;
         return Task.CompletedTask;
     }
 }
@@ -68,7 +70,15 @@ public sealed class HasherFalso : IHasherDeSenha
 {
     public string Gerar(string senha) => "hash:" + senha;
 
-    public bool Verificar(string senha, string hash) => hash == "hash:" + senha;
+    public int Verificacoes { get; private set; }
+
+    public string HashDeDescarte => "hash:descarte-que-ninguem-conhece";
+
+    public bool Verificar(string senha, string hash)
+    {
+        Verificacoes++;
+        return hash == "hash:" + senha;
+    }
 }
 
 public sealed class RelogioFixo : IRelogio

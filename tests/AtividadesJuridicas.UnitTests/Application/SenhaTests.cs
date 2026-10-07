@@ -84,4 +84,16 @@ public class SenhaTests
 
         resultado.Erro.Should().Be(TipoErro.AcessoNegado);
     }
+
+    [Fact]
+    public async Task Redefinir_a_senha_remove_o_bloqueio_de_login()
+    {
+        var alvo = _c.NovoUsuario("Pedro", "pedro@x.com", _c.PerfilProducao);
+        for (var i = 0; i < 5; i++) alvo.RegistrarFalhaDeLogin(_c.Relogio.AgoraUtc);
+
+        await new RedefinirSenhaUsuarioManipulador(_c.Como(_c.Diretor), _c.Usuarios, _c.Hasher, _c.Unidade, _c.Auditoria)
+            .ManipularAsync(new RedefinirSenhaUsuario(alvo.Id, "nova-senha-1"), default);
+
+        alvo.EstaBloqueado(_c.Relogio.AgoraUtc).Should().BeFalse();
+    }
 }
