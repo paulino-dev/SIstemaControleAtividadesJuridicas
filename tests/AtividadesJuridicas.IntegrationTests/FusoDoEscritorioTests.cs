@@ -27,6 +27,40 @@ public class FusoDoEscritorioTests
             .Should().Be(new DateTime(2026, 10, 7, 3, 0, 0, DateTimeKind.Utc));
     }
 
+    // Em Havana, 2026-03-08 00:00 não existe (relógio vai de 00:00 para 01:00) e 2026-11-01 00:00 se repete.
+    private readonly FusoDoEscritorio _havana = new("America/Havana");
+
+    [Fact]
+    public void Dia_cuja_meia_noite_nao_existe_comeca_na_primeira_hora_que_existe()
+    {
+        var inicio = () => _havana.InicioDoDiaEmUtc(new DateOnly(2026, 3, 8));
+
+        inicio.Should().NotThrow().Which.Should().Be(new DateTime(2026, 3, 8, 5, 0, 0, DateTimeKind.Utc));
+    }
+
+    [Fact]
+    public void Dia_comum_no_mesmo_fuso_comeca_a_meia_noite_local()
+    {
+        _havana.InicioDoDiaEmUtc(new DateOnly(2026, 3, 7))
+            .Should().Be(new DateTime(2026, 3, 7, 5, 0, 0, DateTimeKind.Utc));
+    }
+
+    [Fact]
+    public void Dia_com_lacuna_na_meia_noite_tem_vinte_e_tres_horas()
+    {
+        var dia = new DateOnly(2026, 3, 8);
+
+        (_havana.InicioDoDiaEmUtc(dia.AddDays(1)) - _havana.InicioDoDiaEmUtc(dia))
+            .Should().Be(TimeSpan.FromHours(23));
+    }
+
+    [Fact]
+    public void Meia_noite_repetida_usa_o_instante_mais_cedo()
+    {
+        _havana.InicioDoDiaEmUtc(new DateOnly(2026, 11, 1))
+            .Should().Be(new DateTime(2026, 11, 1, 4, 0, 0, DateTimeKind.Utc));
+    }
+
     [Fact]
     public void Data_ausente_vira_travessao()
     {

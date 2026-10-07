@@ -147,8 +147,12 @@ else
         _autorizado = await Despachante.EnviarAsync(new ObterMeuAcesso()) is { EhDiretoria: true };
         if (_autorizado)
         {
-            _usuarios = (await Despachante.EnviarAsync(new ListarUsuarios())).Valor ?? [];
-            await CarregarAsync();
+            var usuarios = await Despachante.EnviarAsync(new ListarUsuarios());
+            _usuarios = usuarios.Valor ?? [];
+            if (usuarios.Sucesso)
+                await CarregarAsync();
+            else
+                Concluir(usuarios);
         }
         _carregado = true;
     }
@@ -171,7 +175,8 @@ else
     {
         // Os dois limites são dias do escritório: "até" inclui o dia informado inteiro.
         DateTime? de = _filtro.De is { } d ? Fuso.InicioDoDiaEmUtc(d) : null;
-        DateTime? ate = _filtro.Ate is { } a ? Fuso.InicioDoDiaEmUtc(a.AddDays(1)) : null;
+        // Sem limite superior quando o dia não tem sucessor (DateOnly.MaxValue).
+        DateTime? ate = _filtro.Ate is { } a && a != DateOnly.MaxValue ? Fuso.InicioDoDiaEmUtc(a.AddDays(1)) : null;
 
         if (_aba == Aba.Alteracoes)
         {
