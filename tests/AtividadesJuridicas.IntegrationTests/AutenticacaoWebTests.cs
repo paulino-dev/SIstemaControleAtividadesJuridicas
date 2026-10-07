@@ -64,6 +64,29 @@ public partial class AutenticacaoWebTests(BancoFixture banco) : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Pagina_de_erro_e_anonima_generica_e_sem_detalhes_tecnicos()
+    {
+        var resposta = await _cliente.GetAsync("/erro");
+
+        resposta.StatusCode.Should().Be(HttpStatusCode.OK);
+        var html = WebUtility.HtmlDecode(await resposta.Content.ReadAsStringAsync());
+        html.Should().Contain("Ocorreu um erro inesperado.");
+        html.Should().NotContain("Exception").And.NotContain("StackTrace").And.NotContain("   at ");
+    }
+
+    [Fact]
+    public async Task Rota_inexistente_para_usuario_autenticado_mostra_pagina_nao_encontrada()
+    {
+        await EntrarAsync("diana@x.com", "senha-segura");
+
+        var resposta = await _cliente.GetAsync("/rota-que-nao-existe");
+
+        resposta.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        var html = WebUtility.HtmlDecode(await resposta.Content.ReadAsStringAsync());
+        html.Should().Contain("Página não encontrada").And.Contain("href=\"/\"");
+    }
+
+    [Fact]
     public async Task Pagina_de_login_e_seu_css_sao_publicos()
     {
         (await _cliente.GetAsync("/conta/entrar")).StatusCode.Should().Be(HttpStatusCode.OK);

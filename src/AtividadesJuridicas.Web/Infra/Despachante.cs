@@ -1,3 +1,5 @@
+using System.Reflection;
+using System.Runtime.ExceptionServices;
 using System.Security.Claims;
 using AtividadesJuridicas.Application.Comum;
 using AtividadesJuridicas.Application.Identidade;
@@ -10,7 +12,8 @@ namespace AtividadesJuridicas.Web.Infra;
 /// a sessão inteira do usuário; um DbContext com essa vida acumularia entidades rastreadas
 /// e falharia com operações concorrentes do mesmo componente.
 /// </summary>
-public sealed class Despachante(IServiceScopeFactory fabrica, AuthenticationStateProvider autenticacao) : IDespachante
+public sealed class Despachante(IServiceScopeFactory fabrica, AuthenticationStateProvider autenticacao,
+    ILogger<Despachante> log) : IDespachante
 {
     public async Task<TResposta> EnviarAsync<TResposta>(IRequisicao<TResposta> requisicao, CancellationToken ct = default)
     {
@@ -24,6 +27,19 @@ public sealed class Despachante(IServiceScopeFactory fabrica, AuthenticationStat
         var manipulador = escopo.ServiceProvider.GetRequiredService(contrato);
         var metodo = contrato.GetMethod("ManipularAsync")!;
 
-        return await (Task<TResposta>)metodo.Invoke(manipulador, [requisicao, ct])!;
+        try
+        {
+            return await (Task<TResposta>)metodo.Invoke(manipulador, [requisicao, ct])!;
+        }
+        catch (Exception ex)
+        {
+            // Invoke embrulha lançamentos síncronos; usa a exceção real, com a pilha original.
+            var real = ex is TargetInvocationException { InnerException: { } interna } ? interna : ex;
+
+            // Registra só o tipo da requisição: requisições carregam senhas.
+            log.LogError(real, "Falha inesperada ao tratar {TipoDaRequisicao}.", requisicao.GetType().Name);
+            ExceptionDispatchInfo.Capture(real).Throw();
+            throw;
+        }
     }
 }

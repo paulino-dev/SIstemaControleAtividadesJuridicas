@@ -60,9 +60,13 @@ await using (var escopo = app.Services.CreateAsyncScope())
 }
 
 if (!app.Environment.IsDevelopment())
+{
+    app.UseExceptionHandler("/erro", createScopeForErrors: true);
     app.UseHsts();
+}
 
 app.UseHttpsRedirection();
+app.UseStatusCodePagesWithReExecute("/nao-encontrada", createScopeForStatusCodePages: true);
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseAntiforgery();
