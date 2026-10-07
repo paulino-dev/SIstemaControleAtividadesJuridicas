@@ -13,7 +13,7 @@
 </head>
 
 <body>
-    <Routes @rendermode="ModoDaPagina" />
+    <Routes Ip="@HttpContext.Connection.RemoteIpAddress?.ToString()" @rendermode="ModoDaPagina" />
     <ReconnectModal />
 
     <div id="blazor-error-ui" data-nosnippet>

@@ -1,6 +1,16 @@
+@inject OrigemDaConexao Origem
+
 <Router AppAssembly="typeof(Program).Assembly" NotFoundPage="typeof(Pages.NaoEncontrada)">
     <Found Context="routeData">
         <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(MainLayout)" />
         <FocusOnNavigate RouteData="routeData" Selector="h1" />
     </Found>
 </Router>
+
+@code {
+    /// <summary>Capturado do HttpContext em App.razor; chega ao circuito protegido pelo framework.</summary>
+    [Parameter]
+    public string? Ip { get; set; }
+
+    protected override void OnInitialized() => Origem.Ip = Ip;
+}

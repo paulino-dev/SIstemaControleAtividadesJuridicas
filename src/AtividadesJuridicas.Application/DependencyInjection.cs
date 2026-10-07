@@ -11,6 +11,7 @@ public static class DependencyInjection
         servicos.AddScoped<IdentidadeAtual>();
         servicos.AddScoped<IIdentidadeAtual>(sp => sp.GetRequiredService<IdentidadeAtual>());
         servicos.AddScoped<IContextoDeAcesso, ContextoDeAcesso>();
+        servicos.AddScoped<ExecutorDeRequisicoes>();
 
         var tipos = typeof(DependencyInjection).Assembly.GetTypes()
             .Where(t => t is { IsClass: true, IsAbstract: false });

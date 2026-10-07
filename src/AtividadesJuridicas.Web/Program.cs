@@ -23,6 +23,7 @@ builder.Services.AddInfrastructure(sp =>
 builder.Services.Configure<WebEncoderOptions>(opcoes =>
     opcoes.TextEncoderSettings = new TextEncoderSettings(UnicodeRanges.All));
 builder.Services.AddScoped<IDespachante, Despachante>();
+builder.Services.AddScoped<OrigemDaConexao>();
 builder.Services.AddSingleton(new FusoDoEscritorio(
     builder.Configuration["Escritorio:FusoHorario"] ?? "America/Sao_Paulo"));
 
