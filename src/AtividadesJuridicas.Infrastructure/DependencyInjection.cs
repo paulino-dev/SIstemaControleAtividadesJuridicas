@@ -16,11 +16,14 @@ public static class DependencyInjection
         this IServiceCollection servicos, Func<IServiceProvider, string> obterStringDeConexao)
     {
         servicos.AddScoped<CarimbosInterceptor>();
+        servicos.AddScoped<AuditoriaInterceptor>();
 
         servicos.AddDbContext<AppDbContext>((sp, opcoes) => opcoes
             .UseNpgsql(obterStringDeConexao(sp))
             .UseSnakeCaseNamingConvention()
-            .AddInterceptors(sp.GetRequiredService<CarimbosInterceptor>()));
+            .AddInterceptors(
+                sp.GetRequiredService<CarimbosInterceptor>(),
+                sp.GetRequiredService<AuditoriaInterceptor>()));
 
         servicos.AddSingleton<IRelogio, RelogioDoSistema>();
         servicos.AddSingleton<IHasherDeSenha, HasherDeSenhaPbkdf2>();

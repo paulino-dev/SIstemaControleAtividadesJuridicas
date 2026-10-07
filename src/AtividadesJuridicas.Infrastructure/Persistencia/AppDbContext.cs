@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using AtividadesJuridicas.Domain.Auditoria;
 using AtividadesJuridicas.Domain.Comum;
 using AtividadesJuridicas.Domain.Identidade;
 using Microsoft.EntityFrameworkCore;
@@ -9,6 +10,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> opcoes) : DbCont
 {
     public DbSet<Usuario> Usuarios => Set<Usuario>();
     public DbSet<Perfil> Perfis => Set<Perfil>();
+    public DbSet<RegistroAuditoria> RegistrosAuditoria => Set<RegistroAuditoria>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

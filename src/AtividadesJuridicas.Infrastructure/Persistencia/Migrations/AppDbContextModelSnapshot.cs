@@ -22,6 +22,66 @@ namespace AtividadesJuridicas.Infrastructure.Persistencia.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("AtividadesJuridicas.Domain.Auditoria.RegistroAuditoria", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Dados")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("dados");
+
+                    b.Property<DateTime>("DataHora")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("data_hora");
+
+                    b.Property<string>("Entidade")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("entidade");
+
+                    b.Property<Guid?>("EntidadeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("entidade_id");
+
+                    b.Property<string>("Evento")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("evento");
+
+                    b.Property<Guid?>("IdCorrelacao")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id_correlacao");
+
+                    b.Property<string>("Ip")
+                        .HasMaxLength(45)
+                        .HasColumnType("character varying(45)")
+                        .HasColumnName("ip");
+
+                    b.Property<int>("Operacao")
+                        .HasColumnType("integer")
+                        .HasColumnName("operacao");
+
+                    b.Property<Guid?>("UsuarioId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("usuario_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_registros_auditoria");
+
+                    b.HasIndex("DataHora")
+                        .HasDatabaseName("ix_registros_auditoria_data_hora");
+
+                    b.HasIndex("UsuarioId")
+                        .HasDatabaseName("ix_registros_auditoria_usuario_id");
+
+                    b.HasIndex("Entidade", "EntidadeId")
+                        .HasDatabaseName("ix_registros_auditoria_entidade_entidade_id");
+
+                    b.ToTable("registros_auditoria", (string)null);
+                });
+
             modelBuilder.Entity("AtividadesJuridicas.Domain.Identidade.Perfil", b =>
                 {
                     b.Property<Guid>("Id")

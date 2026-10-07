@@ -11,6 +11,7 @@ public sealed class Usuario : Entidade
 
     public string Nome { get; private set; } = null!;
     public Email Email { get; private set; } = null!;
+    [NaoAuditar]
     public string SenhaHash { get; private set; } = null!;
     public Guid PerfilId { get; private set; }
     public string? NumeroOab { get; private set; }
