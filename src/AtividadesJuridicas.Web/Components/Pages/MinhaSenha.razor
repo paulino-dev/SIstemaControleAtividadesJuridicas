@@ -1,0 +1,63 @@
+@page "/minha-senha"
+@using System.ComponentModel.DataAnnotations
+@inject IDespachante Despachante
+
+<PageTitle>Minha senha</PageTitle>
+
+<h1>Minha senha</h1>
+
+@if (_mensagem is not null)
+{
+    <p class="@(_falhou ? "erro" : "ok")" role="status">@_mensagem</p>
+}
+
+<EditForm Model="_form" OnValidSubmit="SalvarAsync" FormName="minha-senha" class="formulario">
+    <DataAnnotationsValidator />
+
+    <label>
+        Senha atual
+        <InputText @bind-Value="_form.SenhaAtual" type="password" autocomplete="current-password" />
+        <ValidationMessage For="() => _form.SenhaAtual" />
+    </label>
+
+    <label>
+        Nova senha
+        <InputText @bind-Value="_form.NovaSenha" type="password" autocomplete="new-password" />
+        <ValidationMessage For="() => _form.NovaSenha" />
+    </label>
+
+    <label>
+        Confirme a nova senha
+        <InputText @bind-Value="_form.Confirmacao" type="password" autocomplete="new-password" />
+        <ValidationMessage For="() => _form.Confirmacao" />
+    </label>
+
+    <button type="submit">Alterar senha</button>
+</EditForm>
+
+@code {
+    private bool _falhou;
+    private string? _mensagem;
+    private Formulario _form = new();
+
+    private async Task SalvarAsync()
+    {
+        var resultado = await Despachante.EnviarAsync(new AlterarMinhaSenha(_form.SenhaAtual, _form.NovaSenha));
+
+        _falhou = !resultado.Sucesso;
+        _mensagem = resultado.Sucesso ? "Senha alterada." : resultado.Mensagem;
+        if (resultado.Sucesso) _form = new Formulario();
+    }
+
+    private sealed class Formulario
+    {
+        [Required(ErrorMessage = "Informe a senha atual.")]
+        public string SenhaAtual { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Informe a nova senha.")]
+        public string NovaSenha { get; set; } = string.Empty;
+
+        [Compare(nameof(NovaSenha), ErrorMessage = "A confirmação não confere com a nova senha.")]
+        public string Confirmacao { get; set; } = string.Empty;
+    }
+}

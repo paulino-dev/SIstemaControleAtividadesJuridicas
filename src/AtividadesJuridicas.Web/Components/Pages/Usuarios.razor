@@ -1,0 +1,193 @@
+@page "/usuarios"
+@using System.ComponentModel.DataAnnotations
+@inject IDespachante Despachante
+@inject FusoDoEscritorio Fuso
+
+<PageTitle>Usuários</PageTitle>
+
+<h1>Usuários</h1>
+
+@if (!_carregado)
+{
+    <p>Carregando…</p>
+}
+else if (!_autorizado)
+{
+    <p class="erro">Acesso negado.</p>
+}
+else
+{
+    @if (_mensagem is not null)
+    {
+        <p class="@(_falhou ? "erro" : "ok")" role="status">@_mensagem</p>
+    }
+
+    <table>
+        <thead>
+            <tr>
+                <th>Nome</th>
+                <th>E-mail</th>
+                <th>Perfil</th>
+                <th>OAB</th>
+                <th>Último acesso</th>
+                <th>Situação</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var usuario in _usuarios)
+            {
+                <tr class="@(usuario.Ativo ? null : "inativo")" @key="usuario.Id">
+                    <td>@usuario.Nome</td>
+                    <td>@usuario.Email</td>
+                    <td>@usuario.PerfilNome</td>
+                    <td>@usuario.NumeroOab</td>
+                    <td>@Fuso.Formatar(usuario.UltimoAcessoEm)</td>
+                    <td>@(usuario.Ativo ? "Ativo" : "Inativo")</td>
+                    <td class="acoes">
+                        <button type="button" class="secundario" @onclick="() => Editar(usuario)">Editar</button>
+                        <button type="button" class="secundario" @onclick="() => AlternarAtivoAsync(usuario)">
+                            @(usuario.Ativo ? "Inativar" : "Ativar")
+                        </button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <h2>@(_form.Id is null ? "Novo usuário" : "Editar usuário")</h2>
+
+    <EditForm Model="_form" OnValidSubmit="SalvarAsync" FormName="usuario" class="formulario">
+        <DataAnnotationsValidator />
+
+        <label>
+            Nome
+            <InputText @bind-Value="_form.Nome" />
+            <ValidationMessage For="() => _form.Nome" />
+        </label>
+
+        <label>
+            E-mail
+            <InputText @bind-Value="_form.Email" type="email" />
+            <ValidationMessage For="() => _form.Email" />
+        </label>
+
+        <label>
+            Perfil
+            <InputSelect @bind-Value="_form.PerfilId">
+                @foreach (var perfil in _perfis)
+                {
+                    <option value="@perfil.Id">@perfil.Nome</option>
+                }
+            </InputSelect>
+        </label>
+
+        <label>
+            Número da OAB (opcional)
+            <InputText @bind-Value="_form.NumeroOab" />
+        </label>
+
+        <label>
+            @(_form.Id is null ? "Senha" : "Nova senha (deixe em branco para manter)")
+            <InputText @bind-Value="_form.Senha" type="password" autocomplete="new-password" />
+        </label>
+
+        <div class="acoes">
+            <button type="submit">Salvar</button>
+            <button type="button" class="secundario" @onclick="Limpar">Cancelar</button>
+        </div>
+    </EditForm>
+}
+
+@code {
+    private bool _carregado;
+    private bool _autorizado;
+    private bool _falhou;
+    private string? _mensagem;
+    private IReadOnlyList<UsuarioResumo> _usuarios = [];
+    private IReadOnlyList<PerfilResumo> _perfis = [];
+    private Formulario _form = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _autorizado = await Despachante.EnviarAsync(new ObterMeuAcesso()) is { EhDiretoria: true };
+        if (_autorizado)
+        {
+            _perfis = (await Despachante.EnviarAsync(new ListarPerfisAtivos())).Valor ?? [];
+            await RecarregarAsync();
+            Limpar();
+        }
+        _carregado = true;
+    }
+
+    private async Task RecarregarAsync()
+    {
+        var resultado = await Despachante.EnviarAsync(new ListarUsuarios());
+        _autorizado = resultado.Sucesso;
+        _usuarios = resultado.Valor ?? [];
+    }
+
+    private void Limpar() =>
+        _form = new Formulario { PerfilId = _perfis.Count > 0 ? _perfis[0].Id : Guid.Empty };
+
+    private void Editar(UsuarioResumo usuario)
+    {
+        _mensagem = null;
+        _form = new Formulario
+        {
+            Id = usuario.Id,
+            Nome = usuario.Nome,
+            Email = usuario.Email,
+            PerfilId = usuario.PerfilId,
+            NumeroOab = usuario.NumeroOab,
+        };
+    }
+
+    private async Task SalvarAsync()
+    {
+        Resultado resultado;
+        if (_form.Id is { } id)
+        {
+            resultado = await Despachante.EnviarAsync(
+                new EditarUsuario(id, _form.Nome, _form.Email, _form.PerfilId, _form.NumeroOab));
+            if (resultado.Sucesso && !string.IsNullOrEmpty(_form.Senha))
+                resultado = await Despachante.EnviarAsync(new RedefinirSenhaUsuario(id, _form.Senha));
+        }
+        else
+        {
+            resultado = await Despachante.EnviarAsync(
+                new CriarUsuario(_form.Nome, _form.Email, _form.Senha ?? string.Empty, _form.PerfilId, _form.NumeroOab));
+        }
+
+        await ConcluirAsync(resultado, "Usuário salvo.");
+        if (resultado.Sucesso) Limpar();
+    }
+
+    private async Task AlternarAtivoAsync(UsuarioResumo usuario)
+    {
+        var resultado = await Despachante.EnviarAsync(new DefinirAtivoUsuario(usuario.Id, !usuario.Ativo));
+        await ConcluirAsync(resultado, usuario.Ativo ? "Usuário inativado." : "Usuário ativado.");
+    }
+
+    private async Task ConcluirAsync(Resultado resultado, string mensagemDeSucesso)
+    {
+        _falhou = !resultado.Sucesso;
+        _mensagem = resultado.Sucesso ? mensagemDeSucesso : resultado.Mensagem;
+        await RecarregarAsync();
+    }
+
+    private sealed class Formulario
+    {
+        public Guid? Id { get; set; }
+
+        [Required(ErrorMessage = "Informe o nome.")]
+        public string Nome { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Informe o e-mail.")]
+        public string Email { get; set; } = string.Empty;
+
+        public Guid PerfilId { get; set; }
+        public string? NumeroOab { get; set; }
+        public string? Senha { get; set; }
+    }
+}
