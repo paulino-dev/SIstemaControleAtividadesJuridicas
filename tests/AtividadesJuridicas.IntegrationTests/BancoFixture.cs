@@ -32,9 +32,12 @@ public sealed class BancoFixture : IAsyncLifetime
         .WithTmpfsMount("/var/lib/postgresql/data")
         // Permite achar e remover contêineres deixados por execuções interrompidas.
         .WithLabel(RotuloDoConteiner, "banco")
+        // Identifica a execução dona do contêiner, para a limpeza não remover o de outra em andamento.
+        .WithLabel(RotuloDoPid, Environment.ProcessId.ToString())
         .Build();
 
     private const string RotuloDoConteiner = "atividades-juridicas.testes";
+    private const string RotuloDoPid = RotuloDoConteiner + ".pid";
 
     public async Task InitializeAsync()
     {
@@ -58,14 +61,15 @@ public sealed class BancoFixture : IAsyncLifetime
         }
     }
 
-    // Sem o Ryuk, uma execução morta deixa o contêiner rodando; a próxima remove os que tiverem o rótulo.
+    // Sem o Ryuk, uma execução morta deixa o contêiner rodando; a próxima remove os que não têm dono vivo.
     private static async Task RemoverConteineresOrfaosAsync()
     {
         try
         {
-            var listar = await ExecutarDockerAsync("ps -aq --filter label=" + RotuloDoConteiner);
-            var ids = listar.Split([(char)13, (char)10], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            if (ids.Length > 0) await ExecutarDockerAsync("rm -f " + string.Join(' ', ids));
+            var formato = "{{.ID}} {{.Label \"" + RotuloDoPid + "\"}}";
+            var listar = await ExecutarDockerAsync("ps", "-a", "--filter", "label=" + RotuloDoConteiner, "--format", formato);
+            var orfaos = IdsOrfaos(listar, ProcessoVivo);
+            if (orfaos.Count > 0) await ExecutarDockerAsync(["rm", "-f", .. orfaos]);
         }
         catch (Exception)
         {
@@ -73,18 +77,54 @@ public sealed class BancoFixture : IAsyncLifetime
         }
     }
 
-    private static async Task<string> ExecutarDockerAsync(string argumentos)
+    /// <summary>
+    /// Recebe as linhas "&lt;id&gt; &lt;pid&gt;" do docker e devolve os ids cujo processo dono não está vivo.
+    /// Contêiner sem PID legível é tratado como órfão.
+    /// </summary>
+    public static IReadOnlyList<string> IdsOrfaos(string saidaDoDocker, Func<int, bool> processoVivo) =>
+        [.. saidaDoDocker
+            .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(linha => linha.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            .Where(partes => partes.Length > 0)
+            .Where(partes => partes.Length < 2 || !int.TryParse(partes[1], out var pid) || !processoVivo(pid))
+            .Select(partes => partes[0])];
+
+    private static bool ProcessoVivo(int pid)
     {
-        using var processo = Process.Start(new ProcessStartInfo("docker", argumentos)
+        try
+        {
+            using var processo = Process.GetProcessById(pid);
+            return !processo.HasExited;
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
+    }
+
+    private static async Task<string> ExecutarDockerAsync(params string[] argumentos)
+    {
+        var inicio = new ProcessStartInfo("docker")
         {
             RedirectStandardOutput = true,
-            RedirectStandardError = true,
             UseShellExecute = false,
             CreateNoWindow = true,
-        })!;
-        var saida = await processo.StandardOutput.ReadToEndAsync();
-        await processo.WaitForExitAsync();
-        return saida;
+        };
+        foreach (var argumento in argumentos) inicio.ArgumentList.Add(argumento);
+
+        using var processo = Process.Start(inicio)!;
+        using var limite = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        try
+        {
+            var saida = await processo.StandardOutput.ReadToEndAsync(limite.Token);
+            await processo.WaitForExitAsync(limite.Token);
+            return saida;
+        }
+        catch (OperationCanceledException)
+        {
+            processo.Kill(entireProcessTree: true);
+            throw;
+        }
     }
 
     /// <summary>Solta o pool de conexões e apaga o banco de um teste; falhas são ignoradas.</summary>
