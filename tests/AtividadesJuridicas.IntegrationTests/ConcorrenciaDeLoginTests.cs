@@ -96,4 +96,36 @@ public class ConcorrenciaDeLoginTests(BancoFixture banco) : TesteComBanco(banco)
         usuario.UltimoAcessoEm.Should().NotBeNull();
         usuario.AtualizadoEm.Should().BeNull();
     }
+
+    private async Task<Guid> BloquearEmAgoraAsync()
+    {
+        var id = await IdDoAdminAsync();
+        for (var i = 0; i < 5; i++) await ReservarAsync(id, Agora);
+        (await LerAsync(id)).BloqueadoAte.Should().Be(Agora + Usuario.DuracaoDoBloqueio);
+        return id;
+    }
+
+    [Fact]
+    public async Task Reserva_no_instante_do_fim_do_bloqueio_e_admitida_e_zera_o_bloqueio_contando_uma_falha()
+    {
+        var id = await BloquearEmAgoraAsync();
+
+        var tentativa = await ReservarAsync(id, Agora + Usuario.DuracaoDoBloqueio);
+
+        tentativa.Should().Be(TentativaDeLogin.Admitida);
+        var usuario = await LerAsync(id);
+        usuario.FalhasDeLogin.Should().Be(1);
+        usuario.BloqueadoAte.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Reserva_um_segundo_antes_do_fim_do_bloqueio_e_recusada()
+    {
+        var id = await BloquearEmAgoraAsync();
+
+        var tentativa = await ReservarAsync(id, Agora + Usuario.DuracaoDoBloqueio - TimeSpan.FromSeconds(1));
+
+        tentativa.Should().Be(TentativaDeLogin.Recusada);
+        (await LerAsync(id)).BloqueadoAte.Should().Be(Agora + Usuario.DuracaoDoBloqueio);
+    }
 }
