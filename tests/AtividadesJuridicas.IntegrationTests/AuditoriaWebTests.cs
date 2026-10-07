@@ -5,7 +5,7 @@ namespace AtividadesJuridicas.IntegrationTests;
 [Collection(ColecaoBanco.Nome)]
 public class AuditoriaWebTests(BancoFixture banco) : IAsyncLifetime
 {
-    private readonly AplicacaoDeTeste _app = new(banco.NovaConexao());
+    private readonly AplicacaoDeTeste _app = new(banco);
 
     public Task InitializeAsync() => Task.CompletedTask;
 

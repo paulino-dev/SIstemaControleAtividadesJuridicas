@@ -15,10 +15,12 @@ public class PersistenciaTests(BancoFixture banco) : IAsyncLifetime
     private static readonly AdminInicialOpcoes Admin = new("Diana Diretora", "diana@x.com", "senha-segura");
 
     private ServiceProvider _raiz = null!;
+    private string _conexao = null!;
 
     public async Task InitializeAsync()
     {
-        var conexao = banco.NovaConexao();
+        _conexao = banco.NovaConexao();
+        var conexao = _conexao;
         _raiz = new ServiceCollection()
             .AddApplication()
             .AddInfrastructure(_ => conexao)
@@ -28,7 +30,11 @@ public class PersistenciaTests(BancoFixture banco) : IAsyncLifetime
         await escopo.ServiceProvider.GetRequiredService<SemeadorInicial>().ExecutarAsync(Admin);
     }
 
-    public async Task DisposeAsync() => await _raiz.DisposeAsync();
+    public async Task DisposeAsync()
+    {
+        await _raiz.DisposeAsync();
+        await banco.RemoverAsync(_conexao);
+    }
 
     /// <summary>Executa em um escopo novo, como o despachante faz, agindo como <paramref name="usuarioId"/>.</summary>
     private async Task<T> EmEscopoAsync<T>(Guid? usuarioId, Func<IServiceProvider, Task<T>> acao)

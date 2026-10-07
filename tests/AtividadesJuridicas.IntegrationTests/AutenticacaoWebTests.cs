@@ -12,14 +12,16 @@ namespace AtividadesJuridicas.IntegrationTests;
 public partial class AutenticacaoWebTests(BancoFixture banco) : IAsyncLifetime
 {
     private WebApplicationFactory<Program> _fabrica = null!;
+    private string _conexao = null!;
     private HttpClient _cliente = null!;
 
     public Task InitializeAsync()
     {
+        _conexao = banco.NovaConexao();
         // Acrescentada por último, esta fonte vence o appsettings.Development.json.
         var configuracao = new Dictionary<string, string?>
         {
-            ["ConnectionStrings:Padrao"] = banco.NovaConexao(),
+            ["ConnectionStrings:Padrao"] = _conexao,
             ["AdminInicial:Nome"] = "Diana Diretora",
             ["AdminInicial:Email"] = "diana@x.com",
             ["AdminInicial:Senha"] = "senha-segura",
@@ -30,7 +32,11 @@ public partial class AutenticacaoWebTests(BancoFixture banco) : IAsyncLifetime
         return Task.CompletedTask;
     }
 
-    public async Task DisposeAsync() => await _fabrica.DisposeAsync();
+    public async Task DisposeAsync()
+    {
+        await _fabrica.DisposeAsync();
+        await banco.RemoverAsync(_conexao);
+    }
 
     [GeneratedRegex("name=\"__RequestVerificationToken\"[^>]*value=\"([^\"]+)\"")]
     private static partial Regex TokenRegex();

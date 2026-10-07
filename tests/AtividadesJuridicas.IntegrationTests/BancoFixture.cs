@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Docker.DotNet.Models;
 using DotNet.Testcontainers.Configurations;
 using Npgsql;
@@ -26,10 +27,18 @@ public sealed class BancoFixture : IAsyncLifetime
             {
                 [PortaDoBanco] = [new PortBinding { HostIP = "127.0.0.1", HostPort = string.Empty }],
             })
+        // O diretório de dados em memória evita que o CREATE DATABASE de cada teste espere o disco,
+        // que nesta máquina compartilhada chega a travar sob carga.
+        .WithTmpfsMount("/var/lib/postgresql/data")
+        // Permite achar e remover contêineres deixados por execuções interrompidas.
+        .WithLabel(RotuloDoConteiner, "banco")
         .Build();
+
+    private const string RotuloDoConteiner = "atividades-juridicas.testes";
 
     public async Task InitializeAsync()
     {
+        await RemoverConteineresOrfaosAsync();
         await _conteiner.StartAsync();
 
         // Só segue quando uma conexão real abre pelo host, que é o caminho que os testes usam.
@@ -46,6 +55,55 @@ public sealed class BancoFixture : IAsyncLifetime
             {
                 await Task.Delay(500);
             }
+        }
+    }
+
+    // Sem o Ryuk, uma execução morta deixa o contêiner rodando; a próxima remove os que tiverem o rótulo.
+    private static async Task RemoverConteineresOrfaosAsync()
+    {
+        try
+        {
+            var listar = await ExecutarDockerAsync("ps -aq --filter label=" + RotuloDoConteiner);
+            var ids = listar.Split([(char)13, (char)10], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (ids.Length > 0) await ExecutarDockerAsync("rm -f " + string.Join(' ', ids));
+        }
+        catch (Exception)
+        {
+            // A limpeza é só um cuidado: não pode derrubar os testes.
+        }
+    }
+
+    private static async Task<string> ExecutarDockerAsync(string argumentos)
+    {
+        using var processo = Process.Start(new ProcessStartInfo("docker", argumentos)
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        })!;
+        var saida = await processo.StandardOutput.ReadToEndAsync();
+        await processo.WaitForExitAsync();
+        return saida;
+    }
+
+    /// <summary>Solta o pool de conexões e apaga o banco de um teste; falhas são ignoradas.</summary>
+    public async Task RemoverAsync(string conexao)
+    {
+        try
+        {
+            var nome = new NpgsqlConnectionStringBuilder(conexao).Database!;
+            using (var alvo = new NpgsqlConnection(conexao)) NpgsqlConnection.ClearPool(alvo);
+
+            await using var admin = new NpgsqlConnection(_conteiner.GetConnectionString());
+            await admin.OpenAsync();
+            await using var comando = admin.CreateCommand();
+            comando.CommandText = $"DROP DATABASE IF EXISTS \"{nome}\" WITH (FORCE)";
+            await comando.ExecuteNonQueryAsync();
+        }
+        catch (Exception)
+        {
+            // Um banco que sobra não invalida o teste; some com o contêiner.
         }
     }
 

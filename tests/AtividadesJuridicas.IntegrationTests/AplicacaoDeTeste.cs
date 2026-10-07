@@ -15,13 +15,21 @@ using Microsoft.Extensions.DependencyInjection;
 namespace AtividadesJuridicas.IntegrationTests;
 
 /// <summary>A aplicação Web inteira contra um banco novo, com atalhos para os testes de página.</summary>
-public sealed partial class AplicacaoDeTeste(string conexao) : WebApplicationFactory<Program>
+public sealed partial class AplicacaoDeTeste(BancoFixture banco) : WebApplicationFactory<Program>
 {
+    private readonly string conexao = banco.NovaConexao();
+
     public const string EmailDoAdmin = "diana@x.com";
     public const string SenhaDoAdmin = "senha-segura";
     public const string EmailDoPedro = "pedro@x.com";
     public const string SenhaDoPedro = "senha-do-pedro";
     public const string IpDeTeste = "203.0.113.7";
+
+    public override async ValueTask DisposeAsync()
+    {
+        await base.DisposeAsync();
+        await banco.RemoverAsync(conexao);
+    }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {

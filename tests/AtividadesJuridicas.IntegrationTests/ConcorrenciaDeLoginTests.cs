@@ -4,27 +4,12 @@ using AtividadesJuridicas.Domain.Identidade;
 using AtividadesJuridicas.Infrastructure.Persistencia;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Npgsql;
 
 namespace AtividadesJuridicas.IntegrationTests;
 
 [Collection(ColecaoBanco.Nome)]
 public class ConcorrenciaDeLoginTests(BancoFixture banco) : TesteComBanco(banco)
 {
-    // Os testes simultâneos abrem dezenas de conexões de uma vez. Devolver ao servidor as conexões
-    // ociosas de outras classes (antes) e as próprias (depois) evita estourar o limite de clientes.
-    public override Task InitializeAsync()
-    {
-        NpgsqlConnection.ClearAllPools();
-        return base.InitializeAsync();
-    }
-
-    public override async Task DisposeAsync()
-    {
-        await base.DisposeAsync();
-        NpgsqlConnection.ClearAllPools();
-    }
-
     private static readonly DateTime Agora = new(2026, 10, 7, 12, 0, 0, DateTimeKind.Utc);
 
     private Task<TentativaDeLogin> ReservarAsync(Guid id, DateTime agora) => EmEscopoAsync(null, sp =>

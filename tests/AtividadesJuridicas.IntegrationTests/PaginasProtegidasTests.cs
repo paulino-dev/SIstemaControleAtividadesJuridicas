@@ -14,13 +14,15 @@ namespace AtividadesJuridicas.IntegrationTests;
 public partial class PaginasProtegidasTests(BancoFixture banco) : IAsyncLifetime
 {
     private WebApplicationFactory<Program> _fabrica = null!;
+    private string _conexao = null!;
 
     public async Task InitializeAsync()
     {
+        _conexao = banco.NovaConexao();
         // Acrescentada por último, esta fonte vence o appsettings.Development.json.
         var configuracao = new Dictionary<string, string?>
         {
-            ["ConnectionStrings:Padrao"] = banco.NovaConexao(),
+            ["ConnectionStrings:Padrao"] = _conexao,
             ["AdminInicial:Nome"] = "Diana Diretora",
             ["AdminInicial:Email"] = "diana@x.com",
             ["AdminInicial:Senha"] = "senha-segura",
@@ -40,7 +42,11 @@ public partial class PaginasProtegidasTests(BancoFixture banco) : IAsyncLifetime
         criado.Sucesso.Should().BeTrue(criado.Mensagem);
     }
 
-    public async Task DisposeAsync() => await _fabrica.DisposeAsync();
+    public async Task DisposeAsync()
+    {
+        await _fabrica.DisposeAsync();
+        await banco.RemoverAsync(_conexao);
+    }
 
     [GeneratedRegex("name=\"__RequestVerificationToken\"[^>]*value=\"([^\"]+)\"")]
     private static partial Regex TokenRegex();

@@ -16,10 +16,12 @@ public abstract class TesteComBanco(BancoFixture banco) : IAsyncLifetime
     protected static readonly AdminInicialOpcoes Admin = new("Diana Diretora", "diana@x.com", "senha-segura");
 
     private ServiceProvider _raiz = null!;
+    private string _conexao = null!;
 
     public virtual async Task InitializeAsync()
     {
-        var conexao = banco.NovaConexao();
+        _conexao = banco.NovaConexao();
+        var conexao = _conexao;
         _raiz = new ServiceCollection()
             .AddApplication()
             .AddInfrastructure(_ => conexao)
@@ -32,7 +34,11 @@ public abstract class TesteComBanco(BancoFixture banco) : IAsyncLifetime
         });
     }
 
-    public virtual async Task DisposeAsync() => await _raiz.DisposeAsync();
+    public virtual async Task DisposeAsync()
+    {
+        await _raiz.DisposeAsync();
+        await banco.RemoverAsync(_conexao);
+    }
 
     /// <summary>Roda em um escopo novo, como o despachante faz, agindo como <paramref name="usuarioId"/>.</summary>
     protected async Task<T> EmEscopoAsync<T>(Guid? usuarioId, Func<IServiceProvider, Task<T>> acao)
