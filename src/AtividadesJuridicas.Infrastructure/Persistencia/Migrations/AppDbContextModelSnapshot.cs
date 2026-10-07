@@ -255,6 +255,10 @@ namespace AtividadesJuridicas.Infrastructure.Persistencia.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("ultimo_acesso_em");
 
+                    b.Property<Guid>("VersaoDeSessao")
+                        .HasColumnType("uuid")
+                        .HasColumnName("versao_de_sessao");
+
                     b.HasKey("Id")
                         .HasName("pk_usuarios");
 

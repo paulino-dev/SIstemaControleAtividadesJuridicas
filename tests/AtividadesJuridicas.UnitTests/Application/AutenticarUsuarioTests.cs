@@ -8,7 +8,7 @@ public class AutenticarUsuarioTests
 {
     private readonly Cenario _c = new();
 
-    private Task<Resultado<UsuarioAutenticado>> Autenticar(string email, string senha) =>
+    private Task<Resultado<SessaoIniciada>> Autenticar(string email, string senha) =>
         new AutenticarUsuarioManipulador(_c.Usuarios, _c.Perfis, _c.Hasher, _c.Relogio)
             .ManipularAsync(new AutenticarUsuario(email, senha), default);
 
@@ -18,7 +18,8 @@ public class AutenticarUsuarioTests
         var resultado = await Autenticar("diana@x.com", "senha-segura");
 
         resultado.Sucesso.Should().BeTrue();
-        resultado.Valor.Should().Be(new UsuarioAutenticado(_c.Diretor.Id, "Diana Diretora", TipoPerfil.Diretoria));
+        resultado.Valor.Should().Be(new SessaoIniciada(
+            _c.Diretor.Id, "Diana Diretora", TipoPerfil.Diretoria, _c.Diretor.VersaoDeSessao));
         _c.Diretor.UltimoAcessoEm.Should().Be(_c.Relogio.AgoraUtc);
         _c.Unidade.Salvamentos.Should().Be(0);
     }

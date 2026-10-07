@@ -53,4 +53,47 @@ public class ContextoDeAcessoTests
 
         (await contexto.ObterAsync(default))!.EhDiretoria.Should().BeFalse();
     }
+
+    private ContextoDeAcesso CriarComVersao(Guid usuarioId, Guid? versao)
+    {
+        var identidade = new IdentidadeAtual();
+        identidade.Definir(usuarioId, null, versao);
+        return new ContextoDeAcesso(identidade, _cenario.Usuarios, _cenario.Perfis);
+    }
+
+    [Fact]
+    public async Task Sessao_com_a_versao_vigente_e_aceita()
+    {
+        var contexto = CriarComVersao(_cenario.Diretor.Id, _cenario.Diretor.VersaoDeSessao);
+
+        (await contexto.ObterAsync(default)).Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task Sessao_anterior_a_troca_de_senha_e_recusada_na_consulta_seguinte()
+    {
+        var contexto = CriarComVersao(_cenario.Diretor.Id, _cenario.Diretor.VersaoDeSessao);
+        (await contexto.ObterAsync(default)).Should().NotBeNull();
+
+        _cenario.Diretor.DefinirSenha("novo-hash");
+
+        (await contexto.ObterAsync(default)).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Sessao_antiga_nao_revive_ao_reativar_o_usuario()
+    {
+        var contexto = CriarComVersao(_cenario.Diretor.Id, _cenario.Diretor.VersaoDeSessao);
+
+        _cenario.Diretor.Inativar();
+        _cenario.Diretor.Ativar();
+
+        (await contexto.ObterAsync(default)).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Versao_vazia_nunca_e_aceita()
+    {
+        (await CriarComVersao(_cenario.Diretor.Id, Guid.Empty).ObterAsync(default)).Should().BeNull();
+    }
 }

@@ -18,7 +18,6 @@ public sealed class BancoFixture : IAsyncLifetime
         new NpgsqlConnectionStringBuilder(_conteiner.GetConnectionString())
         {
             Database = "t_" + Guid.NewGuid().ToString("N"),
-            Pooling = false, // um pool por banco de teste esgotaria as conexões do contêiner
         }.ConnectionString;
 }
 

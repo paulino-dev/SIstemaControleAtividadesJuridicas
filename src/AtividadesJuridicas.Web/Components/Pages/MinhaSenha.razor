@@ -1,6 +1,7 @@
 @page "/minha-senha"
 @using System.ComponentModel.DataAnnotations
 @inject IDespachante Despachante
+@inject NavigationManager Navegacao
 
 <PageTitle>Minha senha</PageTitle>
 
@@ -44,9 +45,15 @@
     {
         var resultado = await Despachante.EnviarAsync(new AlterarMinhaSenha(_form.SenhaAtual, _form.NovaSenha));
 
-        _falhou = !resultado.Sucesso;
-        _mensagem = resultado.Sucesso ? "Senha alterada." : resultado.Mensagem;
-        if (resultado.Sucesso) _form = new Formulario();
+        if (resultado.Sucesso)
+        {
+            // A troca renovou as sessões do usuário, inclusive esta: volta ao login.
+            Navegacao.NavigateTo("/conta/entrar?aviso=senha-alterada", forceLoad: true);
+            return;
+        }
+
+        _falhou = true;
+        _mensagem = resultado.Mensagem;
     }
 
     private sealed class Formulario

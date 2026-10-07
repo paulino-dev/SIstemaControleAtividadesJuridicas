@@ -92,4 +92,33 @@ public class UsuarioTests
 
         usuario.UltimoAcessoEm.Should().Be(agora);
     }
+
+    [Fact]
+    public void Versao_de_sessao_nasce_preenchida_e_muda_ao_definir_senha_e_ao_inativar()
+    {
+        var usuario = Novo();
+        var inicial = usuario.VersaoDeSessao;
+        inicial.Should().NotBe(Guid.Empty);
+
+        usuario.DefinirSenha("outro-hash");
+        var aposSenha = usuario.VersaoDeSessao;
+        aposSenha.Should().NotBe(inicial);
+
+        usuario.Inativar();
+        usuario.VersaoDeSessao.Should().NotBe(aposSenha);
+    }
+
+    [Fact]
+    public void Versao_de_sessao_nao_muda_ao_editar_dados_trocar_perfil_ou_reativar()
+    {
+        var usuario = Novo();
+        usuario.Inativar();
+        var versao = usuario.VersaoDeSessao;
+
+        usuario.Ativar();
+        usuario.AlterarDados("Outro Nome", Email.Criar("outro@x.com"), null);
+        usuario.AlterarPerfil(Perfil.Criar("Produção", TipoPerfil.Producao));
+
+        usuario.VersaoDeSessao.Should().Be(versao, "reativar não revive nem renova sessões");
+    }
 }

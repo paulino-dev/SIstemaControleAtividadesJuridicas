@@ -3,20 +3,22 @@ using AtividadesJuridicas.Domain.Identidade;
 
 namespace AtividadesJuridicas.Application.Identidade;
 
-public sealed record AutenticarUsuario(string Email, string Senha) : IRequisicao<Resultado<UsuarioAutenticado>>;
+public sealed record SessaoIniciada(Guid UsuarioId, string Nome, TipoPerfil TipoPerfil, Guid VersaoDeSessao);
+
+public sealed record AutenticarUsuario(string Email, string Senha) : IRequisicao<Resultado<SessaoIniciada>>;
 
 public sealed class AutenticarUsuarioManipulador(
     IUsuarioRepositorio usuarios,
     IPerfilRepositorio perfis,
     IHasherDeSenha hasher,
-    IRelogio relogio) : IManipulador<AutenticarUsuario, Resultado<UsuarioAutenticado>>
+    IRelogio relogio) : IManipulador<AutenticarUsuario, Resultado<SessaoIniciada>>
 {
     // Mensagem uniforme para todas as falhas de credencial (e-mail inexistente, usuário inativo,
     // senha errada). Isto não impede inferência pelo tempo de resposta.
-    private static readonly Resultado<UsuarioAutenticado> Invalido =
-        Resultado<UsuarioAutenticado>.Falha(TipoErro.AcessoNegado, "E-mail ou senha inválidos.");
+    private static readonly Resultado<SessaoIniciada> Invalido =
+        Resultado<SessaoIniciada>.Falha(TipoErro.AcessoNegado, "E-mail ou senha inválidos.");
 
-    public async Task<Resultado<UsuarioAutenticado>> ManipularAsync(AutenticarUsuario requisicao, CancellationToken ct)
+    public async Task<Resultado<SessaoIniciada>> ManipularAsync(AutenticarUsuario requisicao, CancellationToken ct)
     {
         if (!Email.TentarCriar(requisicao.Email, out var email)) return Invalido;
 
@@ -29,6 +31,7 @@ public sealed class AutenticarUsuarioManipulador(
 
         await usuarios.RegistrarAcessoAsync(usuario.Id, relogio.AgoraUtc, ct);
 
-        return Resultado<UsuarioAutenticado>.Ok(new UsuarioAutenticado(usuario.Id, usuario.Nome, perfil.Tipo));
+        return Resultado<SessaoIniciada>.Ok(
+            new SessaoIniciada(usuario.Id, usuario.Nome, perfil.Tipo, usuario.VersaoDeSessao));
     }
 }

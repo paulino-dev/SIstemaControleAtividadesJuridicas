@@ -95,7 +95,7 @@ public class PersistenciaTests(BancoFixture banco) : IAsyncLifetime
         salvo.Email.Valor.Should().Be("pedro@x.com");
 
         var login = await EmEscopoAsync(null, sp =>
-            sp.GetRequiredService<IManipulador<AutenticarUsuario, Resultado<UsuarioAutenticado>>>().ManipularAsync(
+            sp.GetRequiredService<IManipulador<AutenticarUsuario, Resultado<SessaoIniciada>>>().ManipularAsync(
                 new AutenticarUsuario("pedro@x.com", "senha-do-pedro"), default));
         login.Sucesso.Should().BeTrue();
         login.Valor!.TipoPerfil.Should().Be(TipoPerfil.Producao);
@@ -137,7 +137,7 @@ public class PersistenciaTests(BancoFixture banco) : IAsyncLifetime
         antes.AtualizadoPor.Should().Be(adminId);
 
         var login = await EmEscopoAsync(null, sp =>
-            sp.GetRequiredService<IManipulador<AutenticarUsuario, Resultado<UsuarioAutenticado>>>().ManipularAsync(
+            sp.GetRequiredService<IManipulador<AutenticarUsuario, Resultado<SessaoIniciada>>>().ManipularAsync(
                 new AutenticarUsuario("diana@x.com", "senha-segura"), default));
 
         login.Sucesso.Should().BeTrue();

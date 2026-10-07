@@ -20,8 +20,9 @@ public sealed class Despachante(
         var estado = await autenticacao.GetAuthenticationStateAsync();
 
         await using var escopo = fabrica.CreateAsyncScope();
-        escopo.ServiceProvider.GetRequiredService<IdentidadeAtual>()
-            .Definir(IdentidadeHttp.UsuarioId(estado.User), origem.Ip);
+        var usuarioId = IdentidadeHttp.UsuarioId(estado.User);
+        escopo.ServiceProvider.GetRequiredService<IdentidadeAtual>().Definir(
+            usuarioId, origem.Ip, usuarioId is null ? null : IdentidadeHttp.VersaoDeSessao(estado.User));
 
         try
         {

@@ -12,6 +12,11 @@
 
 <h1>Atividades Jurídicas</h1>
 
+@if (Aviso == "senha-alterada")
+{
+    <p class="ok" role="status">Senha alterada. Entre novamente com a nova senha.</p>
+}
+
 <EditForm Model="Entrada" FormName="entrar" OnValidSubmit="EntrarAsync" method="post" class="cartao">
     <DataAnnotationsValidator />
 
@@ -51,6 +56,9 @@
     [SupplyParameterFromQuery]
     private string? ReturnUrl { get; set; }
 
+    [SupplyParameterFromQuery]
+    private string? Aviso { get; set; }
+
     private async Task EntrarAsync()
     {
         var resultado = await Despachante.EnviarAsync(new AutenticarUsuario(Entrada.Email, Entrada.Senha));
@@ -63,8 +71,9 @@
         // O cookie guarda só a identidade. Perfil e estado ativo são lidos do banco a cada requisição.
         var identidade = new ClaimsIdentity(
         [
-            new Claim(ClaimTypes.NameIdentifier, resultado.Valor!.Id.ToString()),
+            new Claim(ClaimTypes.NameIdentifier, resultado.Valor!.UsuarioId.ToString()),
             new Claim(ClaimTypes.Name, resultado.Valor.Nome),
+            new Claim(IdentidadeHttp.ClaimDaVersao, resultado.Valor.VersaoDeSessao.ToString()),
         ], CookieAuthenticationDefaults.AuthenticationScheme);
 
         await HttpContext.SignInAsync(

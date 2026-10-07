@@ -19,6 +19,10 @@ public sealed class Usuario : Entidade
     [NaoAuditar]
     public DateTime? UltimoAcessoEm { get; private set; }
 
+    /// <summary>Geração das sessões do usuário. Uma sessão aberta com outra versão é recusada.</summary>
+    [NaoAuditar]
+    public Guid VersaoDeSessao { get; private set; }
+
     public static Usuario Criar(string nome, Email email, string senhaHash, Perfil perfil, string? numeroOab = null)
     {
         var usuario = new Usuario { Ativo = true };
@@ -58,11 +62,18 @@ public sealed class Usuario : Entidade
         if (string.IsNullOrWhiteSpace(senhaHash))
             throw new ArgumentException("O hash da senha é obrigatório.", nameof(senhaHash));
         SenhaHash = senhaHash;
+        RenovarSessao();
     }
 
-    public void Inativar() => Ativo = false;
+    public void Inativar()
+    {
+        Ativo = false;
+        RenovarSessao();
+    }
 
     public void Ativar() => Ativo = true;
 
     public void RegistrarAcesso(DateTime agoraUtc) => UltimoAcessoEm = agoraUtc;
+
+    private void RenovarSessao() => VersaoDeSessao = Guid.CreateVersion7();
 }
