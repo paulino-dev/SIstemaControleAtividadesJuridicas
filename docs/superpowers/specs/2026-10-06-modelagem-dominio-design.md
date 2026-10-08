@@ -199,6 +199,12 @@ Regras:
 - Um processo tem ao menos um cliente; um cliente não se repete no mesmo processo.
 - Não é possível remover do processo um cliente que tenha atividade vinculada a esse processo.
 - Alterar a área do processo altera a área de todas as atividades vinculadas a ele.
+- Área ou cliente inativo não entra em vínculo novo, mas permanece no processo que já o tinha.
+- `ValorCausa`, quando informado, não é negativo, tem no máximo duas casas decimais e cabe em `numeric(18,2)`.
+- Cada vínculo com cliente é um registro com carimbos e exclusão lógica próprios; retirar um cliente exclui logicamente o vínculo, e o mesmo cliente pode voltar ao processo depois. O banco não apaga vínculos em cascata.
+- Toda mudança nos vínculos carimba a última alteração do processo e gera o evento `processo_clientes_alterados` (ver seção 10).
+- Edições simultâneas do mesmo processo: a segunda gravação é recusada como conflito ("O processo foi alterado por outra pessoa. Recarregue e tente novamente."). O controle cobre gravações concorrentes; um formulário aberto há mais tempo ainda grava por cima do estado atual.
+- Abrir um processo mostra o nome e o documento (CPF/CNPJ) de cada cliente; a consulta fica registrada como visualização do processo.
 
 ## 7. Documentos
 
@@ -387,6 +393,7 @@ Registra criação, alteração e exclusão de dados e eventos de segurança.
 
 - Gravado por um interceptor do EF Core, na mesma transação da alteração. Se a gravação do registro falhar, a operação inteira falha.
 - Eventos de segurança: login, falha de login, bloqueio de login, logout, troca e redefinição de senha, mudança de perfil, ativação e inativação de usuário, mudança na lista de acesso de documento, tentativa de acesso negada.
+- Eventos de negócio usam a mesma operação `Evento`: `processo_clientes_alterados`, anotado no processo quando seus clientes ou polos mudam, com os vínculos incluídos, removidos e alterados em `Dados`. Os clientes informados na criação do processo aparecem nos registros de criação dos vínculos, não nesse evento.
 - Gravações que não são alteração de negócio (último acesso, contagem de falhas e bloqueio de login) não geram registro de alteração; os eventos de segurança correspondentes cobrem esses fatos.
 - `SenhaHash` e `VersaoDeSessao` nunca aparecem em `Dados`.
 - Em hierarquias, o registro leva o nome do tipo raiz (`Cliente` para pessoa física e jurídica). Os campos de objetos de valor entram com o nome composto (`Endereco.Cidade`).
