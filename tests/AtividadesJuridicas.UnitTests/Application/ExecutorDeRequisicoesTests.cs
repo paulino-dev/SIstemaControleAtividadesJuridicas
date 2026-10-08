@@ -1,5 +1,6 @@
 using AtividadesJuridicas.Application.Auditoria;
 using AtividadesJuridicas.Application.Comum;
+using AtividadesJuridicas.Application.Documentos;
 using AtividadesJuridicas.Domain.Auditoria;
 
 namespace AtividadesJuridicas.UnitTests.Application;
@@ -148,5 +149,82 @@ public class ExecutorDeRequisicoesTests
 
         auditoria.Acessos.Should().BeEmpty();
         auditoria.Eventos.Should().ContainSingle().Which.Evento.Should().Be(EventosDeSeguranca.AcessoNegado);
+    }
+
+    private sealed class FluxoRastreado : MemoryStream
+    {
+        public bool Descartado { get; private set; }
+
+        protected override void Dispose(bool disposing)
+        {
+            Descartado = true;
+            base.Dispose(disposing);
+        }
+    }
+
+    private sealed record Baixa(FluxoRastreado Fluxo) : IRequisicao<Resultado<ArquivoParaBaixar>>, IConsultaAuditavel
+    {
+        public string TipoRecurso => "Documento";
+        public AcaoDeAcesso Acao => AcaoDeAcesso.Baixou;
+    }
+
+    private sealed class BaixaManipulador : IManipulador<Baixa, Resultado<ArquivoParaBaixar>>
+    {
+        public Task<Resultado<ArquivoParaBaixar>> ManipularAsync(Baixa requisicao, CancellationToken ct) =>
+            Task.FromResult(Resultado<ArquivoParaBaixar>.Ok(new ArquivoParaBaixar("a.pdf", 0, requisicao.Fluxo)));
+    }
+
+    private sealed class AuditoriaQueFalhaNoAcesso : IAuditoria
+    {
+        public void Anotar(string evento, string? entidade = null, Guid? entidadeId = null, object? dados = null) { }
+
+        public Task RegistrarAsync(string evento, string? entidade = null, Guid? entidadeId = null, object? dados = null,
+            Guid? ator = null, CancellationToken ct = default) => Task.CompletedTask;
+
+        public Task RegistrarAcessoAsync(IConsultaAuditavel consulta, CancellationToken ct = default) =>
+            throw new InvalidOperationException("banco fora do ar");
+    }
+
+    [Fact]
+    public async Task Falha_ao_registrar_o_acesso_fecha_o_fluxo_que_o_manipulador_abriu()
+    {
+        var fluxo = new FluxoRastreado();
+        var executor = new ExecutorDeRequisicoes(
+            new ProvedorFalso().Com<IManipulador<Baixa, Resultado<ArquivoParaBaixar>>>(new BaixaManipulador()),
+            new AuditoriaQueFalhaNoAcesso());
+
+        var acao = () => executor.ExecutarAsync(new Baixa(fluxo), default);
+
+        await acao.Should().ThrowAsync<InvalidOperationException>().WithMessage("banco fora do ar");
+        fluxo.Descartado.Should().BeTrue("o fluxo aberto não pode vazar quando a consulta falha");
+    }
+
+    private sealed record ListagemComAlvo(Guid Alvo) : IRequisicao<Resultado<int>>, IConsultaAuditavel
+    {
+        public string TipoRecurso => "Documento";
+        public AcaoDeAcesso Acao => AcaoDeAcesso.Listou;
+        public Guid? RecursoId => Alvo;
+        public string? Detalhe => "cliente=abc";
+    }
+
+    private sealed class ListagemComAlvoManipulador : IManipulador<ListagemComAlvo, Resultado<int>>
+    {
+        public Task<Resultado<int>> ManipularAsync(ListagemComAlvo requisicao, CancellationToken ct) =>
+            Task.FromResult(Resultado<int>.Falha(TipoErro.AcessoNegado, "Acesso negado."));
+    }
+
+    [Fact]
+    public async Task Acesso_negado_de_consulta_carrega_o_alvo_e_o_detalhe()
+    {
+        var auditoria = new AuditoriaFalsa();
+        var alvo = Guid.CreateVersion7();
+        var executor = new ExecutorDeRequisicoes(
+            new ProvedorFalso().Com<IManipulador<ListagemComAlvo, Resultado<int>>>(new ListagemComAlvoManipulador()), auditoria);
+
+        await executor.ExecutarAsync(new ListagemComAlvo(alvo), default);
+
+        var evento = auditoria.Eventos.Should().ContainSingle().Subject;
+        evento.Evento.Should().Be(EventosDeSeguranca.AcessoNegado);
+        evento.Dados.Should().BeEquivalentTo(new { requisicao = "ListagemComAlvo", recursoId = alvo, detalhe = "cliente=abc" });
     }
 }

@@ -17,7 +17,7 @@ public sealed class ArmazenamentoEmDiscoTests : IDisposable
     private readonly string _pasta = Path.Combine(Path.GetTempPath(), "atividades-testes", Guid.NewGuid().ToString("N"));
     private readonly ArmazenamentoEmDisco _armazenamento;
 
-    public ArmazenamentoEmDiscoTests() => _armazenamento = new ArmazenamentoEmDisco(_pasta, new RelogioDeOutubro());
+    public ArmazenamentoEmDiscoTests() => _armazenamento = new ArmazenamentoEmDisco(_pasta, new RelogioDeOutubro(), criarPastaRaiz: true);
 
     public void Dispose()
     {
@@ -139,6 +139,56 @@ public sealed class ArmazenamentoEmDiscoTests : IDisposable
 
         await abrir.Should().ThrowAsync<IOException>().WithMessage("*não está acessível*");
         await remover.Should().ThrowAsync<IOException>().WithMessage("*não está acessível*");
+    }
+
+    [Fact]
+    public void Sem_criar_a_raiz_pasta_ausente_e_recusada_e_nada_e_criado()
+    {
+        var ausente = Path.Combine(_pasta, "ausente");
+
+        var criar = () => new ArmazenamentoEmDisco(ausente, new RelogioDeOutubro(), criarPastaRaiz: false);
+
+        criar.Should().Throw<IOException>().WithMessage("*não está acessível*");
+        Directory.Exists(ausente).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Sem_criar_a_raiz_pasta_existente_funciona()
+    {
+        var armazenamento = new ArmazenamentoEmDisco(_pasta, new RelogioDeOutubro(), criarPastaRaiz: false);
+
+        var gravado = await armazenamento.GravarAsync(Conteudo("abc"), 1024, default);
+
+        gravado.TamanhoBytes.Should().Be(3);
+    }
+
+    [Fact]
+    public async Task Gravar_nao_recria_a_raiz_que_sumiu()
+    {
+        Directory.Delete(_pasta, recursive: true);
+
+        var gravar = () => _armazenamento.GravarAsync(Conteudo("abc"), 1024, default);
+
+        await gravar.Should().ThrowAsync<IOException>().WithMessage("*não está acessível*");
+        Directory.Exists(_pasta).Should().BeFalse("a raiz ausente é problema de configuração, não algo a recriar");
+    }
+
+    [Fact]
+    public void Verificar_gravacao_funciona_na_pasta_e_nao_deixa_resto()
+    {
+        _armazenamento.VerificarGravacao();
+
+        ArquivosNoDisco().Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Verificar_gravacao_com_a_raiz_ausente_falha()
+    {
+        Directory.Delete(_pasta, recursive: true);
+
+        var verificar = () => _armazenamento.VerificarGravacao();
+
+        verificar.Should().Throw<IOException>().WithMessage("*não está acessível*");
     }
 
     [Fact]

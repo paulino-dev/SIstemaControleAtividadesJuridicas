@@ -8,19 +8,38 @@ namespace AtividadesJuridicas.Infrastructure.Armazenamento;
 
 /// <summary>
 /// Guarda cada arquivo em <c>pasta/aaaa/mm/guid</c>. A chave nunca vem do usuário e só é aceita
-/// no formato que este armazenamento gera, o que impede sair da pasta.
+/// no formato que este armazenamento gera, o que impede sair da pasta. Com <paramref name="criarPastaRaiz"/>
+/// falso a pasta raiz precisa já existir: uma raiz ausente fora do desenvolvimento é erro de implantação,
+/// e recriá-la esconderia a perda de todos os arquivos.
 /// </summary>
-public sealed partial class ArmazenamentoEmDisco(string pasta, IRelogio relogio) : IArmazenamentoDeArquivos
+public sealed partial class ArmazenamentoEmDisco(string pasta, IRelogio relogio, bool criarPastaRaiz) : IArmazenamentoDeArquivos
 {
     private const int TamanhoDoBuffer = 81920;
 
-    private readonly string _raiz = CriarRaiz(pasta);
+    private readonly string _raiz = PrepararRaiz(pasta, criarPastaRaiz);
 
-    private static string CriarRaiz(string pasta)
+    private static string PrepararRaiz(string pasta, bool criar)
     {
         var raiz = Path.GetFullPath(pasta);
-        Directory.CreateDirectory(raiz);
+        if (criar) Directory.CreateDirectory(raiz);
+        else ExigirRaiz(raiz, null);
         return raiz;
+    }
+
+    /// <summary>Confirma que dá para gravar na raiz: cria e apaga um arquivo temporário dentro dela.</summary>
+    public void VerificarGravacao()
+    {
+        ExigirRaiz(_raiz, null);
+        var sonda = Path.Combine(_raiz, $".sonda-{Guid.NewGuid():N}.tmp");
+        try
+        {
+            File.WriteAllBytes(sonda, [0]);
+            File.Delete(sonda);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            throw new IOException($"Não é possível gravar na pasta de armazenamento '{_raiz}'.", ex);
+        }
     }
 
     [GeneratedRegex(@"^[0-9]{4}/[0-9]{2}/[0-9a-f]{32}\z")]
@@ -34,6 +53,7 @@ public sealed partial class ArmazenamentoEmDisco(string pasta, IRelogio relogio)
         var chave = $"{agora.ToString("yyyy", CultureInfo.InvariantCulture)}/{agora.ToString("MM", CultureInfo.InvariantCulture)}/{Guid.NewGuid():N}";
         var destino = Caminho(chave);
         var temporario = destino + ".tmp";
+        ExigirRaiz(_raiz, null);
         Directory.CreateDirectory(Path.GetDirectoryName(destino)!);
 
         try
@@ -87,7 +107,7 @@ public sealed partial class ArmazenamentoEmDisco(string pasta, IRelogio relogio)
         }
         catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
         {
-            ExigirRaiz(ex);
+            ExigirRaiz(_raiz, ex);
             return null;
         }
     }
@@ -102,15 +122,15 @@ public sealed partial class ArmazenamentoEmDisco(string pasta, IRelogio relogio)
         catch (DirectoryNotFoundException ex)
         {
             // Sem a pasta do mês o arquivo não existe, e remover o que não existe não é erro.
-            ExigirRaiz(ex);
+            ExigirRaiz(_raiz, ex);
         }
     }
 
     /// <summary>Arquivo ou pasta do mês ausentes são "não existe"; a raiz ausente é um problema de configuração.</summary>
-    private void ExigirRaiz(Exception causa)
+    private static void ExigirRaiz(string raiz, Exception? causa)
     {
-        if (!Directory.Exists(_raiz))
-            throw new IOException($"A pasta de armazenamento '{_raiz}' não está acessível.", causa);
+        if (!Directory.Exists(raiz))
+            throw new IOException($"A pasta de armazenamento '{raiz}' não está acessível.", causa);
     }
 
     private string Caminho(string chave)

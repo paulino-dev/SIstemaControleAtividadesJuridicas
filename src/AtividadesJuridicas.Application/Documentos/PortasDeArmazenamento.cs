@@ -25,3 +25,14 @@ public sealed class ExcecaoDeArquivoGrandeDemais(long limiteBytes)
 {
     public long LimiteBytes { get; } = limiteBytes;
 }
+
+/// <summary>
+/// O documento existe e o usuário pode vê-lo, mas o arquivo não está no armazenamento: é falha do
+/// servidor, não um "não encontrado" qualquer, e precisa chegar a quem opera o sistema.
+/// </summary>
+public sealed class ExcecaoDeArquivoAusente(Guid documentoId, string chave)
+    : Exception($"O arquivo do documento {documentoId} não está no armazenamento (chave '{chave}').")
+{
+    public Guid DocumentoId { get; } = documentoId;
+    public string Chave { get; } = chave;
+}

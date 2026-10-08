@@ -309,4 +309,129 @@ public class DocumentosTests(BancoFixture banco) : TesteComBanco(banco)
         var erro = (await acao.Should().ThrowAsync<Exception>()).Which;
         PostgresDe(erro).SqlState.Should().Be(PostgresErrorCodes.UniqueViolation);
     }
+
+    [Fact]
+    public async Task Total_da_listagem_da_producao_conta_so_os_documentos_que_ela_acessa()
+    {
+        var liberado = await EnviarAsync(arquivo: "liberado.pdf");
+        var restrito1 = await EnviarAsync(arquivo: "restrito1.pdf");
+        var restrito2 = await EnviarAsync(arquivo: "restrito2.pdf");
+        foreach (var restrito in new[] { restrito1, restrito2 })
+            (await ExecutarAsync(_admin, new DefinirAcessoDoDocumento(restrito, [_perfilDiretor], []))).Sucesso.Should().BeTrue();
+
+        var pagina = (await ExecutarAsync(_pedro, new ListarDocumentosDoCliente(_maria, CategoriaDocumento.DocumentoGeral))).Valor!;
+
+        pagina.Total.Should().Be(1, "existem 3 documentos, mas o Pedro só alcança 1");
+        pagina.Itens.Select(d => d.Id).Should().Equal(liberado);
+    }
+
+    [Fact]
+    public async Task Consulta_com_filtro_de_acesso_nunca_devolve_contrato_nem_com_o_perfil_da_diretoria_na_lista()
+    {
+        var contrato = await EnviarAsync(CategoriaDocumento.ContratoHonorarios, "contrato.pdf");
+        (await ExecutarAsync(_admin, new DefinirAcessoDoDocumento(contrato, [_perfilDiretor], [_admin]))).Sucesso.Should().BeTrue();
+
+        var pagina = await EmEscopoAsync(null, sp => sp.GetRequiredService<IDocumentoRepositorio>().ListarDoClienteAsync(
+            _maria, CategoriaDocumento.ContratoHonorarios, new FiltroDeAcesso(_admin, _perfilDiretor), 1, 20, default));
+
+        pagina.Itens.Should().BeEmpty();
+        pagina.Total.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Paginacao_e_feita_no_banco_do_mais_recente_para_o_mais_antigo()
+    {
+        var enviados = new List<Guid>();
+        for (var i = 1; i <= 21; i++) enviados.Add(await EnviarAsync(arquivo: $"doc-{i:00}.pdf"));
+
+        async Task<Pagina<DocumentoResumo>> Pagina(int numero) =>
+            (await ExecutarAsync(_admin, new ListarDocumentosDoCliente(_maria, CategoriaDocumento.DocumentoGeral, numero))).Valor!;
+
+        var primeira = await Pagina(1);
+        var segunda = await Pagina(2);
+        var zero = await Pagina(0);
+
+        primeira.Total.Should().Be(21);
+        primeira.Itens.Should().HaveCount(20);
+        primeira.Itens.Select(d => d.Id).Should().Equal(Enumerable.Reverse(enviados).Take(20));
+        segunda.Itens.Select(d => d.Id).Should().Equal(enviados[0]);
+        zero.Itens.Select(d => d.Id).Should().Equal(primeira.Itens.Select(d => d.Id));
+    }
+
+    [Fact]
+    public async Task Retirar_o_usuario_da_lista_tira_o_documento_da_listagem_e_do_download_dele()
+    {
+        var id = await EnviarAsync();
+        (await ExecutarAsync(_admin, new DefinirAcessoDoDocumento(id, [_perfilDiretor], [_pedro]))).Sucesso.Should().BeTrue();
+        (await IdsListadosAsync(_pedro)).Should().Equal(id);
+        (await BaixarTextoAsync(_pedro, id)).Should().NotBeNull();
+
+        (await ExecutarAsync(_admin, new DefinirAcessoDoDocumento(id, [_perfilDiretor], []))).Sucesso.Should().BeTrue();
+
+        (await IdsListadosAsync(_pedro)).Should().BeEmpty();
+        (await BaixarTextoAsync(_pedro, id)).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Excluir_documento_com_usuario_na_lista_exclui_logicamente_a_entrada_do_usuario()
+    {
+        var id = await EnviarAsync();
+        (await ExecutarAsync(_admin, new DefinirAcessoDoDocumento(id, [_perfilDiretor], [_pedro]))).Sucesso.Should().BeTrue();
+
+        (await ExecutarAsync(_admin, new ExcluirDocumento(id))).Sucesso.Should().BeTrue();
+
+        var entradas = await EmEscopoAsync(null, sp => sp.GetRequiredService<AppDbContext>()
+            .Set<DocumentoUsuarioAcesso>().IgnoreQueryFilters().AsNoTracking().Where(a => a.DocumentoId == id).ToListAsync());
+        entradas.Should().ContainSingle().Which.ExcluidoEm.Should().NotBeNull();
+        (await AuditoriaAsync()).Should().ContainSingle(r =>
+            r.Entidade == "DocumentoUsuarioAcesso" && r.Operacao == OperacaoAuditada.Exclusao && r.EntidadeId == entradas[0].Id);
+    }
+
+    [Fact]
+    public async Task Usuario_movido_da_diretoria_para_a_producao_perde_na_hora_o_acesso_ao_contrato()
+    {
+        var paula = (await ExecutarAsync(_admin,
+            new CriarUsuario("Paula", "paula@x.com", "senha-da-paula", _perfilDiretor, null))).Valor;
+        var contrato = await EnviarAsync(CategoriaDocumento.ContratoHonorarios, "contrato.pdf");
+        (await ExecutarAsync(_admin, new DefinirAcessoDoDocumento(contrato, [_perfilDiretor], [paula]))).Sucesso.Should().BeTrue();
+        (await IdsListadosAsync(paula, CategoriaDocumento.ContratoHonorarios)).Should().Equal(contrato);
+        (await BaixarTextoAsync(paula, contrato)).Should().NotBeNull();
+
+        (await ExecutarAsync(_admin, new EditarUsuario(paula, "Paula", "paula@x.com", _perfilProducao, null)))
+            .Sucesso.Should().BeTrue();
+
+        (await ExecutarAsync(paula, new ListarDocumentosDoCliente(_maria, CategoriaDocumento.ContratoHonorarios)))
+            .Erro.Should().Be(TipoErro.AcessoNegado);
+        (await ExecutarAsync(paula, new BaixarDocumento(contrato))).Erro.Should().Be(TipoErro.NaoEncontrado);
+    }
+
+    [Fact]
+    public async Task Banco_recusa_documento_de_cliente_sem_cliente()
+    {
+        var acao = () => InserirDocumentoCruAsync(CategoriaDocumento.DocumentoGeral, clienteId: null);
+
+        var erro = (await acao.Should().ThrowAsync<Exception>()).Which;
+        PostgresDe(erro).SqlState.Should().Be(PostgresErrorCodes.CheckViolation);
+    }
+
+    [Fact]
+    public async Task Banco_aceita_documento_de_atividade_sem_cliente()
+    {
+        await InserirDocumentoCruAsync(CategoriaDocumento.DocumentoAtividade, clienteId: null);
+    }
+
+    private Task<int> InserirDocumentoCruAsync(CategoriaDocumento categoria, Guid? clienteId)
+    {
+        var id = Guid.CreateVersion7();
+        var chave = $"2026/10/{Guid.NewGuid():N}";
+        var hash = new string('a', 64);
+        var agora = DateTime.UtcNow;
+        var codigo = (int)categoria;
+        return EmEscopoAsync(null, sp => sp.GetRequiredService<AppDbContext>().Database.ExecuteSqlAsync(
+            $"""
+            INSERT INTO documentos (id, nome, nome_arquivo_original, tipo_conteudo, tamanho_bytes, hash_sha256,
+                                    chave_armazenamento, categoria, cliente_id, criado_em)
+            VALUES ({id}, 'x', 'x.pdf', 'application/pdf', 1, {hash}, {chave}, {codigo}, {clienteId}, {agora})
+            """));
+    }
 }

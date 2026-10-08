@@ -16,6 +16,9 @@
     else if (_erroDaLista is not null)
     {
         <p class="erro">@_erroDaLista</p>
+        <div class="acoes">
+            <button type="button" class="secundario" @onclick="() => IrParaAsync(_paginaPedida)">Tentar de novo</button>
+        </div>
     }
     else if (_pagina.Itens.Count == 0)
     {
@@ -32,7 +35,8 @@
                 {
                     <tr @key="documento.Id">
                         <td>
-                            @* Link fora da navegação do Blazor: é um download, não uma página. *@
+                            @* Link fora da navegação do Blazor: é um download, não uma página. O atributo "download"
+                               é o que impede o roteador do Blazor de interceptar o clique; não o remova. *@
                             <a href="@($"/documentos/{documento.Id}/baixar")" download data-enhance-nav="false">@documento.Nome</a>
                         </td>
                         <td>@Tamanho(documento.TamanhoBytes)</td>
@@ -48,8 +52,8 @@
                                 }
                                 @if (_excluindo == documento.Id)
                                 {
-                                    <button type="button" @onclick="() => ExcluirAsync(documento.Id)">Confirmar exclusão</button>
-                                    <button type="button" class="secundario" @onclick="CancelarExclusao">Cancelar</button>
+                                    <button type="button" disabled="@_removendo" @onclick="() => ExcluirAsync(documento.Id)">Confirmar exclusão</button>
+                                    <button type="button" class="secundario" disabled="@_removendo" @onclick="CancelarExclusao">Cancelar</button>
                                 }
                                 else
                                 {
@@ -65,9 +69,9 @@
         @if (_pagina.TotalDePaginas > 1)
         {
             <div class="acoes">
-                <button type="button" class="secundario" disabled="@(_pagina.Numero <= 1)" @onclick="() => CarregarAsync(_pagina.Numero - 1)">Anterior</button>
+                <button type="button" class="secundario" disabled="@(_pagina.Numero <= 1)" @onclick="() => IrParaAsync(_pagina.Numero - 1)">Anterior</button>
                 <span>Página @_pagina.Numero de @_pagina.TotalDePaginas</span>
-                <button type="button" class="secundario" disabled="@(_pagina.Numero >= _pagina.TotalDePaginas)" @onclick="() => CarregarAsync(_pagina.Numero + 1)">Próxima</button>
+                <button type="button" class="secundario" disabled="@(_pagina.Numero >= _pagina.TotalDePaginas)" @onclick="() => IrParaAsync(_pagina.Numero + 1)">Próxima</button>
             </div>
         }
     }
@@ -77,6 +81,7 @@
         @if (_renomeando is not null)
         {
             <div class="formulario">
+                <strong>Renomear "@_renomeando.Nome"</strong>
                 <label>Novo nome <input type="text" @bind="_novoNome" /></label>
                 <div class="acoes">
                     <button type="button" @onclick="RenomearAsync">Salvar nome</button>
@@ -89,14 +94,14 @@
         {
             <div class="formulario">
                 <strong>Quem acessa "@_acesso.Nome"</strong>
-                <p>A Diretoria acessa sempre. Marque os perfis e os usuários de Produção que também podem ver este documento.</p>
+                <p>A Diretoria acessa sempre. Marque os perfis e os usuários que também podem ver este documento; desmarque para retirar.</p>
                 <fieldset>
                     <legend>Perfis</legend>
                     @foreach (var perfil in _perfis)
                     {
                         <label @key="perfil.Id">
                             <input type="checkbox" checked="@_perfisMarcados.Contains(perfil.Id)"
-                                   @onchange="e => Marcar(_perfisMarcados, perfil.Id, e)" /> @perfil.Nome
+                                   @onchange="e => Marcar(_perfisMarcados, perfil.Id, e)" /> @perfil.Rotulo
                         </label>
                     }
                 </fieldset>
@@ -106,7 +111,7 @@
                     {
                         <label @key="usuario.Id">
                             <input type="checkbox" checked="@_usuariosMarcados.Contains(usuario.Id)"
-                                   @onchange="e => Marcar(_usuariosMarcados, usuario.Id, e)" /> @usuario.Nome (@usuario.PerfilNome)
+                                   @onchange="e => Marcar(_usuariosMarcados, usuario.Id, e)" /> @usuario.Rotulo
                         </label>
                     }
                 </fieldset>
@@ -146,6 +151,8 @@
     private bool _carregado;
     private bool _falhou;
     private bool _enviando;
+    private bool _removendo;
+    private int _paginaPedida = 1;
     private string? _mensagem;
     private string? _erroDaLista;
     private Pagina<DocumentoResumo> _pagina = Vazia;
@@ -159,10 +166,13 @@
     private string _novoNome = string.Empty;
 
     private AcessoDoDocumento? _acesso;
-    private IReadOnlyList<PerfilResumo> _perfis = [];
-    private IReadOnlyList<UsuarioResumo> _usuarios = [];
+    private IReadOnlyList<OpcaoDeAcesso> _perfis = [];
+    private IReadOnlyList<OpcaoDeAcesso> _usuarios = [];
     private HashSet<Guid> _perfisMarcados = [];
     private HashSet<Guid> _usuariosMarcados = [];
+
+    /// <summary>Uma linha do editor de acesso: tudo o que consta na lista aparece aqui, com caixa de seleção.</summary>
+    private sealed record OpcaoDeAcesso(Guid Id, string Rotulo);
 
     protected override async Task OnInitializedAsync()
     {
@@ -170,8 +180,17 @@
         _carregado = true;
     }
 
+    /// <summary>Troca de página ou nova tentativa: o aviso de uma ação anterior não vale mais.</summary>
+    private async Task IrParaAsync(int pagina)
+    {
+        _mensagem = null;
+        await CarregarAsync(pagina);
+    }
+
     private async Task CarregarAsync(int pagina)
     {
+        _paginaPedida = pagina;
+        _excluindo = null;
         var resultado = await Despachante.EnviarAsync(new ListarDocumentosDoCliente(ClienteId, Categoria, pagina));
         if (await EncerradoAsync(resultado)) return;
 
@@ -197,7 +216,8 @@
 
     private void Escolher(InputFileChangeEventArgs e)
     {
-        _arquivo = e.File;
+        // Cancelar o diálogo de arquivos dispara a troca com zero arquivos.
+        _arquivo = e.FileCount > 0 ? e.File : null;
         _mensagem = null;
     }
 
@@ -205,6 +225,7 @@
     {
         if (_arquivo is not { } arquivo || _enviando) return;
 
+        _mensagem = null;
         if (arquivo.Size > DocumentosOpcoes.TamanhoMaximoBytes)
         {
             Avisar($"O arquivo passa do limite de {DocumentosOpcoes.TamanhoMaximoBytes / UmMegabyte} MB.", falhou: true);
@@ -225,11 +246,17 @@
                 return;
             }
 
-            _arquivo = null;
-            _nomeDoEnvio = null;
-            _versaoDoCampo++;   // recria o campo de arquivo, vazio
+            // Se outro arquivo foi escolhido enquanto este subia, a escolha nova é preservada.
+            if (ReferenceEquals(_arquivo, arquivo))
+            {
+                _arquivo = null;
+                _nomeDoEnvio = null;
+                _versaoDoCampo++;   // recria o campo de arquivo, vazio
+            }
+
             await CarregarAsync(1);
             if (_erroDaLista is null) Avisar("Documento enviado.", falhou: false);
+            else Avisar("Documento enviado, mas não foi possível atualizar a lista.", falhou: true);
         }
         catch (IOException)
         {
@@ -254,6 +281,7 @@
     {
         if (_renomeando is not { } documento) return;
 
+        _mensagem = null;
         var resultado = await Despachante.EnviarAsync(new RenomearDocumento(documento.Id, _novoNome));
         if (await EncerradoAsync(resultado)) return;
 
@@ -263,9 +291,10 @@
             return;
         }
 
-        _renomeando = null;
+        if (ReferenceEquals(_renomeando, documento)) _renomeando = null;
         await CarregarAsync(_pagina.Numero);
         if (_erroDaLista is null) Avisar("Nome alterado.", falhou: false);
+        else Avisar("Nome alterado, mas não foi possível atualizar a lista.", falhou: true);
     }
 
     // Métodos, e não lambdas de atribuição, nos @onclick: a exclusão pede um segundo clique.
@@ -279,20 +308,33 @@
 
     private async Task ExcluirAsync(Guid id)
     {
-        _excluindo = null;
-        var resultado = await Despachante.EnviarAsync(new ExcluirDocumento(id));
-        if (await EncerradoAsync(resultado)) return;
+        // Um segundo clique em "Confirmar exclusão" receberia "não encontrado" e apagaria o aviso de sucesso.
+        if (_removendo) return;
 
-        if (!resultado.Sucesso)
+        _removendo = true;
+        _mensagem = null;
+        try
         {
-            Avisar(resultado.Mensagem, falhou: true);
-            return;
-        }
+            var resultado = await Despachante.EnviarAsync(new ExcluirDocumento(id));
+            if (await EncerradoAsync(resultado)) return;
 
-        if (_acesso?.DocumentoId == id) _acesso = null;
-        if (_renomeando?.Id == id) _renomeando = null;
-        await CarregarAsync(_pagina.Numero);
-        if (_erroDaLista is null) Avisar("Documento excluído.", falhou: false);
+            if (!resultado.Sucesso)
+            {
+                Avisar(resultado.Mensagem, falhou: true);
+                return;
+            }
+
+            if (_acesso?.DocumentoId == id) _acesso = null;
+            if (_renomeando?.Id == id) _renomeando = null;
+            await CarregarAsync(_pagina.Numero);
+            if (_erroDaLista is null) Avisar("Documento excluído.", falhou: false);
+            else Avisar("Documento excluído, mas não foi possível atualizar a lista.", falhou: true);
+        }
+        finally
+        {
+            _removendo = false;
+            _excluindo = null;
+        }
     }
 
     private async Task AbrirAcessoAsync(Guid id)
@@ -313,10 +355,25 @@
             return;
         }
 
-        // A Diretoria acessa sempre: só perfis e usuários de Produção fazem diferença na lista. Quem já
-        // consta e não aparece aqui (inativo, ou da Diretoria) continua marcado e é preservado ao salvar.
-        _perfis = [.. perfis.Valor.Where(p => p.Tipo == TipoPerfil.Producao)];
-        _usuarios = [.. usuarios.Valor.Where(u => u.Ativo && u.TipoPerfil == TipoPerfil.Producao)];
+        // Tudo o que consta na lista aparece com uma caixa que funciona, para poder ser retirado; e só o que
+        // aparece é enviado ao salvar. Perfis ativos e usuários ativos de Produção são as opções para incluir.
+        var perfisDaTela = new List<OpcaoDeAcesso>(perfis.Valor.Select(p => new OpcaoDeAcesso(
+            p.Id, p.Tipo == TipoPerfil.Diretoria ? $"{p.Nome} (Diretoria — acessa sempre)" : p.Nome)));
+        perfisDaTela.AddRange(acesso.Valor.Perfis.Where(perfilId => perfisDaTela.All(o => o.Id != perfilId))
+            .Select(perfilId => new OpcaoDeAcesso(perfilId, "Perfil não identificado")));
+
+        var usuariosDaTela = new List<OpcaoDeAcesso>(usuarios.Valor.Where(u => u.Ativo && u.TipoPerfil == TipoPerfil.Producao)
+            .Select(u => new OpcaoDeAcesso(u.Id, $"{u.Nome} ({u.PerfilNome})")));
+        foreach (var usuarioId in acesso.Valor.Usuarios.Where(uid => usuariosDaTela.All(o => o.Id != uid)))
+        {
+            var usuario = usuarios.Valor.FirstOrDefault(u => u.Id == usuarioId);
+            usuariosDaTela.Add(new OpcaoDeAcesso(usuarioId, usuario is null
+                ? "Usuário não identificado"
+                : $"{usuario.Nome} ({(usuario.Ativo ? "Diretoria — acessa sempre" : "inativo")})"));
+        }
+
+        _perfis = perfisDaTela;
+        _usuarios = usuariosDaTela;
         _perfisMarcados = [.. acesso.Valor.Perfis];
         _usuariosMarcados = [.. acesso.Valor.Usuarios];
         _acesso = acesso.Valor;
@@ -332,6 +389,7 @@
     {
         if (_acesso is not { } acesso) return;
 
+        _mensagem = null;
         var resultado = await Despachante.EnviarAsync(
             new DefinirAcessoDoDocumento(acesso.DocumentoId, [.. _perfisMarcados], [.. _usuariosMarcados]));
         if (await EncerradoAsync(resultado)) return;
@@ -342,7 +400,7 @@
             return;
         }
 
-        _acesso = null;
+        if (_acesso?.DocumentoId == acesso.DocumentoId) _acesso = null;
         Avisar("Acesso atualizado.", falhou: false);
     }
 

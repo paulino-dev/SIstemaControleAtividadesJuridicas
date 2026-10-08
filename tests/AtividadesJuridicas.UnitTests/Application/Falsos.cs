@@ -296,6 +296,9 @@ public sealed class ArmazenamentoFalso : IArmazenamentoDeArquivos
     /// <summary>Simula um arquivo acima do limite, sem precisar de um conteúdo enorme.</summary>
     public bool RecusarPorTamanho { get; set; }
 
+    /// <summary>Simula um armazenamento em que a remoção do arquivo falha.</summary>
+    public bool FalharAoRemover { get; set; }
+
     public async Task<ArquivoArmazenado> GravarAsync(Stream conteudo, long limiteBytes, CancellationToken ct)
     {
         if (RecusarPorTamanho) throw new ExcecaoDeArquivoGrandeDemais(limiteBytes);
@@ -313,6 +316,8 @@ public sealed class ArmazenamentoFalso : IArmazenamentoDeArquivos
 
     public Task RemoverAsync(string chave, CancellationToken ct)
     {
+        if (FalharAoRemover) throw new IOException("disco indisponível");
+
         Arquivos.Remove(chave);
         return Task.CompletedTask;
     }
@@ -329,13 +334,13 @@ public sealed class DocumentoRepositorioFalso : IDocumentoRepositorio
         Guid clienteId, CategoriaDocumento categoria, FiltroDeAcesso? acesso, int pagina, int tamanho, CancellationToken ct)
     {
         // Mesma regra da consulta real: sem filtro (Diretoria) vê tudo; com filtro, nunca contrato.
-        var todos = Itens
+        // O fake não tem relógio: a ordem de inserção faz as vezes da data, do mais recente para o mais antigo.
+        var todos = Enumerable.Reverse(Itens)
             .Where(d => d.ClienteId == clienteId && d.Categoria == categoria)
             .Where(d => acesso is null ||
                 (d.Categoria != CategoriaDocumento.ContratoHonorarios &&
                  (d.PerfisComAcesso.Any(a => a.PerfilId == acesso.PerfilId) ||
                   d.UsuariosComAcesso.Any(a => a.UsuarioId == acesso.UsuarioId))))
-            .OrderBy(d => d.Nome)
             .ToList();
 
         return Task.FromResult(new Pagina<DocumentoResumo>(

@@ -10,7 +10,9 @@ public sealed class DocumentoConfiguracao : IEntityTypeConfiguration<Documento>
 {
     public void Configure(EntityTypeBuilder<Documento> b)
     {
-        b.ToTable("documentos");
+        // Só o documento de atividade (categoria 3) pode existir sem cliente.
+        b.ToTable("documentos", t => t.HasCheckConstraint(
+            "ck_documentos_cliente_obrigatorio", "categoria = 3 OR cliente_id IS NOT NULL"));
 
         b.Property(d => d.Nome).HasMaxLength(Documento.TamanhoMaximoNome).IsRequired();
         b.Property(d => d.NomeArquivoOriginal).HasMaxLength(Documento.TamanhoMaximoNome).IsRequired();

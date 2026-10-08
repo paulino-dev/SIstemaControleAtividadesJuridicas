@@ -23,7 +23,7 @@ public class PersistenciaTests(BancoFixture banco) : IAsyncLifetime
         var conexao = _conexao;
         _raiz = new ServiceCollection()
             .AddApplication()
-            .AddInfrastructure(_ => conexao, _ => Path.Combine(Path.GetTempPath(), "atividades-testes", "persistencia"))
+            .AddInfrastructure(_ => conexao, _ => Path.Combine(Path.GetTempPath(), "atividades-testes", "persistencia"), criarPastaDeArquivos: true)
             .BuildServiceProvider();
 
         await using var escopo = _raiz.CreateAsyncScope();

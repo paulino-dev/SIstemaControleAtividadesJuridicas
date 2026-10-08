@@ -33,14 +33,21 @@ public sealed class BaixarDocumentoManipulador(
             // Para quem pediu, o documento não existe; para a Diretoria, a tentativa fica registrada.
             await auditoria.RegistrarAsync(
                 EventosDeSeguranca.AcessoNegado, "Documento", documento.Id,
-                new { requisicao = nameof(BaixarDocumento), resposta = "nao_encontrado" }, ct: ct);
+                new { requisicao = nameof(BaixarDocumento), resposta = "nao_encontrado" }, ct: CancellationToken.None);
             return Falha(TipoErro.NaoEncontrado, NaoEncontrado);
         }
 
         var conteudo = await armazenamento.AbrirAsync(documento.ChaveArmazenamento, ct);
-        return conteudo is null
-            ? Falha(TipoErro.NaoEncontrado, "O arquivo deste documento não está no armazenamento.")
-            : Resultado<ArquivoParaBaixar>.Ok(new ArquivoParaBaixar(documento.NomeParaBaixar(), documento.TamanhoBytes, conteudo));
+        if (conteudo is null)
+        {
+            // Quem pode ver o documento e não consegue o arquivo está diante de uma falha do servidor, não de um 404.
+            await auditoria.RegistrarAsync(
+                EventosDeDocumento.ArquivoAusente, "Documento", documento.Id,
+                new { chave = documento.ChaveArmazenamento }, ct: CancellationToken.None);
+            throw new ExcecaoDeArquivoAusente(documento.Id, documento.ChaveArmazenamento);
+        }
+
+        return Resultado<ArquivoParaBaixar>.Ok(new ArquivoParaBaixar(documento.NomeParaBaixar(), documento.TamanhoBytes, conteudo));
     }
 
     private static Resultado<ArquivoParaBaixar> Falha(TipoErro erro, string mensagem) =>

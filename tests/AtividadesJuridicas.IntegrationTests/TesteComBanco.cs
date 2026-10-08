@@ -28,7 +28,7 @@ public abstract class TesteComBanco(BancoFixture banco) : IAsyncLifetime
         var conexao = _conexao;
         _raiz = new ServiceCollection()
             .AddApplication()
-            .AddInfrastructure(_ => conexao, _ => PastaDeArquivos)
+            .AddInfrastructure(_ => conexao, _ => PastaDeArquivos, criarPastaDeArquivos: true)
             .BuildServiceProvider();
 
         await EmEscopoAsync(null, async sp =>

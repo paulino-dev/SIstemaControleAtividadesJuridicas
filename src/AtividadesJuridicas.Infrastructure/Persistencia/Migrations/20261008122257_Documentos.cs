@@ -34,6 +34,7 @@ namespace AtividadesJuridicas.Infrastructure.Persistencia.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("pk_documentos", x => x.id);
+                    table.CheckConstraint("ck_documentos_cliente_obrigatorio", "categoria = 3 OR cliente_id IS NOT NULL");
                     table.ForeignKey(
                         name: "fk_documentos_clientes_cliente_id",
                         column: x => x.cliente_id,

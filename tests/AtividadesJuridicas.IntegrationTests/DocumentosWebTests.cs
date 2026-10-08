@@ -138,4 +138,33 @@ public class DocumentosWebTests(BancoFixture banco) : IAsyncLifetime
         resposta.StatusCode.Should().Be(HttpStatusCode.Redirect);
         (await DownloadsAsync()).Should().BeEmpty();
     }
+
+    [Fact]
+    public async Task Arquivo_que_sumiu_do_disco_e_erro_de_servidor_registrado_e_nao_um_404()
+    {
+        var chave = await _app.EmEscopoAsync(null, async sp =>
+            (await sp.GetRequiredService<AppDbContext>().Documentos.AsNoTracking().SingleAsync(d => d.Id == _geral)).ChaveArmazenamento);
+        File.Delete(Path.Combine(_app.PastaDeArquivos, chave.Replace('/', Path.DirectorySeparatorChar)));
+        var cliente = await _app.ClienteAutenticadoAsync();
+
+        var resposta = await cliente.GetAsync($"/documentos/{_geral}/baixar");
+
+        resposta.StatusCode.Should().Be(HttpStatusCode.InternalServerError);
+        (await resposta.Content.ReadAsStringAsync()).Should().NotContain(Conteudo);
+        (await DownloadsAsync()).Should().BeEmpty("o download não aconteceu");
+        var evento = (await _app.EventosAsync(EventosDeDocumento.ArquivoAusente)).Should().ContainSingle().Subject;
+        evento.Entidade.Should().Be("Documento");
+        evento.EntidadeId.Should().Be(_geral);
+        evento.UsuarioId.Should().Be(_admin);
+    }
+
+    [Fact]
+    public async Task Download_informa_o_tamanho_do_arquivo()
+    {
+        var cliente = await _app.ClienteAutenticadoAsync();
+
+        var resposta = await cliente.GetAsync($"/documentos/{_geral}/baixar");
+
+        resposta.Content.Headers.ContentLength.Should().Be(Encoding.UTF8.GetByteCount(Conteudo));
+    }
 }

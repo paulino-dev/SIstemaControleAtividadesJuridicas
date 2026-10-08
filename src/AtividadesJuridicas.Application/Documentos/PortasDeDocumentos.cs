@@ -37,7 +37,12 @@ public sealed record DocumentoResumo(
     DateTime EnviadoEm, string? EnviadoPor);
 
 /// <summary>Quem recebe fecha <paramref name="Conteudo"/>.</summary>
-public sealed record ArquivoParaBaixar(string NomeArquivo, long TamanhoBytes, Stream Conteudo);
+public sealed record ArquivoParaBaixar(string NomeArquivo, long TamanhoBytes, Stream Conteudo) : IAsyncDisposable, IDisposable
+{
+    public void Dispose() => Conteudo.Dispose();
+
+    public ValueTask DisposeAsync() => Conteudo.DisposeAsync();
+}
 
 public sealed record AcessoDoDocumento(
     Guid DocumentoId, string Nome, CategoriaDocumento Categoria, IReadOnlyList<Guid> Perfis, IReadOnlyList<Guid> Usuarios);

@@ -199,6 +199,98 @@ public class DocumentosTests
         _c.Armazenamento.Arquivos.Should().BeEmpty("o arquivo não pode ficar sem registro");
     }
 
+    [Fact]
+    public async Task Falha_na_limpeza_nao_troca_a_recusa_do_dominio()
+    {
+        _c.Armazenamento.FalharAoRemover = true;
+
+        var resultado = await Enviar(_c.Diretor, conteudo: Conteudo(""));
+
+        resultado.Erro.Should().Be(TipoErro.Validacao);
+        resultado.Mensagem.Should().Be("O arquivo está vazio.");
+    }
+
+    [Fact]
+    public async Task Falha_na_limpeza_nao_troca_a_excecao_original()
+    {
+        _c.Armazenamento.FalharAoRemover = true;
+        _c.Unidade.Falha = new InvalidOperationException("banco fora do ar");
+
+        var acao = () => Enviar(_c.Diretor);
+
+        await acao.Should().ThrowAsync<InvalidOperationException>().WithMessage("banco fora do ar");
+    }
+
+    [Fact]
+    public async Task Nome_de_arquivo_longo_demais_e_recusado_antes_de_gravar()
+    {
+        var resultado = await Enviar(_c.Diretor, arquivo: new string('a', Documento.TamanhoMaximoNome + 1));
+
+        resultado.Erro.Should().Be(TipoErro.Validacao);
+        resultado.Mensagem.Should().Be($"O nome do arquivo deve ter até {Documento.TamanhoMaximoNome} caracteres.");
+        _c.Armazenamento.Arquivos.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Nome_de_documento_longo_demais_e_recusado_antes_de_gravar()
+    {
+        var resultado = await Enviar(_c.Diretor, nome: new string('a', Documento.TamanhoMaximoNome + 1));
+
+        resultado.Erro.Should().Be(TipoErro.Validacao);
+        resultado.Mensagem.Should().Be($"O nome do documento deve ter até {Documento.TamanhoMaximoNome} caracteres.");
+        _c.Armazenamento.Arquivos.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData("laudo\u0000.pdf")]
+    [InlineData("la\tudo.pdf")]
+    [InlineData("laudo\u007f.pdf")]
+    public async Task Caractere_de_controle_no_nome_do_arquivo_e_recusado_antes_de_gravar(string arquivo)
+    {
+        var resultado = await Enviar(_c.Diretor, arquivo: arquivo);
+
+        resultado.Erro.Should().Be(TipoErro.Validacao);
+        resultado.Mensagem.Should().Be("O nome do arquivo é inválido.");
+        _c.Armazenamento.Arquivos.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData("Procuração\r\nX-Injetado: 1")]
+    [InlineData("Procu\u0000ração")]
+    public async Task Caractere_de_controle_no_nome_do_documento_e_recusado_antes_de_gravar(string nome)
+    {
+        var resultado = await Enviar(_c.Diretor, nome: nome);
+
+        resultado.Erro.Should().Be(TipoErro.Validacao);
+        resultado.Mensagem.Should().Be("O nome do documento é inválido.");
+        _c.Armazenamento.Arquivos.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Tipo_de_conteudo_com_caractere_de_controle_vira_o_padrao()
+    {
+        (await Enviar(_c.Diretor, tipo: "text/plain\r\nX-Injetado: 1")).Sucesso.Should().BeTrue();
+
+        _c.Documentos.Itens.Single().TipoConteudo.Should().Be("application/octet-stream");
+    }
+
+    [Fact]
+    public async Task Sem_usuario_nenhuma_operacao_de_documento_e_permitida()
+    {
+        var documento = await Enviado();
+        var id = documento.Id;
+
+        (await Enviar(null)).Erro.Should().Be(TipoErro.AcessoNegado);
+        (await new RenomearDocumentoManipulador(_c.Como(null), _c.Documentos, _c.Unidade)
+            .ManipularAsync(new RenomearDocumento(id, "x"), default)).Erro.Should().Be(TipoErro.AcessoNegado);
+        (await new ExcluirDocumentoManipulador(_c.Como(null), _c.Documentos, _c.Unidade)
+            .ManipularAsync(new ExcluirDocumento(id), default)).Erro.Should().Be(TipoErro.AcessoNegado);
+        (await new ObterAcessoDoDocumentoManipulador(_c.Como(null), _c.Documentos)
+            .ManipularAsync(new ObterAcessoDoDocumento(id), default)).Erro.Should().Be(TipoErro.AcessoNegado);
+        (await DefinirAcesso(null, id, [], [])).Erro.Should().Be(TipoErro.AcessoNegado);
+        _c.Documentos.Itens.Should().ContainSingle();
+    }
+
     // ---- Listar ----
 
     [Fact]
@@ -211,10 +303,10 @@ public class DocumentosTests
         (await DefinirAcesso(_c.Diretor, soDaEster.Id, [], [_ester.Id])).Sucesso.Should().BeTrue();
 
         (await Listar(_c.Diretor)).Valor!.Itens.Select(d => d.Id)
-            .Should().Equal(liberado.Id, restrito.Id, soDaEster.Id);
+            .Should().Equal(soDaEster.Id, restrito.Id, liberado.Id);
         (await Listar(_pedro)).Valor!.Itens.Select(d => d.Id).Should().Equal(liberado.Id);
         // O perfil da Ester estava ativo quando "liberado" foi enviado: ela o alcança pelo perfil.
-        (await Listar(_ester)).Valor!.Itens.Select(d => d.Id).Should().Equal(liberado.Id, soDaEster.Id);
+        (await Listar(_ester)).Valor!.Itens.Select(d => d.Id).Should().Equal(soDaEster.Id, liberado.Id);
     }
 
     [Fact]
@@ -327,15 +419,38 @@ public class DocumentosTests
     }
 
     [Fact]
-    public async Task Arquivo_sumido_do_armazenamento_e_avisado_como_nao_encontrado()
+    public async Task Arquivo_sumido_do_armazenamento_e_falha_de_servidor_e_fica_registrado()
     {
         var documento = await Enviado();
+        var chave = documento.ChaveArmazenamento;
         _c.Armazenamento.Arquivos.Clear();
+        _c.Auditoria.Eventos.Clear();
 
-        var resultado = await Baixar(_c.Diretor, documento.Id);
+        var acao = () => Baixar(_c.Diretor, documento.Id);
+
+        var excecao = (await acao.Should().ThrowAsync<ExcecaoDeArquivoAusente>()).Which;
+        excecao.Message.Should().Contain(documento.Id.ToString()).And.Contain(chave);
+        var evento = _c.Auditoria.Eventos.Should().ContainSingle().Subject;
+        evento.Evento.Should().Be(EventosDeDocumento.ArquivoAusente);
+        evento.Entidade.Should().Be("Documento");
+        evento.EntidadeId.Should().Be(documento.Id);
+        evento.Imediato.Should().BeTrue();
+        evento.Dados.Should().BeEquivalentTo(new { chave });
+    }
+
+    [Fact]
+    public async Task Arquivo_sumido_para_quem_nao_tem_acesso_continua_nao_encontrado()
+    {
+        var documento = await Enviado();
+        (await DefinirAcesso(_c.Diretor, documento.Id, [_c.PerfilDiretor.Id], [])).Sucesso.Should().BeTrue();
+        _c.Armazenamento.Arquivos.Clear();
+        _c.Auditoria.Eventos.Clear();
+
+        var resultado = await Baixar(_pedro, documento.Id);
 
         resultado.Erro.Should().Be(TipoErro.NaoEncontrado);
-        resultado.Mensagem.Should().Be("O arquivo deste documento não está no armazenamento.");
+        _c.Auditoria.Eventos.Should().ContainSingle().Which.Evento.Should().Be(EventosDeSeguranca.AcessoNegado);
+        _c.Auditoria.Eventos.Should().NotContain(e => e.Evento == EventosDeDocumento.ArquivoAusente);
     }
 
     [Fact]
@@ -458,10 +573,13 @@ public class DocumentosTests
     {
         var documento = await Enviado();
 
+        var salvamentos = _c.Unidade.Salvamentos;
+
         (await DefinirAcesso(_c.Diretor, documento.Id, [_c.PerfilDiretor.Id, _c.PerfilProducao.Id, _estagio.Id], []))
             .Sucesso.Should().BeTrue();
 
         _c.Auditoria.Eventos.Should().BeEmpty();
+        _c.Unidade.Salvamentos.Should().Be(salvamentos, "sem mudança nada é salvo");
     }
 
     [Fact]

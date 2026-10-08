@@ -36,6 +36,20 @@ public sealed class EnviarDocumentoManipulador(
         if (nomeDoArquivo.Length == 0 || requisicao.Conteudo is null)
             return Falha(TipoErro.Validacao, "Informe o arquivo.");
 
+        // O domínio também valida, mas só depois de o arquivo estar gravado: o que dá para recusar, recusa-se antes.
+        if (nomeDoArquivo.Length > Documento.TamanhoMaximoNome)
+            return Falha(TipoErro.Validacao, $"O nome do arquivo deve ter até {Documento.TamanhoMaximoNome} caracteres.");
+        if (nomeDoArquivo.Any(char.IsControl))
+            return Falha(TipoErro.Validacao, "O nome do arquivo é inválido.");
+
+        if (requisicao.Nome is { } nome)
+        {
+            if (nome.Trim().Length > Documento.TamanhoMaximoNome)
+                return Falha(TipoErro.Validacao, $"O nome do documento deve ter até {Documento.TamanhoMaximoNome} caracteres.");
+            if (nome.Any(char.IsControl))
+                return Falha(TipoErro.Validacao, "O nome do documento é inválido.");
+        }
+
         if (await clientes.ObterPorIdAsync(requisicao.ClienteId, ct) is null)
             return Falha(TipoErro.Validacao, "Cliente não encontrado.");
 
@@ -66,13 +80,26 @@ public sealed class EnviarDocumentoManipulador(
         }
         catch (ExcecaoDeDominio ex)
         {
-            await armazenamento.RemoverAsync(gravado.Chave, CancellationToken.None);
+            await TentarRemoverAsync(gravado.Chave);
             return Falha(TipoErro.Validacao, ex.Message);
         }
         catch
         {
-            await armazenamento.RemoverAsync(gravado.Chave, CancellationToken.None);
+            await TentarRemoverAsync(gravado.Chave);
             throw;
+        }
+    }
+
+    /// <summary>A limpeza nunca pode trocar o desfecho original: se ela mesma falhar, o arquivo fica órfão e só isso se perde.</summary>
+    private async Task TentarRemoverAsync(string chave)
+    {
+        try
+        {
+            await armazenamento.RemoverAsync(chave, CancellationToken.None);
+        }
+        catch (Exception)
+        {
+            // Sem canal para avisar daqui; a recusa ou a exceção original é o que importa a quem chamou.
         }
     }
 
@@ -87,7 +114,7 @@ public sealed class EnviarDocumentoManipulador(
     }
 
     private static string TipoDe(string? tipo) =>
-        string.IsNullOrWhiteSpace(tipo) || tipo.Trim().Length > Documento.TamanhoMaximoTipoConteudo
+        string.IsNullOrWhiteSpace(tipo) || tipo.Trim().Length > Documento.TamanhoMaximoTipoConteudo || tipo.Any(char.IsControl)
             ? DocumentosOpcoes.TipoDeConteudoPadrao
             : tipo.Trim();
 

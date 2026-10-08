@@ -548,7 +548,10 @@ namespace AtividadesJuridicas.Infrastructure.Persistencia.Migrations
                     b.HasIndex("ClienteId", "Categoria")
                         .HasDatabaseName("ix_documentos_cliente_id_categoria");
 
-                    b.ToTable("documentos", (string)null);
+                    b.ToTable("documentos", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_documentos_cliente_obrigatorio", "categoria = 3 OR cliente_id IS NOT NULL");
+                        });
                 });
 
             modelBuilder.Entity("AtividadesJuridicas.Domain.Documentos.DocumentoPerfilAcesso", b =>

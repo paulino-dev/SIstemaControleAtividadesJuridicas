@@ -2,6 +2,7 @@ using AtividadesJuridicas.Application;
 using AtividadesJuridicas.Application.Auditoria;
 using AtividadesJuridicas.Application.Comum;
 using AtividadesJuridicas.Infrastructure;
+using AtividadesJuridicas.Infrastructure.Armazenamento;
 using AtividadesJuridicas.Infrastructure.Persistencia;
 using AtividadesJuridicas.Web.Components;
 using AtividadesJuridicas.Web.Infra;
@@ -21,13 +22,19 @@ builder.Services.AddInfrastructure(
           ?? throw new InvalidOperationException("ConnectionStrings:Padrao não configurada."),
     sp =>
     {
-        // Caminho relativo é resolvido a partir da pasta da aplicação.
-        var pasta = sp.GetRequiredService<IConfiguration>()["Armazenamento:Pasta"];
-        if (string.IsNullOrWhiteSpace(pasta))
-            throw new InvalidOperationException("Armazenamento:Pasta não configurada.");
+        var pasta = PastaDeArquivos.Resolver(
+            sp.GetRequiredService<IConfiguration>()["Armazenamento:Pasta"],
+            builder.Environment.IsDevelopment(),
+            builder.Environment.ContentRootPath);
 
-        return Path.GetFullPath(pasta, sp.GetRequiredService<IWebHostEnvironment>().ContentRootPath);
-    });
+        if (!builder.Environment.IsDevelopment() && !Directory.Exists(pasta))
+            throw new InvalidOperationException(
+                $"Armazenamento:Pasta ('{pasta}') não existe. Crie a pasta antes de iniciar a aplicação.");
+
+        return pasta;
+    },
+    // Fora do desenvolvimento a pasta já existe; criá-la esconderia uma implantação que perdeu os arquivos.
+    criarPastaDeArquivos: builder.Environment.IsDevelopment());
 
 // Sem isto o HTML sai com acentos como entidades numéricas (&#xE1;).
 builder.Services.Configure<WebEncoderOptions>(opcoes =>
@@ -69,6 +76,9 @@ await using (var escopo = app.Services.CreateAsyncScope())
         : null;
     await escopo.ServiceProvider.GetRequiredService<SemeadorInicial>().ExecutarAsync(admin);
 }
+
+// Uma pasta de arquivos errada para a aplicação aqui, e não no primeiro envio.
+app.Services.GetRequiredService<ArmazenamentoEmDisco>().VerificarGravacao();
 
 if (!app.Environment.IsDevelopment())
 {

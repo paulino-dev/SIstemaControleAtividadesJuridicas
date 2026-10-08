@@ -19,7 +19,8 @@ public static class DependencyInjection
     public static IServiceCollection AddInfrastructure(
         this IServiceCollection servicos,
         Func<IServiceProvider, string> obterStringDeConexao,
-        Func<IServiceProvider, string> obterPastaDeArquivos)
+        Func<IServiceProvider, string> obterPastaDeArquivos,
+        bool criarPastaDeArquivos)
     {
         servicos.AddScoped<CarimbosInterceptor>();
         servicos.AddScoped<AuditoriaInterceptor>();
@@ -44,8 +45,10 @@ public static class DependencyInjection
         servicos.AddScoped<IConsultaDeAuditoria, ConsultaDeAuditoria>();
         servicos.AddScoped<SemeadorInicial>();
 
-        servicos.AddSingleton<IArmazenamentoDeArquivos>(sp =>
-            new ArmazenamentoEmDisco(obterPastaDeArquivos(sp), sp.GetRequiredService<IRelogio>()));
+        // O tipo concreto também é registrado para a aplicação poder conferir a pasta ao iniciar.
+        servicos.AddSingleton(sp => new ArmazenamentoEmDisco(
+            obterPastaDeArquivos(sp), sp.GetRequiredService<IRelogio>(), criarPastaDeArquivos));
+        servicos.AddSingleton<IArmazenamentoDeArquivos>(sp => sp.GetRequiredService<ArmazenamentoEmDisco>());
 
         return servicos;
     }
