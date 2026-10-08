@@ -231,21 +231,36 @@ O arquivo fica fora do banco de dados, atrás de uma interface de armazenamento 
 
 Não há versionamento. Substituir um documento é enviar um novo e excluir logicamente o anterior.
 
+- A chave de armazenamento é gerada pelo servidor; o nome do arquivo enviado é apenas um metadado (só o último segmento do caminho é guardado) e nunca é usado como caminho.
+- O envio grava primeiro o arquivo e depois o registro; se o registro não for gravado, o arquivo é removido.
+- Limite de 50 MB por arquivo. Arquivo vazio é recusado.
+- A exclusão de um documento é lógica e o arquivo permanece no armazenamento.
+- O download é sempre entregue como anexo, com tipo de conteúdo neutro: o tipo informado no envio é só um metadado.
+- Fora do ambiente de desenvolvimento, a pasta de armazenamento é configuração obrigatória, com caminho absoluto, e precisa existir antes de a aplicação subir; a aplicação não a cria.
+- Um documento cujo arquivo não está no armazenamento é uma falha do servidor, registrada pelo evento `documento_arquivo_ausente`; não é respondido como "não encontrado" a quem tem acesso.
+- O hash é guardado para conferência futura; nesta versão ele não é verificado no download.
+
 ### Regra de acesso
 
 Uma única função de domínio decide se um usuário pode acessar um documento:
 
 1. Usuário com perfil de tipo `Diretoria` acessa sempre.
-2. Caso contrário, acessa se o seu `PerfilId` constar em `DocumentoPerfilAcesso` ou se ele constar em `DocumentoUsuarioAcesso`.
+2. Contrato de Honorários nunca é acessado por quem não é da Diretoria, mesmo que o usuário ou o seu perfil constem na lista de acesso (caso de quem era da Diretoria quando foi incluído e depois mudou de perfil).
+3. Nos demais casos, acessa se o seu `PerfilId` constar em `DocumentoPerfilAcesso` ou se ele constar em `DocumentoUsuarioAcesso`.
 
-Listagens exibem apenas documentos que o usuário pode acessar.
+Listagens exibem apenas documentos que o usuário pode acessar, e o total informado conta só esses.
+
+- Baixar um documento sem ter acesso responde como não encontrado (seção 11) e gera o evento de segurança de acesso negado, com o documento.
+- Pedir a lista de Contratos de Honorários sem ser da Diretoria responde acesso negado: a existência da área não é segredo, o conteúdo dela é.
+- Cada entrada das listas de acesso é um registro com carimbos e exclusão lógica próprios. Perfil ou usuário inativo não entra em lista nova, mas permanece na lista em que já estava, e pode ser retirado dela.
+- Enviar, renomear, excluir e alterar a lista de acesso são da Diretoria. Um cliente inativo continua recebendo documentos.
 
 ### Comportamento por categoria
 
 | Categoria | Lista de acesso inicial | Restrição | Quem envia e gerencia |
 |---|---|---|---|
 | `DocumentoGeral` | Todos os perfis ativos | Nenhuma | Diretoria |
-| `ContratoHonorarios` | Vazia | O domínio recusa incluir perfil de tipo `Producao` ou usuário de perfil `Producao`, sem exceção | Diretoria |
+| `ContratoHonorarios` | Vazia | O domínio só aceita na lista perfil de tipo `Diretoria` e usuário de perfil `Diretoria`, sem exceção | Diretoria |
 | `DocumentoAtividade` | Usuários responsáveis da atividade | Nenhuma | Responsáveis, revisor e autor da atividade enviam; Diretoria gerencia |
 
 - Um perfil criado depois é incluído automaticamente na lista de acesso de todos os Documentos Gerais existentes.
@@ -393,6 +408,9 @@ Registra criação, alteração e exclusão de dados e eventos de segurança.
 
 - Gravado por um interceptor do EF Core, na mesma transação da alteração. Se a gravação do registro falhar, a operação inteira falha.
 - Eventos de segurança: login, falha de login, bloqueio de login, logout, troca e redefinição de senha, mudança de perfil, ativação e inativação de usuário, mudança na lista de acesso de documento, tentativa de acesso negada.
+- A mudança na lista de acesso de um documento gera o evento `documento_acesso_alterado` no documento, com os perfis e usuários incluídos e retirados, na mesma transação. A criação e a exclusão de um documento aparecem pelos registros do próprio documento e de cada entrada da lista, sem evento.
+- `documento_arquivo_ausente` registra a tentativa de baixar um documento cujo arquivo não está no armazenamento.
+- A tentativa de acesso negada, quando vem de uma consulta, leva o recurso ou os filtros pedidos.
 - Eventos de negócio usam a mesma operação `Evento`: `processo_clientes_alterados`, anotado no processo quando seus clientes ou polos mudam, com os vínculos incluídos, removidos e alterados em `Dados`. Os clientes informados na criação do processo aparecem nos registros de criação dos vínculos, não nesse evento.
 - Gravações que não são alteração de negócio (último acesso, contagem de falhas e bloqueio de login) não geram registro de alteração; os eventos de segurança correspondentes cobrem esses fatos.
 - `SenhaHash` e `VersaoDeSessao` nunca aparecem em `Dados`.
@@ -412,6 +430,7 @@ Registra consultas.
 
 - Gravado na `Application`, em cada caso de uso de consulta concluído com sucesso. Se o registro do acesso falhar, a consulta falha.
 - A consulta interna que a interface faz para saber quem é o usuário atual não gera registro.
+- Em documentos: listar os documentos de um cliente registra `Listou`; baixar registra `Baixou`; ver a lista de acesso de um documento registra `Visualizou`.
 
 ### Regras comuns
 
@@ -426,7 +445,7 @@ Registra consultas.
 - Violação de invariante lança exceção de domínio.
 - Os casos de uso devolvem um `Resultado` com tipo de erro: `Validacao`, `NaoEncontrado`, `AcessoNegado`, `Conflito`.
 - A interface traduz o tipo de erro em mensagem ao usuário. Erros não previstos são registrados em log técnico e exibidos como mensagem genérica.
-- Um recurso que o usuário não pode ver responde como `NaoEncontrado`, para não revelar a existência dele.
+- Um recurso que o usuário não pode ver responde como `NaoEncontrado`, para não revelar a existência dele. Exceção declarada: a lista de Contratos de Honorários responde `AcessoNegado` a quem não é da Diretoria (seção 7).
 
 ## 12. Testes
 
