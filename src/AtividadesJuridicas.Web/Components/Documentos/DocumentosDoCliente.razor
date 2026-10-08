@@ -28,7 +28,10 @@
     {
         <table>
             <thead>
-                <tr><th>Nome</th><th>Tamanho</th><th>Enviado em</th><th>Por</th><th></th></tr>
+                <tr><th>Nome</th><th>Tamanho</th><th>Enviado em</th><th>Por</th>@if (DeAtividades)
+                    {
+                        <th>Atividade</th>
+                    }<th></th></tr>
             </thead>
             <tbody>
                 @foreach (var documento in _pagina.Itens)
@@ -42,6 +45,10 @@
                         <td>@Tamanho(documento.TamanhoBytes)</td>
                         <td>@Fuso.Formatar(documento.EnviadoEm)</td>
                         <td>@documento.EnviadoPor</td>
+                        @if (DeAtividades)
+                        {
+                            <td>@documento.AtividadeTitulo</td>
+                        }
                         <td class="acoes">
                             @if (PodeGerenciar)
                             {
@@ -122,16 +129,20 @@
             </div>
         }
 
-        <div class="formulario">
-            <strong>Enviar documento</strong>
-            <label>Arquivo (até @(DocumentosOpcoes.TamanhoMaximoBytes / UmMegabyte) MB) <InputFile @key="_versaoDoCampo" OnChange="Escolher" /></label>
-            <label>Nome (opcional) <input type="text" @bind="_nomeDoEnvio" /></label>
-            <div class="acoes">
-                <button type="button" disabled="@(_arquivo is null || _enviando)" @onclick="EnviarAsync">
-                    @(_enviando ? "Enviando…" : "Enviar")
-                </button>
+        @* Documento de atividade só nasce na ficha da atividade: aqui não há envio. *@
+        @if (!DeAtividades)
+        {
+            <div class="formulario">
+                <strong>Enviar documento</strong>
+                <label>Arquivo (até @(DocumentosOpcoes.TamanhoMaximoBytes / UmMegabyte) MB) <InputFile @key="_versaoDoCampo" OnChange="Escolher" /></label>
+                <label>Nome (opcional) <input type="text" @bind="_nomeDoEnvio" /></label>
+                <div class="acoes">
+                    <button type="button" disabled="@(_arquivo is null || _enviando)" @onclick="EnviarAsync">
+                        @(_enviando ? "Enviando…" : "Enviar")
+                    </button>
+                </div>
             </div>
-        </div>
+        }
     }
 </section>
 
@@ -147,6 +158,9 @@
 
     /// <summary>Avisado quando um caso de uso responde acesso negado: a página decide o que mostrar.</summary>
     [Parameter] public EventCallback OnAcessoEncerrado { get; set; }
+
+    /// <summary>Documentos de Atividades: coluna "Atividade", sem envio e sem editor de acesso.</summary>
+    private bool DeAtividades => Categoria == CategoriaDocumento.DocumentoAtividade;
 
     private bool _carregado;
     private bool _falhou;

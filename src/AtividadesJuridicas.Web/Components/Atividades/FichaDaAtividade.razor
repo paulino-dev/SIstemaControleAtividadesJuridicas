@@ -204,6 +204,11 @@
                 </tbody>
             </table>
         }
+
+        @* Comentários e documentos não mudam a atividade: não avisam OnMudou nem recarregam a ficha. *@
+        <ComentariosDaAtividade @key="@($"comentarios-{a.Id}")" AtividadeId="a.Id" OnAcessoEncerrado="EncerrarAcessoAsync" />
+        <DocumentosDaAtividade @key="@($"documentos-{a.Id}")" AtividadeId="a.Id" PodeGerenciar="a.Acoes.Editar"
+                               OnAcessoEncerrado="EncerrarAcessoAsync" />
     }
 </section>
 

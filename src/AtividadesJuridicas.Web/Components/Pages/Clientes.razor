@@ -132,6 +132,9 @@ else
                 <DocumentosDoCliente @key="@($"contratos-{_form.Id}")" ClienteId="_form.Id.Value"
                                      Categoria="CategoriaDocumento.ContratoHonorarios" Titulo="Contratos de Honorários"
                                      PodeGerenciar="true" OnAcessoEncerrado="EncerrarAcesso" />
+                <DocumentosDoCliente @key="@($"atividades-{_form.Id}")" ClienteId="_form.Id.Value"
+                                     Categoria="CategoriaDocumento.DocumentoAtividade" Titulo="Documentos de Atividades"
+                                     PodeGerenciar="true" OnAcessoEncerrado="EncerrarAcesso" />
             }
         }
     }
@@ -164,6 +167,9 @@ else
             @ProcessosDoCliente
             <DocumentosDoCliente @key="@($"gerais-{_ficha.Id}")" ClienteId="_ficha.Id"
                                  Categoria="CategoriaDocumento.DocumentoGeral" Titulo="Documentos Gerais"
+                                 PodeGerenciar="false" OnAcessoEncerrado="EncerrarAcesso" />
+            <DocumentosDoCliente @key="@($"atividades-{_ficha.Id}")" ClienteId="_ficha.Id"
+                                 Categoria="CategoriaDocumento.DocumentoAtividade" Titulo="Documentos de Atividades"
                                  PodeGerenciar="false" OnAcessoEncerrado="EncerrarAcesso" />
             <div class="acoes"><button type="button" class="secundario" @onclick="Fechar">Fechar</button></div>
         </section>

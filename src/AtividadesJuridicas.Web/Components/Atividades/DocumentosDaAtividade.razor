@@ -1,0 +1,351 @@
+@inject IDespachante Despachante
+@inject FusoDoEscritorio Fuso
+
+<section class="ficha">
+    <h3>Documentos</h3>
+
+    @if (_mensagem is not null)
+    {
+        <p class="@(_falhou ? "erro" : "ok")" role="status">@_mensagem</p>
+    }
+
+    @if (!_carregado)
+    {
+        <p>Carregando…</p>
+    }
+    else if (_naoEncontrada)
+    {
+        @* Perdeu a visibilidade da atividade: a mensagem do caso de uso ocupa o lugar da seção. *@
+        <p>@_mensagemNaoEncontrada</p>
+    }
+    else
+    {
+        @if (_erroDaLista is not null)
+        {
+            <p class="erro">@_erroDaLista</p>
+            <div class="acoes">
+                <button type="button" class="secundario" disabled="@Ocupado" @onclick="() => IrParaAsync(_paginaPedida)">Tentar de novo</button>
+            </div>
+        }
+        else if (_pagina.Itens.Count == 0)
+        {
+            <p>Nenhum documento.</p>
+        }
+        else
+        {
+            <table>
+                <thead>
+                    <tr><th>Nome</th><th>Tamanho</th><th>Enviado em</th><th>Por</th><th></th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var documento in _pagina.Itens)
+                    {
+                        <tr @key="documento.Id">
+                            <td>
+                                @* Link fora da navegação do Blazor: é um download, não uma página. O atributo "download"
+                                   é o que impede o roteador do Blazor de interceptar o clique; não o remova. *@
+                                <a href="@($"/documentos/{documento.Id}/baixar")" download data-enhance-nav="false">@documento.Nome</a>
+                            </td>
+                            <td>@Tamanho(documento.TamanhoBytes)</td>
+                            <td>@Fuso.Formatar(documento.EnviadoEm)</td>
+                            <td>@documento.EnviadoPor</td>
+                            <td class="acoes">
+                                @if (PodeGerenciar)
+                                {
+                                    <button type="button" class="secundario" disabled="@_removendo" @onclick="() => AbrirRenomear(documento)">Renomear</button>
+                                    @if (_excluindo == documento.Id)
+                                    {
+                                        <button type="button" disabled="@_removendo" @onclick="() => ExcluirAsync(documento.Id)">Confirmar exclusão</button>
+                                        <button type="button" class="secundario" disabled="@_removendo" @onclick="CancelarExclusao">Cancelar</button>
+                                    }
+                                    else
+                                    {
+                                        <button type="button" class="secundario" disabled="@_removendo" @onclick="() => PedirExclusao(documento.Id)">Excluir</button>
+                                    }
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+
+            @if (_pagina.TotalDePaginas > 1)
+            {
+                <div class="acoes">
+                    <button type="button" class="secundario" disabled="@(_pagina.Numero <= 1 || Ocupado)" @onclick="() => IrParaAsync(_pagina.Numero - 1)">Anterior</button>
+                    <span>Página @_pagina.Numero de @_pagina.TotalDePaginas</span>
+                    <button type="button" class="secundario" disabled="@(_pagina.Numero >= _pagina.TotalDePaginas || Ocupado)" @onclick="() => IrParaAsync(_pagina.Numero + 1)">Próxima</button>
+                </div>
+            }
+        }
+
+        @if (PodeGerenciar && _renomeando is not null)
+        {
+            <div class="formulario">
+                <strong>Renomear "@_renomeando.Nome"</strong>
+                <label>Novo nome <input type="text" @bind="_novoNome" disabled="@_renomeandoAgora" /></label>
+                <div class="acoes">
+                    <button type="button" disabled="@_renomeandoAgora" @onclick="RenomearAsync">Salvar nome</button>
+                    <button type="button" class="secundario" disabled="@_renomeandoAgora" @onclick="FecharRenomear">Cancelar</button>
+                </div>
+            </div>
+        }
+
+        <div class="formulario">
+            <strong>Enviar documento</strong>
+            <label>Arquivo (até @(DocumentosOpcoes.TamanhoMaximoBytes / UmMegabyte) MB) <InputFile @key="_versaoDoCampo" OnChange="Escolher" /></label>
+            <label>Nome (opcional) <input type="text" @bind="_nomeDoEnvio" /></label>
+            <div class="acoes">
+                <button type="button" disabled="@(_arquivo is null || _enviando)" @onclick="EnviarAsync">
+                    @(_enviando ? "Enviando…" : "Enviar")
+                </button>
+            </div>
+        </div>
+    }
+</section>
+
+@code {
+    private const long UmMegabyte = 1024 * 1024;
+
+    private static readonly Pagina<DocumentoResumo> Vazia = new([], 0, 1, DocumentosOpcoes.TamanhoDaPagina);
+
+    [Parameter, EditorRequired] public Guid AtividadeId { get; set; }
+
+    /// <summary>Renomear e excluir; quem decide é a ficha (o servidor confirma em cada chamada).</summary>
+    [Parameter] public bool PodeGerenciar { get; set; }
+
+    /// <summary>Avisado quando um caso de uso responde acesso negado: a página decide o que mostrar.</summary>
+    [Parameter] public EventCallback OnAcessoEncerrado { get; set; }
+
+    private bool _carregado;
+    private bool _naoEncontrada;
+    private bool _falhou;
+    private bool _enviando;
+    private bool _removendo;
+    private bool _renomeandoAgora;
+    private int _paginaPedida = 1;
+    private string? _mensagem;
+    private string? _mensagemNaoEncontrada;
+    private string? _erroDaLista;
+    private Pagina<DocumentoResumo> _pagina = Vazia;
+
+    private IBrowserFile? _arquivo;
+    private string? _nomeDoEnvio;
+    private int _versaoDoCampo;
+
+    private Guid? _excluindo;
+    private DocumentoResumo? _renomeando;
+    private string _novoNome = string.Empty;
+
+    private bool Ocupado => _enviando || _removendo || _renomeandoAgora;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarAsync(1);
+        _carregado = true;
+    }
+
+    /// <summary>Troca de página ou nova tentativa: o aviso de uma ação anterior não vale mais.</summary>
+    private async Task IrParaAsync(int pagina)
+    {
+        if (Ocupado) return;
+
+        _mensagem = null;
+        await CarregarAsync(pagina);
+    }
+
+    private async Task CarregarAsync(int pagina)
+    {
+        _paginaPedida = pagina;
+        _excluindo = null;
+        var resultado = await Despachante.EnviarAsync(new ListarDocumentosDaAtividade(AtividadeId, pagina));
+        if (await EncerradoAsync(resultado)) return;
+
+        _pagina = resultado.Valor ?? Vazia;
+        // Falha na consulta não é "nenhum documento": mostra o erro no lugar da lista.
+        _erroDaLista = resultado.Sucesso ? null : resultado.Mensagem ?? "Não foi possível consultar os documentos.";
+
+        // A página ficou além do fim (por exemplo, ao excluir o único item dela): volta à última.
+        if (resultado.Sucesso && _pagina.Itens.Count == 0 && _pagina.Total > 0 && _pagina.Numero > _pagina.TotalDePaginas)
+            await CarregarAsync(_pagina.TotalDePaginas);
+    }
+
+    /// <summary>
+    /// Acesso negado avisa a página; "não encontrado" da atividade (perdeu a visibilidade) troca a seção pela mensagem.
+    /// Só vale para as chamadas que têm a atividade como alvo (não para renomear/excluir um documento).
+    /// </summary>
+    private async Task<bool> EncerradoAsync(Resultado resultado, bool atividadeComoAlvo = true)
+    {
+        if (atividadeComoAlvo && resultado.Erro == TipoErro.NaoEncontrado)
+        {
+            _naoEncontrada = true;
+            _mensagemNaoEncontrada = resultado.Mensagem;
+            _pagina = Vazia;
+            _erroDaLista = null;
+            _renomeando = null;
+            _excluindo = null;
+            return true;
+        }
+
+        if (resultado.Erro != TipoErro.AcessoNegado) return false;
+
+        _pagina = Vazia;
+        _renomeando = null;
+        await OnAcessoEncerrado.InvokeAsync();
+        return true;
+    }
+
+    private void Escolher(InputFileChangeEventArgs e)
+    {
+        // Cancelar o diálogo de arquivos dispara a troca com zero arquivos.
+        _arquivo = e.FileCount > 0 ? e.File : null;
+        _mensagem = null;
+    }
+
+    private async Task EnviarAsync()
+    {
+        if (_arquivo is not { } arquivo || _enviando) return;
+
+        _mensagem = null;
+        if (arquivo.Size > DocumentosOpcoes.TamanhoMaximoBytes)
+        {
+            Avisar($"O arquivo passa do limite de {DocumentosOpcoes.TamanhoMaximoBytes / UmMegabyte} MB.", falhou: true);
+            return;
+        }
+
+        _enviando = true;
+        try
+        {
+            await using var conteudo = arquivo.OpenReadStream(DocumentosOpcoes.TamanhoMaximoBytes);
+            var resultado = await Despachante.EnviarAsync(new EnviarDocumentoDaAtividade(
+                AtividadeId, _nomeDoEnvio, arquivo.Name, arquivo.ContentType, conteudo));
+            if (await EncerradoAsync(resultado)) return;
+
+            if (!resultado.Sucesso)
+            {
+                Avisar(resultado.Mensagem, falhou: true);
+                return;
+            }
+
+            // Se outro arquivo foi escolhido enquanto este subia, a escolha nova é preservada.
+            if (ReferenceEquals(_arquivo, arquivo))
+            {
+                _arquivo = null;
+                _nomeDoEnvio = null;
+                _versaoDoCampo++;   // recria o campo de arquivo, vazio
+            }
+
+            await CarregarAsync(1);
+            if (_naoEncontrada) return;
+
+            if (_erroDaLista is null) Avisar("Documento enviado.", falhou: false);
+            else Avisar("Documento enviado, mas não foi possível atualizar a lista.", falhou: true);
+        }
+        catch (IOException)
+        {
+            // A leitura do arquivo no navegador foi interrompida (conexão caiu, arquivo removido).
+            Avisar("Não foi possível ler o arquivo. Escolha-o de novo e tente outra vez.", falhou: true);
+        }
+        finally
+        {
+            _enviando = false;
+        }
+    }
+
+    private void AbrirRenomear(DocumentoResumo documento)
+    {
+        if (_renomeandoAgora) return;
+
+        _mensagem = null;
+        _renomeando = documento;
+        _novoNome = documento.Nome;
+    }
+
+    private async Task RenomearAsync()
+    {
+        if (_renomeando is not { } documento || _renomeandoAgora) return;
+
+        _renomeandoAgora = true;
+        _mensagem = null;
+        try
+        {
+            var resultado = await Despachante.EnviarAsync(new RenomearDocumento(documento.Id, _novoNome));
+            if (await EncerradoAsync(resultado, atividadeComoAlvo: false)) return;
+
+            if (!resultado.Sucesso)
+            {
+                Avisar(resultado.Mensagem, falhou: true);
+                return;
+            }
+
+            if (ReferenceEquals(_renomeando, documento)) _renomeando = null;
+            await CarregarAsync(_pagina.Numero);
+            if (_naoEncontrada) return;
+
+            if (_erroDaLista is null) Avisar("Nome alterado.", falhou: false);
+            else Avisar("Nome alterado, mas não foi possível atualizar a lista.", falhou: true);
+        }
+        finally
+        {
+            _renomeandoAgora = false;
+        }
+    }
+
+    // Métodos, e não lambdas de atribuição, nos @onclick: a exclusão pede um segundo clique.
+    private void PedirExclusao(Guid id) => _excluindo = id;
+
+    private void CancelarExclusao() => _excluindo = null;
+
+    private void FecharRenomear()
+    {
+        if (_renomeandoAgora) return;
+        _renomeando = null;
+    }
+
+    private async Task ExcluirAsync(Guid id)
+    {
+        // Um segundo clique em "Confirmar exclusão" receberia "não encontrado" e apagaria o aviso de sucesso.
+        if (_removendo) return;
+
+        _removendo = true;
+        _mensagem = null;
+        try
+        {
+            var resultado = await Despachante.EnviarAsync(new ExcluirDocumento(id));
+            if (await EncerradoAsync(resultado, atividadeComoAlvo: false)) return;
+
+            if (!resultado.Sucesso)
+            {
+                Avisar(resultado.Mensagem, falhou: true);
+                // O documento pode já não existir: a lista é atualizada para refletir o servidor.
+                if (resultado.Erro == TipoErro.NaoEncontrado) await CarregarAsync(_pagina.Numero);
+                return;
+            }
+
+            if (_renomeando?.Id == id) _renomeando = null;
+            await CarregarAsync(_pagina.Numero);
+            if (_naoEncontrada) return;
+
+            if (_erroDaLista is null) Avisar("Documento excluído.", falhou: false);
+            else Avisar("Documento excluído, mas não foi possível atualizar a lista.", falhou: true);
+        }
+        finally
+        {
+            _removendo = false;
+            _excluindo = null;
+        }
+    }
+
+    private void Avisar(string? mensagem, bool falhou)
+    {
+        _mensagem = mensagem;
+        _falhou = falhou;
+    }
+
+    private static string Tamanho(long bytes) => bytes switch
+    {
+        >= UmMegabyte => $"{bytes / (double)UmMegabyte:0.#} MB",
+        >= 1024 => $"{bytes / 1024d:0.#} KB",
+        _ => $"{bytes} B",
+    };
+}

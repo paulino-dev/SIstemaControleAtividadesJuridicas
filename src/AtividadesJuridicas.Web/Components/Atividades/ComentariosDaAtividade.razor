@@ -1,0 +1,174 @@
+@inject IDespachante Despachante
+@inject FusoDoEscritorio Fuso
+
+<section class="ficha">
+    <h3>Comentários</h3>
+
+    @if (_mensagem is not null)
+    {
+        <p class="@(_falhou ? "erro" : "ok")" role="status">@_mensagem</p>
+    }
+
+    @if (!_carregado)
+    {
+        <p>Carregando…</p>
+    }
+    else if (_naoEncontrada)
+    {
+        @* Perdeu a visibilidade da atividade: a mensagem do caso de uso ocupa o lugar da seção. *@
+        <p>@_mensagemNaoEncontrada</p>
+    }
+    else
+    {
+        @if (_erroDaLista is not null)
+        {
+            @* Falha na consulta nunca é apresentada como "nenhum comentário". *@
+            <p class="erro">@_erroDaLista</p>
+            <div class="acoes">
+                <button type="button" class="secundario" disabled="@_enviando" @onclick="TentarDeNovoAsync">Tentar de novo</button>
+            </div>
+        }
+        else if (_comentarios.Count == 0)
+        {
+            <p>Nenhum comentário.</p>
+        }
+        else
+        {
+            <ul class="comentarios">
+                @foreach (var comentario in _comentarios)
+                {
+                    <li @key="comentario.Id">
+                        <strong>@(comentario.UsuarioNome ?? "Autor não identificado")</strong>
+                        <span>@Fuso.Formatar(comentario.DataHora)</span>
+                        <div class="texto-livre">@comentario.Texto</div>
+                    </li>
+                }
+            </ul>
+        }
+
+        <div class="formulario">
+            <label>Novo comentário <textarea rows="3" @bind="_texto" @bind:event="oninput" disabled="@_enviando"></textarea></label>
+            <div class="acoes">
+                <button type="button" disabled="@_enviando" @onclick="ComentarAsync">
+                    @(_enviando ? "Enviando…" : "Comentar")
+                </button>
+            </div>
+        </div>
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired] public Guid AtividadeId { get; set; }
+
+    /// <summary>Avisado quando um caso de uso responde acesso negado: a página decide o que mostrar.</summary>
+    [Parameter] public EventCallback OnAcessoEncerrado { get; set; }
+
+    private bool _carregado;
+    private bool _naoEncontrada;
+    private bool _falhou;
+    private bool _enviando;
+    private string? _mensagem;
+    private string? _mensagemNaoEncontrada;
+    private string? _erroDaLista;
+    private string _texto = string.Empty;
+    private IReadOnlyList<ComentarioDetalhe> _comentarios = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarAsync();
+        _carregado = true;
+    }
+
+    /// <summary>Consulta a lista; devolve se a seção ficou mostrando dados atuais.</summary>
+    private async Task<bool> CarregarAsync()
+    {
+        var resultado = await Despachante.EnviarAsync(new ListarComentariosDaAtividade(AtividadeId));
+        if (await EncerradoAsync(resultado)) return false;
+
+        if (resultado.Valor is { } lista)
+        {
+            _comentarios = lista;
+            _erroDaLista = null;
+            return true;
+        }
+
+        // Falha na consulta não é "nenhum comentário": o erro toma o lugar da lista.
+        _comentarios = [];
+        _erroDaLista = resultado.Mensagem ?? "Não foi possível consultar os comentários.";
+        return false;
+    }
+
+    /// <summary>Acesso negado avisa a página; "não encontrado" (perdeu a visibilidade) troca a seção pela mensagem.</summary>
+    private async Task<bool> EncerradoAsync(Resultado resultado)
+    {
+        if (resultado.Erro == TipoErro.NaoEncontrado)
+        {
+            _naoEncontrada = true;
+            _mensagemNaoEncontrada = resultado.Mensagem;
+            _comentarios = [];
+            _erroDaLista = null;
+            return true;
+        }
+
+        if (resultado.Erro != TipoErro.AcessoNegado) return false;
+
+        _comentarios = [];
+        await OnAcessoEncerrado.InvokeAsync();
+        return true;
+    }
+
+    private async Task TentarDeNovoAsync()
+    {
+        if (_enviando) return;
+
+        _enviando = true;
+        _mensagem = null;
+        try
+        {
+            await CarregarAsync();
+        }
+        finally
+        {
+            _enviando = false;
+        }
+    }
+
+    private async Task ComentarAsync()
+    {
+        if (_enviando) return;
+
+        _enviando = true;
+        _mensagem = null;
+        try
+        {
+            var texto = _texto;
+            var resultado = await Despachante.EnviarAsync(new ComentarAtividade(AtividadeId, texto));
+            if (await EncerradoAsync(resultado)) return;
+
+            if (!resultado.Sucesso)
+            {
+                Avisar(resultado.Mensagem, falhou: true);
+                return;
+            }
+
+            // O campo só é limpo se ainda tem o que foi enviado.
+            if (_texto == texto) _texto = string.Empty;
+
+            var atualizada = await CarregarAsync();
+            if (_naoEncontrada) return;
+
+            if (atualizada) Avisar("Comentário enviado.", falhou: false);
+            else Avisar("Comentário enviado, mas não foi possível atualizar a lista.", falhou: true);
+        }
+        finally
+        {
+            _enviando = false;
+        }
+    }
+
+    private void Avisar(string? mensagem, bool falhou)
+    {
+        _mensagem = mensagem;
+        _falhou = falhou;
+    }
+}
