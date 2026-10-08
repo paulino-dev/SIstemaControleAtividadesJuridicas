@@ -101,6 +101,14 @@ erDiagram
 
 Semeado com dois perfis: "Diretor" (`Diretoria`) e "Produção" (`Producao`). Perfis criados depois escolhem um dos dois tipos. As regras de negócio consultam o `Tipo`; a lista de acesso de documentos usa o `PerfilId`.
 
+Regras:
+
+- Somente a Diretoria cria, renomeia, inativa e reativa perfis. Não há exclusão de perfil.
+- O `Tipo` não muda depois de criado: trocar o tipo mudaria de uma vez o acesso de todos os usuários do perfil.
+- O nome é único sem diferenciar maiúsculas.
+- Um perfil com usuário ativo não pode ser inativado; antes, troca-se o perfil desses usuários. Um usuário cujo perfil está inativo não pode ser reativado enquanto o perfil não for reativado ou trocado.
+- Inativar um perfil não revoga o que ele já recebeu: ele permanece nas listas de acesso em que estava (seção 7).
+
 ### Usuario
 
 | Campo | Regra |
@@ -263,7 +271,9 @@ Listagens exibem apenas documentos que o usuário pode acessar, e o total inform
 | `ContratoHonorarios` | Vazia | O domínio só aceita na lista perfil de tipo `Diretoria` e usuário de perfil `Diretoria`, sem exceção | Diretoria |
 | `DocumentoAtividade` | Usuários responsáveis da atividade | Nenhuma | Responsáveis, revisor e autor da atividade enviam; Diretoria gerencia |
 
-- Um perfil criado depois é incluído automaticamente na lista de acesso de todos os Documentos Gerais existentes.
+- Um perfil criado depois é incluído automaticamente na lista de acesso de todos os Documentos Gerais existentes, na mesma transação da criação. Essas entradas são gravadas de uma vez, sem um registro de auditoria por entrada: o evento `perfil_incluido_nos_documentos_gerais` guarda o perfil e a quantidade de documentos, e cada entrada leva quem e quando a criou. O Id dessas entradas é gerado pelo banco (exceção à regra do Guid versão 7 da seção 4).
+- Reativar um perfil não o inclui nos Documentos Gerais enviados enquanto ele esteve inativo.
+- Um documento enviado no mesmo instante em que um perfil é criado pode nascer sem o perfil novo; a Diretoria o inclui pelo editor de acesso.
 - Um usuário incluído como responsável de uma atividade recebe acesso aos documentos já anexados a ela. Removê-lo da atividade retira esse acesso.
 
 ### Documentos de atividade
@@ -409,6 +419,7 @@ Registra criação, alteração e exclusão de dados e eventos de segurança.
 - Gravado por um interceptor do EF Core, na mesma transação da alteração. Se a gravação do registro falhar, a operação inteira falha.
 - Eventos de segurança: login, falha de login, bloqueio de login, logout, troca e redefinição de senha, mudança de perfil, ativação e inativação de usuário, mudança na lista de acesso de documento, tentativa de acesso negada.
 - A mudança na lista de acesso de um documento gera o evento `documento_acesso_alterado` no documento, com os perfis e usuários incluídos e retirados, na mesma transação. A criação e a exclusão de um documento aparecem pelos registros do próprio documento e de cada entrada da lista, sem evento.
+- `perfil_incluido_nos_documentos_gerais` registra, no perfil recém-criado, em quantos Documentos Gerais ele foi incluído. Criar, renomear, inativar e reativar um perfil aparecem pelos registros de alteração do próprio perfil, sem evento.
 - `documento_arquivo_ausente` registra a tentativa de baixar um documento cujo arquivo não está no armazenamento.
 - A tentativa de acesso negada, quando vem de uma consulta, leva o recurso ou os filtros pedidos.
 - Eventos de negócio usam a mesma operação `Evento`: `processo_clientes_alterados`, anotado no processo quando seus clientes ou polos mudam, com os vínculos incluídos, removidos e alterados em `Dados`. Os clientes informados na criação do processo aparecem nos registros de criação dos vínculos, não nesse evento.
