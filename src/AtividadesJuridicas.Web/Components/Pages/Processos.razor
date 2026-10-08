@@ -1,0 +1,411 @@
+@page "/processos"
+@using System.ComponentModel.DataAnnotations
+@inject IDespachante Despachante
+
+<PageTitle>Processos</PageTitle>
+
+<h1>Processos</h1>
+
+@if (!_carregado)
+{
+    <p>Carregando…</p>
+}
+else if (_ator is null)
+{
+    <p class="erro">Seu acesso foi encerrado. Entre novamente.</p>
+}
+else
+{
+    <EditForm Model="_busca" OnSubmit="BuscarAsync" FormName="busca-processos" class="formulario filtros">
+        <label>Título, parte contrária ou número <InputText @bind-Value="_busca.Texto" /></label>
+        <label>
+            Situação
+            <InputSelect @bind-Value="_busca.Status">
+                <option value="">Todas</option>
+                @foreach (var status in Enum.GetValues<StatusProcesso>())
+                {
+                    <option value="@status">@status</option>
+                }
+            </InputSelect>
+        </label>
+        <button type="submit">Buscar</button>
+    </EditForm>
+
+    @if (_mensagem is not null)
+    {
+        <p class="@(_falhou ? "erro" : "ok")" role="status">@_mensagem</p>
+    }
+
+    <table>
+        <thead>
+            <tr><th>Título</th><th>Número</th><th>Área</th><th>Clientes</th><th>Parte contrária</th><th>Situação</th><th></th></tr>
+        </thead>
+        <tbody>
+            @foreach (var processo in _pagina.Itens)
+            {
+                <tr @key="processo.Id">
+                    <td>@processo.Titulo</td>
+                    <td>@processo.NumeroCnj</td>
+                    <td>@processo.AreaNome</td>
+                    <td>@string.Join(", ", processo.Clientes)</td>
+                    <td>@processo.ParteContraria</td>
+                    <td>@processo.Status</td>
+                    <td class="acoes">
+                        @if (_ator.EhDiretoria)
+                        {
+                            <button type="button" class="secundario" @onclick="() => EditarAsync(processo.Id)">Editar</button>
+                        }
+                        else
+                        {
+                            <button type="button" class="secundario" @onclick="() => VerAsync(processo.Id)">Ver</button>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <div class="acoes">
+        <button type="button" class="secundario" disabled="@(_pagina.Numero <= 1)" @onclick="() => CarregarAsync(_pagina.Numero - 1)">Anterior</button>
+        <span>Página @_pagina.Numero de @_pagina.TotalDePaginas (@_pagina.Total processos)</span>
+        <button type="button" class="secundario" disabled="@(_pagina.Numero >= _pagina.TotalDePaginas)" @onclick="() => CarregarAsync(_pagina.Numero + 1)">Próxima</button>
+    </div>
+
+    @if (_ator.EhDiretoria)
+    {
+        <div class="acoes">
+            <button type="button" @onclick="NovoAsync">Novo processo</button>
+        </div>
+
+        @if (_form is not null)
+        {
+            <h2>@(_form.Id is null ? "Novo processo" : "Editar processo")</h2>
+
+            <EditForm Model="_form" OnValidSubmit="SalvarAsync" FormName="processo" class="formulario">
+                <DataAnnotationsValidator />
+
+                <div class="grade">
+                    <label>Título <InputText @bind-Value="_form.Titulo" /><ValidationMessage For="() => _form.Titulo" /></label>
+                    <label>Número CNJ <InputText @bind-Value="_form.NumeroCnj" placeholder="0000000-00.0000.0.00.0000" /></label>
+                    <label>
+                        Área de atuação
+                        <InputSelect @bind-Value="_form.AreaAtuacaoId">
+                            <option value="@Guid.Empty">Selecione…</option>
+                            @foreach (var area in _areas)
+                            {
+                                <option value="@area.Id">@area.Nome@(area.Ativo ? "" : " (inativa)")</option>
+                            }
+                        </InputSelect>
+                    </label>
+                    <label>Órgão <InputText @bind-Value="_form.Orgao" /></label>
+                    <label>Comarca <InputText @bind-Value="_form.Comarca" /></label>
+                    <label>Parte contrária <InputText @bind-Value="_form.ParteContraria" /></label>
+                    <label>Data de distribuição <InputDate @bind-Value="_form.DataDistribuicao" /></label>
+                    <label>Valor da causa <InputNumber @bind-Value="_form.ValorCausa" /></label>
+                </div>
+
+                <label>Observações <InputTextArea @bind-Value="_form.Observacoes" rows="3" /></label>
+
+                <h3>Clientes do processo</h3>
+                @if (_form.Clientes.Count == 0)
+                {
+                    <p>Nenhum cliente vinculado.</p>
+                }
+                else
+                {
+                    <table>
+                        <thead><tr><th>Cliente</th><th>Polo</th><th></th></tr></thead>
+                        <tbody>
+                            @foreach (var vinculo in _form.Clientes)
+                            {
+                                <tr @key="vinculo.ClienteId">
+                                    <td>@vinculo.Nome</td>
+                                    <td>
+                                        <InputSelect @bind-Value="vinculo.Polo">
+                                            @foreach (var polo in Enum.GetValues<PoloProcessual>())
+                                            {
+                                                <option value="@polo">@polo</option>
+                                            }
+                                        </InputSelect>
+                                    </td>
+                                    <td><button type="button" class="secundario" @onclick="() => Desvincular(vinculo)">Remover</button></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+
+                <div class="filtros formulario">
+                    <label>Adicionar cliente (nome, CPF ou CNPJ) <InputText @bind-Value="_buscaDeCliente" /></label>
+                    <button type="button" class="secundario" @onclick="ProcurarClientesAsync">Procurar</button>
+                </div>
+                @foreach (var candidato in _candidatos)
+                {
+                    <div class="acoes" @key="candidato.Id">
+                        <span>@candidato.Nome — @candidato.Documento</span>
+                        <button type="button" class="secundario" @onclick="() => Vincular(candidato)">Adicionar</button>
+                    </div>
+                }
+
+                <div class="acoes">
+                    <button type="submit">Salvar</button>
+                    <button type="button" class="secundario" @onclick="Fechar">Cancelar</button>
+                </div>
+            </EditForm>
+
+            @if (_form.Id is { } idEmEdicao)
+            {
+                <div class="acoes">
+                    <span>Situação atual: @_form.Status</span>
+                    @foreach (var status in Enum.GetValues<StatusProcesso>().Where(s => s != _form.Status))
+                    {
+                        <button type="button" class="secundario" @onclick="() => AlterarStatusAsync(idEmEdicao, status)">Marcar como @status</button>
+                    }
+                </div>
+            }
+        }
+    }
+    else if (_ficha is not null)
+    {
+        <section class="ficha">
+            <h2>@_ficha.Titulo</h2>
+            <dl>
+                <dt>Número</dt><dd>@_ficha.NumeroCnj</dd>
+                <dt>Área</dt><dd>@_ficha.AreaNome</dd>
+                <dt>Situação</dt><dd>@_ficha.Status</dd>
+                <dt>Órgão</dt><dd>@_ficha.Orgao</dd>
+                <dt>Comarca</dt><dd>@_ficha.Comarca</dd>
+                <dt>Parte contrária</dt><dd>@_ficha.ParteContraria</dd>
+                <dt>Distribuição</dt><dd>@_ficha.DataDistribuicao?.ToString("dd/MM/yyyy")</dd>
+                <dt>Valor da causa</dt><dd>@_ficha.ValorCausa?.ToString("C", Cultura)</dd>
+                <dt>Observações</dt><dd>@_ficha.Observacoes</dd>
+                <dt>Clientes</dt>
+                <dd>
+                    @foreach (var cliente in _ficha.Clientes)
+                    {
+                        <div>@cliente.Nome (@cliente.Documento) — polo @cliente.Polo</div>
+                    }
+                </dd>
+            </dl>
+            <div class="acoes"><button type="button" class="secundario" @onclick="Fechar">Fechar</button></div>
+        </section>
+    }
+}
+
+@code {
+    private static readonly System.Globalization.CultureInfo Cultura = System.Globalization.CultureInfo.GetCultureInfo("pt-BR");
+    private static readonly Pagina<ProcessoResumo> Vazia = new([], 0, 1, ProcessosOpcoes.TamanhoDaPagina);
+
+    private bool _carregado;
+    private bool _falhou;
+    private string? _mensagem;
+    private UsuarioAutenticado? _ator;
+    private Busca _busca = new();
+    private Pagina<ProcessoResumo> _pagina = Vazia;
+    private IReadOnlyList<AreaAtuacaoResumo> _areas = [];
+    private Formulario? _form;
+    private ProcessoDetalhe? _ficha;
+    private string? _buscaDeCliente;
+    private IReadOnlyList<ClienteResumo> _candidatos = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _ator = await Despachante.EnviarAsync(new ObterMeuAcesso());
+        if (_ator is not null) await CarregarAsync(1);
+        _carregado = true;
+    }
+
+    private Task BuscarAsync() => CarregarAsync(1);
+
+    private async Task CarregarAsync(int pagina)
+    {
+        var resultado = await Despachante.EnviarAsync(new ListarProcessos(_busca.Texto, null, _busca.Status, pagina));
+        if (AcessoEncerrado(resultado)) return;
+
+        _pagina = resultado.Valor ?? Vazia;
+        if (!resultado.Sucesso)
+        {
+            Avisar(resultado.Mensagem, falhou: true);
+            return;
+        }
+
+        // Depois de mudar um filtro ou a situação, a página atual pode ter deixado de existir.
+        if (_pagina.Itens.Count == 0 && _pagina.Total > 0 && pagina > _pagina.TotalDePaginas)
+            await CarregarAsync(_pagina.TotalDePaginas);
+    }
+
+    private async Task NovoAsync()
+    {
+        if (!await CarregarAreasAsync(areaAtual: null)) return;
+        AbrirFormulario(new Formulario());
+    }
+
+    private async Task EditarAsync(Guid id)
+    {
+        var resultado = await Despachante.EnviarAsync(new ObterProcesso(id));
+        if (AcessoEncerrado(resultado)) return;
+        if (resultado.Valor is not { } p)
+        {
+            Avisar(resultado.Mensagem, falhou: true);
+            return;
+        }
+
+        if (!await CarregarAreasAsync(p.AreaAtuacaoId)) return;
+
+        AbrirFormulario(new Formulario
+        {
+            Id = p.Id, Titulo = p.Titulo, NumeroCnj = p.NumeroCnj, AreaAtuacaoId = p.AreaAtuacaoId, Status = p.Status,
+            Orgao = p.Orgao, Comarca = p.Comarca, ParteContraria = p.ParteContraria,
+            DataDistribuicao = p.DataDistribuicao, ValorCausa = p.ValorCausa, Observacoes = p.Observacoes,
+            Clientes = [.. p.Clientes.Select(c => new Vinculo { ClienteId = c.ClienteId, Nome = c.Nome, Polo = c.Polo })],
+        });
+    }
+
+    /// <summary>Áreas ativas, mais a área atual do processo quando ela está inativa.</summary>
+    private async Task<bool> CarregarAreasAsync(Guid? areaAtual)
+    {
+        var resultado = await Despachante.EnviarAsync(new ListarAreasAtuacao());
+        if (AcessoEncerrado(resultado)) return false;
+        if (!resultado.Sucesso)
+        {
+            Avisar(resultado.Mensagem, falhou: true);
+            return false;
+        }
+
+        _areas = [.. resultado.Valor!.Where(a => a.Ativo || a.Id == areaAtual)];
+        return true;
+    }
+
+    private void AbrirFormulario(Formulario form)
+    {
+        _mensagem = null;
+        _buscaDeCliente = null;
+        _candidatos = [];
+        _form = form;
+    }
+
+    private async Task ProcurarClientesAsync()
+    {
+        var resultado = await Despachante.EnviarAsync(new ListarClientes(_buscaDeCliente));
+        if (AcessoEncerrado(resultado)) return;
+
+        var jaVinculados = _form!.Clientes.Select(c => c.ClienteId).ToHashSet();
+        _candidatos = [.. (resultado.Valor?.Itens ?? []).Where(c => !jaVinculados.Contains(c.Id))];
+        if (!resultado.Sucesso) Avisar(resultado.Mensagem, falhou: true);
+    }
+
+    private void Vincular(ClienteResumo cliente)
+    {
+        if (_form!.Clientes.All(c => c.ClienteId != cliente.Id))
+            _form.Clientes.Add(new Vinculo { ClienteId = cliente.Id, Nome = cliente.Nome, Polo = PoloProcessual.Ativo });
+        _candidatos = [.. _candidatos.Where(c => c.Id != cliente.Id)];
+    }
+
+    private void Desvincular(Vinculo vinculo) => _form!.Clientes.Remove(vinculo);
+
+    private async Task VerAsync(Guid id)
+    {
+        var resultado = await Despachante.EnviarAsync(new ObterProcesso(id));
+        if (AcessoEncerrado(resultado)) return;
+
+        _ficha = resultado.Valor;
+        if (!resultado.Sucesso) Avisar(resultado.Mensagem, falhou: true);
+    }
+
+    private void Fechar()
+    {
+        _form = null;
+        _ficha = null;
+        _mensagem = null;
+    }
+
+    private async Task SalvarAsync()
+    {
+        var f = _form!;
+        var resultado = await Despachante.EnviarAsync(new SalvarProcesso(
+            f.Id,
+            new DadosDoProcessoEntrada(f.NumeroCnj, f.Titulo, f.AreaAtuacaoId, f.Orgao, f.Comarca, f.ParteContraria,
+                f.DataDistribuicao, f.ValorCausa, f.Observacoes),
+            [.. f.Clientes.Select(c => new ClienteDoProcessoEntrada(c.ClienteId, c.Polo))]));
+
+        if (AcessoEncerrado(resultado)) return;
+        if (!resultado.Sucesso)
+        {
+            // O formulário permanece aberto com o que foi digitado.
+            Avisar(resultado.Mensagem, falhou: true);
+            return;
+        }
+
+        _form = null;
+        _falhou = false;
+        await CarregarAsync(_pagina.Numero);
+        if (_ator is not null && !_falhou) Avisar("Processo salvo.", falhou: false);
+    }
+
+    private async Task AlterarStatusAsync(Guid id, StatusProcesso status)
+    {
+        var resultado = await Despachante.EnviarAsync(new AlterarStatusProcesso(id, status));
+        if (AcessoEncerrado(resultado)) return;
+        if (!resultado.Sucesso)
+        {
+            Avisar(resultado.Mensagem, falhou: true);
+            return;
+        }
+
+        _form!.Status = status;
+        _falhou = false;
+        await CarregarAsync(_pagina.Numero);
+        if (_ator is not null && !_falhou) Avisar($"Situação alterada para {status}.", falhou: false);
+    }
+
+    /// <summary>Uma resposta de acesso negado encerra a tela: nada do que estava aberto continua visível.</summary>
+    private bool AcessoEncerrado(Resultado resultado)
+    {
+        if (resultado.Erro != TipoErro.AcessoNegado) return false;
+
+        _ator = null;
+        _pagina = Vazia;
+        _form = null;
+        _ficha = null;
+        _candidatos = [];
+        return true;
+    }
+
+    private void Avisar(string? mensagem, bool falhou)
+    {
+        _mensagem = mensagem;
+        _falhou = falhou;
+    }
+
+    private sealed class Busca
+    {
+        public string? Texto { get; set; }
+        public StatusProcesso? Status { get; set; }
+    }
+
+    private sealed class Vinculo
+    {
+        public Guid ClienteId { get; set; }
+        public string Nome { get; set; } = string.Empty;
+        public PoloProcessual Polo { get; set; }
+    }
+
+    private sealed class Formulario
+    {
+        public Guid? Id { get; set; }
+
+        [Required(ErrorMessage = "Informe o título.")]
+        public string Titulo { get; set; } = string.Empty;
+
+        public string? NumeroCnj { get; set; }
+        public Guid AreaAtuacaoId { get; set; }
+        public StatusProcesso Status { get; set; } = StatusProcesso.Ativo;
+        public string? Orgao { get; set; }
+        public string? Comarca { get; set; }
+        public string? ParteContraria { get; set; }
+        public DateOnly? DataDistribuicao { get; set; }
+        public decimal? ValorCausa { get; set; }
+        public string? Observacoes { get; set; }
+        public List<Vinculo> Clientes { get; set; } = [];
+    }
+}

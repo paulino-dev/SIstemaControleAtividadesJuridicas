@@ -122,6 +122,28 @@ else
                     <button type="button" class="secundario" @onclick="Fechar">Cancelar</button>
                 </div>
             </EditForm>
+
+            @if (_form.Id is not null)
+            {
+                <h3>Processos do cliente</h3>
+                @if (_processosDoCliente.Count == 0)
+                {
+                    <p>Nenhum processo vinculado.</p>
+                }
+                else
+                {
+                    <ul>
+                        @foreach (var processo in _processosDoCliente)
+                        {
+                            <li @key="processo.Id">@processo.Titulo — @(processo.NumeroCnj ?? "sem número") — @processo.Status</li>
+                        }
+                    </ul>
+                    @if (_totalDeProcessosDoCliente > _processosDoCliente.Count)
+                    {
+                        <p>Há mais processos; veja todos em Processos.</p>
+                    }
+                }
+            }
         }
     }
     else if (_ficha is not null)
@@ -150,6 +172,24 @@ else
                 <dt>Observações</dt><dd>@_ficha.Observacoes</dd>
                 <dt>Situação</dt><dd>@(_ficha.Ativo ? "Ativo" : "Inativo")</dd>
             </dl>
+            <h3>Processos do cliente</h3>
+            @if (_processosDoCliente.Count == 0)
+            {
+                <p>Nenhum processo vinculado.</p>
+            }
+            else
+            {
+                <ul>
+                    @foreach (var processo in _processosDoCliente)
+                    {
+                        <li @key="processo.Id">@processo.Titulo — @(processo.NumeroCnj ?? "sem número") — @processo.Status</li>
+                    }
+                </ul>
+                @if (_totalDeProcessosDoCliente > _processosDoCliente.Count)
+                {
+                    <p>Há mais processos; veja todos em Processos.</p>
+                }
+            }
             <div class="acoes"><button type="button" class="secundario" @onclick="Fechar">Fechar</button></div>
         </section>
     }
@@ -166,6 +206,8 @@ else
     private Pagina<ClienteResumo> _pagina = Vazia;
     private Formulario? _form;
     private ClienteDetalhe? _ficha;
+    private IReadOnlyList<ProcessoResumo> _processosDoCliente = [];
+    private int _totalDeProcessosDoCliente;
 
     protected override async Task OnInitializedAsync()
     {
@@ -206,12 +248,14 @@ else
         _pagina = Vazia;
         _form = null;
         _ficha = null;
+        LimparProcessosDoCliente();
         return true;
     }
 
     private void Novo(TipoCliente tipo)
     {
         _mensagem = null;
+        LimparProcessosDoCliente();
         _form = new Formulario { Tipo = tipo };
     }
 
@@ -225,6 +269,8 @@ else
             Avisar(resultado.Mensagem, falhou: true);
             return;
         }
+
+        if (!await CarregarProcessosDoClienteAsync(id)) return;
 
         _mensagem = null;
         _form = new Formulario
@@ -243,8 +289,34 @@ else
         var resultado = await Despachante.EnviarAsync(new ObterCliente(id));
         if (AcessoEncerrado(resultado)) return;
 
-        _ficha = resultado.Valor;
+        if (resultado.Valor is not { } ficha)
+        {
+            _ficha = null;
+            Avisar(resultado.Mensagem, falhou: true);
+            return;
+        }
+
+        if (!await CarregarProcessosDoClienteAsync(id)) return;
+
+        _ficha = ficha;
         if (!resultado.Sucesso) Avisar(resultado.Mensagem, falhou: true);
+    }
+
+    // Primeira página dos processos do cliente aberto; falso quando o acesso foi encerrado.
+    private async Task<bool> CarregarProcessosDoClienteAsync(Guid clienteId)
+    {
+        var processos = await Despachante.EnviarAsync(new ListarProcessos(ClienteId: clienteId));
+        if (AcessoEncerrado(processos)) return false;
+
+        _processosDoCliente = processos.Valor?.Itens ?? [];
+        _totalDeProcessosDoCliente = processos.Valor?.Total ?? 0;
+        return true;
+    }
+
+    private void LimparProcessosDoCliente()
+    {
+        _processosDoCliente = [];
+        _totalDeProcessosDoCliente = 0;
     }
 
     private void Fechar()
@@ -252,6 +324,7 @@ else
         _form = null;
         _ficha = null;
         _mensagem = null;
+        LimparProcessosDoCliente();
     }
 
     // Só as partes preenchidas, sem separadores soltos.
