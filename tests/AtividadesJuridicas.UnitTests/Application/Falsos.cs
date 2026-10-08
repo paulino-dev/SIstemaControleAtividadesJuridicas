@@ -1,11 +1,13 @@
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
+using AtividadesJuridicas.Application.Atividades;
 using AtividadesJuridicas.Application.Auditoria;
 using AtividadesJuridicas.Application.Cadastros;
 using AtividadesJuridicas.Application.Comum;
 using AtividadesJuridicas.Application.Documentos;
 using AtividadesJuridicas.Application.Identidade;
+using AtividadesJuridicas.Domain.Atividades;
 using AtividadesJuridicas.Domain.Cadastros;
 using AtividadesJuridicas.Domain.Documentos;
 using AtividadesJuridicas.Domain.Identidade;
@@ -295,6 +297,52 @@ public sealed class ProcessoRepositorioFalso(AreaAtuacaoRepositorioFalso areas, 
         .Where(c => System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c) != System.Globalization.UnicodeCategory.NonSpacingMark)]);
 }
 
+public sealed class CalendarioFixo : ICalendarioDoEscritorio
+{
+    public DateOnly Hoje { get; set; } = new(2026, 10, 9);
+}
+
+public sealed class AtividadeRepositorioFalso(
+    UsuarioRepositorioFalso usuarios, ClienteRepositorioFalso clientes, ProcessoRepositorioFalso processos,
+    AreaAtuacaoRepositorioFalso areas) : IAtividadeRepositorio
+{
+    public List<Atividade> Itens { get; } = [];
+
+    public Task<Atividade?> ObterPorIdAsync(Guid id, CancellationToken ct) =>
+        Task.FromResult(Itens.FirstOrDefault(a => a.Id == id));
+
+    public Task<Pagina<AtividadeResumo>> ListarAsync(FiltroDeAtividades filtro, int pagina, int tamanho, CancellationToken ct)
+    {
+        // Mesma regra da consulta real. A ordem de inserção faz o papel de "mais recentes primeiro".
+        var todos = Enumerable.Reverse(Itens)
+            .Where(a => filtro.Status is null || a.Status == filtro.Status)
+            .Where(a => filtro.ResponsavelId is null || a.EhResponsavel(filtro.ResponsavelId.Value))
+            .Where(a => filtro.ClienteId is null || a.ClienteId == filtro.ClienteId)
+            .Where(a => filtro.ProcessoId is null || a.ProcessoId == filtro.ProcessoId)
+            .Where(a => !filtro.SomenteAtrasadas || a.EstaAtrasada(filtro.Hoje))
+            .Where(a => string.IsNullOrWhiteSpace(filtro.Busca) ||
+                        a.Titulo.Contains(filtro.Busca.Trim(), StringComparison.OrdinalIgnoreCase))
+            .OrderBy(a => a.DataEntrega is null).ThenBy(a => a.DataEntrega)
+            .ToList();
+
+        string? Nome(Guid? id) => id is null ? null : usuarios.Itens.FirstOrDefault(u => u.Id == id)?.Nome;
+
+        return Task.FromResult(new Pagina<AtividadeResumo>(
+            [.. todos.Skip((pagina - 1) * tamanho).Take(tamanho).Select(a => new AtividadeResumo(
+                a.Id, a.Titulo, a.Status, a.DataEntrega, a.EstaAtrasada(filtro.Hoje),
+                clientes.Itens.FirstOrDefault(c => c.Id == a.ClienteId)?.Nome,
+                processos.Itens.FirstOrDefault(p => p.Id == a.ProcessoId)?.Titulo,
+                areas.Itens.FirstOrDefault(x => x.Id == a.AreaAtuacaoId)?.Nome,
+                [.. a.Responsaveis.Select(r => Nome(r.UsuarioId) ?? string.Empty).Order()],
+                Nome(a.RevisorId)))],
+            todos.Count, pagina, tamanho));
+    }
+
+    public void Adicionar(Atividade atividade) => Itens.Add(atividade);
+
+    public void Remover(Atividade atividade) => Itens.Remove(atividade);
+}
+
 /// <summary>Monta um cenário com os dois perfis padrão e um diretor ativo.</summary>
 public sealed class Cenario
 {
@@ -304,6 +352,8 @@ public sealed class Cenario
     public AreaAtuacaoRepositorioFalso Areas { get; } = new();
     public ClienteRepositorioFalso Clientes { get; } = new();
     public ProcessoRepositorioFalso Processos { get; }
+    public AtividadeRepositorioFalso Atividades { get; }
+    public CalendarioFixo Calendario { get; } = new();
     public HasherFalso Hasher { get; } = new();
     public RelogioFixo Relogio { get; } = new();
     public AuditoriaFalsa Auditoria { get; } = new();
@@ -320,6 +370,7 @@ public sealed class Cenario
         Usuarios = new UsuarioRepositorioFalso(Perfis);
         Perfis.UsuariosAtivosDoPerfil = id => Usuarios.Itens.Count(u => u.Ativo && u.PerfilId == id);
         Processos = new ProcessoRepositorioFalso(Areas, Clientes);
+        Atividades = new AtividadeRepositorioFalso(Usuarios, Clientes, Processos, Areas);
         Perfis.Itens.AddRange([PerfilDiretor, PerfilProducao]);
         Diretor = NovoUsuario("Diana Diretora", "diana@x.com", PerfilDiretor);
     }

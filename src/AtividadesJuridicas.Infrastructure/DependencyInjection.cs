@@ -1,3 +1,4 @@
+using AtividadesJuridicas.Application.Atividades;
 using AtividadesJuridicas.Application.Auditoria;
 using AtividadesJuridicas.Application.Cadastros;
 using AtividadesJuridicas.Application.Comum;
@@ -20,7 +21,8 @@ public static class DependencyInjection
         this IServiceCollection servicos,
         Func<IServiceProvider, string> obterStringDeConexao,
         Func<IServiceProvider, string> obterPastaDeArquivos,
-        bool criarPastaDeArquivos)
+        bool criarPastaDeArquivos,
+        string fusoDoEscritorio = "America/Sao_Paulo")
     {
         servicos.AddScoped<CarimbosInterceptor>();
         servicos.AddScoped<AuditoriaInterceptor>();
@@ -34,6 +36,8 @@ public static class DependencyInjection
 
         servicos.AddSingleton<IRelogio, RelogioDoSistema>();
         servicos.AddSingleton<IHasherDeSenha, HasherDeSenhaPbkdf2>();
+        servicos.AddSingleton<ICalendarioDoEscritorio>(sp => new CalendarioDoEscritorio(
+            TimeZoneInfo.FindSystemTimeZoneById(fusoDoEscritorio), sp.GetRequiredService<IRelogio>()));
         servicos.AddScoped<IAuditoria, RegistradorDeAuditoria>();
         servicos.AddScoped<IUnidadeDeTrabalho, UnidadeDeTrabalho>();
         servicos.AddScoped<IUsuarioRepositorio, UsuarioRepositorio>();
@@ -43,6 +47,7 @@ public static class DependencyInjection
         servicos.AddScoped<IClienteRepositorio, ClienteRepositorio>();
         servicos.AddScoped<IProcessoRepositorio, ProcessoRepositorio>();
         servicos.AddScoped<IDocumentoRepositorio, DocumentoRepositorio>();
+        servicos.AddScoped<IAtividadeRepositorio, AtividadeRepositorio>();
         servicos.AddScoped<IConsultaDeAuditoria, ConsultaDeAuditoria>();
         servicos.AddScoped<SemeadorInicial>();
 

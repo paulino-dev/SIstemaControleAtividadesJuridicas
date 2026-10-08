@@ -18,6 +18,13 @@ public class PropriedadesAuditadasTests
         var esperado = new SortedDictionary<string, string[]>
         {
             ["AreaAtuacao"] = ["Ativo", "Nome"],
+            ["Atividade"] =
+            [
+                "AreaAtuacaoId", "AutorId", "ClienteId", "ConcluidaEm", "DataEntrega", "Descricao", "ProcessoId",
+                "RevisorId", "Status", "TipoAutor", "Titulo",
+            ],
+            ["AtividadeHistoricoStatus"] = ["AtividadeId", "DataHora", "Motivo", "Ordem", "StatusAnterior", "StatusNovo", "UsuarioId"],
+            ["AtividadeResponsavel"] = ["AtividadeId", "ConcluidoEm", "Direcionamento", "UsuarioId"],
             ["Cliente"] =
             [
                 "Ativo", "Email", "Nome", "Observacoes", "Telefone", "Tipo",

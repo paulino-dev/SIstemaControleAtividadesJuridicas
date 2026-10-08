@@ -34,7 +34,8 @@ builder.Services.AddInfrastructure(
         return pasta;
     },
     // Fora do desenvolvimento a pasta já existe; criá-la esconderia uma implantação que perdeu os arquivos.
-    criarPastaDeArquivos: builder.Environment.IsDevelopment());
+    criarPastaDeArquivos: builder.Environment.IsDevelopment(),
+    fusoDoEscritorio: builder.Configuration["Escritorio:FusoHorario"] ?? "America/Sao_Paulo");
 
 // Sem isto o HTML sai com acentos como entidades numéricas (&#xE1;).
 builder.Services.Configure<WebEncoderOptions>(opcoes =>

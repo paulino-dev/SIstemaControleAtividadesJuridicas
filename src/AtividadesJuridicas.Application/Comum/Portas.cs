@@ -18,6 +18,12 @@ public interface IRelogio
     DateTime AgoraUtc { get; }
 }
 
+/// <summary>A data de hoje no fuso do escritório (o dia vira à meia-noite de lá, não à meia-noite UTC).</summary>
+public interface ICalendarioDoEscritorio
+{
+    DateOnly Hoje { get; }
+}
+
 /// <summary>Outra operação gravou um valor que deveria ser único.</summary>
 public sealed class ExcecaoDeConflito(string mensagem, Exception? interna = null, string? restricao = null)
     : Exception(mensagem, interna)
