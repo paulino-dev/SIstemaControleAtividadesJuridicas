@@ -1,4 +1,3 @@
-using System.Text.Json;
 using AtividadesJuridicas.Application.Auditoria;
 using AtividadesJuridicas.Application.Comum;
 using AtividadesJuridicas.Application.Identidade;
@@ -11,7 +10,7 @@ public sealed record ListarClientes(string? Busca = null, bool IncluirInativos =
 {
     public string TipoRecurso => "Cliente";
     public AcaoDeAcesso Acao => AcaoDeAcesso.Listou;
-    public string? Detalhe => JsonSerializer.Serialize(new { Busca, IncluirInativos, Pagina });
+    public string? Detalhe => DetalheDeConsulta.Serializar(new { Busca, IncluirInativos, Pagina });
 }
 
 public sealed class ListarClientesManipulador(IContextoDeAcesso contexto, IClienteRepositorio clientes)

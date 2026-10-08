@@ -1,4 +1,3 @@
-using System.Text.Json;
 using AtividadesJuridicas.Application.Comum;
 using AtividadesJuridicas.Application.Identidade;
 using AtividadesJuridicas.Domain.Auditoria;
@@ -10,7 +9,7 @@ public sealed record ConsultarAcessos(FiltroDeAcessos Filtro, int Pagina = 1)
 {
     public string TipoRecurso => "RegistroAcesso";
     public AcaoDeAcesso Acao => AcaoDeAcesso.Listou;
-    public string? Detalhe => JsonSerializer.Serialize(new { Filtro, Pagina });
+    public string? Detalhe => DetalheDeConsulta.Serializar(new { Filtro, Pagina });
 }
 
 public sealed class ConsultarAcessosManipulador(IContextoDeAcesso contexto, IConsultaDeAuditoria consulta)
