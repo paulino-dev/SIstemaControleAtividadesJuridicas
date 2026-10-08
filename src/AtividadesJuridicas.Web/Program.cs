@@ -22,8 +22,10 @@ builder.Services.AddInfrastructure(
     sp =>
     {
         // Caminho relativo é resolvido a partir da pasta da aplicação.
-        var pasta = sp.GetRequiredService<IConfiguration>()["Armazenamento:Pasta"]
-                    ?? throw new InvalidOperationException("Armazenamento:Pasta não configurada.");
+        var pasta = sp.GetRequiredService<IConfiguration>()["Armazenamento:Pasta"];
+        if (string.IsNullOrWhiteSpace(pasta))
+            throw new InvalidOperationException("Armazenamento:Pasta não configurada.");
+
         return Path.GetFullPath(pasta, sp.GetRequiredService<IWebHostEnvironment>().ContentRootPath);
     });
 

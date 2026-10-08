@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Security.Cryptography;
 using System.Text;
 using AtividadesJuridicas.Application.Comum;
 using AtividadesJuridicas.Application.Documentos;
@@ -92,6 +94,10 @@ public sealed class ArmazenamentoEmDiscoTests : IDisposable
     [InlineData("C:\\Windows\\win.ini")]
     [InlineData("/etc/passwd")]
     [InlineData("")]
+    [InlineData("2026/10/0123456789abcdef0123456789abcdef\n")]
+    [InlineData("٢٠٢٦/١٠/0123456789abcdef0123456789abcdef")]
+    [InlineData("2026/10/0123456789ABCDEF0123456789abcdef")]
+    [InlineData("2026\\10\\0123456789abcdef0123456789abcdef")]
     public async Task Chave_fora_do_formato_e_recusada(string chave)
     {
         var abrir = () => _armazenamento.AbrirAsync(chave, default);
@@ -120,6 +126,96 @@ public sealed class ArmazenamentoEmDiscoTests : IDisposable
 
         await acao.Should().ThrowAsync<IOException>();
         ArquivosNoDisco().Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Pasta_raiz_removida_nao_passa_por_arquivo_inexistente()
+    {
+        var gravado = await _armazenamento.GravarAsync(Conteudo("abc"), 1024, default);
+        Directory.Delete(_pasta, recursive: true);
+
+        var abrir = () => _armazenamento.AbrirAsync(gravado.Chave, default);
+        var remover = () => _armazenamento.RemoverAsync(gravado.Chave, default);
+
+        await abrir.Should().ThrowAsync<IOException>().WithMessage("*não está acessível*");
+        await remover.Should().ThrowAsync<IOException>().WithMessage("*não está acessível*");
+    }
+
+    [Fact]
+    public async Task Pasta_do_mes_inexistente_com_raiz_presente_e_arquivo_inexistente()
+    {
+        const string chave = "2020/01/00000000000000000000000000000000";
+
+        (await _armazenamento.AbrirAsync(chave, default)).Should().BeNull();
+        await _armazenamento.RemoverAsync(chave, default);
+    }
+
+    [Fact]
+    public async Task Chave_usa_cultura_invariante()
+    {
+        var original = CultureInfo.CurrentCulture;
+        try
+        {
+            CultureInfo.CurrentCulture = new CultureInfo("th-TH");
+            var gravado = await _armazenamento.GravarAsync(Conteudo("abc"), 1024, default);
+            gravado.Chave.Should().StartWith("2026/10/");
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = original;
+        }
+    }
+
+    [Fact]
+    public async Task Remover_com_o_arquivo_aberto_nao_falha()
+    {
+        var gravado = await _armazenamento.GravarAsync(Conteudo("abc"), 1024, default);
+
+        var aberto = await _armazenamento.AbrirAsync(gravado.Chave, default);
+        aberto.Should().NotBeNull();
+        await using (aberto)
+        {
+            await _armazenamento.RemoverAsync(gravado.Chave, default);
+        }
+
+        (await _armazenamento.AbrirAsync(gravado.Chave, default)).Should().BeNull();
+    }
+
+    private static byte[] ConteudoGrande()
+    {
+        var bytes = new byte[200_000];
+        for (var i = 0; i < bytes.Length; i++) bytes[i] = (byte)(i % 251);
+        return bytes;
+    }
+
+    [Fact]
+    public async Task Conteudo_maior_que_o_buffer_com_leituras_curtas_e_gravado_inteiro()
+    {
+        var bytes = ConteudoGrande();
+
+        var gravado = await _armazenamento.GravarAsync(new FluxoDeLeiturasCurtas(bytes), 1_000_000, default);
+
+        gravado.TamanhoBytes.Should().Be(bytes.Length);
+        gravado.HashSha256.Should().Be(Convert.ToHexStringLower(SHA256.HashData(bytes)));
+        await using var aberto = await _armazenamento.AbrirAsync(gravado.Chave, default);
+        using var copia = new MemoryStream();
+        await aberto!.CopyToAsync(copia);
+        copia.ToArray().Should().Equal(bytes);
+    }
+
+    [Fact]
+    public async Task Limite_ultrapassado_em_um_bloco_posterior_nao_deixa_nada_no_disco()
+    {
+        var acao = () => _armazenamento.GravarAsync(new FluxoDeLeiturasCurtas(ConteudoGrande()), 100_000, default);
+
+        (await acao.Should().ThrowAsync<ExcecaoDeArquivoGrandeDemais>()).Which.LimiteBytes.Should().Be(100_000);
+        ArquivosNoDisco().Should().BeEmpty();
+    }
+
+    private sealed class FluxoDeLeiturasCurtas(byte[] bytes) : MemoryStream(bytes)
+    {
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) =>
+            base.ReadAsync(buffer[..Math.Min(buffer.Length, 1000)], cancellationToken);
     }
 
     private sealed class FluxoQueFalha : MemoryStream

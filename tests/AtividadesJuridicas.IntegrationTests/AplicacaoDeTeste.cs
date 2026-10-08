@@ -30,9 +30,15 @@ public sealed partial class AplicacaoDeTeste(BancoFixture banco) : WebApplicatio
 
     public override async ValueTask DisposeAsync()
     {
-        await base.DisposeAsync();
-        if (Directory.Exists(PastaDeArquivos)) Directory.Delete(PastaDeArquivos, recursive: true);
-        await banco.RemoverAsync(conexao);
+        try
+        {
+            await base.DisposeAsync();
+            if (Directory.Exists(PastaDeArquivos)) Directory.Delete(PastaDeArquivos, recursive: true);
+        }
+        finally
+        {
+            await banco.RemoverAsync(conexao);
+        }
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)

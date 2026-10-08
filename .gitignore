@@ -485,4 +485,4 @@ $RECYCLE.BIN/
 logs/
 
 # Arquivos enviados pelos usuários (armazenamento em disco)
-dados/
+src/AtividadesJuridicas.Web/dados/

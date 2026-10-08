@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using AtividadesJuridicas.Application.Comum;
@@ -13,9 +14,16 @@ public sealed partial class ArmazenamentoEmDisco(string pasta, IRelogio relogio)
 {
     private const int TamanhoDoBuffer = 81920;
 
-    private readonly string _raiz = Path.GetFullPath(pasta);
+    private readonly string _raiz = CriarRaiz(pasta);
 
-    [GeneratedRegex(@"^\d{4}/\d{2}/[0-9a-f]{32}$")]
+    private static string CriarRaiz(string pasta)
+    {
+        var raiz = Path.GetFullPath(pasta);
+        Directory.CreateDirectory(raiz);
+        return raiz;
+    }
+
+    [GeneratedRegex(@"^[0-9]{4}/[0-9]{2}/[0-9a-f]{32}\z")]
     private static partial Regex FormatoDaChave();
 
     public async Task<ArquivoArmazenado> GravarAsync(Stream conteudo, long limiteBytes, CancellationToken ct)
@@ -23,7 +31,7 @@ public sealed partial class ArmazenamentoEmDisco(string pasta, IRelogio relogio)
         ArgumentNullException.ThrowIfNull(conteudo);
 
         var agora = relogio.AgoraUtc;
-        var chave = $"{agora:yyyy}/{agora:MM}/{Guid.NewGuid():N}";
+        var chave = $"{agora.ToString("yyyy", CultureInfo.InvariantCulture)}/{agora.ToString("MM", CultureInfo.InvariantCulture)}/{Guid.NewGuid():N}";
         var destino = Caminho(chave);
         var temporario = destino + ".tmp";
         Directory.CreateDirectory(Path.GetDirectoryName(destino)!);
@@ -48,37 +56,61 @@ public sealed partial class ArmazenamentoEmDisco(string pasta, IRelogio relogio)
                 }
             }
 
-            // Só aparece com o nome definitivo depois de completo.
+            var hashHex = Convert.ToHexStringLower(hash.GetHashAndReset());
+
+            // Só aparece com o nome definitivo depois de completo e quando nada mais pode falhar.
             File.Move(temporario, destino);
-            return new ArquivoArmazenado(chave, total, Convert.ToHexStringLower(hash.GetHashAndReset()));
+            return new ArquivoArmazenado(chave, total, hashHex);
         }
         catch
         {
-            File.Delete(temporario);
+            try
+            {
+                File.Delete(temporario);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // A exceção original é a que importa.
+            }
+
             throw;
         }
     }
 
-    public Task<Stream?> AbrirAsync(string chave, CancellationToken ct)
+    public async Task<Stream?> AbrirAsync(string chave, CancellationToken ct)
     {
         var caminho = Caminho(chave);
-        return Task.FromResult<Stream?>(File.Exists(caminho)
-            ? new FileStream(caminho, FileMode.Open, FileAccess.Read, FileShare.Read, TamanhoDoBuffer, useAsync: true)
-            : null);
-    }
-
-    public Task RemoverAsync(string chave, CancellationToken ct)
-    {
         try
         {
-            File.Delete(Caminho(chave));
+            return new FileStream(
+                caminho, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete, TamanhoDoBuffer, useAsync: true);
         }
-        catch (DirectoryNotFoundException)
+        catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
         {
-            // A pasta do mês nunca foi criada: o arquivo não existe, e remover o que não existe não é erro.
+            ExigirRaiz(ex);
+            return null;
         }
+    }
 
-        return Task.CompletedTask;
+    public async Task RemoverAsync(string chave, CancellationToken ct)
+    {
+        var caminho = Caminho(chave);
+        try
+        {
+            File.Delete(caminho);
+        }
+        catch (DirectoryNotFoundException ex)
+        {
+            // Sem a pasta do mês o arquivo não existe, e remover o que não existe não é erro.
+            ExigirRaiz(ex);
+        }
+    }
+
+    /// <summary>Arquivo ou pasta do mês ausentes são "não existe"; a raiz ausente é um problema de configuração.</summary>
+    private void ExigirRaiz(Exception causa)
+    {
+        if (!Directory.Exists(_raiz))
+            throw new IOException($"A pasta de armazenamento '{_raiz}' não está acessível.", causa);
     }
 
     private string Caminho(string chave)

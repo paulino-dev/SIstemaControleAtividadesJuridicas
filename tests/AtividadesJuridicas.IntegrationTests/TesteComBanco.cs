@@ -40,9 +40,15 @@ public abstract class TesteComBanco(BancoFixture banco) : IAsyncLifetime
 
     public virtual async Task DisposeAsync()
     {
-        await _raiz.DisposeAsync();
-        if (Directory.Exists(PastaDeArquivos)) Directory.Delete(PastaDeArquivos, recursive: true);
-        await banco.RemoverAsync(_conexao);
+        try
+        {
+            await _raiz.DisposeAsync();
+            if (Directory.Exists(PastaDeArquivos)) Directory.Delete(PastaDeArquivos, recursive: true);
+        }
+        finally
+        {
+            await banco.RemoverAsync(_conexao);
+        }
     }
 
     /// <summary>Roda em um escopo novo, como o despachante faz, agindo como <paramref name="usuarioId"/>.</summary>
