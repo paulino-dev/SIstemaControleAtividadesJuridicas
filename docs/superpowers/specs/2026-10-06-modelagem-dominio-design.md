@@ -314,7 +314,7 @@ Regras de vínculo:
 |---|---|---|
 | `AtividadeResponsavel` | `UsuarioId`, `Direcionamento`, `ConcluidoEm` | Um usuário não se repete na mesma atividade. `ConcluidoEm` nulo significa parte pendente |
 | `AtividadeComentario` | `Texto`, `UsuarioId`, `DataHora` | Imutável depois de criado |
-| `AtividadeHistoricoStatus` | `StatusAnterior`, `StatusNovo`, `UsuarioId`, `DataHora`, `Motivo` | Somente inserção. `UsuarioId` nulo indica transição feita pelo sistema |
+| `AtividadeHistoricoStatus` | `Ordem`, `StatusAnterior`, `StatusNovo`, `UsuarioId`, `DataHora`, `Motivo` | Somente inserção. `Ordem` numera as transições dentro da atividade. `UsuarioId` nulo indica transição feita pelo sistema |
 
 ### Fluxo de status
 
@@ -351,20 +351,27 @@ Regras do fluxo:
 - Um responsável só conclui sua parte nos status `Direcionada`, `ParaCorrecao` e `Reaberta`, e só se a parte estiver pendente.
 - "Atrasada" não é status. É uma condição calculada: `DataEntrega` anterior à data atual e status diferente de `Concluida`.
 - Não existe status de cancelamento. Atividade criada por engano é excluída logicamente pela Diretoria.
+- Uma transição marcada como "Automático" na tabela é registrada no histórico com o usuário cuja ação a provocou (quem concluiu a última parte). `UsuarioId` nulo fica reservado a transições feitas pelo próprio sistema.
+- Depois de direcionada, a atividade não fica sem responsável: a lista não pode ser esvaziada.
+- Se a Diretoria remove o último responsável pendente e todos os que ficaram já concluíram, a atividade avança como se o último tivesse concluído (`Feita` ou `Corrigida`), e a linha do histórico leva o motivo "Responsável pendente removido."
+- Usuário inativo não entra como responsável, mas quem já era responsável permanece até ser retirado.
+- Edições simultâneas: uma gravação feita sobre uma versão que já mudou é recusada como conflito ("A atividade foi alterada por outra pessoa. Recarregue e tente novamente."). Editar, definir responsáveis, trocar o revisor e excluir enviam a versão que o usuário estava vendo.
 
 ### Regra do revisor
 
-- Quando há exatamente um responsável com perfil de tipo `Diretoria`, `RevisorId` é esse usuário e o domínio recusa alterá-lo.
+- Quando há exatamente um responsável ativo com perfil de tipo `Diretoria`, `RevisorId` é esse usuário e o domínio recusa alterá-lo. Um responsável de Diretoria que foi inativado ou mudou para um perfil de Produção não conta.
 - Quando não há nenhum, ou há dois ou mais, a Diretoria escolhe o revisor entre os usuários ativos de tipo `Diretoria`.
 - A regra é reavaliada a cada inclusão ou remoção de responsável. Se a reavaliação liberar a escolha, o revisor atual é mantido até que a Diretoria o altere.
-- Quando o revisor é o único responsável da atividade, concluir a parte leva a atividade diretamente a `Concluida`. O histórico registra as duas transições (`Feita` e `Concluida`).
+- Quando o revisor é o único responsável da atividade, concluir a parte leva a atividade diretamente a `Concluida`. O histórico registra as duas transições (`Feita` e `Concluida`). O mesmo vale quando é o próprio revisor quem remove o último pendente e fica como único responsável; se outro diretor faz a remoção, a atividade para em `Feita`/`Corrigida` e o revisor aprova.
+- Só aprova e devolve o revisor que continua sendo um usuário ativo de Diretoria; o atalho acima também exige isso. Se o revisor deixou de ser, a Diretoria troca o revisor.
 
 ### Permissões
 
 | Ação | Quem |
 |---|---|
 | Criar, editar, excluir | Diretoria |
-| Incluir e remover responsáveis, editar direcionamentos, trocar revisor | Diretoria, nos status `Criada`, `Direcionada`, `ParaCorrecao` e `Reaberta` |
+| Incluir e remover responsáveis, editar direcionamentos | Diretoria, nos status `Criada`, `Direcionada`, `ParaCorrecao` e `Reaberta` |
+| Trocar revisor | Diretoria, em qualquer status exceto `Concluida` (inclui `Feita` e `Corrigida`, para a atividade não ficar presa quando o revisor deixa o escritório) |
 | Aprovar e devolver | O revisor da atividade |
 | Reabrir | Diretoria |
 | Concluir a própria parte | O responsável |
@@ -372,7 +379,11 @@ Regras do fluxo:
 | Ver a atividade | Diretoria e responsáveis |
 | Ver um direcionamento | Diretoria e o responsável a quem ele se destina |
 
-Um responsável de Produção vê os nomes dos demais responsáveis, mas não os direcionamentos deles.
+Um responsável de Produção vê os nomes dos demais responsáveis, mas não os direcionamentos deles. Quem vê a atividade vê também o histórico, com os motivos de devolução e de reabertura.
+
+- Quem não pode ver uma atividade recebe a mesma resposta de uma atividade inexistente (seção 11), e a tentativa gera o evento de acesso negado, com a atividade.
+- A listagem de quem não é da Diretoria traz só as atividades em que ele é responsável, qualquer que seja o filtro pedido. A Diretoria filtra também por responsável e por revisor, inclusive inativos.
+- "Atrasada" usa a data do escritório (fuso configurado), não a data UTC.
 
 ## 9. Agenda
 
@@ -419,6 +430,7 @@ Registra criação, alteração e exclusão de dados e eventos de segurança.
 - Gravado por um interceptor do EF Core, na mesma transação da alteração. Se a gravação do registro falhar, a operação inteira falha.
 - Eventos de segurança: login, falha de login, bloqueio de login, logout, troca e redefinição de senha, mudança de perfil, ativação e inativação de usuário, mudança na lista de acesso de documento, tentativa de acesso negada.
 - A mudança na lista de acesso de um documento gera o evento `documento_acesso_alterado` no documento, com os perfis e usuários incluídos e retirados, na mesma transação. A criação e a exclusão de um documento aparecem pelos registros do próprio documento e de cada entrada da lista, sem evento.
+- `atividade_responsaveis_alterados` é anotado na atividade quando os seus responsáveis ou direcionamentos mudam, com os usuários incluídos, removidos e com direcionamento alterado, na mesma transação.
 - `perfil_incluido_nos_documentos_gerais` registra, no perfil recém-criado, em quantos Documentos Gerais ele foi incluído. Criar, renomear, inativar e reativar um perfil aparecem pelos registros de alteração do próprio perfil, sem evento.
 - `documento_arquivo_ausente` registra a tentativa de baixar um documento cujo arquivo não está no armazenamento.
 - A tentativa de acesso negada, quando vem de uma consulta, leva o recurso ou os filtros pedidos.
