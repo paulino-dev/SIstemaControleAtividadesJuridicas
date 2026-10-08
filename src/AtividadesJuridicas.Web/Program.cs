@@ -97,6 +97,8 @@ app.MapPost("/conta/sair", async (HttpContext contexto, IAntiforgery antiforgery
     return Results.LocalRedirect("/conta/entrar");
 }).DisableAntiforgery();
 
+app.MapDocumentos();
+
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 
 app.Run();

@@ -111,6 +111,10 @@ public sealed partial class AplicacaoDeTeste(BancoFixture banco) : WebApplicatio
         (await sp.GetRequiredService<AppDbContext>().Usuarios.AsNoTracking()
             .SingleAsync(u => u.Email == Email.Criar(email))).Id);
 
+    public Task<Guid> IdDoPerfilDiretorAsync() => EmEscopoAsync(null, async sp =>
+        (await sp.GetRequiredService<AppDbContext>().Perfis.AsNoTracking()
+            .SingleAsync(p => p.Tipo == TipoPerfil.Diretoria)).Id);
+
     public async Task<Guid> CriarPedroAsync()
     {
         var adminId = await IdDoUsuarioAsync(EmailDoAdmin);

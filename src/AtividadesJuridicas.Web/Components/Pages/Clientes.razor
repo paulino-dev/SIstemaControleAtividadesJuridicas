@@ -126,6 +126,12 @@ else
             @if (_form.Id is not null)
             {
                 @ProcessosDoCliente
+                <DocumentosDoCliente @key="@($"gerais-{_form.Id}")" ClienteId="_form.Id.Value"
+                                     Categoria="CategoriaDocumento.DocumentoGeral" Titulo="Documentos Gerais"
+                                     PodeGerenciar="true" OnAcessoEncerrado="EncerrarAcesso" />
+                <DocumentosDoCliente @key="@($"contratos-{_form.Id}")" ClienteId="_form.Id.Value"
+                                     Categoria="CategoriaDocumento.ContratoHonorarios" Titulo="Contratos de Honorários"
+                                     PodeGerenciar="true" OnAcessoEncerrado="EncerrarAcesso" />
             }
         }
     }
@@ -156,6 +162,9 @@ else
                 <dt>Situação</dt><dd>@(_ficha.Ativo ? "Ativo" : "Inativo")</dd>
             </dl>
             @ProcessosDoCliente
+            <DocumentosDoCliente @key="@($"gerais-{_ficha.Id}")" ClienteId="_ficha.Id"
+                                 Categoria="CategoriaDocumento.DocumentoGeral" Titulo="Documentos Gerais"
+                                 PodeGerenciar="false" OnAcessoEncerrado="EncerrarAcesso" />
             <div class="acoes"><button type="button" class="secundario" @onclick="Fechar">Fechar</button></div>
         </section>
     }
@@ -206,17 +215,22 @@ else
             await CarregarAsync(_pagina.TotalDePaginas);
     }
 
-    // Perdeu o acesso no meio do uso: some tudo que estava na tela, nada de dados antigos.
     private bool AcessoEncerrado(Resultado resultado)
     {
         if (resultado.Erro != TipoErro.AcessoNegado) return false;
 
+        EncerrarAcesso();
+        return true;
+    }
+
+    // Perdeu o acesso no meio do uso: some tudo que estava na tela, nada de dados antigos.
+    private void EncerrarAcesso()
+    {
         _ator = null;
         _pagina = Vazia;
         _form = null;
         _ficha = null;
         LimparProcessosDoCliente();
-        return true;
     }
 
     private void Novo(TipoCliente tipo)
