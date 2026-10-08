@@ -140,6 +140,66 @@ namespace AtividadesJuridicas.Infrastructure.Persistencia.Migrations
                     b.ToTable("atividades", (string)null);
                 });
 
+            modelBuilder.Entity("AtividadesJuridicas.Domain.Atividades.AtividadeComentario", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AtividadeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("atividade_id");
+
+                    b.Property<DateTime?>("AtualizadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("atualizado_em");
+
+                    b.Property<Guid?>("AtualizadoPor")
+                        .HasColumnType("uuid")
+                        .HasColumnName("atualizado_por");
+
+                    b.Property<DateTime>("CriadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("criado_em");
+
+                    b.Property<Guid?>("CriadoPor")
+                        .HasColumnType("uuid")
+                        .HasColumnName("criado_por");
+
+                    b.Property<DateTime>("DataHora")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("data_hora");
+
+                    b.Property<DateTime?>("ExcluidoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("excluido_em");
+
+                    b.Property<Guid?>("ExcluidoPor")
+                        .HasColumnType("uuid")
+                        .HasColumnName("excluido_por");
+
+                    b.Property<string>("Texto")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("texto");
+
+                    b.Property<Guid>("UsuarioId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("usuario_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_atividades_comentarios");
+
+                    b.HasIndex("UsuarioId")
+                        .HasDatabaseName("ix_atividades_comentarios_usuario_id");
+
+                    b.HasIndex("AtividadeId", "DataHora")
+                        .HasDatabaseName("ix_atividades_comentarios_atividade_id_data_hora");
+
+                    b.ToTable("atividades_comentarios", (string)null);
+                });
+
             modelBuilder.Entity("AtividadesJuridicas.Domain.Atividades.AtividadeHistoricoStatus", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1157,6 +1217,23 @@ namespace AtividadesJuridicas.Infrastructure.Persistencia.Migrations
                         .HasForeignKey("RevisorId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .HasConstraintName("fk_atividades_usuarios_revisor_id");
+                });
+
+            modelBuilder.Entity("AtividadesJuridicas.Domain.Atividades.AtividadeComentario", b =>
+                {
+                    b.HasOne("AtividadesJuridicas.Domain.Atividades.Atividade", null)
+                        .WithMany()
+                        .HasForeignKey("AtividadeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_atividades_comentarios_atividades_atividade_id");
+
+                    b.HasOne("AtividadesJuridicas.Domain.Identidade.Usuario", null)
+                        .WithMany()
+                        .HasForeignKey("UsuarioId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_atividades_comentarios_usuarios_usuario_id");
                 });
 
             modelBuilder.Entity("AtividadesJuridicas.Domain.Atividades.AtividadeHistoricoStatus", b =>

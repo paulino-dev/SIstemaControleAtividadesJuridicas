@@ -344,6 +344,20 @@ public sealed class AtividadeRepositorioFalso(
     public void Remover(Atividade atividade) => Itens.Remove(atividade);
 }
 
+public sealed class ComentarioRepositorioFalso(UsuarioRepositorioFalso usuarios) : IComentarioRepositorio
+{
+    public List<AtividadeComentario> Itens { get; } = [];
+
+    public void Adicionar(AtividadeComentario comentario) => Itens.Add(comentario);
+
+    public Task<IReadOnlyList<ComentarioDetalhe>> ListarDaAtividadeAsync(Guid atividadeId, CancellationToken ct) =>
+        Task.FromResult<IReadOnlyList<ComentarioDetalhe>>([.. Itens
+            .Where(c => c.AtividadeId == atividadeId)
+            .OrderBy(c => c.DataHora).ThenBy(c => c.Id)
+            .Select(c => new ComentarioDetalhe(
+                c.Id, c.UsuarioId, usuarios.Itens.FirstOrDefault(u => u.Id == c.UsuarioId)?.Nome, c.Texto, c.DataHora))]);
+}
+
 public sealed class AtividadesDoProcessoFalso(AtividadeRepositorioFalso atividades) : IAtividadesDoProcesso
 {
     public int ConsultasDeClientes { get; private set; }
@@ -380,6 +394,7 @@ public sealed class Cenario
     public ProcessoRepositorioFalso Processos { get; }
     public AtividadeRepositorioFalso Atividades { get; }
     public AtividadesDoProcessoFalso AtividadesDoProcesso { get; }
+    public ComentarioRepositorioFalso Comentarios { get; }
     public CalendarioFixo Calendario { get; } = new();
     public HasherFalso Hasher { get; } = new();
     public RelogioFixo Relogio { get; } = new();
@@ -399,6 +414,7 @@ public sealed class Cenario
         Processos = new ProcessoRepositorioFalso(Areas, Clientes);
         Atividades = new AtividadeRepositorioFalso(Usuarios, Clientes, Processos, Areas);
         AtividadesDoProcesso = new AtividadesDoProcessoFalso(Atividades);
+        Comentarios = new ComentarioRepositorioFalso(Usuarios);
         Perfis.Itens.AddRange([PerfilDiretor, PerfilProducao]);
         Diretor = NovoUsuario("Diana Diretora", "diana@x.com", PerfilDiretor);
     }
