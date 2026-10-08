@@ -7,9 +7,13 @@ using AtividadesJuridicas.Domain.Comum;
 
 namespace AtividadesJuridicas.Application.Atividades;
 
-/// <summary>Cria a atividade quando <paramref name="Id"/> é nulo; caso contrário, altera os dados e o vínculo.</summary>
+/// <summary>
+/// Cria a atividade quando <paramref name="Id"/> é nulo; caso contrário, altera os dados e o vínculo.
+/// <paramref name="VersaoEsperada"/>: na edição, a versão com que o formulário foi aberto (nulo não confere).
+/// </summary>
 public sealed record SalvarAtividade(
-    Guid? Id, string Titulo, string Descricao, DateOnly? DataEntrega, Guid? ClienteId, Guid? ProcessoId, Guid? AreaAtuacaoId)
+    Guid? Id, string Titulo, string Descricao, DateOnly? DataEntrega, Guid? ClienteId, Guid? ProcessoId, Guid? AreaAtuacaoId,
+    uint? VersaoEsperada = null)
     : IRequisicao<Resultado<Guid>>;
 
 public sealed class SalvarAtividadeManipulador(
@@ -31,6 +35,8 @@ public sealed class SalvarAtividadeManipulador(
         {
             existente = await atividades.ObterPorIdAsync(id, ct);
             if (existente is null) return Falha(TipoErro.NaoEncontrado, AcessoAAtividade.NaoEncontrada);
+            if (requisicao.VersaoEsperada is { } esperada && esperada != existente.Versao)
+                return Falha(TipoErro.Conflito, AcessoAAtividade.Alterada);
         }
 
         // Cliente e área inativos não entram em vínculo novo; quem já os tinha pode mantê-los.
@@ -77,6 +83,10 @@ public sealed class SalvarAtividadeManipulador(
         catch (ExcecaoDeDominio ex)
         {
             return Falha(TipoErro.Validacao, ex.Message);
+        }
+        catch (ExcecaoDeConflito)
+        {
+            return Falha(TipoErro.Conflito, AcessoAAtividade.Alterada);
         }
         catch (ExcecaoDeConcorrencia)
         {

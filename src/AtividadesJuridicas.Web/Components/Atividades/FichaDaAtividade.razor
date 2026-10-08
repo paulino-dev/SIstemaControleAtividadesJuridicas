@@ -37,7 +37,7 @@
                     <strong class="erro">Atrasada</strong>
                 }
             </dd>
-            <dt>Descrição</dt><dd>@a.Descricao</dd>
+            <dt>Descrição</dt><dd class="texto-livre">@a.Descricao</dd>
             <dt>Entrega</dt><dd>@RotulosDeAtividade.Data(a.DataEntrega)</dd>
             <dt>Cliente</dt><dd>@a.ClienteNome</dd>
             <dt>Processo</dt><dd>@a.ProcessoTitulo</dd>
@@ -62,7 +62,7 @@
                             <td>@r.Nome</td>
                             <td>@(r.ConcluidoEm is { } em ? $"Concluída em {Fuso.Formatar(em)}" : "Pendente")</td>
                             @* O direcionamento de outra pessoa nem chega do servidor; aqui só se mostra o que veio, e só se for visível. *@
-                            <td>@(r.DirecionamentoVisivel ? r.Direcionamento : null)</td>
+                            <td class="texto-livre">@(r.DirecionamentoVisivel ? r.Direcionamento : null)</td>
                         </tr>
                     }
                 </tbody>
@@ -178,7 +178,7 @@
         }
         else if (_painel == Painel.Editar)
         {
-            <FormularioDeAtividade AtividadeId="a.Id" Atual="a" OnSalvo="EdicaoSalvaAsync"
+            <FormularioDeAtividade AtividadeId="a.Id" Atual="a" OnSalvo="EdicaoSalvaAsync" OnConflito="ConflitoAsync"
                                    OnCancelado="FecharPainel" OnAcessoEncerrado="EncerrarAcessoAsync" />
         }
 
@@ -198,7 +198,7 @@
                             <td>@Fuso.Formatar(h.DataHora)</td>
                             <td>@(h.StatusAnterior is { } antes ? RotulosDeAtividade.Status(antes) : "—") → @RotulosDeAtividade.Status(h.StatusNovo)</td>
                             <td>@h.UsuarioNome</td>
-                            <td>@h.Motivo</td>
+                            <td class="texto-livre">@h.Motivo</td>
                         </tr>
                     }
                 </tbody>
@@ -237,6 +237,10 @@
     private HashSet<Guid> _marcados = [];
     private IReadOnlyList<UsuarioResumo> _diretores = [];
     private Guid _novoRevisorId;
+
+    // A versão do registro com que a troca de revisor / a confirmação de exclusão foi aberta.
+    private uint _versaoDoPainel;
+    private uint _versaoDaConfirmacao;
 
     protected override async Task OnInitializedAsync()
     {
@@ -327,37 +331,86 @@
 
     private void PedirAprovacao() => _confirmando = Confirmacao.Aprovar;
 
-    private void PedirExclusao() => _confirmando = Confirmacao.Excluir;
+    private void PedirExclusao()
+    {
+        _versaoDaConfirmacao = _detalhe!.Versao;
+        _confirmando = Confirmacao.Excluir;
+    }
 
     private void CancelarConfirmacao() => _confirmando = Confirmacao.Nenhuma;
-
-    private void AbrirPainel(Painel painel)
-    {
-        _mensagem = null;
-        _confirmando = Confirmacao.Nenhuma;
-        _painel = painel;
-    }
 
     private void FecharPainel()
     {
         if (_ocupado) return;
+        _mensagem = null;
         _painel = Painel.Nenhum;
     }
 
-    private void AbrirEdicao() => AbrirPainel(Painel.Editar);
+    private Task AbrirEdicao() => AbrirPainelAtualizadoAsync(Painel.Editar);
 
-    private void AbrirResponsaveis() => AbrirPainel(Painel.Responsaveis);
+    private Task AbrirResponsaveis() => AbrirPainelAtualizadoAsync(Painel.Responsaveis);
 
-    private void AbrirDevolucao() => AbrirFormularioDeMotivo(Painel.Devolver);
+    private Task AbrirDevolucao() => AbrirPainelAtualizadoAsync(Painel.Devolver);
 
-    private void AbrirReabertura() => AbrirFormularioDeMotivo(Painel.Reabrir);
+    private Task AbrirReabertura() => AbrirPainelAtualizadoAsync(Painel.Reabrir);
 
-    private void AbrirFormularioDeMotivo(Painel painel)
+    private Task AbrirTrocaDeRevisorAsync() => AbrirPainelAtualizadoAsync(Painel.Revisor);
+
+    /// <summary>A ação que cada painel executa continua permitida segundo o que o servidor informou agora.</summary>
+    private static bool PainelPermitido(Painel painel, AcoesDaAtividade acoes) => painel switch
     {
-        AbrirPainel(painel);
-        _motivo = string.Empty;
-        // Todos os responsáveis começam marcados.
-        _marcados = [.. _detalhe!.Responsaveis.Select(r => r.UsuarioId)];
+        Painel.Editar => acoes.Editar,
+        Painel.Responsaveis => acoes.DefinirResponsaveis,
+        Painel.Devolver => acoes.AprovarOuDevolver,
+        Painel.Reabrir => acoes.Reabrir,
+        Painel.Revisor => acoes.TrocarRevisor,
+        _ => true,
+    };
+
+    /// <summary>
+    /// Um painel nunca abre em cima de uma foto velha da atividade: o registro é consultado de novo (sob a trava de
+    /// uma ação por vez) e o painel só abre se a ação ainda é permitida; senão, só a ficha atualizada aparece.
+    /// Os painéis são preenchidos a partir do registro recém-consultado.
+    /// </summary>
+    private async Task AbrirPainelAtualizadoAsync(Painel painel)
+    {
+        if (_ocupado || _detalhe is null) return;
+
+        _ocupado = true;
+        _mensagem = null;
+        _confirmando = Confirmacao.Nenhuma;
+        try
+        {
+            var atualizada = await CarregarAsync();
+            if (_acessoEncerrado || !atualizada) return;   // a ficha já mostra o erro, o "não encontrada" ou foi encerrada
+
+            var detalhe = _detalhe!;
+            if (!PainelPermitido(painel, detalhe.Acoes))
+            {
+                _painel = Painel.Nenhum;
+                Avisar("A atividade mudou. Confira os dados atualizados.", falhou: true);
+                await OnMudou.InvokeAsync();
+                return;
+            }
+
+            if (painel is Painel.Devolver or Painel.Reabrir)
+            {
+                _motivo = string.Empty;
+                // Todos os responsáveis começam marcados.
+                _marcados = [.. detalhe.Responsaveis.Select(r => r.UsuarioId)];
+            }
+            else if (painel == Painel.Revisor && !await PrepararTrocaDeRevisorAsync(detalhe))
+            {
+                return;
+            }
+
+            _versaoDoPainel = detalhe.Versao;
+            _painel = painel;
+        }
+        finally
+        {
+            _ocupado = false;
+        }
     }
 
     private void MarcarResponsavel(Guid id, ChangeEventArgs e)
@@ -366,32 +419,21 @@
         else _marcados.Remove(id);
     }
 
-    private async Task AbrirTrocaDeRevisorAsync()
+    /// <summary>Carrega os diretores ativos para a troca de revisor; devolve se o painel pode abrir.</summary>
+    private async Task<bool> PrepararTrocaDeRevisorAsync(AtividadeDetalhe detalhe)
     {
-        if (_ocupado || _detalhe is not { } detalhe) return;
-
-        _ocupado = true;
-        _mensagem = null;
-        _confirmando = Confirmacao.Nenhuma;
-        try
+        var usuarios = await Despachante.EnviarAsync(new ListarUsuarios());
+        if (await EncerradoAsync(usuarios)) return false;
+        if (usuarios.Valor is not { } lista)
         {
-            var usuarios = await Despachante.EnviarAsync(new ListarUsuarios());
-            if (await EncerradoAsync(usuarios)) return;
-            if (usuarios.Valor is not { } lista)
-            {
-                Avisar(usuarios.Mensagem ?? "Não foi possível consultar os usuários.", falhou: true);
-                return;
-            }
+            Avisar(usuarios.Mensagem ?? "Não foi possível consultar os usuários.", falhou: true);
+            return false;
+        }
 
-            _diretores = [.. lista.Where(u => u.Ativo && u.TipoPerfil == TipoPerfil.Diretoria)
-                .OrderBy(u => u.Nome, StringComparer.CurrentCultureIgnoreCase)];
-            _novoRevisorId = _diretores.Any(d => d.Id == detalhe.RevisorId) ? detalhe.RevisorId!.Value : Guid.Empty;
-            _painel = Painel.Revisor;
-        }
-        finally
-        {
-            _ocupado = false;
-        }
+        _diretores = [.. lista.Where(u => u.Ativo && u.TipoPerfil == TipoPerfil.Diretoria)
+            .OrderBy(u => u.Nome, StringComparer.CurrentCultureIgnoreCase)];
+        _novoRevisorId = _diretores.Any(d => d.Id == detalhe.RevisorId) ? detalhe.RevisorId!.Value : Guid.Empty;
+        return true;
     }
 
     /// <summary>
@@ -412,8 +454,9 @@
             if (!resultado.Sucesso)
             {
                 _confirmando = Confirmacao.Nenhuma;
-                if (resultado.Erro is TipoErro.Conflito or TipoErro.NaoEncontrado) await RecarregarAposFalhaAsync(resultado.Mensagem);
-                else Avisar(resultado.Mensagem, falhou: true);
+                // Qualquer recusa traz a ficha como está agora, para os botões acompanharem o servidor.
+                await RecarregarAposFalhaAsync(
+                    resultado.Mensagem, fecharPainel: resultado.Erro is TipoErro.Conflito or TipoErro.NaoEncontrado);
                 return;
             }
 
@@ -439,12 +482,17 @@
         }
     }
 
-    /// <summary>A atividade mudou (ou sumiu) por fora: mostra o motivo da recusa e traz a ficha como está agora.</summary>
-    private async Task RecarregarAposFalhaAsync(string? mensagem)
+    /// <summary>
+    /// Uma ação foi recusada: traz a ficha como está agora e mantém o motivo da recusa visível. Num conflito ou
+    /// quando a atividade sumiu o painel fecha; numa recusa comum (ex.: validação) ele fica aberto com o que foi
+    /// digitado, a não ser que a ação dele já não seja permitida.
+    /// </summary>
+    private async Task RecarregarAposFalhaAsync(string? mensagem, bool fecharPainel = true)
     {
-        _painel = Painel.Nenhum;
+        if (fecharPainel) _painel = Painel.Nenhum;
         await CarregarAsync();
         if (_acessoEncerrado) return;
+        if (_detalhe is not { } atual || !PainelPermitido(_painel, atual.Acoes)) _painel = Painel.Nenhum;
 
         Avisar(mensagem, falhou: true);
         await OnMudou.InvokeAsync();
@@ -456,9 +504,13 @@
     private Task AprovarAsync() =>
         ExecutarAsync(async () => await Despachante.EnviarAsync(new AprovarAtividade(AtividadeId)), "Atividade aprovada.");
 
-    private Task ExcluirAsync() =>
-        ExecutarAsync(async () => await Despachante.EnviarAsync(new ExcluirAtividade(AtividadeId)), "Atividade excluída.",
+    private Task ExcluirAsync()
+    {
+        var versao = _versaoDaConfirmacao;
+        return ExecutarAsync(
+            async () => await Despachante.EnviarAsync(new ExcluirAtividade(AtividadeId, versao)), "Atividade excluída.",
             aoTerminarFechar: true);
+    }
 
     private Task TrocarRevisorAsync()
     {
@@ -469,8 +521,9 @@
         }
 
         var revisor = _novoRevisorId;
+        var versao = _versaoDoPainel;
         return ExecutarAsync(
-            async () => await Despachante.EnviarAsync(new TrocarRevisorDaAtividade(AtividadeId, revisor)), "Revisor alterado.");
+            async () => await Despachante.EnviarAsync(new TrocarRevisorDaAtividade(AtividadeId, revisor, versao)), "Revisor alterado.");
     }
 
     private Task ConfirmarDevolucaoOuReaberturaAsync()
@@ -506,13 +559,22 @@
 
     private async Task FinalizarEdicaoAsync(string sucesso)
     {
+        // A nova consulta também roda sob a trava: nenhum botão age enquanto a ficha é recarregada.
+        _ocupado = true;
         _mensagem = null;
         _painel = Painel.Nenhum;
-        var atualizada = await CarregarAsync();
-        if (_acessoEncerrado) return;
+        try
+        {
+            var atualizada = await CarregarAsync();
+            if (_acessoEncerrado) return;
 
-        Avisar(atualizada ? sucesso : $"{sucesso}, mas não foi possível atualizar a ficha.", falhou: !atualizada);
-        await OnMudou.InvokeAsync();
+            Avisar(atualizada ? sucesso : $"{sucesso}, mas não foi possível atualizar a ficha.", falhou: !atualizada);
+            await OnMudou.InvokeAsync();
+        }
+        finally
+        {
+            _ocupado = false;
+        }
     }
 
     private Task ConflitoAsync(string? mensagem) => RecarregarAposFalhaAsync(mensagem);

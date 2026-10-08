@@ -429,6 +429,269 @@ public class AtividadesTests(BancoFixture banco) : TesteComBanco(banco)
         new CalendarioDoEscritorio(fuso, relogio).Hoje.Should().Be(new DateOnly(2026, 10, 9));
     }
 
+    // ---- Correções finais da fase 5A ----
+
+    private async Task<uint> VersaoAsync(Guid id) => (await ExecutarAsync(_diana, new ObterAtividade(id))).Valor!.Versao;
+
+    private static JsonElement DadosDe(RegistroAuditoria registro) => JsonDocument.Parse(registro.Dados!).RootElement;
+
+    private Task<Resultado<Guid>> EditarAsync(Guid id, string titulo, DateOnly? entrega = null, uint? versao = null) =>
+        ExecutarAsync(_diana, new SalvarAtividade(
+            id, titulo, "Prazo de 15 dias.", entrega ?? Entrega, null, null, null, versao));
+
+    [Fact]
+    public async Task Editar_grava_no_banco_e_audita_so_o_que_mudou()
+    {
+        var id = await DirecionadaAsync();
+        var antes = await AtividadeNoBancoAsync(id);
+        var historicoAntes = await HistoricoNoBancoAsync(id);
+        var novaEntrega = Entrega.AddDays(7);
+
+        var editada = await EditarAsync(id, "Contestação revisada", novaEntrega, await VersaoAsync(id));
+
+        editada.Sucesso.Should().BeTrue(editada.Mensagem);
+        var depois = await AtividadeNoBancoAsync(id);
+        depois.Titulo.Should().Be("Contestação revisada");
+        depois.DataEntrega.Should().Be(novaEntrega);
+        depois.Status.Should().Be(antes.Status);
+        depois.AutorId.Should().Be(antes.AutorId);
+        depois.TipoAutor.Should().Be(antes.TipoAutor);
+        (await HistoricoNoBancoAsync(id)).Select(h => (h.Ordem, h.StatusNovo)).Should().Equal(
+            historicoAntes.Select(h => (h.Ordem, h.StatusNovo)));
+
+        var alteracao = (await AuditoriaAsync()).Where(r => r.Entidade == "Atividade" && r.EntidadeId == id
+            && r.Operacao == OperacaoAuditada.Alteracao && Tem(r, "Titulo")).Should().ContainSingle().Subject;
+        var dados = DadosDe(alteracao);
+        dados.GetProperty("Titulo").GetProperty("de").GetString().Should().Be("Elaborar contestação");
+        dados.GetProperty("Titulo").GetProperty("para").GetString().Should().Be("Contestação revisada");
+        dados.TryGetProperty("DataEntrega", out var campoEntrega).Should().BeTrue();
+        Tem(campoEntrega, "de").Should().BeTrue();
+        Tem(campoEntrega, "para").Should().BeTrue();
+        Tem(alteracao, "Status").Should().BeFalse();
+        Tem(alteracao, "AutorId").Should().BeFalse();
+        alteracao.UsuarioId.Should().Be(_diana);
+    }
+
+    [Fact]
+    public async Task Trocar_o_revisor_grava_no_banco_e_audita_de_e_para()
+    {
+        var id = await DirecionadaAsync();
+
+        var trocado = await ExecutarAsync(_diana, new TrocarRevisorDaAtividade(id, _davi, await VersaoAsync(id)));
+
+        trocado.Sucesso.Should().BeTrue(trocado.Mensagem);
+        (await AtividadeNoBancoAsync(id)).RevisorId.Should().Be(_davi);
+        var troca = (await AuditoriaAsync()).Where(r => r.Entidade == "Atividade" && r.EntidadeId == id
+                && r.Operacao == OperacaoAuditada.Alteracao && Tem(r, "RevisorId"))
+            .Select(DadosDe).Single(d => d.GetProperty("RevisorId").GetProperty("para").GetGuid() == _davi);
+        troca.GetProperty("RevisorId").GetProperty("de").GetGuid().Should().Be(_diana);
+    }
+
+    [Fact]
+    public async Task Formulario_desatualizado_e_recusado_em_todas_as_acoes_e_nada_muda()
+    {
+        var id = await DirecionadaAsync();
+        var velha = await VersaoAsync(id);
+        (await EditarAsync(id, "Alterada por outra pessoa")).Sucesso.Should().BeTrue();
+        var atual = await VersaoAsync(id);
+        atual.Should().NotBe(velha);
+        var antes = await AtividadeNoBancoAsync(id);
+        var responsaveisAntes = await ResponsaveisNoBancoAsync(id);
+
+        var definir = await ExecutarAsync(_diana, new DefinirResponsaveisDaAtividade(
+            id, [new ResponsavelEntrada(_ester, null)], _diana, velha));
+        var salvar = await EditarAsync(id, "Título velho", versao: velha);
+        var revisor = await ExecutarAsync(_diana, new TrocarRevisorDaAtividade(id, _davi, velha));
+        var excluir = await ExecutarAsync(_diana, new ExcluirAtividade(id, velha));
+
+        (TipoErro? Erro, string? Mensagem)[] recusas =
+            [(definir.Erro, definir.Mensagem), (salvar.Erro, salvar.Mensagem), (revisor.Erro, revisor.Mensagem), (excluir.Erro, excluir.Mensagem)];
+        recusas.Should().OnlyContain(r => r.Erro == TipoErro.Conflito
+            && r.Mensagem == "A atividade foi alterada por outra pessoa. Recarregue e tente novamente.");
+
+        var depois = await AtividadeNoBancoAsync(id);
+        depois.Titulo.Should().Be("Alterada por outra pessoa");
+        depois.RevisorId.Should().Be(antes.RevisorId);
+        depois.ExcluidoEm.Should().BeNull();
+        depois.Versao.Should().Be(antes.Versao);
+        (await ResponsaveisNoBancoAsync(id)).Select(r => (r.UsuarioId, r.ExcluidoEm)).Should().Equal(
+            responsaveisAntes.Select(r => (r.UsuarioId, r.ExcluidoEm)));
+
+        // Com a versão atual, a ação passa.
+        var certa = await ExecutarAsync(_diana, new TrocarRevisorDaAtividade(id, _davi, await VersaoAsync(id)));
+        certa.Sucesso.Should().BeTrue(certa.Mensagem);
+        (await AtividadeNoBancoAsync(id)).RevisorId.Should().Be(_davi);
+    }
+
+    [Fact]
+    public async Task Revisor_que_e_o_unico_responsavel_conclui_a_atividade_numa_so_gravacao()
+    {
+        var id = await CriarAsync();
+        await DirecionarAsync(id, _diana, (_diana, "Eu mesma"));
+
+        await ConcluirAsync(_diana, id);
+
+        var atividade = await AtividadeNoBancoAsync(id);
+        atividade.Status.Should().Be(StatusAtividade.Concluida);
+        atividade.ConcluidaEm.Should().NotBeNull();
+        var historico = await HistoricoNoBancoAsync(id);
+        var ultimas = historico.TakeLast(2).ToList();
+        ultimas.Select(h => h.StatusNovo).Should().Equal(StatusAtividade.Feita, StatusAtividade.Concluida);
+        (ultimas[1].Ordem - ultimas[0].Ordem).Should().Be(1);
+        ultimas[1].DataHora.Should().Be(ultimas[0].DataHora);
+        ultimas.Should().OnlyContain(h => h.UsuarioId == _diana);
+    }
+
+    [Fact]
+    public async Task Responsavel_removido_perde_o_acesso_na_hora()
+    {
+        var id = await DirecionadaAsync();
+        (await ExecutarAsync(_paula, new ObterAtividade(id))).Sucesso.Should().BeTrue();
+
+        await DirecionarAsync(id, _diana, (_pedro, "Redigir"));
+
+        (await ExecutarAsync(_paula, new ListarAtividades())).Valor!.Itens.Should().BeEmpty();
+        var obter = await ExecutarAsync(_paula, new ObterAtividade(id));
+        var concluir = await ExecutarAsync(_paula, new ConcluirMinhaParte(id));
+        obter.Erro.Should().Be(TipoErro.NaoEncontrado);
+        concluir.Erro.Should().Be(TipoErro.NaoEncontrado);
+
+        var negados = (await AuditoriaAsync()).Where(r => r.Evento == EventosDeSeguranca.AcessoNegado && r.UsuarioId == _paula).ToList();
+        negados.Should().HaveCount(2).And.OnlyContain(r => r.Entidade == "Atividade" && r.EntidadeId == id);
+        negados.Select(r => DadosDe(r).GetProperty("requisicao").GetString()).Should()
+            .BeEquivalentTo(nameof(ObterAtividade), nameof(ConcluirMinhaParte));
+    }
+
+    [Fact]
+    public async Task Busca_trata_porcentagem_e_sublinhado_como_texto()
+    {
+        var cem = await CriarAsync("100% pronto");
+        var ab = await CriarAsync("a_b");
+        await CriarAsync("abc qualquer");
+
+        (await ExecutarAsync(_diana, new ListarAtividades(Busca: "%"))).Valor!.Itens.Select(a => a.Id).Should().Equal(cem);
+        (await ExecutarAsync(_diana, new ListarAtividades(Busca: "_"))).Valor!.Itens.Select(a => a.Id).Should().Equal(ab);
+    }
+
+    [Fact]
+    public async Task Atraso_no_banco_so_vale_para_data_anterior_a_hoje_e_nao_concluida()
+    {
+        var hoje = await EmEscopoAsync(null, sp => Task.FromResult(sp.GetRequiredService<ICalendarioDoEscritorio>().Hoje));
+        var vencendoHoje = await CriarAsync("Vence hoje", hoje);
+        var vencidaOntem = await CriarAsync("Venceu ontem", hoje.AddDays(-1));
+        var concluidaVencida = await CriarAsync("Concluída vencida", hoje.AddDays(-1));
+        await DirecionarAsync(concluidaVencida, _diana, (_diana, null));
+        await ConcluirAsync(_diana, concluidaVencida);
+
+        var atrasadas = (await ExecutarAsync(_diana, new ListarAtividades(SomenteAtrasadas: true))).Valor!;
+        var todas = (await ExecutarAsync(_diana, new ListarAtividades())).Valor!;
+
+        atrasadas.Itens.Select(a => a.Id).Should().Equal(vencidaOntem);
+        todas.Itens.Single(a => a.Id == vencendoHoje).Atrasada.Should().BeFalse();
+        todas.Itens.Single(a => a.Id == vencidaOntem).Atrasada.Should().BeTrue();
+        todas.Itens.Single(a => a.Id == concluidaVencida).Atrasada.Should().BeFalse();
+        (await ExecutarAsync(_diana, new ObterAtividade(vencendoHoje))).Valor!.Atrasada.Should().BeFalse();
+        (await ExecutarAsync(_diana, new ObterAtividade(vencidaOntem))).Valor!.Atrasada.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Mesma_data_de_entrega_lista_a_mais_recente_primeiro()
+    {
+        var primeira = await CriarAsync("Primeira");
+        var segunda = await CriarAsync("Segunda");
+        var terceira = await CriarAsync("Terceira");
+
+        (await ExecutarAsync(_diana, new ListarAtividades())).Valor!.Itens.Select(a => a.Id)
+            .Should().Equal(terceira, segunda, primeira);
+    }
+
+    [Fact]
+    public async Task Excluir_registra_quem_excluiu_a_atividade_e_as_filhas()
+    {
+        var id = await DirecionadaAsync();
+
+        (await ExecutarAsync(_diana, new ExcluirAtividade(id))).Sucesso.Should().BeTrue();
+
+        var exclusoes = (await AuditoriaAsync()).Where(r => r.Operacao == OperacaoAuditada.Exclusao).ToList();
+        exclusoes.Count(r => r.Entidade == "Atividade" && r.EntidadeId == id).Should().Be(1);
+        exclusoes.Count(r => r.Entidade == "AtividadeResponsavel").Should().Be(2);
+        exclusoes.Count(r => r.Entidade == "AtividadeHistoricoStatus").Should().Be(2);
+        exclusoes.Should().OnlyContain(r => r.UsuarioId == _diana);
+    }
+
+    [Fact]
+    public async Task Recusas_do_dominio_chegam_como_validacao()
+    {
+        var feita = await DirecionadaAsync("Já feita");
+        await ConcluirAsync(_pedro, feita);
+        await ConcluirAsync(_paula, feita);
+        var comDiretoraUnica = await CriarAsync("Com diretora única");
+        await DirecionarAsync(comDiretoraUnica, _diana, (_diana, null), (_pedro, null));
+
+        var devolver = await ExecutarAsync(_davi, new DevolverAtividade(feita, "Ajustar", [_pedro]));
+        var inexistente = await ExecutarAsync(_diana, new TrocarRevisorDaAtividade(feita, Guid.CreateVersion7()));
+        var travado = await ExecutarAsync(_diana, new TrocarRevisorDaAtividade(comDiretoraUnica, _davi));
+
+        devolver.Erro.Should().Be(TipoErro.Validacao);
+        devolver.Mensagem.Should().Be(Atividade.SoORevisor);
+        inexistente.Erro.Should().Be(TipoErro.Validacao);
+        inexistente.Mensagem.Should().Be("Usuário não encontrado.");
+        travado.Erro.Should().Be(TipoErro.Validacao);
+        travado.Mensagem.Should().Be(Atividade.RevisorTravado);
+        (await AtividadeNoBancoAsync(feita)).Status.Should().Be(StatusAtividade.Feita);
+        (await AtividadeNoBancoAsync(comDiretoraUnica)).RevisorId.Should().Be(_diana);
+    }
+
+    [Fact]
+    public async Task Remover_o_ultimo_pendente_grava_o_motivo_no_historico()
+    {
+        var id = await DirecionadaAsync();
+        await ConcluirAsync(_pedro, id);
+
+        await DirecionarAsync(id, _diana, (_pedro, "Redigir"));
+
+        var historico = await HistoricoNoBancoAsync(id);
+        historico.Last().StatusNovo.Should().Be(StatusAtividade.Feita);
+        historico.Last().Motivo.Should().Be("Responsável pendente removido.");
+        historico.Last().UsuarioId.Should().Be(_diana);
+        historico.Take(historico.Count - 1).Should().OnlyContain(h => h.Motivo == null);
+    }
+
+    [Fact]
+    public async Task Outro_diretor_removendo_o_ultimo_pendente_nao_conclui_pelo_revisor()
+    {
+        var id = await CriarAsync();
+        await DirecionarAsync(id, _diana, (_diana, null), (_pedro, null));
+        await ConcluirAsync(_diana, id);
+
+        var definido = await ExecutarAsync(_davi, new DefinirResponsaveisDaAtividade(id, [new ResponsavelEntrada(_diana, null)], null));
+
+        definido.Sucesso.Should().BeTrue(definido.Mensagem);
+        (await AtividadeNoBancoAsync(id)).Status.Should().Be(StatusAtividade.Feita);
+        var historico = await HistoricoNoBancoAsync(id);
+        historico.Last().UsuarioId.Should().Be(_davi);
+        historico.Last().Motivo.Should().Be("Responsável pendente removido.");
+    }
+
+    [Fact]
+    public async Task Listagem_filtra_pelo_revisor_no_banco_e_producao_continua_so_com_as_suas()
+    {
+        var daDiana = await DirecionadaAsync("Revisada pela Diana");
+        var doDavi = await CriarAsync("Revisada pelo Davi");
+        await DirecionarAsync(doDavi, _davi, (_pedro, null));
+        var deOutro = await CriarAsync("Da Ester");
+        await DirecionarAsync(deOutro, _davi, (_ester, null));
+
+        async Task<IEnumerable<Guid>> IdsAsync(Guid? ator, ListarAtividades consulta) =>
+            (await ExecutarAsync(ator, consulta)).Valor!.Itens.Select(a => a.Id);
+
+        (await IdsAsync(_diana, new ListarAtividades(RevisorId: _diana))).Should().Equal(daDiana);
+        (await IdsAsync(_diana, new ListarAtividades(RevisorId: _davi))).Should().BeEquivalentTo([doDavi, deOutro]);
+        (await IdsAsync(_diana, new ListarAtividades(RevisorId: _davi, ResponsavelId: _ester))).Should().Equal(deOutro);
+        (await IdsAsync(_pedro, new ListarAtividades(RevisorId: _davi))).Should().Equal(doDavi);
+        (await IdsAsync(_pedro, new ListarAtividades(RevisorId: _diana, ResponsavelId: _ester))).Should().Equal(daDiana);
+    }
+
     private sealed class RelogioDeTeste(DateTime agora) : IRelogio
     {
         public DateTime AgoraUtc => agora;

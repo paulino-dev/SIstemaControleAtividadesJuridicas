@@ -14,6 +14,8 @@ public sealed class Atividade : Entidade
     public const string RevisorPrecisaSerDiretor =
         "O revisor precisa ser um usuário ativo de Diretoria. Peça à Diretoria para trocar o revisor da atividade.";
 
+    public const string MotivoDeResponsavelRemovido = "Responsável pendente removido.";
+
     private const string SoAlteraResponsaveis =
         "Os responsáveis só podem ser alterados enquanto a atividade está criada, direcionada, em correção ou reaberta.";
     private const string SoAguardandoRevisao =
@@ -161,7 +163,10 @@ public sealed class Atividade : Entidade
         if (Status == StatusAtividade.Criada && _responsaveis.Count > 0)
             Transicionar(StatusAtividade.Direcionada, atorId, agoraUtc, null);
         else
-            AvancarSeTodosConcluiram(atorId, agoraUtc, responsaveis.Count == 1 && responsaveis.First().Pessoa.EhDiretoriaAtiva);
+            AvancarSeTodosConcluiram(
+                atorId, agoraUtc,
+                responsaveis.Count == 1 && responsaveis.First().Pessoa.EhDiretoriaAtiva && atorId == RevisorId,
+                MotivoDeResponsavelRemovido);
 
         return alteracao;
     }
@@ -198,7 +203,7 @@ public sealed class Atividade : Entidade
 
         parte.Concluir(agoraUtc);
         VersaoDasPartes++;
-        AvancarSeTodosConcluiram(usuarioId, agoraUtc, quem.EhDiretoriaAtiva);
+        AvancarSeTodosConcluiram(usuarioId, agoraUtc, quem.EhDiretoriaAtiva, null);
     }
 
     public void Aprovar(PessoaDaAtividade revisor, DateTime agoraUtc)
@@ -287,18 +292,19 @@ public sealed class Atividade : Entidade
         VersaoDasPartes++;
     }
 
-    // unicoResponsavelEhDiretorAtivo: o atalho só vale se o único responsável é o revisor e ainda é diretor ativo.
-    private void AvancarSeTodosConcluiram(Guid? usuarioId, DateTime agoraUtc, bool unicoResponsavelEhDiretorAtivo)
+    // unicoResponsavelEhDiretorAtivo: o atalho só vale se o único responsável é o revisor e ainda é diretor ativo
+    // (ao remover responsáveis, também só se quem age é o próprio revisor).
+    private void AvancarSeTodosConcluiram(Guid? usuarioId, DateTime agoraUtc, bool unicoResponsavelEhDiretorAtivo, string? motivo)
     {
         if (!AguardaPartes || _responsaveis.Count == 0 || _responsaveis.Any(e => e.Pendente)) return;
 
         Transicionar(
             Status == StatusAtividade.ParaCorrecao ? StatusAtividade.Corrigida : StatusAtividade.Feita,
-            usuarioId, agoraUtc, null);
+            usuarioId, agoraUtc, motivo);
 
         // O revisor é o único responsável: não há a quem submeter, a atividade se conclui.
         if (unicoResponsavelEhDiretorAtivo && _responsaveis.Count == 1 && _responsaveis[0].UsuarioId == RevisorId)
-            Transicionar(StatusAtividade.Concluida, usuarioId, agoraUtc, null);
+            Transicionar(StatusAtividade.Concluida, usuarioId, agoraUtc, motivo);
     }
 
     private void Transicionar(StatusAtividade novo, Guid? usuarioId, DateTime agoraUtc, string? motivo)

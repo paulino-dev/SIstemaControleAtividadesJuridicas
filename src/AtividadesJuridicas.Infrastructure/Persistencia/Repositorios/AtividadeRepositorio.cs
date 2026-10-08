@@ -18,6 +18,7 @@ public sealed class AtividadeRepositorio(AppDbContext db) : IAtividadeRepositori
         if (filtro.Status is { } status) consulta = consulta.Where(a => a.Status == status);
         if (filtro.ResponsavelId is { } responsavelId)
             consulta = consulta.Where(a => a.Responsaveis.Any(r => r.UsuarioId == responsavelId));
+        if (filtro.RevisorId is { } revisorId) consulta = consulta.Where(a => a.RevisorId == revisorId);
         if (filtro.ClienteId is { } clienteId) consulta = consulta.Where(a => a.ClienteId == clienteId);
         if (filtro.ProcessoId is { } processoId) consulta = consulta.Where(a => a.ProcessoId == processoId);
         if (filtro.SomenteAtrasadas)

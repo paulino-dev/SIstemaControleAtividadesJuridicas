@@ -341,6 +341,128 @@ public class AtividadesTests
         resultado.Mensagem.Should().Be("A atividade foi alterada por outra pessoa. Recarregue e tente novamente.");
     }
 
+    // ---- Versão esperada (formulários desatualizados) ----
+
+    private const string Alterada = "A atividade foi alterada por outra pessoa. Recarregue e tente novamente.";
+
+    [Fact]
+    public async Task Salvar_com_versao_esperada_diferente_da_atual_e_conflito_e_nao_altera_nada()
+    {
+        var id = await CriadaAsync();
+        var salvamentos = _c.Unidade.Salvamentos;
+        var manipulador = new SalvarAtividadeManipulador(_c.Como(Diana), _c.Atividades, _c.Clientes, _c.Processos, _c.Areas, _c.Relogio, _c.Unidade);
+
+        var velha = await manipulador.ManipularAsync(
+            new SalvarAtividade(id, "Outro título", "Outra descrição", Entrega, null, null, null, VersaoEsperada: 1u), default);
+        var atual = await manipulador.ManipularAsync(
+            new SalvarAtividade(id, "Outro título", "Outra descrição", Entrega, null, null, null, VersaoEsperada: 0u), default);
+
+        velha.Erro.Should().Be(TipoErro.Conflito);
+        velha.Mensagem.Should().Be(Alterada);
+        atual.Sucesso.Should().BeTrue(atual.Mensagem);
+        NoRepositorio(id).Titulo.Should().Be("Outro título");
+        _c.Unidade.Salvamentos.Should().Be(salvamentos + 1);
+    }
+
+    [Fact]
+    public async Task Salvar_com_versao_velha_e_dados_invalidos_responde_conflito_antes_de_validar()
+    {
+        var id = await CriadaAsync();
+
+        var resultado = await new SalvarAtividadeManipulador(_c.Como(Diana), _c.Atividades, _c.Clientes, _c.Processos, _c.Areas, _c.Relogio, _c.Unidade)
+            .ManipularAsync(new SalvarAtividade(id, "", "x", null, null, null, null, VersaoEsperada: 1u), default);
+
+        resultado.Erro.Should().Be(TipoErro.Conflito);
+    }
+
+    [Fact]
+    public async Task Definir_responsaveis_com_versao_esperada_diferente_e_conflito_e_nao_altera_nada()
+    {
+        var id = await CriadaAsync();
+        var salvamentos = _c.Unidade.Salvamentos;
+        var manipulador = new DefinirResponsaveisDaAtividadeManipulador(
+            _c.Como(Diana), _c.Atividades, _c.Usuarios, _c.Perfis, _c.Relogio, _c.Unidade, _c.Auditoria);
+        var pedido = new[] { new ResponsavelEntrada(_pedro.Id, "Redigir") };
+
+        var velha = await manipulador.ManipularAsync(new DefinirResponsaveisDaAtividade(id, pedido, Diana.Id, 1u), default);
+
+        velha.Erro.Should().Be(TipoErro.Conflito);
+        velha.Mensagem.Should().Be(Alterada);
+        NoRepositorio(id).Responsaveis.Should().BeEmpty();
+        NoRepositorio(id).Status.Should().Be(StatusAtividade.Criada);
+        _c.Unidade.Salvamentos.Should().Be(salvamentos);
+
+        var atual = await manipulador.ManipularAsync(new DefinirResponsaveisDaAtividade(id, pedido, Diana.Id, 0u), default);
+
+        atual.Sucesso.Should().BeTrue(atual.Mensagem);
+        NoRepositorio(id).Status.Should().Be(StatusAtividade.Direcionada);
+    }
+
+    [Fact]
+    public async Task Trocar_revisor_com_versao_esperada_diferente_e_conflito_e_nao_altera_nada()
+    {
+        var id = await DirecionadaAsync();
+        var davi = _davi;
+        var salvamentos = _c.Unidade.Salvamentos;
+        var manipulador = new TrocarRevisorDaAtividadeManipulador(_c.Como(Diana), _c.Atividades, _c.Usuarios, _c.Perfis, _c.Unidade);
+
+        var velha = await manipulador.ManipularAsync(new TrocarRevisorDaAtividade(id, davi.Id, 1u), default);
+
+        velha.Erro.Should().Be(TipoErro.Conflito);
+        velha.Mensagem.Should().Be(Alterada);
+        NoRepositorio(id).RevisorId.Should().Be(Diana.Id);
+        _c.Unidade.Salvamentos.Should().Be(salvamentos);
+
+        var atual = await manipulador.ManipularAsync(new TrocarRevisorDaAtividade(id, davi.Id, 0u), default);
+
+        atual.Sucesso.Should().BeTrue(atual.Mensagem);
+        NoRepositorio(id).RevisorId.Should().Be(davi.Id);
+    }
+
+    [Fact]
+    public async Task Excluir_com_versao_esperada_diferente_e_conflito_e_nao_exclui()
+    {
+        var id = await CriadaAsync();
+        var salvamentos = _c.Unidade.Salvamentos;
+        var manipulador = new ExcluirAtividadeManipulador(_c.Como(Diana), _c.Atividades, _c.Unidade);
+
+        var velha = await manipulador.ManipularAsync(new ExcluirAtividade(id, 1u), default);
+
+        velha.Erro.Should().Be(TipoErro.Conflito);
+        velha.Mensagem.Should().Be(Alterada);
+        _c.Atividades.Itens.Should().ContainSingle();
+        _c.Unidade.Salvamentos.Should().Be(salvamentos);
+
+        var atual = await manipulador.ManipularAsync(new ExcluirAtividade(id, 0u), default);
+
+        atual.Sucesso.Should().BeTrue(atual.Mensagem);
+        _c.Atividades.Itens.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Obter_traz_a_versao_da_atividade()
+    {
+        var id = await CriadaAsync();
+
+        (await Obter(Diana, id)).Valor!.Versao.Should().Be(NoRepositorio(id).Versao);
+    }
+
+    [Fact]
+    public async Task Violacao_de_unicidade_vira_conflito_ao_definir_responsaveis_e_ao_aprovar()
+    {
+        var criada = await CriadaAsync();
+        var feita = await FeitaAsync();
+        _c.Unidade.Falha = new ExcecaoDeConflito("indice unico");
+
+        var definir = await Definir(Diana, criada, Diana.Id, (_pedro, null));
+        var aprovar = await Aprovar(Diana, feita);
+
+        definir.Erro.Should().Be(TipoErro.Conflito);
+        definir.Mensagem.Should().Be(Alterada);
+        aprovar.Erro.Should().Be(TipoErro.Conflito);
+        aprovar.Mensagem.Should().Be(Alterada);
+    }
+
     // ---- Excluir ----
 
     [Fact]
@@ -489,6 +611,20 @@ public class AtividadesTests
             .Should().Equal(new[] { dosDois }, "Produção não lista as atividades de outro");
         (await Listar(Diana, new ListarAtividades(ResponsavelId: _ester.Id))).Valor!.Itens.Select(a => a.Id).Should().Equal(daEster);
         (await Listar(null)).Erro.Should().Be(TipoErro.AcessoNegado);
+    }
+
+    [Fact]
+    public async Task Listagem_filtra_pelo_revisor_e_producao_continua_so_com_as_suas()
+    {
+        var daDiana = await DirecionadaAsync("Revisada pela Diana");
+        var doDavi = await CriadaAsync("Revisada pelo Davi");
+        (await Definir(Diana, doDavi, _davi.Id, (_pedro, null))).Sucesso.Should().BeTrue();
+
+        (await Listar(Diana, new ListarAtividades(RevisorId: Diana.Id))).Valor!.Itens.Select(a => a.Id).Should().Equal(daDiana);
+        (await Listar(Diana, new ListarAtividades(RevisorId: _davi.Id))).Valor!.Itens.Select(a => a.Id).Should().Equal(doDavi);
+        (await Listar(_pedro)).Valor!.Itens.Select(a => a.Id).Should().BeEquivalentTo([daDiana, doDavi]);
+        (await Listar(_pedro, new ListarAtividades(RevisorId: _davi.Id))).Valor!.Itens.Select(a => a.Id).Should().Equal(doDavi);
+        (await Listar(_paula, new ListarAtividades(RevisorId: _davi.Id))).Valor!.Itens.Should().BeEmpty();
     }
 
     [Fact]

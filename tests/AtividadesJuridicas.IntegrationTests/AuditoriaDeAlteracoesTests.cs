@@ -57,8 +57,8 @@ public class AuditoriaDeAlteracoesTests(BancoFixture banco) : TesteComBanco(banc
         (await ExecutarAsync(adminId, new EditarUsuario(pedroId, "Pedro Silva", "pedro@x.com", producao, "AL 1")))
             .Sucesso.Should().BeTrue();
 
-        var registro = (await DoUsuarioAsync(pedroId)).Last();
-        registro.Operacao.Should().Be(OperacaoAuditada.Alteracao);
+        // Pela operação, não pela posição: ids de linhas gravadas no mesmo milissegundo não têm ordem definida.
+        var registro = (await DoUsuarioAsync(pedroId)).Single(r => r.Operacao == OperacaoAuditada.Alteracao);
 
         var dados = JsonDocument.Parse(registro.Dados!).RootElement;
         dados.EnumerateObject().Select(p => p.Name).Should().Equal("Nome");
@@ -77,7 +77,9 @@ public class AuditoriaDeAlteracoesTests(BancoFixture banco) : TesteComBanco(banc
         (await ExecutarAsync(adminId, new EditarUsuario(pedroId, "Pedro", "pedro@x.com", diretoria, "AL 1")))
             .Sucesso.Should().BeTrue();
 
-        var perfil = JsonDocument.Parse((await DoUsuarioAsync(pedroId)).Last().Dados!).RootElement.GetProperty("PerfilId");
+        // A troca de perfil grava duas linhas na mesma gravação (a alteração e o evento perfil_alterado): escolhe-se a alteração.
+        var alteracao = (await DoUsuarioAsync(pedroId)).Single(r => r.Operacao == OperacaoAuditada.Alteracao);
+        var perfil = JsonDocument.Parse(alteracao.Dados!).RootElement.GetProperty("PerfilId");
         perfil.GetProperty("de").GetGuid().Should().Be(producao);
         perfil.GetProperty("para").GetGuid().Should().Be(diretoria);
     }
@@ -110,8 +112,9 @@ public class AuditoriaDeAlteracoesTests(BancoFixture banco) : TesteComBanco(banc
         });
 
         var registros = await DoUsuarioAsync(pedroId);
-        registros.Select(r => r.Operacao).Should().Equal(OperacaoAuditada.Criacao, OperacaoAuditada.Exclusao);
-        JsonDocument.Parse(registros[1].Dados!).RootElement.GetProperty("Nome").GetString().Should().Be("Pedro");
+        registros.Select(r => r.Operacao).Should().BeEquivalentTo([OperacaoAuditada.Criacao, OperacaoAuditada.Exclusao]);
+        var exclusao = registros.Single(r => r.Operacao == OperacaoAuditada.Exclusao);
+        JsonDocument.Parse(exclusao.Dados!).RootElement.GetProperty("Nome").GetString().Should().Be("Pedro");
     }
 
     [Fact]

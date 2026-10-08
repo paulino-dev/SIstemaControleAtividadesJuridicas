@@ -7,14 +7,14 @@ using AtividadesJuridicas.Domain.Auditoria;
 namespace AtividadesJuridicas.Application.Atividades;
 
 public sealed record ListarAtividades(
-    StatusAtividade? Status = null, Guid? ResponsavelId = null, Guid? ClienteId = null, Guid? ProcessoId = null,
+    StatusAtividade? Status = null, Guid? ResponsavelId = null, Guid? RevisorId = null, Guid? ClienteId = null, Guid? ProcessoId = null,
     bool SomenteAtrasadas = false, string? Busca = null, int Pagina = 1)
     : IRequisicao<Resultado<Pagina<AtividadeResumo>>>, IConsultaAuditavel
 {
     public string TipoRecurso => "Atividade";
     public AcaoDeAcesso Acao => AcaoDeAcesso.Listou;
     public string? Detalhe => DetalheDeConsulta.Serializar(
-        new { Status, ResponsavelId, ClienteId, ProcessoId, SomenteAtrasadas, Busca, Pagina });
+        new { Status, ResponsavelId, RevisorId, ClienteId, ProcessoId, SomenteAtrasadas, Busca, Pagina });
 }
 
 public sealed class ListarAtividadesManipulador(
@@ -29,7 +29,7 @@ public sealed class ListarAtividadesManipulador(
         // Produção só lista as próprias atividades, qualquer que seja o filtro pedido.
         var responsavelId = ator.EhDiretoria ? requisicao.ResponsavelId : ator.Id;
         var filtro = new FiltroDeAtividades(
-            requisicao.Status, responsavelId, requisicao.ClienteId, requisicao.ProcessoId,
+            requisicao.Status, responsavelId, requisicao.RevisorId, requisicao.ClienteId, requisicao.ProcessoId,
             requisicao.SomenteAtrasadas, requisicao.Busca, calendario.Hoje);
 
         return Resultado<Pagina<AtividadeResumo>>.Ok(await atividades.ListarAsync(

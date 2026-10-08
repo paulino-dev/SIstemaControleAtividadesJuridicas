@@ -44,6 +44,13 @@ public class AtividadesWebTests(BancoFixture banco) : IAsyncLifetime
             .And.Contain("Direcionada").And.Contain("Criada").And.Contain("Atrasada").And.Contain("15/01/2020")
             .And.Contain("Pedro Produção");
         html.Should().Contain("Nova atividade").And.Contain("Abrir");
+
+        // As palavras acima também aparecem nos filtros (<option>); só a tabela tem estas células.
+        html.Should().MatchRegex(@"<td>\s*Elaborar contestação\s*</td>");
+        html.Should().MatchRegex(@"<td>\s*Direcionada\s*<strong[^>]*>Atrasada</strong>\s*</td>");
+        html.Should().MatchRegex(@"<td>\s*Criada\s*</td>");
+        html.Should().MatchRegex(@"<td>\s*15/01/2020\s*</td>");
+        html.Should().MatchRegex(@"<td>\s*Pedro Produção\s*</td>");
     }
 
     [Fact]

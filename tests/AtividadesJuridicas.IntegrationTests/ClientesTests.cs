@@ -117,8 +117,7 @@ public class ClientesTests(BancoFixture banco) : TesteComBanco(banco)
             pfId, Dados(cidade: "Arapiraca"), "529.982.247-25", "123", new DateOnly(1980, 5, 17)));
         editado.Sucesso.Should().BeTrue(editado.Mensagem);
 
-        var alteracao = (await DoClienteAsync(pfId)).Last();
-        alteracao.Operacao.Should().Be(OperacaoAuditada.Alteracao);
+        var alteracao = (await DoClienteAsync(pfId)).Single(r => r.Operacao == OperacaoAuditada.Alteracao);
         alteracao.Entidade.Should().Be("Cliente");
         // A coluna é jsonb: o PostgreSQL normaliza os espaços, então compara-se o JSON, não o texto.
         JsonNode.DeepEquals(
@@ -299,8 +298,7 @@ public class ClientesTests(BancoFixture banco) : TesteComBanco(banco)
             return 0;
         });
 
-        var exclusao = (await DoClienteAsync(pfId)).Last();
-        exclusao.Operacao.Should().Be(OperacaoAuditada.Exclusao);
+        var exclusao = (await DoClienteAsync(pfId)).Single(r => r.Operacao == OperacaoAuditada.Exclusao);
         exclusao.Entidade.Should().Be("Cliente");
         JsonDocument.Parse(exclusao.Dados!).RootElement.GetProperty("Endereco.Cidade").GetString().Should().Be("Maceió");
 

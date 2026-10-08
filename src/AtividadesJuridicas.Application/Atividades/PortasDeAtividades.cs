@@ -10,7 +10,7 @@ public static class AtividadesOpcoes
 
 /// <summary><paramref name="Hoje"/>: a data de hoje no fuso do escritório, para decidir o que está atrasado.</summary>
 public sealed record FiltroDeAtividades(
-    StatusAtividade? Status, Guid? ResponsavelId, Guid? ClienteId, Guid? ProcessoId, bool SomenteAtrasadas,
+    StatusAtividade? Status, Guid? ResponsavelId, Guid? RevisorId, Guid? ClienteId, Guid? ProcessoId, bool SomenteAtrasadas,
     string? Busca, DateOnly Hoje);
 
 public sealed record AtividadeResumo(
@@ -29,11 +29,13 @@ public sealed record AcoesDaAtividade(
     bool Editar, bool DefinirResponsaveis, bool TrocarRevisor, bool ConcluirMinhaParte, bool AprovarOuDevolver,
     bool Reabrir, bool Excluir);
 
+/// <summary><paramref name="Versao"/>: a versão da linha, que os formulários devolvem como versão esperada.</summary>
 public sealed record AtividadeDetalhe(
     Guid Id, string Titulo, string Descricao, DateOnly? DataEntrega, StatusAtividade Status, bool Atrasada,
     DateTime? ConcluidaEm, Guid? ClienteId, string? ClienteNome, Guid? ProcessoId, string? ProcessoTitulo,
     Guid? AreaAtuacaoId, string? AreaNome, TipoAutor TipoAutor, string? AutorNome, Guid? RevisorId, string? RevisorNome,
-    IReadOnlyList<ResponsavelDetalhe> Responsaveis, IReadOnlyList<HistoricoDetalhe> Historico, AcoesDaAtividade Acoes);
+    IReadOnlyList<ResponsavelDetalhe> Responsaveis, IReadOnlyList<HistoricoDetalhe> Historico, AcoesDaAtividade Acoes,
+    uint Versao);
 
 public interface IAtividadeRepositorio
 {

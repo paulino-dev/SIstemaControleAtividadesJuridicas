@@ -317,6 +317,7 @@ public sealed class AtividadeRepositorioFalso(
         var todos = Enumerable.Reverse(Itens)
             .Where(a => filtro.Status is null || a.Status == filtro.Status)
             .Where(a => filtro.ResponsavelId is null || a.EhResponsavel(filtro.ResponsavelId.Value))
+            .Where(a => filtro.RevisorId is null || a.RevisorId == filtro.RevisorId)
             .Where(a => filtro.ClienteId is null || a.ClienteId == filtro.ClienteId)
             .Where(a => filtro.ProcessoId is null || a.ProcessoId == filtro.ProcessoId)
             .Where(a => !filtro.SomenteAtrasadas || a.EstaAtrasada(filtro.Hoje))

@@ -4,7 +4,7 @@ using AtividadesJuridicas.Domain.Comum;
 
 namespace AtividadesJuridicas.Application.Atividades;
 
-public sealed record TrocarRevisorDaAtividade(Guid Id, Guid RevisorId) : IRequisicao<Resultado>;
+public sealed record TrocarRevisorDaAtividade(Guid Id, Guid RevisorId, uint? VersaoEsperada = null) : IRequisicao<Resultado>;
 
 public sealed class TrocarRevisorDaAtividadeManipulador(
     IContextoDeAcesso contexto,
@@ -20,6 +20,8 @@ public sealed class TrocarRevisorDaAtividadeManipulador(
 
         var atividade = await atividades.ObterPorIdAsync(requisicao.Id, ct);
         if (atividade is null) return Resultado.Falha(TipoErro.NaoEncontrado, AcessoAAtividade.NaoEncontrada);
+        if (requisicao.VersaoEsperada is { } esperada && esperada != atividade.Versao)
+            return Resultado.Falha(TipoErro.Conflito, AcessoAAtividade.Alterada);
 
         var atuais = atividade.Responsaveis.Select(r => r.UsuarioId).ToList();
         var pessoas = await PessoasDaAtividade.CarregarAsync(usuarios, perfis, [.. atuais, requisicao.RevisorId], ct);
@@ -34,6 +36,10 @@ public sealed class TrocarRevisorDaAtividadeManipulador(
         catch (ExcecaoDeDominio ex)
         {
             return Resultado.Falha(TipoErro.Validacao, ex.Message);
+        }
+        catch (ExcecaoDeConflito)
+        {
+            return Resultado.Falha(TipoErro.Conflito, AcessoAAtividade.Alterada);
         }
         catch (ExcecaoDeConcorrencia)
         {

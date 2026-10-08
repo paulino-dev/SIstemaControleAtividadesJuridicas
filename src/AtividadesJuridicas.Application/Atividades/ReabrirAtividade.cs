@@ -31,6 +31,10 @@ public sealed class ReabrirAtividadeManipulador(
         {
             return Resultado.Falha(TipoErro.Validacao, ex.Message);
         }
+        catch (ExcecaoDeConflito)
+        {
+            return Resultado.Falha(TipoErro.Conflito, AcessoAAtividade.Alterada);
+        }
         catch (ExcecaoDeConcorrencia)
         {
             return Resultado.Falha(TipoErro.Conflito, AcessoAAtividade.Alterada);

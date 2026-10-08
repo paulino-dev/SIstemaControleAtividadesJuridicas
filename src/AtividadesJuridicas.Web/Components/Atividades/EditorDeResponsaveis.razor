@@ -10,7 +10,15 @@
 
     @if (!_carregado)
     {
-        <p>Carregando…</p>
+        @if (!_falhouAoCarregar)
+        {
+            <p>Carregando…</p>
+        }
+
+        @* Se os dados não chegaram, ainda assim é possível desistir. *@
+        <div class="acoes">
+            <button type="button" class="secundario" @onclick="Cancelar">Cancelar</button>
+        </div>
     }
     else
     {
@@ -25,7 +33,7 @@
                     </label>
                     @if (linha.Marcado)
                     {
-                        <label>Direcionamento de @linha.Nome <input type="text" @bind="linha.Direcionamento" disabled="@_salvando" /></label>
+                        <label>Direcionamento de @linha.Nome <textarea rows="3" @bind="linha.Direcionamento" disabled="@_salvando"></textarea></label>
                     }
                 </div>
             }
@@ -64,6 +72,7 @@
 
     private bool _carregado;
     private bool _salvando;
+    private bool _falhouAoCarregar;
     private string? _mensagem;
     private Guid _revisorId;
     private List<Linha> _linhas = [];
@@ -91,6 +100,7 @@
         if (resultado.Valor is not { } usuarios)
         {
             _mensagem = resultado.Mensagem ?? "Não foi possível consultar os usuários.";
+            _falhouAoCarregar = true;
             return;
         }
 
@@ -146,7 +156,7 @@
                 .ToList();
 
             var resultado = await Despachante.EnviarAsync(new DefinirResponsaveisDaAtividade(
-                Atividade.Id, enviados, _revisorId == Guid.Empty ? null : _revisorId));
+                Atividade.Id, enviados, _revisorId == Guid.Empty ? null : _revisorId, Atividade.Versao));
 
             if (resultado.Erro == TipoErro.AcessoNegado)
             {

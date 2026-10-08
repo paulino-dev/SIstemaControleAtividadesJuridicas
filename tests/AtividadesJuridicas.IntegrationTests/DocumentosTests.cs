@@ -64,7 +64,7 @@ public class DocumentosTests(BancoFixture banco) : TesteComBanco(banco)
             .Where(a => a.DocumentoId == documento).OrderBy(a => a.CriadoEm).ThenBy(a => a.Id).ToListAsync());
 
     private Task<List<RegistroAcesso>> AcessosAsync() => EmEscopoAsync(null, sp =>
-        sp.GetRequiredService<AppDbContext>().RegistrosAcesso.AsNoTracking().OrderBy(r => r.Id).ToListAsync());
+        sp.GetRequiredService<AppDbContext>().RegistrosAcesso.AsNoTracking().OrderBy(r => r.DataHora).ThenBy(r => r.Id).ToListAsync());
 
     private string[] ArquivosNoDisco() =>
         Directory.Exists(PastaDeArquivos) ? Directory.GetFiles(PastaDeArquivos, "*", SearchOption.AllDirectories) : [];

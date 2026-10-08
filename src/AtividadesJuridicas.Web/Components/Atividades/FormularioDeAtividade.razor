@@ -11,7 +11,15 @@
 
     @if (!_carregado)
     {
-        <p>Carregando…</p>
+        @if (!_falhouAoCarregar)
+        {
+            <p>Carregando…</p>
+        }
+
+        @* Se os dados não chegaram, ainda assim é possível desistir. *@
+        <div class="acoes">
+            <button type="button" class="secundario" @onclick="Cancelar">Cancelar</button>
+        </div>
     }
     else
     {
@@ -32,12 +40,20 @@
                     Cliente do processo
                     <select @bind="_clienteId">
                         <option value="@Guid.Empty">Selecione…</option>
+                        @if (ClienteForaDoProcesso(processo))
+                        {
+                            <option value="@_clienteId">@(_clienteNome ?? "Cliente") (não é mais cliente deste processo)</option>
+                        }
                         @foreach (var cliente in processo.Clientes)
                         {
                             <option value="@cliente.ClienteId">@cliente.Nome@(cliente.Ativo ? "" : " (inativo)")</option>
                         }
                     </select>
                 </label>
+                @if (ClienteForaDoProcesso(processo))
+                {
+                    <p class="erro">O cliente atual não é mais cliente deste processo. Escolha outro cliente do processo para salvar.</p>
+                }
             }
             else
             {
@@ -127,12 +143,16 @@
     /// <summary>Avisado com o Id da atividade salva.</summary>
     [Parameter] public EventCallback<Guid> OnSalvo { get; set; }
 
+    /// <summary>Avisado (com a mensagem) quando a atividade mudou ou sumiu e o registro precisa ser recarregado.</summary>
+    [Parameter] public EventCallback<string?> OnConflito { get; set; }
+
     [Parameter] public EventCallback OnCancelado { get; set; }
 
     [Parameter] public EventCallback OnAcessoEncerrado { get; set; }
 
     private bool _carregado;
     private bool _salvando;
+    private bool _falhouAoCarregar;
     private string? _mensagem;
 
     private string _titulo = string.Empty;
@@ -161,6 +181,7 @@
         if (!areas.Sucesso)
         {
             _mensagem = areas.Mensagem ?? "Não foi possível consultar as áreas de atuação.";
+            _falhouAoCarregar = true;
             return;
         }
 
@@ -183,6 +204,7 @@
                 if (processo.Valor is null)
                 {
                     _mensagem = processo.Mensagem ?? "Não foi possível consultar o processo da atividade.";
+                    _falhouAoCarregar = true;
                     return;
                 }
 
@@ -202,6 +224,10 @@
     }
 
     private async Task Cancelar() => await OnCancelado.InvokeAsync();
+
+    /// <summary>O cliente guardado na atividade deixou de ser um dos clientes do processo.</summary>
+    private bool ClienteForaDoProcesso(ProcessoDetalhe processo) =>
+        _clienteId != Guid.Empty && processo.Clientes.All(c => c.ClienteId != _clienteId);
 
     private async Task TeclaNaBuscaDeProcesso(KeyboardEventArgs e)
     {
@@ -300,13 +326,18 @@
                 _clienteId == Guid.Empty ? null : _clienteId,
                 _processo?.Id,
                 // Com processo, a área é a do processo (o caso de uso a ignora); sem processo, a escolhida.
-                _processo is not null || _areaId == Guid.Empty ? null : _areaId));
+                _processo is not null || _areaId == Guid.Empty ? null : _areaId,
+                // Na edição, a versão com que o formulário foi aberto; atividade nova não tem.
+                AtividadeId is null ? null : Atual?.Versao));
             if (await EncerradoAsync(resultado)) return;
 
             if (!resultado.Sucesso)
             {
                 // O formulário permanece aberto com o que foi digitado.
                 _mensagem = resultado.Mensagem;
+                // Atividade alterada por outra pessoa (ou que sumiu): quem editava recarrega o registro.
+                if (AtividadeId is not null && (resultado.Erro is TipoErro.Conflito or TipoErro.NaoEncontrado))
+                    await OnConflito.InvokeAsync(resultado.Mensagem);
                 return;
             }
 

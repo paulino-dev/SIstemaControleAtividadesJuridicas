@@ -1133,14 +1133,53 @@ public class AtividadeTests
         atividade.ConcluirParte(_diana, T0.AddHours(1));
         atividade.Status.Should().Be(StatusAtividade.Direcionada);
 
-        atividade.DefinirResponsaveis([R(_diana)], null, T0.AddHours(2), _davi.UsuarioId);
+        atividade.DefinirResponsaveis([R(_diana)], null, T0.AddHours(2), _diana.UsuarioId);
 
         atividade.Status.Should().Be(StatusAtividade.Concluida);
         atividade.ConcluidaEm.Should().Be(T0.AddHours(2));
-        atividade.Historico.TakeLast(2).Should().OnlyContain(h => h.UsuarioId == _davi.UsuarioId && h.DataHora == T0.AddHours(2));
+        atividade.Historico.TakeLast(2).Should().OnlyContain(h => h.UsuarioId == _diana.UsuarioId && h.DataHora == T0.AddHours(2));
         Percurso(atividade).TakeLast(2).Should().Equal(
             (StatusAtividade.Direcionada, StatusAtividade.Feita),
             (StatusAtividade.Feita, StatusAtividade.Concluida));
+    }
+
+    [Fact]
+    public void Atalho_do_revisor_ao_remover_o_ultimo_pendente_nao_vale_quando_outro_diretor_age()
+    {
+        var atividade = Nova();
+        atividade.DefinirResponsaveis([R(_diana), R(_pedro)], null, T0, _diana.UsuarioId);
+        atividade.ConcluirParte(_diana, T0.AddHours(1));
+        var historicoAntes = atividade.Historico.Count;
+
+        atividade.DefinirResponsaveis([R(_diana)], null, T0.AddHours(2), _davi.UsuarioId);
+
+        atividade.Status.Should().Be(StatusAtividade.Feita);
+        atividade.ConcluidaEm.Should().BeNull();
+        atividade.Historico.Should().HaveCount(historicoAntes + 1);
+        atividade.Historico.Last().UsuarioId.Should().Be(_davi.UsuarioId);
+    }
+
+    [Fact]
+    public void Remocao_que_avanca_a_atividade_grava_o_motivo_e_a_conclusao_da_parte_nao()
+    {
+        var removendo = Nova();
+        removendo.DefinirResponsaveis([R(_diana), R(_pedro)], null, T0, _diana.UsuarioId);
+        removendo.ConcluirParte(_diana, T0.AddHours(1));
+        removendo.DefinirResponsaveis([R(_diana)], null, T0.AddHours(2), _diana.UsuarioId);
+
+        var concluindo = Nova();
+        concluindo.DefinirResponsaveis([R(_diana), R(_pedro)], null, T0, _diana.UsuarioId);
+        concluindo.ConcluirParte(_diana, T0.AddHours(1));
+        concluindo.ConcluirParte(_pedro, T0.AddHours(2));
+
+        removendo.Historico.TakeLast(2).Should().OnlyContain(h => h.Motivo == "Responsável pendente removido.");
+        concluindo.Historico.Last().Motivo.Should().BeNull();
+
+        var correcao = ParaCorrecao();
+        correcao.ConcluirParte(_pedro, T0.AddHours(4));
+        correcao.DefinirResponsaveis([R(_pedro, "Redigir")], null, T0.AddHours(5), _diana.UsuarioId);
+        correcao.Status.Should().Be(StatusAtividade.Corrigida);
+        correcao.Historico.Last().Motivo.Should().Be("Responsável pendente removido.");
     }
 
     // ---- F7: revisor mantido quando a diretoria passa de um para dois ----

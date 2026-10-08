@@ -35,7 +35,17 @@ else
                     <option value="">Todos</option>
                     @foreach (var usuario in _usuarios)
                     {
-                        <option value="@usuario.Id">@usuario.Nome</option>
+                        <option value="@usuario.Id">@usuario.Nome@(usuario.Ativo ? "" : " (inativo)")</option>
+                    }
+                </InputSelect>
+            </label>
+            <label>
+                Revisor
+                <InputSelect @bind-Value="_busca.RevisorId">
+                    <option value="">Todos</option>
+                    @foreach (var diretor in _usuarios.Where(u => u.TipoPerfil == TipoPerfil.Diretoria))
+                    {
+                        <option value="@diretor.Id">@diretor.Nome@(diretor.Ativo ? "" : " (inativo)")</option>
                     }
                 </InputSelect>
             </label>
@@ -114,8 +124,9 @@ else
 
     @if (_abertaId is { } id)
     {
-        <FichaDaAtividade @key="id" AtividadeId="id" OnMudou="AtualizarListaAsync" OnAcessoEncerrado="EncerrarAcesso"
-                          OnFechar="FecharFicha" />
+        @* Os avisos levam o id da ficha que os enviou: o de uma ficha que já não é a aberta é ignorado. *@
+        <FichaDaAtividade @key="id" AtividadeId="id" OnMudou="() => AtualizarListaAsync(id)" OnAcessoEncerrado="EncerrarAcesso"
+                          OnFechar="() => FecharFicha(id)" />
     }
 }
 
@@ -147,13 +158,13 @@ else
         _carregado = true;
     }
 
-    /// <summary>Usuários ativos para o filtro de responsável; só a Diretoria pode listá-los.</summary>
+    /// <summary>Usuários (inclusive inativos, que ainda constam em atividades) para os filtros; só a Diretoria pode listá-los.</summary>
     private async Task CarregarResponsaveisAsync()
     {
         var resultado = await Despachante.EnviarAsync(new ListarUsuarios());
         if (AcessoEncerrado(resultado)) return;
 
-        _usuarios = [.. (resultado.Valor ?? []).Where(u => u.Ativo)
+        _usuarios = [.. (resultado.Valor ?? [])
             .OrderBy(u => u.Nome, StringComparer.CurrentCultureIgnoreCase)];
         if (!resultado.Sucesso) Avisar(resultado.Mensagem, falhou: true);
     }
@@ -173,7 +184,7 @@ else
     {
         _paginaPedida = pagina;
         var resultado = await Despachante.EnviarAsync(new ListarAtividades(
-            _busca.Status, _busca.ResponsavelId, null, null, _busca.SomenteAtrasadas, _busca.Texto, pagina));
+            _busca.Status, _busca.ResponsavelId, _busca.RevisorId, null, null, _busca.SomenteAtrasadas, _busca.Texto, pagina));
         if (AcessoEncerrado(resultado)) return;
 
         _pagina = resultado.Valor ?? Vazia;
@@ -184,12 +195,23 @@ else
             await CarregarAsync(_pagina.TotalDePaginas);
     }
 
-    /// <summary>A ficha avisou que algo mudou: a lista é recarregada na página em que estava.</summary>
-    private async Task AtualizarListaAsync() => await CarregarAsync(_pagina.Numero);
+    /// <summary>
+    /// A ficha avisou que algo mudou: a lista é recarregada na página que foi pedida por último (e não na primeira,
+    /// que é o que sobra depois de uma consulta com erro). Aviso de uma ficha que já não é a aberta é ignorado.
+    /// </summary>
+    private async Task AtualizarListaAsync(Guid idDaFicha)
+    {
+        if (_abertaId != idDaFicha) return;
+
+        await CarregarAsync(_paginaPedida);
+    }
 
     private void Abrir(Guid id) => _abertaId = id;
 
-    private void FecharFicha() => _abertaId = null;
+    private void FecharFicha(Guid idDaFicha)
+    {
+        if (_abertaId == idDaFicha) _abertaId = null;
+    }
 
     private void Nova()
     {
@@ -238,6 +260,7 @@ else
         public string? Texto { get; set; }
         public StatusAtividade? Status { get; set; }
         public Guid? ResponsavelId { get; set; }
+        public Guid? RevisorId { get; set; }
         public bool SomenteAtrasadas { get; set; }
     }
 }
