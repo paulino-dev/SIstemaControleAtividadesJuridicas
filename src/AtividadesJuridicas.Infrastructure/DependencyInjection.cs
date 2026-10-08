@@ -1,7 +1,9 @@
 using AtividadesJuridicas.Application.Auditoria;
 using AtividadesJuridicas.Application.Cadastros;
 using AtividadesJuridicas.Application.Comum;
+using AtividadesJuridicas.Application.Documentos;
 using AtividadesJuridicas.Application.Identidade;
+using AtividadesJuridicas.Infrastructure.Armazenamento;
 using AtividadesJuridicas.Infrastructure.Comum;
 using AtividadesJuridicas.Infrastructure.Persistencia;
 using AtividadesJuridicas.Infrastructure.Persistencia.Interceptores;
@@ -15,7 +17,9 @@ namespace AtividadesJuridicas.Infrastructure;
 public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(
-        this IServiceCollection servicos, Func<IServiceProvider, string> obterStringDeConexao)
+        this IServiceCollection servicos,
+        Func<IServiceProvider, string> obterStringDeConexao,
+        Func<IServiceProvider, string> obterPastaDeArquivos)
     {
         servicos.AddScoped<CarimbosInterceptor>();
         servicos.AddScoped<AuditoriaInterceptor>();
@@ -38,6 +42,9 @@ public static class DependencyInjection
         servicos.AddScoped<IProcessoRepositorio, ProcessoRepositorio>();
         servicos.AddScoped<IConsultaDeAuditoria, ConsultaDeAuditoria>();
         servicos.AddScoped<SemeadorInicial>();
+
+        servicos.AddSingleton<IArmazenamentoDeArquivos>(sp =>
+            new ArmazenamentoEmDisco(obterPastaDeArquivos(sp), sp.GetRequiredService<IRelogio>()));
 
         return servicos;
     }

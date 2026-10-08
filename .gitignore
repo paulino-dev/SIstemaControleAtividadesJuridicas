@@ -483,3 +483,6 @@ $RECYCLE.BIN/
 
 # Logs da aplicação
 logs/
+
+# Arquivos enviados pelos usuários (armazenamento em disco)
+dados/

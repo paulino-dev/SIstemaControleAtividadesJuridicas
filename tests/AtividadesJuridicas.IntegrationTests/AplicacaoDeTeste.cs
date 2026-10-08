@@ -19,6 +19,9 @@ public sealed partial class AplicacaoDeTeste(BancoFixture banco) : WebApplicatio
 {
     private readonly string conexao = banco.NovaConexao();
 
+    public string PastaDeArquivos { get; } =
+        Path.Combine(Path.GetTempPath(), "atividades-testes", Guid.NewGuid().ToString("N"));
+
     public const string EmailDoAdmin = "diana@x.com";
     public const string SenhaDoAdmin = "senha-segura";
     public const string EmailDoPedro = "pedro@x.com";
@@ -28,6 +31,7 @@ public sealed partial class AplicacaoDeTeste(BancoFixture banco) : WebApplicatio
     public override async ValueTask DisposeAsync()
     {
         await base.DisposeAsync();
+        if (Directory.Exists(PastaDeArquivos)) Directory.Delete(PastaDeArquivos, recursive: true);
         await banco.RemoverAsync(conexao);
     }
 
@@ -37,6 +41,7 @@ public sealed partial class AplicacaoDeTeste(BancoFixture banco) : WebApplicatio
         builder.ConfigureAppConfiguration(c => c.AddInMemoryCollection(new Dictionary<string, string?>
         {
             ["ConnectionStrings:Padrao"] = conexao,
+            ["Armazenamento:Pasta"] = PastaDeArquivos,
             ["AdminInicial:Nome"] = "Diana Diretora",
             ["AdminInicial:Email"] = EmailDoAdmin,
             ["AdminInicial:Senha"] = SenhaDoAdmin,

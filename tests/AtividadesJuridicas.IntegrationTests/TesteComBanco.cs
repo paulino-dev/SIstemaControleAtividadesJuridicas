@@ -18,13 +18,17 @@ public abstract class TesteComBanco(BancoFixture banco) : IAsyncLifetime
     private ServiceProvider _raiz = null!;
     private string _conexao = null!;
 
+    /// <summary>Pasta de arquivos só deste teste; apagada ao final.</summary>
+    protected string PastaDeArquivos { get; } =
+        Path.Combine(Path.GetTempPath(), "atividades-testes", Guid.NewGuid().ToString("N"));
+
     public virtual async Task InitializeAsync()
     {
         _conexao = banco.NovaConexao();
         var conexao = _conexao;
         _raiz = new ServiceCollection()
             .AddApplication()
-            .AddInfrastructure(_ => conexao)
+            .AddInfrastructure(_ => conexao, _ => PastaDeArquivos)
             .BuildServiceProvider();
 
         await EmEscopoAsync(null, async sp =>
@@ -37,6 +41,7 @@ public abstract class TesteComBanco(BancoFixture banco) : IAsyncLifetime
     public virtual async Task DisposeAsync()
     {
         await _raiz.DisposeAsync();
+        if (Directory.Exists(PastaDeArquivos)) Directory.Delete(PastaDeArquivos, recursive: true);
         await banco.RemoverAsync(_conexao);
     }
 

@@ -16,9 +16,16 @@ using System.Text.Unicode;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddApplication();
-builder.Services.AddInfrastructure(sp =>
-    sp.GetRequiredService<IConfiguration>().GetConnectionString("Padrao")
-    ?? throw new InvalidOperationException("ConnectionStrings:Padrao não configurada."));
+builder.Services.AddInfrastructure(
+    sp => sp.GetRequiredService<IConfiguration>().GetConnectionString("Padrao")
+          ?? throw new InvalidOperationException("ConnectionStrings:Padrao não configurada."),
+    sp =>
+    {
+        // Caminho relativo é resolvido a partir da pasta da aplicação.
+        var pasta = sp.GetRequiredService<IConfiguration>()["Armazenamento:Pasta"]
+                    ?? throw new InvalidOperationException("Armazenamento:Pasta não configurada.");
+        return Path.GetFullPath(pasta, sp.GetRequiredService<IWebHostEnvironment>().ContentRootPath);
+    });
 
 // Sem isto o HTML sai com acentos como entidades numéricas (&#xE1;).
 builder.Services.Configure<WebEncoderOptions>(opcoes =>
