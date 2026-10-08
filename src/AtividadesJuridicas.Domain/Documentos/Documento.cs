@@ -36,6 +36,7 @@ public sealed class Documento : Entidade
     public const string ContratoSoParaDiretoria =
         "Contrato de Honorários não pode ser liberado para perfil ou usuário de Produção.";
 
+    private const string ClienteObrigatorio = "O cliente do documento é obrigatório.";
     private const string PerfilInativo = "Perfil inativo não pode receber acesso a documento.";
     private const string UsuarioInativo = "Usuário inativo não pode receber acesso a documento.";
 
@@ -52,8 +53,11 @@ public sealed class Documento : Entidade
     public string ChaveArmazenamento { get; private set; } = null!;
     public CategoriaDocumento Categoria { get; private set; }
 
-    /// <summary>Obrigatório em documento geral e em contrato de honorários.</summary>
+    /// <summary>Obrigatório em documento geral e em contrato de honorários; em documento de atividade é o da atividade (nulo se avulsa).</summary>
     public Guid? ClienteId { get; private set; }
+
+    /// <summary>Obrigatório no documento de atividade e só nele.</summary>
+    public Guid? AtividadeId { get; private set; }
 
     public IReadOnlyCollection<DocumentoPerfilAcesso> PerfisComAcesso => _perfisComAcesso;
     public IReadOnlyCollection<DocumentoUsuarioAcesso> UsuariosComAcesso => _usuariosComAcesso;
@@ -78,6 +82,31 @@ public sealed class Documento : Entidade
     public static Documento CriarContratoDeHonorarios(Guid clienteId, string? nome, ArquivoDoDocumento arquivo) =>
         Criar(CategoriaDocumento.ContratoHonorarios, clienteId, nome, arquivo);
 
+    /// <summary>
+    /// Documento de atividade: nasce com as listas de acesso vazias, porque o acesso é o dos responsáveis atuais
+    /// da atividade (decidido a cada consulta). <paramref name="clienteId"/> é o da atividade, nulo se ela for avulsa.
+    /// </summary>
+    public static Documento CriarDeAtividade(Guid atividadeId, Guid? clienteId, string? nome, ArquivoDoDocumento arquivo)
+    {
+        if (atividadeId == Guid.Empty)
+            throw new ExcecaoDeDominio("A atividade do documento é obrigatória.");
+
+        var documento = Criar(CategoriaDocumento.DocumentoAtividade, clienteId, nome, arquivo);
+        documento.AtividadeId = atividadeId;
+        return documento;
+    }
+
+    /// <summary>O cliente do documento de atividade é sempre o da atividade: ela mudou de cliente (ou ficou sem).</summary>
+    public void AcompanharClienteDaAtividade(Guid? clienteId)
+    {
+        if (Categoria != CategoriaDocumento.DocumentoAtividade)
+            throw new InvalidOperationException("Só o documento de atividade acompanha o cliente da atividade.");
+        if (clienteId == Guid.Empty)
+            throw new ExcecaoDeDominio(ClienteObrigatorio);
+
+        ClienteId = clienteId;
+    }
+
     public void Renomear(string nome) => Nome = NomeValido(nome);
 
     /// <summary>O nome do documento com a extensão do arquivo enviado, quando ele ainda não a tem.</summary>
@@ -89,13 +118,19 @@ public sealed class Documento : Entidade
             : Nome + extensao;
     }
 
-    /// <summary>A única regra de acesso a documentos.</summary>
-    public bool PodeSerAcessadoPor(Guid usuarioId, Guid perfilId, TipoPerfil tipoPerfil)
+    /// <summary>
+    /// A única regra de acesso a documentos. <paramref name="ehResponsavelDaAtividade"/> só conta no documento de
+    /// atividade, e quem a responde é quem consulta a atividade: o usuário é responsável atual de uma atividade viva.
+    /// </summary>
+    public bool PodeSerAcessadoPor(Guid usuarioId, Guid perfilId, TipoPerfil tipoPerfil, bool ehResponsavelDaAtividade = false)
     {
         if (tipoPerfil == TipoPerfil.Diretoria) return true;
 
         // Sem exceção: nem quem consta na lista (por ter sido da Diretoria) alcança um contrato.
         if (Categoria == CategoriaDocumento.ContratoHonorarios) return false;
+
+        // As listas não contam: o acesso acompanha os responsáveis de hoje.
+        if (Categoria == CategoriaDocumento.DocumentoAtividade) return ehResponsavelDaAtividade;
 
         return _perfisComAcesso.Any(a => a.PerfilId == perfilId) ||
                _usuariosComAcesso.Any(a => a.UsuarioId == usuarioId);
@@ -108,6 +143,9 @@ public sealed class Documento : Entidade
     public AlteracaoDeAcesso DefinirAcesso(
         IReadOnlyCollection<Perfil> perfis, IReadOnlyCollection<UsuarioComPerfil> usuarios)
     {
+        if (Categoria == CategoriaDocumento.DocumentoAtividade)
+            throw new ExcecaoDeDominio("O acesso a um documento de atividade é o dos responsáveis da atividade.");
+
         ArgumentNullException.ThrowIfNull(perfis);
         ArgumentNullException.ThrowIfNull(usuarios);
         if (perfis.Any(p => p is null))
@@ -147,11 +185,11 @@ public sealed class Documento : Entidade
             [.. usuariosNovos.Select(u => u.Usuario.Id)], [.. usuariosRemovidos.Select(a => a.UsuarioId)]);
     }
 
-    private static Documento Criar(CategoriaDocumento categoria, Guid clienteId, string? nome, ArquivoDoDocumento arquivo)
+    private static Documento Criar(CategoriaDocumento categoria, Guid? clienteId, string? nome, ArquivoDoDocumento arquivo)
     {
         ArgumentNullException.ThrowIfNull(arquivo);
-        if (clienteId == Guid.Empty)
-            throw new ExcecaoDeDominio("O cliente do documento é obrigatório.");
+        if (clienteId == Guid.Empty || (clienteId is null && categoria != CategoriaDocumento.DocumentoAtividade))
+            throw new ExcecaoDeDominio(ClienteObrigatorio);
         if (string.IsNullOrWhiteSpace(arquivo.NomeOriginal))
             throw new ExcecaoDeDominio("O nome do arquivo é obrigatório.");
 

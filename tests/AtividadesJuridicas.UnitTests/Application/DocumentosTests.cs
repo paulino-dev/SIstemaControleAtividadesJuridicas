@@ -48,7 +48,7 @@ public class DocumentosTests
             .ManipularAsync(new ListarDocumentosDoCliente(_maria.Id, categoria, pagina), default);
 
     private Task<Resultado<ArquivoParaBaixar>> Baixar(Usuario? ator, Guid id) =>
-        new BaixarDocumentoManipulador(_c.Como(ator), _c.Documentos, _c.Armazenamento, _c.Auditoria)
+        new BaixarDocumentoManipulador(_c.Como(ator), _c.Documentos, _c.Armazenamento, _c.Auditoria, _c.ResponsaveisDeAtividade)
             .ManipularAsync(new BaixarDocumento(id), default);
 
     private Task<Resultado> DefinirAcesso(Usuario? ator, Guid id, Guid[] perfis, Guid[] usuarios) =>

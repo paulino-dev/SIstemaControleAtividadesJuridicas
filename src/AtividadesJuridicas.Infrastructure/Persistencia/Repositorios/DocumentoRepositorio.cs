@@ -21,14 +21,32 @@ public sealed class DocumentoRepositorio(AppDbContext db) : IDocumentoRepositori
         if (acesso is not null)
         {
             // A mesma regra de Documento.PodeSerAcessadoPor para quem não é da Diretoria, aplicada no banco.
+            // O documento de atividade não olha as listas: é do responsável de hoje de uma atividade viva. As
+            // consultas passam pelas entidades mapeadas para que a exclusão lógica da atividade e da entrada
+            // de responsável valha aqui também.
             var perfilId = acesso.PerfilId;
             var usuarioId = acesso.UsuarioId;
             consulta = consulta.Where(d =>
                 d.Categoria != CategoriaDocumento.ContratoHonorarios &&
-                (d.PerfisComAcesso.Any(a => a.PerfilId == perfilId) ||
-                 d.UsuariosComAcesso.Any(a => a.UsuarioId == usuarioId)));
+                ((d.Categoria != CategoriaDocumento.DocumentoAtividade &&
+                  (d.PerfisComAcesso.Any(a => a.PerfilId == perfilId) ||
+                   d.UsuariosComAcesso.Any(a => a.UsuarioId == usuarioId))) ||
+                 (d.Categoria == CategoriaDocumento.DocumentoAtividade &&
+                  db.Atividades.Any(at => at.Id == d.AtividadeId && at.Responsaveis.Any(r => r.UsuarioId == usuarioId)))));
         }
 
+        return await PaginaAsync(consulta, pagina, tamanho, ct);
+    }
+
+    public Task<Pagina<DocumentoResumo>> ListarDaAtividadeAsync(Guid atividadeId, int pagina, int tamanho, CancellationToken ct) =>
+        PaginaAsync(db.Documentos.AsNoTracking().Where(d => d.AtividadeId == atividadeId), pagina, tamanho, ct);
+
+    public async Task<IReadOnlyList<Documento>> ObterDaAtividadeAsync(Guid atividadeId, CancellationToken ct) =>
+        await db.Documentos.Where(d => d.AtividadeId == atividadeId).ToListAsync(ct);
+
+    private async Task<Pagina<DocumentoResumo>> PaginaAsync(
+        IQueryable<Documento> consulta, int pagina, int tamanho, CancellationToken ct)
+    {
         var total = await consulta.CountAsync(ct);
         var documentos = await consulta
             .OrderByDescending(d => d.CriadoEm).ThenByDescending(d => d.Id)
@@ -40,9 +58,15 @@ public sealed class DocumentoRepositorio(AppDbContext db) : IDocumentoRepositori
         var nomes = await db.Usuarios.IgnoreQueryFilters().AsNoTracking()
             .Where(u => autores.Contains(u.Id)).ToDictionaryAsync(u => u.Id, u => u.Nome, ct);
 
+        // O título da atividade aparece mesmo que ela tenha sido excluída (a Diretoria ainda vê o documento).
+        var atividades = documentos.Where(d => d.AtividadeId.HasValue).Select(d => d.AtividadeId!.Value).Distinct().ToList();
+        var titulos = await db.Atividades.IgnoreQueryFilters().AsNoTracking()
+            .Where(a => atividades.Contains(a.Id)).ToDictionaryAsync(a => a.Id, a => a.Titulo, ct);
+
         var itens = documentos.Select(d => new DocumentoResumo(
             d.Id, d.Nome, d.NomeArquivoOriginal, d.TamanhoBytes, d.Categoria, d.CriadoEm,
-            d.CriadoPor is { } autor ? nomes.GetValueOrDefault(autor) : null)).ToList();
+            d.CriadoPor is { } autor ? nomes.GetValueOrDefault(autor) : null,
+            d.AtividadeId, d.AtividadeId is { } atividade ? titulos.GetValueOrDefault(atividade) : null)).ToList();
 
         return new Pagina<DocumentoResumo>(itens, total, pagina, tamanho);
     }

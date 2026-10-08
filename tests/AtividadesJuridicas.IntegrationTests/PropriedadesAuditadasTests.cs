@@ -48,7 +48,7 @@ public class PropriedadesAuditadasTests
             ],
             ["Documento"] =
             [
-                "Categoria", "ChaveArmazenamento", "ClienteId", "HashSha256", "Nome", "NomeArquivoOriginal",
+                "AtividadeId", "Categoria", "ChaveArmazenamento", "ClienteId", "HashSha256", "Nome", "NomeArquivoOriginal",
                 "TamanhoBytes", "TipoConteudo",
             ],
             ["DocumentoPerfilAcesso"] = ["DocumentoId", "PerfilId"],

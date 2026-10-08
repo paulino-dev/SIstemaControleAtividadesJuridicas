@@ -40,7 +40,7 @@ public class AtividadesTests
 
     private Task<Resultado<Guid>> Salvar(Usuario? ator, Guid? id = null, string titulo = "Elaborar contestação",
         DateOnly? entrega = null, bool semEntrega = false, Guid? cliente = null, Guid? processo = null, Guid? area = null) =>
-        new SalvarAtividadeManipulador(_c.Como(ator), _c.Atividades, _c.Clientes, _c.Processos, _c.Areas, _c.Relogio, _c.Unidade)
+        new SalvarAtividadeManipulador(_c.Como(ator), _c.Atividades, _c.Clientes, _c.Processos, _c.Areas, _c.Relogio, _c.Unidade, _c.Documentos)
             .ManipularAsync(new SalvarAtividade(id, titulo, "Prazo de 15 dias.", semEntrega ? null : entrega ?? Entrega, cliente, processo, area), default);
 
     private Task<Resultado> Definir(Usuario? ator, Guid id, Guid? revisor, params (Usuario Usuario, string? Direcionamento)[] responsaveis) =>
@@ -350,7 +350,7 @@ public class AtividadesTests
     {
         var id = await CriadaAsync();
         var salvamentos = _c.Unidade.Salvamentos;
-        var manipulador = new SalvarAtividadeManipulador(_c.Como(Diana), _c.Atividades, _c.Clientes, _c.Processos, _c.Areas, _c.Relogio, _c.Unidade);
+        var manipulador = new SalvarAtividadeManipulador(_c.Como(Diana), _c.Atividades, _c.Clientes, _c.Processos, _c.Areas, _c.Relogio, _c.Unidade, _c.Documentos);
 
         var velha = await manipulador.ManipularAsync(
             new SalvarAtividade(id, "Outro título", "Outra descrição", Entrega, null, null, null, VersaoEsperada: 1u), default);
@@ -369,7 +369,7 @@ public class AtividadesTests
     {
         var id = await CriadaAsync();
 
-        var resultado = await new SalvarAtividadeManipulador(_c.Como(Diana), _c.Atividades, _c.Clientes, _c.Processos, _c.Areas, _c.Relogio, _c.Unidade)
+        var resultado = await new SalvarAtividadeManipulador(_c.Como(Diana), _c.Atividades, _c.Clientes, _c.Processos, _c.Areas, _c.Relogio, _c.Unidade, _c.Documentos)
             .ManipularAsync(new SalvarAtividade(id, "", "x", null, null, null, null, VersaoEsperada: 1u), default);
 
         resultado.Erro.Should().Be(TipoErro.Conflito);

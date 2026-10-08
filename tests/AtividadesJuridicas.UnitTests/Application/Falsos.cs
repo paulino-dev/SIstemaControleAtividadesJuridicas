@@ -399,7 +399,8 @@ public sealed class Cenario
     public HasherFalso Hasher { get; } = new();
     public RelogioFixo Relogio { get; } = new();
     public AuditoriaFalsa Auditoria { get; } = new();
-    public DocumentoRepositorioFalso Documentos { get; } = new();
+    public DocumentoRepositorioFalso Documentos { get; }
+    public ResponsaveisDeAtividadeFalso ResponsaveisDeAtividade { get; }
     public ArmazenamentoFalso Armazenamento { get; } = new();
     public Perfil PerfilDiretor { get; } = Perfil.Criar("Diretor", TipoPerfil.Diretoria);
     public Perfil PerfilProducao { get; } = Perfil.Criar("Produção", TipoPerfil.Producao);
@@ -414,6 +415,8 @@ public sealed class Cenario
         Processos = new ProcessoRepositorioFalso(Areas, Clientes);
         Atividades = new AtividadeRepositorioFalso(Usuarios, Clientes, Processos, Areas);
         AtividadesDoProcesso = new AtividadesDoProcessoFalso(Atividades);
+        Documentos = new DocumentoRepositorioFalso(Atividades);
+        ResponsaveisDeAtividade = new ResponsaveisDeAtividadeFalso(Atividades);
         Comentarios = new ComentarioRepositorioFalso(Usuarios);
         Perfis.Itens.AddRange([PerfilDiretor, PerfilProducao]);
         Diretor = NovoUsuario("Diana Diretora", "diana@x.com", PerfilDiretor);
@@ -468,9 +471,12 @@ public sealed class ArmazenamentoFalso : IArmazenamentoDeArquivos
     }
 }
 
-public sealed class DocumentoRepositorioFalso : IDocumentoRepositorio
+public sealed class DocumentoRepositorioFalso(AtividadeRepositorioFalso? atividades = null) : IDocumentoRepositorio
 {
     public List<Documento> Itens { get; } = [];
+
+    /// <summary>Quantas vezes os documentos de uma atividade foram pedidos para serem alterados.</summary>
+    public int ConsultasPorAtividade { get; set; }
 
     public Task<Documento?> ObterPorIdAsync(Guid id, CancellationToken ct) =>
         Task.FromResult(Itens.FirstOrDefault(d => d.Id == id));
@@ -478,25 +484,51 @@ public sealed class DocumentoRepositorioFalso : IDocumentoRepositorio
     public Task<Pagina<DocumentoResumo>> ListarDoClienteAsync(
         Guid clienteId, CategoriaDocumento categoria, FiltroDeAcesso? acesso, int pagina, int tamanho, CancellationToken ct)
     {
-        // Mesma regra da consulta real: sem filtro (Diretoria) vê tudo; com filtro, nunca contrato.
+        // Mesma regra da consulta real: sem filtro (Diretoria) vê tudo; com filtro, nunca contrato, e o
+        // documento de atividade só para quem é responsável hoje de uma atividade viva.
         // O fake não tem relógio: a ordem de inserção faz as vezes da data, do mais recente para o mais antigo.
         var todos = Enumerable.Reverse(Itens)
             .Where(d => d.ClienteId == clienteId && d.Categoria == categoria)
-            .Where(d => acesso is null ||
-                (d.Categoria != CategoriaDocumento.ContratoHonorarios &&
-                 (d.PerfisComAcesso.Any(a => a.PerfilId == acesso.PerfilId) ||
-                  d.UsuariosComAcesso.Any(a => a.UsuarioId == acesso.UsuarioId))))
+            .Where(d => acesso is null || PodeVer(d, acesso))
             .ToList();
 
-        return Task.FromResult(new Pagina<DocumentoResumo>(
-            [.. todos.Skip((pagina - 1) * tamanho).Take(tamanho).Select(d => new DocumentoResumo(
-                d.Id, d.Nome, d.NomeArquivoOriginal, d.TamanhoBytes, d.Categoria, d.CriadoEm, null))],
-            todos.Count, pagina, tamanho));
+        return Task.FromResult(Pagina(todos, pagina, tamanho));
+    }
+
+    public Task<Pagina<DocumentoResumo>> ListarDaAtividadeAsync(Guid atividadeId, int pagina, int tamanho, CancellationToken ct) =>
+        Task.FromResult(Pagina([.. Enumerable.Reverse(Itens).Where(d => d.AtividadeId == atividadeId)], pagina, tamanho));
+
+    public Task<IReadOnlyList<Documento>> ObterDaAtividadeAsync(Guid atividadeId, CancellationToken ct)
+    {
+        ConsultasPorAtividade++;
+        return Task.FromResult<IReadOnlyList<Documento>>([.. Itens.Where(d => d.AtividadeId == atividadeId)]);
     }
 
     public void Adicionar(Documento documento) => Itens.Add(documento);
 
     public void Remover(Documento documento) => Itens.Remove(documento);
+
+    private bool PodeVer(Documento d, FiltroDeAcesso acesso)
+    {
+        if (d.Categoria == CategoriaDocumento.ContratoHonorarios) return false;
+        if (d.Categoria == CategoriaDocumento.DocumentoAtividade)
+            return atividades?.Itens.Any(a => a.Id == d.AtividadeId && a.EhResponsavel(acesso.UsuarioId)) ?? false;
+        return d.PerfisComAcesso.Any(a => a.PerfilId == acesso.PerfilId) ||
+               d.UsuariosComAcesso.Any(a => a.UsuarioId == acesso.UsuarioId);
+    }
+
+    private Pagina<DocumentoResumo> Pagina(List<Documento> todos, int pagina, int tamanho) =>
+        new([.. todos.Skip((pagina - 1) * tamanho).Take(tamanho).Select(d => new DocumentoResumo(
+                d.Id, d.Nome, d.NomeArquivoOriginal, d.TamanhoBytes, d.Categoria, d.CriadoEm, null,
+                d.AtividadeId, atividades?.Itens.FirstOrDefault(a => a.Id == d.AtividadeId)?.Titulo))],
+            todos.Count, pagina, tamanho);
+}
+
+/// <summary>Responsável atual de atividade viva: a atividade ainda está no repositório e o usuário consta nela.</summary>
+public sealed class ResponsaveisDeAtividadeFalso(AtividadeRepositorioFalso atividades) : IResponsaveisDeAtividade
+{
+    public Task<bool> EhResponsavelAsync(Guid atividadeId, Guid usuarioId, CancellationToken ct) =>
+        Task.FromResult(atividades.Itens.Any(a => a.Id == atividadeId && a.EhResponsavel(usuarioId)));
 }
 
 public sealed record EventoAnotado(string Evento, string? Entidade, Guid? EntidadeId, object? Dados, bool Imediato, Guid? Ator = null);

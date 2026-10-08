@@ -1,3 +1,4 @@
+using AtividadesJuridicas.Domain.Atividades;
 using AtividadesJuridicas.Domain.Cadastros;
 using AtividadesJuridicas.Domain.Documentos;
 using AtividadesJuridicas.Domain.Identidade;
@@ -10,9 +11,12 @@ public sealed class DocumentoConfiguracao : IEntityTypeConfiguration<Documento>
 {
     public void Configure(EntityTypeBuilder<Documento> b)
     {
-        // Só o documento de atividade (categoria 3) pode existir sem cliente.
-        b.ToTable("documentos", t => t.HasCheckConstraint(
-            "ck_documentos_cliente_obrigatorio", "categoria = 3 OR cliente_id IS NOT NULL"));
+        // Só o documento de atividade (categoria 3) pode existir sem cliente, e só ele tem atividade.
+        b.ToTable("documentos", t =>
+        {
+            t.HasCheckConstraint("ck_documentos_cliente_obrigatorio", "categoria = 3 OR cliente_id IS NOT NULL");
+            t.HasCheckConstraint("ck_documentos_atividade_so_na_categoria_3", "(categoria = 3) = (atividade_id IS NOT NULL)");
+        });
 
         b.Property(d => d.Nome).HasMaxLength(Documento.TamanhoMaximoNome).IsRequired();
         b.Property(d => d.NomeArquivoOriginal).HasMaxLength(Documento.TamanhoMaximoNome).IsRequired();
@@ -24,8 +28,10 @@ public sealed class DocumentoConfiguracao : IEntityTypeConfiguration<Documento>
         // Cada arquivo do armazenamento pertence a um único documento, mesmo depois de excluído.
         b.HasIndex(d => d.ChaveArmazenamento).IsUnique();
         b.HasIndex(d => new { d.ClienteId, d.Categoria });
+        b.HasIndex(d => d.AtividadeId);
 
         b.HasOne<Cliente>().WithMany().HasForeignKey(d => d.ClienteId).OnDelete(DeleteBehavior.Restrict);
+        b.HasOne<Atividade>().WithMany().HasForeignKey(d => d.AtividadeId).OnDelete(DeleteBehavior.Restrict);
 
         // As listas são gravadas pelos campos privados. ClientCascade (sem cascata no banco) faz o EF marcar
         // como excluída a entrada retirada da coleção (ou a de um documento excluído); o interceptor de

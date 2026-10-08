@@ -2,6 +2,7 @@ using AtividadesJuridicas.Application.Auditoria;
 using AtividadesJuridicas.Application.Comum;
 using AtividadesJuridicas.Application.Identidade;
 using AtividadesJuridicas.Domain.Auditoria;
+using AtividadesJuridicas.Domain.Documentos;
 
 namespace AtividadesJuridicas.Application.Documentos;
 
@@ -16,7 +17,8 @@ public sealed class BaixarDocumentoManipulador(
     IContextoDeAcesso contexto,
     IDocumentoRepositorio documentos,
     IArmazenamentoDeArquivos armazenamento,
-    IAuditoria auditoria) : IManipulador<BaixarDocumento, Resultado<ArquivoParaBaixar>>
+    IAuditoria auditoria,
+    IResponsaveisDeAtividade responsaveis) : IManipulador<BaixarDocumento, Resultado<ArquivoParaBaixar>>
 {
     private const string NaoEncontrado = "Documento não encontrado.";
 
@@ -28,7 +30,12 @@ public sealed class BaixarDocumentoManipulador(
         var documento = await documentos.ObterPorIdAsync(requisicao.Id, ct);
         if (documento is null) return Falha(TipoErro.NaoEncontrado, NaoEncontrado);
 
-        if (!documento.PodeSerAcessadoPor(ator.Id, ator.PerfilId, ator.TipoPerfil))
+        // Só o documento de atividade pergunta pelos responsáveis, e a Diretoria não precisa da resposta.
+        var ehResponsavel = documento is { Categoria: CategoriaDocumento.DocumentoAtividade, AtividadeId: { } atividadeId }
+            && !ator.EhDiretoria
+            && await responsaveis.EhResponsavelAsync(atividadeId, ator.Id, ct);
+
+        if (!documento.PodeSerAcessadoPor(ator.Id, ator.PerfilId, ator.TipoPerfil, ehResponsavel))
         {
             // Para quem pediu, o documento não existe; para a Diretoria, a tentativa fica registrada.
             await auditoria.RegistrarAsync(

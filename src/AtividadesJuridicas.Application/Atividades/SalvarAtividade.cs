@@ -1,5 +1,6 @@
 using AtividadesJuridicas.Application.Cadastros;
 using AtividadesJuridicas.Application.Comum;
+using AtividadesJuridicas.Application.Documentos;
 using AtividadesJuridicas.Application.Identidade;
 using AtividadesJuridicas.Domain.Atividades;
 using AtividadesJuridicas.Domain.Cadastros;
@@ -23,7 +24,8 @@ public sealed class SalvarAtividadeManipulador(
     IProcessoRepositorio processos,
     IAreaAtuacaoRepositorio areas,
     IRelogio relogio,
-    IUnidadeDeTrabalho unidade) : IManipulador<SalvarAtividade, Resultado<Guid>>
+    IUnidadeDeTrabalho unidade,
+    IDocumentoRepositorio documentos) : IManipulador<SalvarAtividade, Resultado<Guid>>
 {
     public async Task<Resultado<Guid>> ManipularAsync(SalvarAtividade requisicao, CancellationToken ct)
     {
@@ -74,7 +76,13 @@ public sealed class SalvarAtividadeManipulador(
             }
             else
             {
+                var clienteAnterior = existente.ClienteId;
                 existente.Alterar(dados, vinculo);
+
+                // Os documentos da atividade acompanham o cliente dela, na mesma gravação.
+                if (existente.ClienteId != clienteAnterior)
+                    foreach (var documento in await documentos.ObterDaAtividadeAsync(existente.Id, ct))
+                        documento.AcompanharClienteDaAtividade(existente.ClienteId);
             }
 
             await unidade.SalvarAsync(ct);

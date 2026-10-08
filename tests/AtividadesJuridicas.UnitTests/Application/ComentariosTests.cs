@@ -25,7 +25,7 @@ public class ComentariosTests
     private async Task<Guid> DirecionadaAsync()
     {
         var criada = await new SalvarAtividadeManipulador(
-                _c.Como(Diana), _c.Atividades, _c.Clientes, _c.Processos, _c.Areas, _c.Relogio, _c.Unidade)
+                _c.Como(Diana), _c.Atividades, _c.Clientes, _c.Processos, _c.Areas, _c.Relogio, _c.Unidade, _c.Documentos)
             .ManipularAsync(new SalvarAtividade(null, "Elaborar contestação", "Prazo de 15 dias.", new DateOnly(2026, 10, 20), null, null, null), default);
         criada.Sucesso.Should().BeTrue(criada.Mensagem);
         var definido = await new DefinirResponsaveisDaAtividadeManipulador(

@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using AtividadesJuridicas.Application.Atividades;
 using AtividadesJuridicas.Application.Auditoria;
 using AtividadesJuridicas.Application.Cadastros;
 using AtividadesJuridicas.Application.Comum;
@@ -417,10 +418,13 @@ public class DocumentosTests(BancoFixture banco) : TesteComBanco(banco)
     [Fact]
     public async Task Banco_aceita_documento_de_atividade_sem_cliente()
     {
-        await InserirDocumentoCruAsync(CategoriaDocumento.DocumentoAtividade, clienteId: null);
+        var atividade = (await ExecutarAsync(_admin, new SalvarAtividade(
+            null, "Elaborar contestação", "Prazo de 15 dias.", null, null, null, null))).Valor;
+
+        await InserirDocumentoCruAsync(CategoriaDocumento.DocumentoAtividade, clienteId: null, atividadeId: atividade);
     }
 
-    private Task<int> InserirDocumentoCruAsync(CategoriaDocumento categoria, Guid? clienteId)
+    private Task<int> InserirDocumentoCruAsync(CategoriaDocumento categoria, Guid? clienteId, Guid? atividadeId = null)
     {
         var id = Guid.CreateVersion7();
         var chave = $"2026/10/{Guid.NewGuid():N}";
@@ -430,8 +434,8 @@ public class DocumentosTests(BancoFixture banco) : TesteComBanco(banco)
         return EmEscopoAsync(null, sp => sp.GetRequiredService<AppDbContext>().Database.ExecuteSqlAsync(
             $"""
             INSERT INTO documentos (id, nome, nome_arquivo_original, tipo_conteudo, tamanho_bytes, hash_sha256,
-                                    chave_armazenamento, categoria, cliente_id, criado_em)
-            VALUES ({id}, 'x', 'x.pdf', 'application/pdf', 1, {hash}, {chave}, {codigo}, {clienteId}, {agora})
+                                    chave_armazenamento, categoria, cliente_id, atividade_id, criado_em)
+            VALUES ({id}, 'x', 'x.pdf', 'application/pdf', 1, {hash}, {chave}, {codigo}, {clienteId}, {atividadeId}, {agora})
             """));
     }
 }

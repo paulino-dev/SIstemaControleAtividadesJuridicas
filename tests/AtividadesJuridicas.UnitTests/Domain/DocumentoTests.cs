@@ -419,4 +419,158 @@ public class DocumentoTests
         documento.PerfisComAcesso.Should().HaveCount(2).And.Contain(perfis);
         documento.UsuariosComAcesso.Should().HaveCount(1).And.Contain(usuarios);
     }
+
+    // ---- Documento de atividade ----
+
+    private static readonly Guid Atividade = Guid.CreateVersion7();
+
+    private static Documento DeAtividade(Guid? cliente = null) =>
+        Documento.CriarDeAtividade(Atividade, cliente, null, Arquivo("peticao.pdf"));
+
+    [Fact]
+    public void Documento_de_atividade_nasce_com_a_atividade_o_cliente_e_as_listas_vazias()
+    {
+        var documento = DeAtividade(Cliente);
+
+        documento.Categoria.Should().Be(CategoriaDocumento.DocumentoAtividade);
+        documento.AtividadeId.Should().Be(Atividade);
+        documento.ClienteId.Should().Be(Cliente);
+        documento.Nome.Should().Be("peticao.pdf");
+        documento.PerfisComAcesso.Should().BeEmpty();
+        documento.UsuariosComAcesso.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Documento_de_atividade_avulsa_nasce_sem_cliente()
+    {
+        var documento = DeAtividade(null);
+
+        documento.ClienteId.Should().BeNull();
+        documento.AtividadeId.Should().Be(Atividade);
+    }
+
+    [Fact]
+    public void Documento_de_atividade_exige_atividade_e_recusa_cliente_vazio()
+    {
+        var semAtividade = () => Documento.CriarDeAtividade(Guid.Empty, Cliente, null, Arquivo());
+        var clienteVazio = () => Documento.CriarDeAtividade(Atividade, Guid.Empty, null, Arquivo());
+
+        semAtividade.Should().Throw<ExcecaoDeDominio>().WithMessage("A atividade do documento é obrigatória.");
+        clienteVazio.Should().Throw<ExcecaoDeDominio>().WithMessage("O cliente do documento é obrigatório.");
+    }
+
+    [Fact]
+    public void Documentos_de_cliente_nao_tem_atividade()
+    {
+        Geral(_producao).AtividadeId.Should().BeNull();
+        Contrato().AtividadeId.Should().BeNull();
+    }
+
+    [Fact]
+    public void Acesso_a_documento_de_atividade_e_so_ser_diretoria_ou_responsavel()
+    {
+        var pedro = NovoUsuario("Pedro", _producao);
+        var diana = NovoUsuario("Diana", _diretor);
+        var documento = DeAtividade(Cliente);
+
+        documento.PodeSerAcessadoPor(diana.Id, _diretor.Id, TipoPerfil.Diretoria).Should().BeTrue("a Diretoria acessa sempre");
+        documento.PodeSerAcessadoPor(diana.Id, _diretor.Id, TipoPerfil.Diretoria, ehResponsavelDaAtividade: false).Should().BeTrue();
+        documento.PodeSerAcessadoPor(pedro.Id, _producao.Id, TipoPerfil.Producao, ehResponsavelDaAtividade: true).Should().BeTrue();
+        documento.PodeSerAcessadoPor(pedro.Id, _producao.Id, TipoPerfil.Producao, ehResponsavelDaAtividade: false).Should().BeFalse();
+        documento.PodeSerAcessadoPor(pedro.Id, _producao.Id, TipoPerfil.Producao).Should().BeFalse("o padrão é não ser responsável");
+    }
+
+    private static T Construir<T>(params object[] argumentos) =>
+        (T)Activator.CreateInstance(
+            typeof(T), System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic, null, argumentos, null)!;
+
+    [Fact]
+    public void Constar_nas_listas_nao_da_acesso_a_documento_de_atividade()
+    {
+        var pedro = NovoUsuario("Pedro", _producao);
+        var documento = DeAtividade(Cliente);
+        // Não há caminho público para preencher as listas (DefinirAcesso recusa): monta-se por reflexão
+        // para provar que, mesmo que algo as preencha, elas não contam.
+        var perfis = (List<DocumentoPerfilAcesso>)typeof(Documento)
+            .GetField("_perfisComAcesso", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+            .GetValue(documento)!;
+        var usuarios = (List<DocumentoUsuarioAcesso>)typeof(Documento)
+            .GetField("_usuariosComAcesso", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+            .GetValue(documento)!;
+        perfis.Add(Construir<DocumentoPerfilAcesso>(documento.Id, _producao.Id));
+        usuarios.Add(Construir<DocumentoUsuarioAcesso>(documento.Id, pedro.Id));
+
+        documento.PodeSerAcessadoPor(pedro.Id, _producao.Id, TipoPerfil.Producao, ehResponsavelDaAtividade: false)
+            .Should().BeFalse();
+    }
+
+    [Fact]
+    public void Definir_acesso_de_documento_de_atividade_e_recusado()
+    {
+        var pedro = NovoUsuario("Pedro", _producao);
+        var documento = DeAtividade(Cliente);
+
+        var acao = () => documento.DefinirAcesso([_producao], [new UsuarioComPerfil(pedro, _producao)]);
+
+        acao.Should().Throw<ExcecaoDeDominio>()
+            .WithMessage("O acesso a um documento de atividade é o dos responsáveis da atividade.");
+        documento.PerfisComAcesso.Should().BeEmpty();
+        documento.UsuariosComAcesso.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Documento_de_atividade_acompanha_a_troca_e_a_retirada_do_cliente()
+    {
+        var outro = Guid.CreateVersion7();
+        var documento = DeAtividade(Cliente);
+
+        documento.AcompanharClienteDaAtividade(outro);
+        documento.ClienteId.Should().Be(outro);
+
+        documento.AcompanharClienteDaAtividade(null);
+        documento.ClienteId.Should().BeNull();
+
+        documento.AcompanharClienteDaAtividade(Cliente);
+        documento.ClienteId.Should().Be(Cliente);
+    }
+
+    [Fact]
+    public void Documento_de_cliente_nao_acompanha_cliente_de_atividade()
+    {
+        var geral = () => Geral(_producao).AcompanharClienteDaAtividade(null);
+        var contrato = () => Contrato().AcompanharClienteDaAtividade(Guid.CreateVersion7());
+
+        geral.Should().Throw<InvalidOperationException>();
+        contrato.Should().Throw<InvalidOperationException>();
+    }
+
+    [Fact]
+    public void Acompanhar_recusa_cliente_vazio()
+    {
+        var acao = () => DeAtividade(Cliente).AcompanharClienteDaAtividade(Guid.Empty);
+
+        acao.Should().Throw<ExcecaoDeDominio>().WithMessage("O cliente do documento é obrigatório.");
+    }
+
+    [Fact]
+    public void Documento_geral_ignora_o_parametro_de_responsavel()
+    {
+        var ester = NovoUsuario("Ester", _estagio);
+        var pedro = NovoUsuario("Pedro", _producao);
+        var documento = Geral(_producao);
+
+        documento.PodeSerAcessadoPor(ester.Id, _estagio.Id, TipoPerfil.Producao, ehResponsavelDaAtividade: true)
+            .Should().BeFalse("estar fora da lista não é compensado por ser responsável de alguma atividade");
+        documento.PodeSerAcessadoPor(pedro.Id, _producao.Id, TipoPerfil.Producao, ehResponsavelDaAtividade: false)
+            .Should().BeTrue("a lista continua valendo");
+    }
+
+    [Fact]
+    public void Contrato_continua_fechado_mesmo_com_responsavel_verdadeiro()
+    {
+        var pedro = NovoUsuario("Pedro", _producao);
+
+        Contrato().PodeSerAcessadoPor(pedro.Id, _producao.Id, TipoPerfil.Producao, ehResponsavelDaAtividade: true)
+            .Should().BeFalse();
+    }
 }

@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using AtividadesJuridicas.Application.Atividades;
 using AtividadesJuridicas.Application.Auditoria;
 using AtividadesJuridicas.Application.Cadastros;
 using AtividadesJuridicas.Application.Documentos;
@@ -166,5 +167,44 @@ public class DocumentosWebTests(BancoFixture banco) : IAsyncLifetime
         var resposta = await cliente.GetAsync($"/documentos/{_geral}/baixar");
 
         resposta.Content.Headers.ContentLength.Should().Be(Encoding.UTF8.GetByteCount(Conteudo));
+    }
+
+    [Fact]
+    public async Task Documento_de_atividade_e_baixado_so_por_quem_e_responsavel_hoje()
+    {
+        var producao = await _app.EmEscopoAsync(null, async sp =>
+            (await sp.GetRequiredService<AppDbContext>().Perfis.AsNoTracking()
+                .SingleAsync(p => p.Tipo == TipoPerfil.Producao && p.Ativo)).Id);
+        var paulaCriada = await _app.ExecutarAsync(_admin, new CriarUsuario("Paula", "paula@x.com", "senha-da-paula", producao, null));
+        paulaCriada.Sucesso.Should().BeTrue(paulaCriada.Mensagem);
+        var paula = paulaCriada.Valor;
+
+        var atividade = await _app.ExecutarAsync(_admin, new SalvarAtividade(
+            null, "Contestação", "Prazo de 15 dias.", new DateOnly(2090, 6, 15), _maria, null, null));
+        atividade.Sucesso.Should().BeTrue(atividade.Mensagem);
+        (await _app.ExecutarAsync(_admin, new DefinirResponsaveisDaAtividade(
+            atividade.Valor, [new ResponsavelEntrada(_pedro, "Redigir")], _admin))).Sucesso.Should().BeTrue();
+        var anexado = await _app.ExecutarAsync(_admin, new EnviarDocumentoDaAtividade(
+            atividade.Valor, null, "peticao.pdf", "text/html", new MemoryStream(Encoding.UTF8.GetBytes(Conteudo))));
+        anexado.Sucesso.Should().BeTrue(anexado.Mensagem);
+        var url = $"/documentos/{anexado.Valor}/baixar";
+        var doPedro = await DoPedroAsync();
+        var daPaula = await _app.ClienteAutenticadoAsync("paula@x.com", "senha-da-paula");
+
+        var responsavel = await doPedro.GetAsync(url);
+        var outro = await daPaula.GetAsync(url);
+
+        responsavel.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await responsavel.Content.ReadAsStringAsync()).Should().Be(Conteudo);
+        responsavel.Content.Headers.ContentType!.MediaType.Should().Be("application/octet-stream");
+        responsavel.Content.Headers.ContentDisposition!.DispositionType.Should().Be("attachment");
+        outro.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await outro.Content.ReadAsStringAsync()).Should().NotContain(Conteudo);
+
+        (await _app.ExecutarAsync(_admin, new DefinirResponsaveisDaAtividade(
+            atividade.Valor, [new ResponsavelEntrada(paula, "Redigir")], _admin))).Sucesso.Should().BeTrue();
+
+        (await doPedro.GetAsync(url)).StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await daPaula.GetAsync(url)).StatusCode.Should().Be(HttpStatusCode.OK);
     }
 }

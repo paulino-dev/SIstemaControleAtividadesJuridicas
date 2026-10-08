@@ -782,6 +782,10 @@ namespace AtividadesJuridicas.Infrastructure.Persistencia.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<Guid?>("AtividadeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("atividade_id");
+
                     b.Property<DateTime?>("AtualizadoEm")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("atualizado_em");
@@ -852,6 +856,9 @@ namespace AtividadesJuridicas.Infrastructure.Persistencia.Migrations
                     b.HasKey("Id")
                         .HasName("pk_documentos");
 
+                    b.HasIndex("AtividadeId")
+                        .HasDatabaseName("ix_documentos_atividade_id");
+
                     b.HasIndex("ChaveArmazenamento")
                         .IsUnique()
                         .HasDatabaseName("ix_documentos_chave_armazenamento");
@@ -861,6 +868,8 @@ namespace AtividadesJuridicas.Infrastructure.Persistencia.Migrations
 
                     b.ToTable("documentos", null, t =>
                         {
+                            t.HasCheckConstraint("ck_documentos_atividade_so_na_categoria_3", "(categoria = 3) = (atividade_id IS NOT NULL)");
+
                             t.HasCheckConstraint("ck_documentos_cliente_obrigatorio", "categoria = 3 OR cliente_id IS NOT NULL");
                         });
                 });
@@ -1298,6 +1307,12 @@ namespace AtividadesJuridicas.Infrastructure.Persistencia.Migrations
 
             modelBuilder.Entity("AtividadesJuridicas.Domain.Documentos.Documento", b =>
                 {
+                    b.HasOne("AtividadesJuridicas.Domain.Atividades.Atividade", null)
+                        .WithMany()
+                        .HasForeignKey("AtividadeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_documentos_atividades_atividade_id");
+
                     b.HasOne("AtividadesJuridicas.Domain.Cadastros.Cliente", null)
                         .WithMany()
                         .HasForeignKey("ClienteId")
