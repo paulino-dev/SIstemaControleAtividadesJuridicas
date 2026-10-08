@@ -1,10 +1,13 @@
 using System.Globalization;
+using System.Security.Cryptography;
 using System.Text;
 using AtividadesJuridicas.Application.Auditoria;
 using AtividadesJuridicas.Application.Cadastros;
 using AtividadesJuridicas.Application.Comum;
+using AtividadesJuridicas.Application.Documentos;
 using AtividadesJuridicas.Application.Identidade;
 using AtividadesJuridicas.Domain.Cadastros;
+using AtividadesJuridicas.Domain.Documentos;
 using AtividadesJuridicas.Domain.Identidade;
 
 namespace AtividadesJuridicas.UnitTests.Application;
@@ -38,6 +41,12 @@ public sealed class PerfilRepositorioFalso : IPerfilRepositorio
     public Task<IReadOnlyList<PerfilResumo>> ListarAtivosAsync(CancellationToken ct) =>
         Task.FromResult<IReadOnlyList<PerfilResumo>>(
             [.. Itens.Where(p => p.Ativo).Select(p => new PerfilResumo(p.Id, p.Nome, p.Tipo))]);
+
+    public Task<IReadOnlyList<Perfil>> ObterAtivosAsync(CancellationToken ct) =>
+        Task.FromResult<IReadOnlyList<Perfil>>([.. Itens.Where(p => p.Ativo)]);
+
+    public Task<IReadOnlyList<Perfil>> ObterVariosAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct) =>
+        Task.FromResult<IReadOnlyList<Perfil>>([.. Itens.Where(p => ids.Contains(p.Id))]);
 }
 
 public sealed class UsuarioRepositorioFalso(PerfilRepositorioFalso perfis) : IUsuarioRepositorio
@@ -68,6 +77,9 @@ public sealed class UsuarioRepositorioFalso(PerfilRepositorioFalso perfis) : IUs
             })]);
 
     public void Adicionar(Usuario usuario) => Itens.Add(usuario);
+
+    public Task<IReadOnlyList<Usuario>> ObterVariosAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct) =>
+        Task.FromResult<IReadOnlyList<Usuario>>([.. Itens.Where(u => ids.Contains(u.Id))]);
 
     public int Reservas { get; private set; }
 
@@ -248,6 +260,8 @@ public sealed class Cenario
     public HasherFalso Hasher { get; } = new();
     public RelogioFixo Relogio { get; } = new();
     public AuditoriaFalsa Auditoria { get; } = new();
+    public DocumentoRepositorioFalso Documentos { get; } = new();
+    public ArmazenamentoFalso Armazenamento { get; } = new();
     public Perfil PerfilDiretor { get; } = Perfil.Criar("Diretor", TipoPerfil.Diretoria);
     public Perfil PerfilProducao { get; } = Perfil.Criar("Produção", TipoPerfil.Producao);
     public Usuario Diretor { get; }
@@ -271,8 +285,68 @@ public sealed class Cenario
     {
         if (usuario is null) return new ContextoDeAcessoFixo(null);
         var perfil = Perfis.Itens.First(p => p.Id == usuario.PerfilId);
-        return new ContextoDeAcessoFixo(new UsuarioAutenticado(usuario.Id, usuario.Nome, perfil.Tipo));
+        return new ContextoDeAcessoFixo(new UsuarioAutenticado(usuario.Id, usuario.Nome, perfil.Tipo, perfil.Id));
     }
+}
+
+public sealed class ArmazenamentoFalso : IArmazenamentoDeArquivos
+{
+    public Dictionary<string, byte[]> Arquivos { get; } = [];
+
+    /// <summary>Simula um arquivo acima do limite, sem precisar de um conteúdo enorme.</summary>
+    public bool RecusarPorTamanho { get; set; }
+
+    public async Task<ArquivoArmazenado> GravarAsync(Stream conteudo, long limiteBytes, CancellationToken ct)
+    {
+        if (RecusarPorTamanho) throw new ExcecaoDeArquivoGrandeDemais(limiteBytes);
+
+        using var memoria = new MemoryStream();
+        await conteudo.CopyToAsync(memoria, ct);
+        var bytes = memoria.ToArray();
+        var chave = $"2026/10/{Guid.NewGuid():N}";
+        Arquivos[chave] = bytes;
+        return new ArquivoArmazenado(chave, bytes.LongLength, Convert.ToHexStringLower(SHA256.HashData(bytes)));
+    }
+
+    public Task<Stream?> AbrirAsync(string chave, CancellationToken ct) =>
+        Task.FromResult<Stream?>(Arquivos.TryGetValue(chave, out var bytes) ? new MemoryStream(bytes) : null);
+
+    public Task RemoverAsync(string chave, CancellationToken ct)
+    {
+        Arquivos.Remove(chave);
+        return Task.CompletedTask;
+    }
+}
+
+public sealed class DocumentoRepositorioFalso : IDocumentoRepositorio
+{
+    public List<Documento> Itens { get; } = [];
+
+    public Task<Documento?> ObterPorIdAsync(Guid id, CancellationToken ct) =>
+        Task.FromResult(Itens.FirstOrDefault(d => d.Id == id));
+
+    public Task<Pagina<DocumentoResumo>> ListarDoClienteAsync(
+        Guid clienteId, CategoriaDocumento categoria, FiltroDeAcesso? acesso, int pagina, int tamanho, CancellationToken ct)
+    {
+        // Mesma regra da consulta real: sem filtro (Diretoria) vê tudo; com filtro, nunca contrato.
+        var todos = Itens
+            .Where(d => d.ClienteId == clienteId && d.Categoria == categoria)
+            .Where(d => acesso is null ||
+                (d.Categoria != CategoriaDocumento.ContratoHonorarios &&
+                 (d.PerfisComAcesso.Any(a => a.PerfilId == acesso.PerfilId) ||
+                  d.UsuariosComAcesso.Any(a => a.UsuarioId == acesso.UsuarioId))))
+            .OrderBy(d => d.Nome)
+            .ToList();
+
+        return Task.FromResult(new Pagina<DocumentoResumo>(
+            [.. todos.Skip((pagina - 1) * tamanho).Take(tamanho).Select(d => new DocumentoResumo(
+                d.Id, d.Nome, d.NomeArquivoOriginal, d.TamanhoBytes, d.Categoria, d.CriadoEm, null))],
+            todos.Count, pagina, tamanho));
+    }
+
+    public void Adicionar(Documento documento) => Itens.Add(documento);
+
+    public void Remover(Documento documento) => Itens.Remove(documento);
 }
 
 public sealed record EventoAnotado(string Evento, string? Entidade, Guid? EntidadeId, object? Dados, bool Imediato, Guid? Ator = null);

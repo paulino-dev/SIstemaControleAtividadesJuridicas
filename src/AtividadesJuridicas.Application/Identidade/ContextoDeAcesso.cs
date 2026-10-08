@@ -2,7 +2,7 @@ using AtividadesJuridicas.Domain.Identidade;
 
 namespace AtividadesJuridicas.Application.Identidade;
 
-public sealed record UsuarioAutenticado(Guid Id, string Nome, TipoPerfil TipoPerfil)
+public sealed record UsuarioAutenticado(Guid Id, string Nome, TipoPerfil TipoPerfil, Guid PerfilId)
 {
     public bool EhDiretoria => TipoPerfil == TipoPerfil.Diretoria;
 }
@@ -36,6 +36,6 @@ public sealed class ContextoDeAcesso(
         var perfil = await perfis.ObterPorIdAsync(usuario.PerfilId, ct);
         if (perfil is null) return null;
 
-        return new UsuarioAutenticado(usuario.Id, usuario.Nome, perfil.Tipo);
+        return new UsuarioAutenticado(usuario.Id, usuario.Nome, perfil.Tipo, perfil.Id);
     }
 }

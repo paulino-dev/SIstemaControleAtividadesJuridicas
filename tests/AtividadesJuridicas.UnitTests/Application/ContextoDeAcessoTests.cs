@@ -19,7 +19,8 @@ public class ContextoDeAcessoTests
     {
         var ator = await Criar(_cenario.Diretor.Id).ObterAsync(default);
 
-        ator.Should().Be(new UsuarioAutenticado(_cenario.Diretor.Id, "Diana Diretora", TipoPerfil.Diretoria));
+        ator.Should().Be(new UsuarioAutenticado(
+            _cenario.Diretor.Id, "Diana Diretora", TipoPerfil.Diretoria, _cenario.PerfilDiretor.Id));
         ator!.EhDiretoria.Should().BeTrue();
     }
 

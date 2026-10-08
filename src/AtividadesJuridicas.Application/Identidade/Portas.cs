@@ -37,6 +37,9 @@ public interface IUsuarioRepositorio
     Task<int> ContarDiretoresAtivosAsync(Guid? excetoUsuarioId, CancellationToken ct);
 
     Task<IReadOnlyList<UsuarioResumo>> ListarAsync(CancellationToken ct);
+
+    /// <summary>Os usuários com os Ids informados; os inexistentes simplesmente não vêm.</summary>
+    Task<IReadOnlyList<Usuario>> ObterVariosAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct);
     void Adicionar(Usuario usuario);
 
     /// <summary>
@@ -54,6 +57,10 @@ public interface IPerfilRepositorio
 {
     Task<Perfil?> ObterPorIdAsync(Guid id, CancellationToken ct);
     Task<IReadOnlyList<PerfilResumo>> ListarAtivosAsync(CancellationToken ct);
+    Task<IReadOnlyList<Perfil>> ObterAtivosAsync(CancellationToken ct);
+
+    /// <summary>Os perfis com os Ids informados; os inexistentes simplesmente não vêm.</summary>
+    Task<IReadOnlyList<Perfil>> ObterVariosAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct);
 }
 
 public interface IHasherDeSenha

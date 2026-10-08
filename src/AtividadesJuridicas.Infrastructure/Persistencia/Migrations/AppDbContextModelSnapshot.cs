@@ -465,6 +465,196 @@ namespace AtividadesJuridicas.Infrastructure.Persistencia.Migrations
                     b.ToTable("processos_clientes", (string)null);
                 });
 
+            modelBuilder.Entity("AtividadesJuridicas.Domain.Documentos.Documento", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime?>("AtualizadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("atualizado_em");
+
+                    b.Property<Guid?>("AtualizadoPor")
+                        .HasColumnType("uuid")
+                        .HasColumnName("atualizado_por");
+
+                    b.Property<int>("Categoria")
+                        .HasColumnType("integer")
+                        .HasColumnName("categoria");
+
+                    b.Property<string>("ChaveArmazenamento")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("chave_armazenamento");
+
+                    b.Property<Guid?>("ClienteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("cliente_id");
+
+                    b.Property<DateTime>("CriadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("criado_em");
+
+                    b.Property<Guid?>("CriadoPor")
+                        .HasColumnType("uuid")
+                        .HasColumnName("criado_por");
+
+                    b.Property<DateTime?>("ExcluidoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("excluido_em");
+
+                    b.Property<Guid?>("ExcluidoPor")
+                        .HasColumnType("uuid")
+                        .HasColumnName("excluido_por");
+
+                    b.Property<string>("HashSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .HasColumnName("hash_sha256")
+                        .IsFixedLength();
+
+                    b.Property<string>("Nome")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("nome");
+
+                    b.Property<string>("NomeArquivoOriginal")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("nome_arquivo_original");
+
+                    b.Property<long>("TamanhoBytes")
+                        .HasColumnType("bigint")
+                        .HasColumnName("tamanho_bytes");
+
+                    b.Property<string>("TipoConteudo")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("tipo_conteudo");
+
+                    b.HasKey("Id")
+                        .HasName("pk_documentos");
+
+                    b.HasIndex("ChaveArmazenamento")
+                        .IsUnique()
+                        .HasDatabaseName("ix_documentos_chave_armazenamento");
+
+                    b.HasIndex("ClienteId", "Categoria")
+                        .HasDatabaseName("ix_documentos_cliente_id_categoria");
+
+                    b.ToTable("documentos", (string)null);
+                });
+
+            modelBuilder.Entity("AtividadesJuridicas.Domain.Documentos.DocumentoPerfilAcesso", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime?>("AtualizadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("atualizado_em");
+
+                    b.Property<Guid?>("AtualizadoPor")
+                        .HasColumnType("uuid")
+                        .HasColumnName("atualizado_por");
+
+                    b.Property<DateTime>("CriadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("criado_em");
+
+                    b.Property<Guid?>("CriadoPor")
+                        .HasColumnType("uuid")
+                        .HasColumnName("criado_por");
+
+                    b.Property<Guid>("DocumentoId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("documento_id");
+
+                    b.Property<DateTime?>("ExcluidoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("excluido_em");
+
+                    b.Property<Guid?>("ExcluidoPor")
+                        .HasColumnType("uuid")
+                        .HasColumnName("excluido_por");
+
+                    b.Property<Guid>("PerfilId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("perfil_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_documentos_perfis_acesso");
+
+                    b.HasIndex("PerfilId")
+                        .HasDatabaseName("ix_documentos_perfis_acesso_perfil_id");
+
+                    b.HasIndex("DocumentoId", "PerfilId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_documentos_perfis_acesso_documento_id_perfil_id")
+                        .HasFilter("excluido_em IS NULL");
+
+                    b.ToTable("documentos_perfis_acesso", (string)null);
+                });
+
+            modelBuilder.Entity("AtividadesJuridicas.Domain.Documentos.DocumentoUsuarioAcesso", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime?>("AtualizadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("atualizado_em");
+
+                    b.Property<Guid?>("AtualizadoPor")
+                        .HasColumnType("uuid")
+                        .HasColumnName("atualizado_por");
+
+                    b.Property<DateTime>("CriadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("criado_em");
+
+                    b.Property<Guid?>("CriadoPor")
+                        .HasColumnType("uuid")
+                        .HasColumnName("criado_por");
+
+                    b.Property<Guid>("DocumentoId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("documento_id");
+
+                    b.Property<DateTime?>("ExcluidoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("excluido_em");
+
+                    b.Property<Guid?>("ExcluidoPor")
+                        .HasColumnType("uuid")
+                        .HasColumnName("excluido_por");
+
+                    b.Property<Guid>("UsuarioId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("usuario_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_documentos_usuarios_acesso");
+
+                    b.HasIndex("UsuarioId")
+                        .HasDatabaseName("ix_documentos_usuarios_acesso_usuario_id");
+
+                    b.HasIndex("DocumentoId", "UsuarioId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_documentos_usuarios_acesso_documento_id_usuario_id")
+                        .HasFilter("excluido_em IS NULL");
+
+                    b.ToTable("documentos_usuarios_acesso", (string)null);
+                });
+
             modelBuilder.Entity("AtividadesJuridicas.Domain.Identidade.Perfil", b =>
                 {
                     b.Property<Guid>("Id")
@@ -709,6 +899,49 @@ namespace AtividadesJuridicas.Infrastructure.Persistencia.Migrations
                         .HasConstraintName("fk_processos_clientes_processos_processo_id");
                 });
 
+            modelBuilder.Entity("AtividadesJuridicas.Domain.Documentos.Documento", b =>
+                {
+                    b.HasOne("AtividadesJuridicas.Domain.Cadastros.Cliente", null)
+                        .WithMany()
+                        .HasForeignKey("ClienteId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_documentos_clientes_cliente_id");
+                });
+
+            modelBuilder.Entity("AtividadesJuridicas.Domain.Documentos.DocumentoPerfilAcesso", b =>
+                {
+                    b.HasOne("AtividadesJuridicas.Domain.Documentos.Documento", null)
+                        .WithMany("PerfisComAcesso")
+                        .HasForeignKey("DocumentoId")
+                        .OnDelete(DeleteBehavior.ClientCascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_documentos_perfis_acesso_documentos_documento_id");
+
+                    b.HasOne("AtividadesJuridicas.Domain.Identidade.Perfil", null)
+                        .WithMany()
+                        .HasForeignKey("PerfilId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_documentos_perfis_acesso_perfis_perfil_id");
+                });
+
+            modelBuilder.Entity("AtividadesJuridicas.Domain.Documentos.DocumentoUsuarioAcesso", b =>
+                {
+                    b.HasOne("AtividadesJuridicas.Domain.Documentos.Documento", null)
+                        .WithMany("UsuariosComAcesso")
+                        .HasForeignKey("DocumentoId")
+                        .OnDelete(DeleteBehavior.ClientCascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_documentos_usuarios_acesso_documentos_documento_id");
+
+                    b.HasOne("AtividadesJuridicas.Domain.Identidade.Usuario", null)
+                        .WithMany()
+                        .HasForeignKey("UsuarioId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_documentos_usuarios_acesso_usuarios_usuario_id");
+                });
+
             modelBuilder.Entity("AtividadesJuridicas.Domain.Identidade.Usuario", b =>
                 {
                     b.HasOne("AtividadesJuridicas.Domain.Identidade.Perfil", null)
@@ -722,6 +955,13 @@ namespace AtividadesJuridicas.Infrastructure.Persistencia.Migrations
             modelBuilder.Entity("AtividadesJuridicas.Domain.Cadastros.Processo", b =>
                 {
                     b.Navigation("Clientes");
+                });
+
+            modelBuilder.Entity("AtividadesJuridicas.Domain.Documentos.Documento", b =>
+                {
+                    b.Navigation("PerfisComAcesso");
+
+                    b.Navigation("UsuariosComAcesso");
                 });
 #pragma warning restore 612, 618
         }

@@ -21,6 +21,9 @@ public sealed class UsuarioRepositorio(AppDbContext db) : IUsuarioRepositorio
             .Join(db.Perfis.Where(p => p.Tipo == TipoPerfil.Diretoria), u => u.PerfilId, p => p.Id, (u, p) => u.Id)
             .CountAsync(ct);
 
+    public async Task<IReadOnlyList<Usuario>> ObterVariosAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct) =>
+        await db.Usuarios.Where(u => ids.Contains(u.Id)).ToListAsync(ct);
+
     public async Task<IReadOnlyList<UsuarioResumo>> ListarAsync(CancellationToken ct)
     {
         // O e-mail usa conversor de valor; a leitura de .Valor acontece depois de materializar.

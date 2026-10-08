@@ -15,4 +15,10 @@ public sealed class PerfilRepositorio(AppDbContext db) : IPerfilRepositorio
             .OrderBy(p => p.Nome)
             .Select(p => new PerfilResumo(p.Id, p.Nome, p.Tipo))
             .ToListAsync(ct);
+
+    public async Task<IReadOnlyList<Perfil>> ObterAtivosAsync(CancellationToken ct) =>
+        await db.Perfis.Where(p => p.Ativo).OrderBy(p => p.Nome).ToListAsync(ct);
+
+    public async Task<IReadOnlyList<Perfil>> ObterVariosAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct) =>
+        await db.Perfis.Where(p => ids.Contains(p.Id)).ToListAsync(ct);
 }

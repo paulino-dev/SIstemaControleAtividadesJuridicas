@@ -38,6 +38,13 @@ public class PropriedadesAuditadasTests
                 "Endereco.Logradouro", "Endereco.Numero", "Endereco.Uf",
                 "Cnpj", "InscricaoEstadual", "InscricaoMunicipal", "NomeFantasia", "NomeResponsavel",
             ],
+            ["Documento"] =
+            [
+                "Categoria", "ChaveArmazenamento", "ClienteId", "HashSha256", "Nome", "NomeArquivoOriginal",
+                "TamanhoBytes", "TipoConteudo",
+            ],
+            ["DocumentoPerfilAcesso"] = ["DocumentoId", "PerfilId"],
+            ["DocumentoUsuarioAcesso"] = ["DocumentoId", "UsuarioId"],
             ["Perfil"] = ["Ativo", "Nome", "Tipo"],
             ["Processo"] =
             [
