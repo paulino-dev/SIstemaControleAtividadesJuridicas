@@ -225,6 +225,17 @@ public class DocumentoTests
         contrato.PodeSerAcessadoPor(rebaixado.Id, _producao.Id, TipoPerfil.Producao).Should().BeFalse();
     }
 
+    [Fact]
+    public void Contrato_com_o_usuario_na_lista_continua_fechado_a_producao_mesmo_sendo_responsavel_de_atividade()
+    {
+        var rebaixado = NovoUsuario("Rui", _diretor);
+        var contrato = Contrato();
+        contrato.DefinirAcesso([_diretor], [new UsuarioComPerfil(rebaixado, _diretor)]);
+
+        contrato.PodeSerAcessadoPor(rebaixado.Id, _producao.Id, TipoPerfil.Producao, ehResponsavelDaAtividade: true)
+            .Should().BeFalse();
+    }
+
     // ---- Lista de acesso ----
 
     [Fact]

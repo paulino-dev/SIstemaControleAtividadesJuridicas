@@ -40,11 +40,28 @@ public sealed class EnviarDocumentoDaAtividadeManipulador(
         if (ArquivoEnviado.Validar(requisicao.NomeArquivo, requisicao.Conteudo, requisicao.Nome, out var nomeDoArquivo) is { } recusa)
             return Falha(TipoErro.Validacao, recusa);
 
-        return await ArquivoEnviado.GravarAsync(
-            armazenamento, documentos, unidade, nomeDoArquivo, requisicao.TipoConteudo, requisicao.Conteudo,
-            arquivo => Task.FromResult(Documento.CriarDeAtividade(atividade.Id, atividade.ClienteId, requisicao.Nome, arquivo)),
-            ct);
+        // O envio pode levar minutos: o cliente e a existência da atividade são relidos do banco logo antes de
+        // gravar o documento, e não vêm da leitura feita antes de o arquivo chegar.
+        try
+        {
+            return await ArquivoEnviado.GravarAsync(
+                armazenamento, documentos, unidade, nomeDoArquivo, requisicao.TipoConteudo, requisicao.Conteudo,
+                async arquivo =>
+                {
+                    var atual = await atividades.ObterClienteAtualAsync(atividade.Id, ct)
+                        ?? throw new AtividadeSumiuDuranteOEnvio();
+                    return Documento.CriarDeAtividade(atividade.Id, atual.ClienteId, requisicao.Nome, arquivo);
+                },
+                ct);
+        }
+        catch (AtividadeSumiuDuranteOEnvio)
+        {
+            // GravarAsync já removeu o arquivo ao ver a exceção; não há registro no banco.
+            return Falha(TipoErro.NaoEncontrado, AcessoAAtividade.NaoEncontrada);
+        }
     }
+
+    private sealed class AtividadeSumiuDuranteOEnvio : Exception;
 
     private static Resultado<Guid> Falha(TipoErro erro, string mensagem) => Resultado<Guid>.Falha(erro, mensagem);
 }

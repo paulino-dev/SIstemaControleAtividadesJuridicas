@@ -75,9 +75,10 @@ public sealed class SalvarProcessoManipulador(
                     var nomes = await clientes.ObterVariosAsync([.. comAtividade], ct);
                     // Cliente excluído logicamente não vem do repositório: a recusa vale mesmo sem o nome.
                     var nome = nomes.OrderBy(c => c.Nome, StringComparer.CurrentCultureIgnoreCase)
-                        .FirstOrDefault()?.Nome ?? "retirado";
-                    return Falha(TipoErro.Validacao,
-                        $"O cliente {nome} tem atividade vinculada a este processo e não pode ser retirado.");
+                        .FirstOrDefault()?.Nome;
+                    return Falha(TipoErro.Validacao, nome is null
+                        ? "O cliente retirado do processo tem atividade vinculada a ele e não pode ser retirado."
+                        : $"O cliente {nome} tem atividade vinculada a este processo e não pode ser retirado.");
                 }
             }
         }

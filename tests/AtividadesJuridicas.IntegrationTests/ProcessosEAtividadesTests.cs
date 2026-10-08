@@ -114,6 +114,23 @@ public class ProcessosEAtividadesTests(BancoFixture banco) : TesteComBanco(banco
     }
 
     [Fact]
+    public async Task Atividade_excluida_nao_acompanha_a_troca_de_area_do_processo()
+    {
+        var processo = await ProcessoAsync();
+        var excluida = await AtividadeAsync(_maria, processo);
+        var viva = await AtividadeAsync(_acme, processo);
+        (await ExecutarAsync(_diana, new ExcluirAtividade(excluida))).Sucesso.Should().BeTrue();
+
+        var editado = await EditarAsync(processo, Dados(area: _civel), _maria, _acme);
+
+        editado.Sucesso.Should().BeTrue(editado.Mensagem);
+        (await AtividadeNoBancoAsync(excluida)).AreaAtuacaoId.Should().Be(_trabalhista, "a excluída não é tocada");
+        (await AtividadeNoBancoAsync(viva)).AreaAtuacaoId.Should().Be(_civel);
+        (await AuditoriaAsync()).Should().NotContain(r => r.Entidade == "Atividade" && r.EntidadeId == excluida
+            && r.Operacao == OperacaoAuditada.Alteracao);
+    }
+
+    [Fact]
     public async Task Trocar_a_area_do_processo_atualiza_as_atividades_na_mesma_transacao()
     {
         var processo = await ProcessoAsync();

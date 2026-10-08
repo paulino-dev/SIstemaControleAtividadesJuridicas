@@ -132,7 +132,7 @@
         {
             <div class="formulario">
                 <strong>@(_painel == Painel.Devolver ? "Devolver para correção" : "Reabrir atividade")</strong>
-                <label>Motivo <textarea rows="3" @bind="_motivo" disabled="@_ocupado"></textarea></label>
+                <label>Motivo <textarea rows="3" maxlength="@AtividadeHistoricoStatus.TamanhoMaximoMotivo" @bind="_motivo" disabled="@_ocupado"></textarea></label>
                 <fieldset>
                     <legend>Responsáveis que voltam a ter a parte pendente</legend>
                     @foreach (var r in a.Responsaveis)
@@ -206,9 +206,12 @@
         }
 
         @* Comentários e documentos não mudam a atividade: não avisam OnMudou nem recarregam a ficha. *@
-        <ComentariosDaAtividade @key="@($"comentarios-{a.Id}")" AtividadeId="a.Id" OnAcessoEncerrado="EncerrarAcessoAsync" />
+        <ComentariosDaAtividade @key="@($"comentarios-{a.Id}")" AtividadeId="a.Id" OnAcessoEncerrado="EncerrarAcessoAsync"
+                                OnAtividadeNaoEncontrada="RecarregarAsync" />
+        @* Gerenciar documentos (renomear e excluir) é permissão da Diretoria, que hoje coincide com poder editar a
+           atividade; se as duas regras se separarem, esta linha precisa de uma ação própria. *@
         <DocumentosDaAtividade @key="@($"documentos-{a.Id}")" AtividadeId="a.Id" PodeGerenciar="a.Acoes.Editar"
-                               OnAcessoEncerrado="EncerrarAcessoAsync" />
+                               OnAcessoEncerrado="EncerrarAcessoAsync" OnAtividadeNaoEncontrada="RecarregarAsync" />
     }
 </section>
 
@@ -322,6 +325,9 @@
             _ocupado = false;
         }
     }
+
+    /// <summary>Uma seção descobriu que a atividade não existe mais: a ficha relê o registro e mostra o que o servidor diz.</summary>
+    private async Task RecarregarAsync() => await CarregarAsync();
 
     private async Task FecharAsync() => await OnFechar.InvokeAsync();
 

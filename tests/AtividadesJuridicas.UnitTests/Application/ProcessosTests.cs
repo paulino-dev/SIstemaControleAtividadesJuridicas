@@ -328,6 +328,20 @@ public class ProcessosTests
     }
 
     [Fact]
+    public async Task Cliente_excluido_com_atividade_no_processo_nao_e_retirado_e_a_mensagem_nao_o_chama_de_nome()
+    {
+        var criado = await Salvar(_c.Diretor, null,
+            clientes: Vinculos((_maria, PoloProcessual.Ativo), (_acme, PoloProcessual.Passivo)));
+        AtividadeDe(_acme, _c.Processos.Itens.Single());
+        _c.Clientes.Itens.Remove(_acme); // excluído logicamente: o repositório não o devolve mais
+
+        var resultado = await Salvar(_c.Diretor, criado.Valor, clientes: Vinculos((_maria, PoloProcessual.Ativo)));
+
+        resultado.Erro.Should().Be(TipoErro.Validacao);
+        resultado.Mensagem.Should().Be("O cliente retirado do processo tem atividade vinculada a ele e não pode ser retirado.");
+    }
+
+    [Fact]
     public async Task Cliente_sem_atividade_no_processo_pode_ser_retirado()
     {
         var criado = await Salvar(_c.Diretor, null,

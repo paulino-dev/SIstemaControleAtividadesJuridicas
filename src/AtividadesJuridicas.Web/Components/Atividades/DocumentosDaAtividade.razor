@@ -13,6 +13,11 @@
     {
         <p>Carregando…</p>
     }
+    else if (_acessoEncerrado)
+    {
+        @* A página foi avisada; se ela não retirar a seção, ela não finge uma lista vazia. *@
+        <p class="erro">Você não tem mais acesso a esta atividade.</p>
+    }
     else if (_naoEncontrada)
     {
         @* Perdeu a visibilidade da atividade: a mensagem do caso de uso ocupa o lugar da seção. *@
@@ -24,7 +29,7 @@
         {
             <p class="erro">@_erroDaLista</p>
             <div class="acoes">
-                <button type="button" class="secundario" disabled="@Ocupado" @onclick="() => IrParaAsync(_paginaPedida)">Tentar de novo</button>
+                <button type="button" class="secundario" disabled="@_ocupado" @onclick="() => IrParaAsync(_paginaPedida)">Tentar de novo</button>
             </div>
         }
         else if (_pagina.Itens.Count == 0)
@@ -52,15 +57,15 @@
                             <td class="acoes">
                                 @if (PodeGerenciar)
                                 {
-                                    <button type="button" class="secundario" disabled="@_removendo" @onclick="() => AbrirRenomear(documento)">Renomear</button>
+                                    <button type="button" class="secundario" disabled="@_ocupado" @onclick="() => AbrirRenomear(documento)">Renomear</button>
                                     @if (_excluindo == documento.Id)
                                     {
-                                        <button type="button" disabled="@_removendo" @onclick="() => ExcluirAsync(documento.Id)">Confirmar exclusão</button>
-                                        <button type="button" class="secundario" disabled="@_removendo" @onclick="CancelarExclusao">Cancelar</button>
+                                        <button type="button" disabled="@_ocupado" @onclick="() => ExcluirAsync(documento.Id)">Confirmar exclusão</button>
+                                        <button type="button" class="secundario" disabled="@_ocupado" @onclick="CancelarExclusao">Cancelar</button>
                                     }
                                     else
                                     {
-                                        <button type="button" class="secundario" disabled="@_removendo" @onclick="() => PedirExclusao(documento.Id)">Excluir</button>
+                                        <button type="button" class="secundario" disabled="@_ocupado" @onclick="() => PedirExclusao(documento.Id)">Excluir</button>
                                     }
                                 }
                             </td>
@@ -72,9 +77,9 @@
             @if (_pagina.TotalDePaginas > 1)
             {
                 <div class="acoes">
-                    <button type="button" class="secundario" disabled="@(_pagina.Numero <= 1 || Ocupado)" @onclick="() => IrParaAsync(_pagina.Numero - 1)">Anterior</button>
+                    <button type="button" class="secundario" disabled="@(_pagina.Numero <= 1 || _ocupado)" @onclick="() => IrParaAsync(_pagina.Numero - 1)">Anterior</button>
                     <span>Página @_pagina.Numero de @_pagina.TotalDePaginas</span>
-                    <button type="button" class="secundario" disabled="@(_pagina.Numero >= _pagina.TotalDePaginas || Ocupado)" @onclick="() => IrParaAsync(_pagina.Numero + 1)">Próxima</button>
+                    <button type="button" class="secundario" disabled="@(_pagina.Numero >= _pagina.TotalDePaginas || _ocupado)" @onclick="() => IrParaAsync(_pagina.Numero + 1)">Próxima</button>
                 </div>
             }
         }
@@ -83,10 +88,10 @@
         {
             <div class="formulario">
                 <strong>Renomear "@_renomeando.Nome"</strong>
-                <label>Novo nome <input type="text" @bind="_novoNome" disabled="@_renomeandoAgora" /></label>
+                <label>Novo nome <input type="text" @bind="_novoNome" disabled="@_ocupado" /></label>
                 <div class="acoes">
-                    <button type="button" disabled="@_renomeandoAgora" @onclick="RenomearAsync">Salvar nome</button>
-                    <button type="button" class="secundario" disabled="@_renomeandoAgora" @onclick="FecharRenomear">Cancelar</button>
+                    <button type="button" disabled="@_ocupado" @onclick="RenomearAsync">Salvar nome</button>
+                    <button type="button" class="secundario" disabled="@_ocupado" @onclick="FecharRenomear">Cancelar</button>
                 </div>
             </div>
         }
@@ -96,7 +101,7 @@
             <label>Arquivo (até @(DocumentosOpcoes.TamanhoMaximoBytes / UmMegabyte) MB) <InputFile @key="_versaoDoCampo" OnChange="Escolher" /></label>
             <label>Nome (opcional) <input type="text" @bind="_nomeDoEnvio" /></label>
             <div class="acoes">
-                <button type="button" disabled="@(_arquivo is null || _enviando)" @onclick="EnviarAsync">
+                <button type="button" disabled="@(_arquivo is null || _ocupado)" @onclick="EnviarAsync">
                     @(_enviando ? "Enviando…" : "Enviar")
                 </button>
             </div>
@@ -117,12 +122,19 @@
     /// <summary>Avisado quando um caso de uso responde acesso negado: a página decide o que mostrar.</summary>
     [Parameter] public EventCallback OnAcessoEncerrado { get; set; }
 
+    /// <summary>Avisado quando a atividade não existe (ou não é mais visível): a página recarrega o registro.</summary>
+    [Parameter] public EventCallback OnAtividadeNaoEncontrada { get; set; }
+
     private bool _carregado;
     private bool _naoEncontrada;
+    private bool _acessoEncerrado;
     private bool _falhou;
+
+    // Uma única ação em andamento por vez (envio, renomear, excluir ou troca de página): duas recargas não se sobrepõem.
+    private bool _ocupado;
+
+    // Só o rótulo do botão de envio; quem impede a sobreposição é _ocupado.
     private bool _enviando;
-    private bool _removendo;
-    private bool _renomeandoAgora;
     private int _paginaPedida = 1;
     private string? _mensagem;
     private string? _mensagemNaoEncontrada;
@@ -137,8 +149,6 @@
     private DocumentoResumo? _renomeando;
     private string _novoNome = string.Empty;
 
-    private bool Ocupado => _enviando || _removendo || _renomeandoAgora;
-
     protected override async Task OnInitializedAsync()
     {
         await CarregarAsync(1);
@@ -148,10 +158,18 @@
     /// <summary>Troca de página ou nova tentativa: o aviso de uma ação anterior não vale mais.</summary>
     private async Task IrParaAsync(int pagina)
     {
-        if (Ocupado) return;
+        if (_ocupado) return;
 
+        _ocupado = true;
         _mensagem = null;
-        await CarregarAsync(pagina);
+        try
+        {
+            await CarregarAsync(pagina);
+        }
+        finally
+        {
+            _ocupado = false;
+        }
     }
 
     private async Task CarregarAsync(int pagina)
@@ -184,13 +202,17 @@
             _erroDaLista = null;
             _renomeando = null;
             _excluindo = null;
+            await OnAtividadeNaoEncontrada.InvokeAsync();
             return true;
         }
 
         if (resultado.Erro != TipoErro.AcessoNegado) return false;
 
         _pagina = Vazia;
+        _erroDaLista = null;
         _renomeando = null;
+        _excluindo = null;
+        _acessoEncerrado = true;
         await OnAcessoEncerrado.InvokeAsync();
         return true;
     }
@@ -204,7 +226,7 @@
 
     private async Task EnviarAsync()
     {
-        if (_arquivo is not { } arquivo || _enviando) return;
+        if (_arquivo is not { } arquivo || _ocupado) return;
 
         _mensagem = null;
         if (arquivo.Size > DocumentosOpcoes.TamanhoMaximoBytes)
@@ -213,6 +235,7 @@
             return;
         }
 
+        _ocupado = true;
         _enviando = true;
         try
         {
@@ -241,20 +264,21 @@
             if (_erroDaLista is null) Avisar("Documento enviado.", falhou: false);
             else Avisar("Documento enviado, mas não foi possível atualizar a lista.", falhou: true);
         }
-        catch (IOException)
+        catch (Exception ex) when (ex is IOException or JSException or TimeoutException or OperationCanceledException)
         {
-            // A leitura do arquivo no navegador foi interrompida (conexão caiu, arquivo removido).
-            Avisar("Não foi possível ler o arquivo. Escolha-o de novo e tente outra vez.", falhou: true);
+            // A leitura do arquivo no navegador foi interrompida (conexão caiu, arquivo removido, tempo esgotado).
+            Avisar("Não foi possível enviar o arquivo. Escolha-o de novo e tente outra vez.", falhou: true);
         }
         finally
         {
             _enviando = false;
+            _ocupado = false;
         }
     }
 
     private void AbrirRenomear(DocumentoResumo documento)
     {
-        if (_renomeandoAgora) return;
+        if (_ocupado) return;
 
         _mensagem = null;
         _renomeando = documento;
@@ -263,9 +287,9 @@
 
     private async Task RenomearAsync()
     {
-        if (_renomeando is not { } documento || _renomeandoAgora) return;
+        if (_renomeando is not { } documento || _ocupado) return;
 
-        _renomeandoAgora = true;
+        _ocupado = true;
         _mensagem = null;
         try
         {
@@ -275,6 +299,13 @@
             if (!resultado.Sucesso)
             {
                 Avisar(resultado.Mensagem, falhou: true);
+                if (resultado.Erro == TipoErro.NaoEncontrado)
+                {
+                    // O documento já não existe: fecha o painel e atualiza a lista, mantendo a mensagem.
+                    if (ReferenceEquals(_renomeando, documento)) _renomeando = null;
+                    await CarregarAsync(_pagina.Numero);
+                }
+
                 return;
             }
 
@@ -287,7 +318,7 @@
         }
         finally
         {
-            _renomeandoAgora = false;
+            _ocupado = false;
         }
     }
 
@@ -298,16 +329,16 @@
 
     private void FecharRenomear()
     {
-        if (_renomeandoAgora) return;
+        if (_ocupado) return;
         _renomeando = null;
     }
 
     private async Task ExcluirAsync(Guid id)
     {
         // Um segundo clique em "Confirmar exclusão" receberia "não encontrado" e apagaria o aviso de sucesso.
-        if (_removendo) return;
+        if (_ocupado) return;
 
-        _removendo = true;
+        _ocupado = true;
         _mensagem = null;
         try
         {
@@ -331,7 +362,7 @@
         }
         finally
         {
-            _removendo = false;
+            _ocupado = false;
             _excluindo = null;
         }
     }

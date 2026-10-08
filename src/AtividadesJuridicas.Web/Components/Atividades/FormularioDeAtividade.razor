@@ -25,10 +25,10 @@
     {
         <div class="formulario">
             <div class="grade">
-                <label>Título <input type="text" @bind="_titulo" /></label>
+                <label>Título <input type="text" maxlength="@Atividade.TamanhoMaximoTitulo" @bind="_titulo" /></label>
                 <label>Data de entrega <input type="date" @bind="_dataEntrega" /></label>
             </div>
-            <label>Descrição <textarea rows="3" @bind="_descricao"></textarea></label>
+            <label>Descrição <textarea rows="3" maxlength="@Atividade.TamanhoMaximoDescricao" @bind="_descricao"></textarea></label>
 
             @if (_processo is { } processo)
             {

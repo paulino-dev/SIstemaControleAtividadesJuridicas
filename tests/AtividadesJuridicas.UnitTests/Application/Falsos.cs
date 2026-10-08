@@ -311,6 +311,21 @@ public sealed class AtividadeRepositorioFalso(
     public Task<Atividade?> ObterPorIdAsync(Guid id, CancellationToken ct) =>
         Task.FromResult(Itens.FirstOrDefault(a => a.Id == id));
 
+    /// <summary>Simula o que acontece com a atividade entre a primeira leitura e a releitura do cliente atual.</summary>
+    public Action<Guid>? AntesDeLerOClienteAtual { get; set; }
+
+    /// <summary>Cliente "do banco" por atividade, no lugar da instância em memória (que aqui é sempre a mesma).</summary>
+    public Dictionary<Guid, Guid?> ClienteAtualForcado { get; } = [];
+
+    public Task<ClienteAtualDaAtividade?> ObterClienteAtualAsync(Guid atividadeId, CancellationToken ct)
+    {
+        AntesDeLerOClienteAtual?.Invoke(atividadeId);
+        var atividade = Itens.FirstOrDefault(a => a.Id == atividadeId);
+        if (atividade is null) return Task.FromResult<ClienteAtualDaAtividade?>(null);
+        return Task.FromResult<ClienteAtualDaAtividade?>(new ClienteAtualDaAtividade(
+            ClienteAtualForcado.TryGetValue(atividadeId, out var forcado) ? forcado : atividade.ClienteId));
+    }
+
     public Task<Pagina<AtividadeResumo>> ListarAsync(FiltroDeAtividades filtro, int pagina, int tamanho, CancellationToken ct)
     {
         // Mesma regra da consulta real. A ordem de inserção faz o papel de "mais recentes primeiro".

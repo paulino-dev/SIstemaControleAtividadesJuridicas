@@ -76,12 +76,12 @@ public sealed class SalvarAtividadeManipulador(
             }
             else
             {
-                var clienteAnterior = existente.ClienteId;
                 existente.Alterar(dados, vinculo);
 
-                // Os documentos da atividade acompanham o cliente dela, na mesma gravação.
-                if (existente.ClienteId != clienteAnterior)
-                    foreach (var documento in await documentos.ObterDaAtividadeAsync(existente.Id, ct))
+                // Os documentos da atividade acompanham o cliente dela, na mesma gravação. Em toda edição, para que
+                // um documento que ficou no cliente errado volte a ficar certo; o que já está alinhado não é tocado.
+                foreach (var documento in await documentos.ObterDaAtividadeAsync(existente.Id, ct))
+                    if (documento.ClienteId != existente.ClienteId)
                         documento.AcompanharClienteDaAtividade(existente.ClienteId);
             }
 

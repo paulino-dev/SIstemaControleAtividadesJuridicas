@@ -272,10 +272,10 @@
             if (_erroDaLista is null) Avisar("Documento enviado.", falhou: false);
             else Avisar("Documento enviado, mas não foi possível atualizar a lista.", falhou: true);
         }
-        catch (IOException)
+        catch (Exception ex) when (ex is IOException or JSException or TimeoutException or OperationCanceledException)
         {
-            // A leitura do arquivo no navegador foi interrompida (conexão caiu, arquivo removido).
-            Avisar("Não foi possível ler o arquivo. Escolha-o de novo e tente outra vez.", falhou: true);
+            // A leitura do arquivo no navegador foi interrompida (conexão caiu, arquivo removido, tempo esgotado).
+            Avisar("Não foi possível enviar o arquivo. Escolha-o de novo e tente outra vez.", falhou: true);
         }
         finally
         {

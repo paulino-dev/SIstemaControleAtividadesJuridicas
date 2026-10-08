@@ -33,7 +33,7 @@
                     </label>
                     @if (linha.Marcado)
                     {
-                        <label>Direcionamento de @linha.Nome <textarea rows="3" @bind="linha.Direcionamento" disabled="@_salvando"></textarea></label>
+                        <label>Direcionamento de @linha.Nome <textarea rows="3" maxlength="@AtividadeResponsavel.TamanhoMaximoDirecionamento" @bind="linha.Direcionamento" disabled="@_salvando"></textarea></label>
                     }
                 </div>
             }

@@ -316,15 +316,45 @@ public class DocumentosDeAtividadeTests
     }
 
     [Fact]
-    public async Task Editar_sem_trocar_o_cliente_nao_consulta_os_documentos()
+    public async Task Editar_sem_trocar_o_cliente_alinha_so_os_documentos_que_estavam_fora()
     {
         var id = await AtividadeAsync(cliente: _maria.Id, responsaveis: _pedro);
-        await EnviadoAsync(id);
-        _c.Documentos.ConsultasPorAtividade = 0;
+        var fora = await EnviadoAsync(id, "fora.pdf");
+        var alinhado = await EnviadoAsync(id, "alinhado.pdf");
+        _c.Documentos.Itens.Single(d => d.Id == fora).AcompanharClienteDaAtividade(_jose.Id);
 
         (await Salvar(id, _maria.Id)).Sucesso.Should().BeTrue();
 
-        _c.Documentos.ConsultasPorAtividade.Should().Be(0);
+        _c.Documentos.Itens.Single(d => d.Id == fora).ClienteId.Should().Be(_maria.Id, "o documento fora do cliente é realinhado");
+        _c.Documentos.Itens.Single(d => d.Id == alinhado).ClienteId.Should().Be(_maria.Id);
+    }
+
+    [Fact]
+    public async Task Cliente_trocado_entre_a_leitura_e_a_gravacao_leva_o_documento_ao_cliente_novo()
+    {
+        var id = await AtividadeAsync(cliente: _maria.Id, responsaveis: _pedro);
+        _c.Atividades.ClienteAtualForcado[id] = _jose.Id;
+
+        var enviado = await Enviar(_pedro, id);
+
+        enviado.Sucesso.Should().BeTrue(enviado.Mensagem);
+        _c.Documentos.Itens.Single().ClienteId.Should().Be(_jose.Id);
+    }
+
+    [Fact]
+    public async Task Atividade_excluida_durante_o_envio_recusa_remove_o_arquivo_e_nao_grava()
+    {
+        var id = await AtividadeAsync(cliente: _maria.Id, responsaveis: _pedro);
+        var salvamentos = _c.Unidade.Salvamentos;
+        _c.Atividades.AntesDeLerOClienteAtual = alvo => _c.Atividades.Itens.RemoveAll(a => a.Id == alvo);
+
+        var enviado = await Enviar(_pedro, id);
+
+        enviado.Erro.Should().Be(TipoErro.NaoEncontrado);
+        enviado.Mensagem.Should().Be("Atividade não encontrada.");
+        _c.Armazenamento.Arquivos.Should().BeEmpty();
+        _c.Documentos.Itens.Should().BeEmpty();
+        _c.Unidade.Salvamentos.Should().Be(salvamentos);
     }
 
     [Fact]

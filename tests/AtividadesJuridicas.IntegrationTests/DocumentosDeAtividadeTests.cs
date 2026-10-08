@@ -304,6 +304,165 @@ public class DocumentosDeAtividadeTests(BancoFixture banco) : TesteComBanco(banc
         doContrato.Total.Should().Be(0);
     }
 
+    [Fact]
+    public async Task Cliente_atual_da_atividade_vem_do_banco_e_nao_da_instancia_rastreada()
+    {
+        var atividade = await AtividadeAsync("Contestação", _maria, _pedro);
+
+        await EmEscopoAsync(_diana, async sp =>
+        {
+            var repositorio = sp.GetRequiredService<IAtividadeRepositorio>();
+            var rastreada = (await repositorio.ObterPorIdAsync(atividade, default))!;
+            (await repositorio.ObterClienteAtualAsync(atividade, default))!.ClienteId.Should().Be(_maria);
+
+            // Outro escopo troca o cliente enquanto este ainda segura a instância carregada.
+            (await ExecutarAsync(_diana, new SalvarAtividade(
+                atividade, "Contestação", "Prazo de 15 dias.", new DateOnly(2090, 6, 15), _jose, null, null)))
+                .Sucesso.Should().BeTrue();
+
+            rastreada.ClienteId.Should().Be(_maria, "a instância rastreada continua com o cliente antigo");
+            (await repositorio.ObterClienteAtualAsync(atividade, default))!.ClienteId.Should().Be(_jose);
+            return 0;
+        });
+
+        (await ExecutarAsync(_diana, new ExcluirAtividade(atividade))).Sucesso.Should().BeTrue();
+        var depois = await EmEscopoAsync(_diana, sp =>
+            sp.GetRequiredService<IAtividadeRepositorio>().ObterClienteAtualAsync(atividade, default));
+        depois.Should().BeNull("a atividade excluída não existe mais");
+        (await EmEscopoAsync(_diana, sp => sp.GetRequiredService<IAtividadeRepositorio>()
+            .ObterClienteAtualAsync(Guid.CreateVersion7(), default))).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Editar_so_o_titulo_traz_de_volta_o_documento_que_ficou_em_outro_cliente()
+    {
+        var atividade = await AtividadeAsync("Contestação", _maria, _pedro);
+        var fora = await AnexadoAsync(atividade, "fora.pdf");
+        var alinhado = await AnexadoAsync(atividade, "alinhado.pdf");
+        await EmEscopoAsync(null, sp => sp.GetRequiredService<AppDbContext>().Database.ExecuteSqlAsync(
+            $"UPDATE documentos SET cliente_id = {_jose} WHERE id = {fora}"));
+        (await NoBancoAsync(fora)).ClienteId.Should().Be(_jose);
+
+        var salvo = await ExecutarAsync(_diana, new SalvarAtividade(
+            atividade, "Contestação revisada", "Prazo de 15 dias.", new DateOnly(2090, 6, 15), _maria, null, null));
+
+        salvo.Sucesso.Should().BeTrue(salvo.Mensagem);
+        (await NoBancoAsync(fora)).ClienteId.Should().Be(_maria);
+        (await NoBancoAsync(alinhado)).ClienteId.Should().Be(_maria);
+        var auditoria = await AuditoriaAsync();
+        var alteracao = auditoria.Where(r => r.Entidade == "Documento" && r.EntidadeId == fora
+            && r.Operacao == OperacaoAuditada.Alteracao).Should().ContainSingle().Subject;
+        var dados = DadosDe(alteracao);
+        dados.EnumerateObject().Select(p => p.Name).Should().Equal("ClienteId");
+        dados.GetProperty("ClienteId").GetProperty("de").GetGuid().Should().Be(_jose);
+        dados.GetProperty("ClienteId").GetProperty("para").GetGuid().Should().Be(_maria);
+        auditoria.Should().NotContain(r => r.Entidade == "Documento" && r.EntidadeId == alinhado
+            && r.Operacao == OperacaoAuditada.Alteracao, "o documento já alinhado não é tocado");
+    }
+
+    [Fact]
+    public async Task Contrato_com_entrada_de_usuario_que_virou_producao_nao_sai_do_repositorio_nem_conta_no_total()
+    {
+        var paula = (await ExecutarAsync(_diana,
+            new CriarUsuario("Paula", "paula@x.com", "senha-da-paula", _perfilDiretor, null))).Valor;
+        var contrato = (await ExecutarAsync(_diana, new EnviarDocumento(
+            CategoriaDocumento.ContratoHonorarios, _maria, null, "contrato.pdf", "application/pdf",
+            new MemoryStream("c"u8.ToArray())))).Valor;
+        (await ExecutarAsync(_diana, new DefinirAcessoDoDocumento(contrato, [_perfilDiretor], [paula]))).Sucesso.Should().BeTrue();
+        (await ExecutarAsync(_diana, new EditarUsuario(paula, "Paula", "paula@x.com", _perfilProducao, null)))
+            .Sucesso.Should().BeTrue();
+        (await NoBancoAsync(contrato)).UsuariosComAcesso.Should().Contain(a => a.UsuarioId == paula, "a entrada continua na lista");
+
+        var pagina = await EmEscopoAsync(null, sp => sp.GetRequiredService<IDocumentoRepositorio>().ListarDoClienteAsync(
+            _maria, CategoriaDocumento.ContratoHonorarios, new FiltroDeAcesso(paula, _perfilProducao), 1, 20, default));
+
+        pagina.Itens.Should().BeEmpty();
+        pagina.Total.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Entrada_crua_na_lista_de_acesso_nao_da_acesso_a_quem_nao_e_responsavel()
+    {
+        var atividade = await AtividadeAsync("Contestação", _maria, _pedro);
+        var documento = await AnexadoAsync(atividade, conteudo: "reservado");
+        var entrada = Guid.CreateVersion7();
+        var agora = DateTime.UtcNow;
+        await EmEscopoAsync(null, sp => sp.GetRequiredService<AppDbContext>().Database.ExecuteSqlAsync(
+            $"""
+            INSERT INTO documentos_usuarios_acesso (id, documento_id, usuario_id, criado_em)
+            VALUES ({entrada}, {documento}, {_ester}, {agora})
+            """));
+
+        (await DoClienteAsync(_ester)).Valor!.Total.Should().Be(0);
+        (await DoClienteAsync(_ester)).Valor!.Itens.Should().BeEmpty();
+        (await DaAtividadeAsync(_ester, atividade)).Should().BeEmpty();
+        (await ExecutarAsync(_ester, new ListarDocumentosDaAtividade(atividade))).Erro.Should().Be(TipoErro.NaoEncontrado);
+        var baixar = await ExecutarAsync(_ester, new BaixarDocumento(documento));
+        baixar.Erro.Should().Be(TipoErro.NaoEncontrado);
+        (await BaixarTextoAsync(_pedro, documento)).Should().Be("reservado");
+    }
+
+    [Fact]
+    public async Task Diretoria_nao_lista_nem_anexa_em_atividade_excluida_mas_baixa_o_documento_sem_cliente()
+    {
+        var avulsa = await AtividadeAsync("Avulsa", null, _pedro);
+        var documento = await AnexadoAsync(avulsa, conteudo: "sem cliente");
+        (await ExecutarAsync(_diana, new ExcluirAtividade(avulsa))).Sucesso.Should().BeTrue();
+        var arquivosAntes = ArquivosNoDisco().Length;
+
+        var listou = await ExecutarAsync(_diana, new ListarDocumentosDaAtividade(avulsa));
+        var anexou = await AnexarAsync(_diana, avulsa);
+
+        listou.Erro.Should().Be(TipoErro.NaoEncontrado);
+        anexou.Erro.Should().Be(TipoErro.NaoEncontrado);
+        ArquivosNoDisco().Should().HaveCount(arquivosAntes, "nada foi gravado na atividade excluída");
+        (await BaixarTextoAsync(_diana, documento)).Should().Be("sem cliente");
+        (await NoBancoAsync(documento)).ClienteId.Should().BeNull();
+        foreach (var cliente in new[] { _maria, _jose })
+        foreach (var categoria in Enum.GetValues<CategoriaDocumento>())
+            (await DoClienteAsync(_diana, cliente, categoria)).Valor?.Itens.Should().NotContain(d => d.Id == documento);
+    }
+
+    [Fact]
+    public async Task Anexar_documento_nao_mexe_na_versao_nem_no_status_da_atividade()
+    {
+        var atividade = await AtividadeAsync("Contestação", _maria, _pedro);
+        var antes = (await ExecutarAsync(_diana, new ObterAtividade(atividade))).Valor!;
+
+        await AnexadoAsync(atividade);
+        await AnexarAsync(_pedro, atividade, "segundo.pdf");
+
+        var depois = (await ExecutarAsync(_diana, new ObterAtividade(atividade))).Valor!;
+        depois.Versao.Should().Be(antes.Versao);
+        depois.Status.Should().Be(antes.Status);
+        var salvo = await ExecutarAsync(_diana, new SalvarAtividade(
+            atividade, "Contestação", "Prazo de 15 dias.", new DateOnly(2090, 6, 15), _maria, null, null, antes.Versao));
+        salvo.Sucesso.Should().BeTrue(salvo.Mensagem);
+    }
+
+    [Fact]
+    public async Task Listar_documentos_da_atividade_registra_o_acesso_e_a_listagem_negada_nao_registra()
+    {
+        var atividade = await AtividadeAsync("Contestação", _maria, _pedro);
+        await AnexadoAsync(atividade);
+
+        Task<List<RegistroAcesso>> AcessosAsync() => EmEscopoAsync(null, async sp =>
+            (await sp.GetRequiredService<AppDbContext>().RegistrosAcesso.AsNoTracking()
+                .Where(a => a.TipoRecurso == "Documento" && a.Acao == AcaoDeAcesso.Listou).ToListAsync())
+            .Where(a => a.Detalhe != null && a.Detalhe.Contains(atividade.ToString())).ToList());
+
+        (await AcessosAsync()).Should().BeEmpty();
+        (await ExecutarAsync(_ester, new ListarDocumentosDaAtividade(atividade))).Erro.Should().Be(TipoErro.NaoEncontrado);
+        (await AcessosAsync()).Should().BeEmpty("a listagem negada não escreve registro de acesso");
+
+        (await ExecutarAsync(_pedro, new ListarDocumentosDaAtividade(atividade))).Sucesso.Should().BeTrue();
+
+        var registro = (await AcessosAsync()).Should().ContainSingle().Subject;
+        registro.UsuarioId.Should().Be(_pedro);
+        registro.TipoRecurso.Should().Be("Documento");
+        registro.Acao.Should().Be(AcaoDeAcesso.Listou);
+    }
+
     private Task<int> InserirDocumentoCruAsync(CategoriaDocumento categoria, Guid? cliente, Guid? atividade)
     {
         var id = Guid.CreateVersion7();

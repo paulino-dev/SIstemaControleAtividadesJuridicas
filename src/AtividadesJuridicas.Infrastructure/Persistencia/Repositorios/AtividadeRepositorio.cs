@@ -10,6 +10,10 @@ public sealed class AtividadeRepositorio(AppDbContext db) : IAtividadeRepositori
     public Task<Atividade?> ObterPorIdAsync(Guid id, CancellationToken ct) =>
         db.Atividades.Include(a => a.Responsaveis).Include(a => a.Historico).FirstOrDefaultAsync(a => a.Id == id, ct);
 
+    public Task<ClienteAtualDaAtividade?> ObterClienteAtualAsync(Guid atividadeId, CancellationToken ct) =>
+        db.Atividades.AsNoTracking().Where(a => a.Id == atividadeId)
+            .Select(a => new ClienteAtualDaAtividade(a.ClienteId)).FirstOrDefaultAsync(ct);
+
     public async Task<Pagina<AtividadeResumo>> ListarAsync(
         FiltroDeAtividades filtro, int pagina, int tamanho, CancellationToken ct)
     {

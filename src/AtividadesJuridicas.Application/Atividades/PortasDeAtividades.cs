@@ -37,10 +37,19 @@ public sealed record AtividadeDetalhe(
     IReadOnlyList<ResponsavelDetalhe> Responsaveis, IReadOnlyList<HistoricoDetalhe> Historico, AcoesDaAtividade Acoes,
     uint Versao);
 
+/// <summary>O cliente que a atividade tem agora, lido do banco sem rastreamento.</summary>
+public sealed record ClienteAtualDaAtividade(Guid? ClienteId);
+
 public interface IAtividadeRepositorio
 {
     /// <summary>A atividade com todos os responsáveis e todo o histórico.</summary>
     Task<Atividade?> ObterPorIdAsync(Guid id, CancellationToken ct);
+
+    /// <summary>
+    /// O cliente que a atividade tem agora, lido do banco sem devolver a instância já rastreada neste escopo
+    /// (que pode estar defasada). Nulo quando a atividade não existe mais ou foi excluída.
+    /// </summary>
+    Task<ClienteAtualDaAtividade?> ObterClienteAtualAsync(Guid atividadeId, CancellationToken ct);
 
     /// <summary>
     /// Ordenada por data de entrega (sem data por último) e, depois, pelas mais recentes. A busca procura no título,
