@@ -1,0 +1,171 @@
+@inject IDespachante Despachante
+
+<section class="ficha">
+    <h3>Responsáveis</h3>
+
+    @if (_mensagem is not null)
+    {
+        <p class="erro" role="status">@_mensagem</p>
+    }
+
+    @if (!_carregado)
+    {
+        <p>Carregando…</p>
+    }
+    else
+    {
+        <div class="formulario">
+            <p>Marque quem é responsável e escreva o direcionamento de cada um. Quem está desmarcado deixa de ser responsável.</p>
+            @foreach (var linha in _linhas)
+            {
+                <div @key="linha.UsuarioId">
+                    <label>
+                        <input type="checkbox" checked="@linha.Marcado" disabled="@_salvando"
+                               @onchange="e => Marcar(linha, e)" /> @linha.Rotulo
+                    </label>
+                    @if (linha.Marcado)
+                    {
+                        <label>Direcionamento de @linha.Nome <input type="text" @bind="linha.Direcionamento" disabled="@_salvando" /></label>
+                    }
+                </div>
+            }
+
+            <label>
+                Revisor
+                <select @bind="_revisorId" disabled="@_salvando">
+                    <option value="@Guid.Empty">Manter / deduzir@(Atividade.RevisorNome is null ? "" : $" (atual: {Atividade.RevisorNome})")</option>
+                    @foreach (var diretor in _diretores)
+                    {
+                        <option value="@diretor.Id">@diretor.Nome</option>
+                    }
+                </select>
+            </label>
+
+            <div class="acoes">
+                <button type="button" disabled="@_salvando" @onclick="SalvarAsync">@(_salvando ? "Salvando…" : "Salvar responsáveis")</button>
+                <button type="button" class="secundario" disabled="@_salvando" @onclick="Cancelar">Cancelar</button>
+            </div>
+        </div>
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired] public AtividadeDetalhe Atividade { get; set; } = default!;
+
+    /// <summary>Avisado quando os responsáveis foram salvos.</summary>
+    [Parameter] public EventCallback OnSalvo { get; set; }
+
+    /// <summary>Avisado (com a mensagem) quando a atividade mudou ou sumiu e a ficha precisa ser recarregada.</summary>
+    [Parameter] public EventCallback<string?> OnConflito { get; set; }
+
+    [Parameter] public EventCallback OnCancelado { get; set; }
+
+    [Parameter] public EventCallback OnAcessoEncerrado { get; set; }
+
+    private bool _carregado;
+    private bool _salvando;
+    private string? _mensagem;
+    private Guid _revisorId;
+    private List<Linha> _linhas = [];
+    private IReadOnlyList<UsuarioResumo> _diretores = [];
+
+    /// <summary>Uma linha do editor: tudo o que consta na lista aparece aqui, e só o que aparece é enviado.</summary>
+    private sealed class Linha
+    {
+        public Guid UsuarioId { get; init; }
+        public string Nome { get; init; } = string.Empty;
+        public string Rotulo { get; init; } = string.Empty;
+        public bool Marcado { get; set; }
+        public string? Direcionamento { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var resultado = await Despachante.EnviarAsync(new ListarUsuarios());
+        if (resultado.Erro == TipoErro.AcessoNegado)
+        {
+            await OnAcessoEncerrado.InvokeAsync();
+            return;
+        }
+
+        if (resultado.Valor is not { } usuarios)
+        {
+            _mensagem = resultado.Mensagem ?? "Não foi possível consultar os usuários.";
+            return;
+        }
+
+        var atuais = Atividade.Responsaveis.ToDictionary(r => r.UsuarioId);
+        var linhas = new List<Linha>();
+
+        // Usuários ativos podem ser incluídos; os responsáveis atuais aparecem sempre, mesmo inativos.
+        foreach (var usuario in usuarios.Where(u => u.Ativo).OrderBy(u => u.Nome, StringComparer.CurrentCultureIgnoreCase))
+        {
+            atuais.TryGetValue(usuario.Id, out var atual);
+            linhas.Add(new Linha
+            {
+                UsuarioId = usuario.Id, Nome = usuario.Nome, Rotulo = $"{usuario.Nome} ({usuario.PerfilNome})",
+                Marcado = atual is not null, Direcionamento = atual?.Direcionamento,
+            });
+        }
+
+        foreach (var atual in Atividade.Responsaveis.Where(r => linhas.All(l => l.UsuarioId != r.UsuarioId)))
+        {
+            var usuario = usuarios.FirstOrDefault(u => u.Id == atual.UsuarioId);
+            var nome = usuario?.Nome ?? atual.Nome;
+            linhas.Add(new Linha
+            {
+                UsuarioId = atual.UsuarioId, Nome = nome,
+                Rotulo = usuario is null ? $"{nome} (usuário indisponível)" : $"{nome} (inativo)",
+                Marcado = true, Direcionamento = atual.Direcionamento,
+            });
+        }
+
+        _linhas = linhas;
+        _diretores = [.. usuarios.Where(u => u.Ativo && u.TipoPerfil == TipoPerfil.Diretoria)
+            .OrderBy(u => u.Nome, StringComparer.CurrentCultureIgnoreCase)];
+        _revisorId = Guid.Empty;
+        _carregado = true;
+    }
+
+    private static void Marcar(Linha linha, ChangeEventArgs e) => linha.Marcado = e.Value is true;
+
+    private async Task Cancelar() => await OnCancelado.InvokeAsync();
+
+    private async Task SalvarAsync()
+    {
+        if (_salvando) return;
+
+        _salvando = true;
+        _mensagem = null;
+        try
+        {
+            // Exatamente as linhas marcadas na tela; direcionamento em branco vai como nulo.
+            var enviados = _linhas.Where(l => l.Marcado)
+                .Select(l => new ResponsavelEntrada(
+                    l.UsuarioId, string.IsNullOrWhiteSpace(l.Direcionamento) ? null : l.Direcionamento.Trim()))
+                .ToList();
+
+            var resultado = await Despachante.EnviarAsync(new DefinirResponsaveisDaAtividade(
+                Atividade.Id, enviados, _revisorId == Guid.Empty ? null : _revisorId));
+
+            if (resultado.Erro == TipoErro.AcessoNegado)
+            {
+                await OnAcessoEncerrado.InvokeAsync();
+                return;
+            }
+
+            if (!resultado.Sucesso)
+            {
+                _mensagem = resultado.Mensagem;
+                if (resultado.Erro is TipoErro.Conflito or TipoErro.NaoEncontrado) await OnConflito.InvokeAsync(resultado.Mensagem);
+                return;
+            }
+
+            await OnSalvo.InvokeAsync();
+        }
+        finally
+        {
+            _salvando = false;
+        }
+    }
+}

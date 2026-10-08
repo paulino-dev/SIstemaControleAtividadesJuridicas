@@ -1,0 +1,243 @@
+@page "/atividades"
+@inject IDespachante Despachante
+
+<PageTitle>Atividades</PageTitle>
+
+<h1>Atividades</h1>
+
+@if (!_carregado)
+{
+    <p>Carregando…</p>
+}
+else if (_ator is null)
+{
+    <p class="erro">Seu acesso foi encerrado. Entre novamente.</p>
+}
+else
+{
+    <EditForm Model="_busca" OnSubmit="BuscarAsync" FormName="busca-atividades" class="formulario filtros">
+        <label>Busca <InputText @bind-Value="_busca.Texto" placeholder="Título da atividade" /></label>
+        <label>
+            Situação
+            <InputSelect @bind-Value="_busca.Status">
+                <option value="">Todas</option>
+                @foreach (var status in Enum.GetValues<StatusAtividade>())
+                {
+                    <option value="@status">@RotulosDeAtividade.Status(status)</option>
+                }
+            </InputSelect>
+        </label>
+        @if (_ator.EhDiretoria)
+        {
+            <label>
+                Responsável
+                <InputSelect @bind-Value="_busca.ResponsavelId">
+                    <option value="">Todos</option>
+                    @foreach (var usuario in _usuarios)
+                    {
+                        <option value="@usuario.Id">@usuario.Nome</option>
+                    }
+                </InputSelect>
+            </label>
+        }
+        <label><InputCheckbox @bind-Value="_busca.SomenteAtrasadas" /> Só atrasadas</label>
+        <button type="submit">Buscar</button>
+    </EditForm>
+
+    @if (_mensagem is not null)
+    {
+        <p class="@(_falhou ? "erro" : "ok")" role="status">@_mensagem</p>
+    }
+
+    @if (_erroDaLista is not null)
+    {
+        @* Falha na consulta não é "nenhuma atividade": mostra o erro no lugar da lista. *@
+        <p class="erro">@_erroDaLista</p>
+        <div class="acoes">
+            <button type="button" class="secundario" @onclick="TentarDeNovoAsync">Tentar de novo</button>
+        </div>
+    }
+    else if (_pagina.Itens.Count == 0)
+    {
+        <p>Nenhuma atividade.</p>
+    }
+    else
+    {
+        <table>
+            <thead>
+                <tr><th>Título</th><th>Situação</th><th>Entrega</th><th>Cliente</th><th>Processo</th><th>Responsáveis</th><th>Revisor</th><th></th></tr>
+            </thead>
+            <tbody>
+                @foreach (var atividade in _pagina.Itens)
+                {
+                    <tr @key="atividade.Id">
+                        <td>@atividade.Titulo</td>
+                        <td>
+                            @RotulosDeAtividade.Status(atividade.Status)
+                            @if (atividade.Atrasada)
+                            {
+                                <strong class="erro">Atrasada</strong>
+                            }
+                        </td>
+                        <td>@RotulosDeAtividade.Data(atividade.DataEntrega)</td>
+                        <td>@atividade.ClienteNome</td>
+                        <td>@atividade.ProcessoTitulo</td>
+                        <td>@string.Join(", ", atividade.Responsaveis)</td>
+                        <td>@atividade.RevisorNome</td>
+                        <td class="acoes">
+                            <button type="button" class="secundario" @onclick="() => Abrir(atividade.Id)">Abrir</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+
+        <div class="acoes">
+            <button type="button" class="secundario" disabled="@(_pagina.Numero <= 1)" @onclick="() => IrParaAsync(_pagina.Numero - 1)">Anterior</button>
+            <span>Página @_pagina.Numero de @_pagina.TotalDePaginas (@_pagina.Total atividades)</span>
+            <button type="button" class="secundario" disabled="@(_pagina.Numero >= _pagina.TotalDePaginas)" @onclick="() => IrParaAsync(_pagina.Numero + 1)">Próxima</button>
+        </div>
+    }
+
+    @if (_ator.EhDiretoria)
+    {
+        <div class="acoes">
+            <button type="button" @onclick="Nova">Nova atividade</button>
+        </div>
+
+        @if (_criando)
+        {
+            <FormularioDeAtividade @key="_versaoDoFormulario" AtividadeId="null" OnSalvo="CriadaAsync"
+                                   OnCancelado="CancelarCriacao" OnAcessoEncerrado="EncerrarAcesso" />
+        }
+    }
+
+    @if (_abertaId is { } id)
+    {
+        <FichaDaAtividade @key="id" AtividadeId="id" OnMudou="AtualizarListaAsync" OnAcessoEncerrado="EncerrarAcesso"
+                          OnFechar="FecharFicha" />
+    }
+}
+
+@code {
+    private static readonly Pagina<AtividadeResumo> Vazia = new([], 0, 1, AtividadesOpcoes.TamanhoDaPagina);
+
+    private bool _carregado;
+    private bool _falhou;
+    private bool _criando;
+    private int _versaoDoFormulario;
+    private string? _mensagem;
+    private string? _erroDaLista;
+    private int _paginaPedida = 1;
+    private UsuarioAutenticado? _ator;
+    private Busca _busca = new();
+    private Pagina<AtividadeResumo> _pagina = Vazia;
+    private IReadOnlyList<UsuarioResumo> _usuarios = [];
+    private Guid? _abertaId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _ator = await Despachante.EnviarAsync(new ObterMeuAcesso());
+        if (_ator is not null)
+        {
+            if (_ator.EhDiretoria) await CarregarResponsaveisAsync();
+            if (_ator is not null) await CarregarAsync(1);
+        }
+
+        _carregado = true;
+    }
+
+    /// <summary>Usuários ativos para o filtro de responsável; só a Diretoria pode listá-los.</summary>
+    private async Task CarregarResponsaveisAsync()
+    {
+        var resultado = await Despachante.EnviarAsync(new ListarUsuarios());
+        if (AcessoEncerrado(resultado)) return;
+
+        _usuarios = [.. (resultado.Valor ?? []).Where(u => u.Ativo)
+            .OrderBy(u => u.Nome, StringComparer.CurrentCultureIgnoreCase)];
+        if (!resultado.Sucesso) Avisar(resultado.Mensagem, falhou: true);
+    }
+
+    private Task BuscarAsync() => IrParaAsync(1);
+
+    private Task TentarDeNovoAsync() => IrParaAsync(_paginaPedida);
+
+    /// <summary>Troca de página, nova busca ou nova tentativa: o aviso de uma ação anterior não vale mais.</summary>
+    private async Task IrParaAsync(int pagina)
+    {
+        _mensagem = null;
+        await CarregarAsync(pagina);
+    }
+
+    private async Task CarregarAsync(int pagina)
+    {
+        _paginaPedida = pagina;
+        var resultado = await Despachante.EnviarAsync(new ListarAtividades(
+            _busca.Status, _busca.ResponsavelId, null, null, _busca.SomenteAtrasadas, _busca.Texto, pagina));
+        if (AcessoEncerrado(resultado)) return;
+
+        _pagina = resultado.Valor ?? Vazia;
+        _erroDaLista = resultado.Sucesso ? null : resultado.Mensagem ?? "Não foi possível consultar as atividades.";
+
+        // Depois de mudar um filtro ou excluir, a página atual pode ter deixado de existir.
+        if (resultado.Sucesso && _pagina.Itens.Count == 0 && _pagina.Total > 0 && pagina > _pagina.TotalDePaginas)
+            await CarregarAsync(_pagina.TotalDePaginas);
+    }
+
+    /// <summary>A ficha avisou que algo mudou: a lista é recarregada na página em que estava.</summary>
+    private async Task AtualizarListaAsync() => await CarregarAsync(_pagina.Numero);
+
+    private void Abrir(Guid id) => _abertaId = id;
+
+    private void FecharFicha() => _abertaId = null;
+
+    private void Nova()
+    {
+        _mensagem = null;
+        _versaoDoFormulario++;   // formulário novo, vazio, mesmo que o anterior ainda estivesse aberto
+        _criando = true;
+    }
+
+    private void CancelarCriacao() => _criando = false;
+
+    private async Task CriadaAsync(Guid id)
+    {
+        _criando = false;
+        _abertaId = id;
+        await CarregarAsync(1);
+    }
+
+    /// <summary>Uma resposta de acesso negado encerra a tela: nada do que estava aberto continua visível.</summary>
+    private bool AcessoEncerrado(Resultado resultado)
+    {
+        if (resultado.Erro != TipoErro.AcessoNegado) return false;
+
+        EncerrarAcesso();
+        return true;
+    }
+
+    private void EncerrarAcesso()
+    {
+        _ator = null;
+        _pagina = Vazia;
+        _usuarios = [];
+        _erroDaLista = null;
+        _criando = false;
+        _abertaId = null;
+        _mensagem = null;
+    }
+
+    private void Avisar(string? mensagem, bool falhou)
+    {
+        _mensagem = mensagem;
+        _falhou = falhou;
+    }
+
+    private sealed class Busca
+    {
+        public string? Texto { get; set; }
+        public StatusAtividade? Status { get; set; }
+        public Guid? ResponsavelId { get; set; }
+        public bool SomenteAtrasadas { get; set; }
+    }
+}

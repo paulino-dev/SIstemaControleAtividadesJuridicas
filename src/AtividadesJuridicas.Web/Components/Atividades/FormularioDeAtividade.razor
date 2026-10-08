@@ -1,0 +1,320 @@
+@inject IDespachante Despachante
+
+@* Sem EditForm: os campos de busca ficam neste mesmo componente, e Enter neles só faz a busca. *@
+<section class="ficha">
+    <h3>@(AtividadeId is null ? "Nova atividade" : "Editar atividade")</h3>
+
+    @if (_mensagem is not null)
+    {
+        <p class="erro" role="status">@_mensagem</p>
+    }
+
+    @if (!_carregado)
+    {
+        <p>Carregando…</p>
+    }
+    else
+    {
+        <div class="formulario">
+            <div class="grade">
+                <label>Título <input type="text" @bind="_titulo" /></label>
+                <label>Data de entrega <input type="date" @bind="_dataEntrega" /></label>
+            </div>
+            <label>Descrição <textarea rows="3" @bind="_descricao"></textarea></label>
+
+            @if (_processo is { } processo)
+            {
+                <div class="acoes">
+                    <span>Processo: <strong>@processo.Titulo</strong> (área @processo.AreaNome, definida pelo processo)</span>
+                    <button type="button" class="secundario" disabled="@_salvando" @onclick="RemoverProcesso">Sem processo</button>
+                </div>
+                <label>
+                    Cliente do processo
+                    <select @bind="_clienteId">
+                        <option value="@Guid.Empty">Selecione…</option>
+                        @foreach (var cliente in processo.Clientes)
+                        {
+                            <option value="@cliente.ClienteId">@cliente.Nome@(cliente.Ativo ? "" : " (inativo)")</option>
+                        }
+                    </select>
+                </label>
+            }
+            else
+            {
+                <label>
+                    Área de atuação
+                    <select @bind="_areaId">
+                        <option value="@Guid.Empty">Nenhuma</option>
+                        @foreach (var area in _areas)
+                        {
+                            <option value="@area.Id">@area.Nome@(area.Ativo ? "" : " (inativa)")</option>
+                        }
+                    </select>
+                </label>
+                @if (_clienteId != Guid.Empty)
+                {
+                    <div class="acoes">
+                        <span>Cliente: <strong>@_clienteNome</strong></span>
+                        <button type="button" class="secundario" disabled="@_salvando" @onclick="RemoverCliente">Sem cliente</button>
+                    </div>
+                }
+            }
+
+            <div class="filtros formulario">
+                <label>
+                    Escolher processo (título, parte contrária ou número CNJ)
+                    <input type="text" @bind="_buscaDeProcesso" @bind:event="oninput" @onkeydown="TeclaNaBuscaDeProcesso" />
+                </label>
+                <button type="button" class="secundario" disabled="@_salvando" @onclick="ProcurarProcessosAsync">Procurar processo</button>
+            </div>
+            @foreach (var candidato in _processosEncontrados)
+            {
+                <div class="acoes" @key="candidato.Id">
+                    <span>@candidato.Titulo — @candidato.AreaNome (@string.Join(", ", candidato.Clientes))</span>
+                    <button type="button" class="secundario" disabled="@_salvando" @onclick="() => EscolherProcessoAsync(candidato.Id)">Escolher</button>
+                </div>
+            }
+            @if (_nenhumProcesso)
+            {
+                <p>Nenhum processo encontrado.</p>
+            }
+            @if (_processosTruncados)
+            {
+                <p>Mostrando os primeiros resultados. Refine a busca para ver outros.</p>
+            }
+
+            @if (_processo is null)
+            {
+                <div class="filtros formulario">
+                    <label>
+                        Escolher cliente (nome, CPF ou CNPJ)
+                        <input type="text" @bind="_buscaDeCliente" @bind:event="oninput" @onkeydown="TeclaNaBuscaDeCliente" />
+                    </label>
+                    <button type="button" class="secundario" disabled="@_salvando" @onclick="ProcurarClientesAsync">Procurar cliente</button>
+                </div>
+                @foreach (var candidato in _clientesEncontrados)
+                {
+                    <div class="acoes" @key="candidato.Id">
+                        <span>@candidato.Nome — @candidato.Documento</span>
+                        <button type="button" class="secundario" disabled="@_salvando" @onclick="() => EscolherCliente(candidato)">Escolher</button>
+                    </div>
+                }
+                @if (_nenhumCliente)
+                {
+                    <p>Nenhum cliente encontrado.</p>
+                }
+                @if (_clientesTruncados)
+                {
+                    <p>Mostrando os primeiros resultados. Refine a busca para ver outros.</p>
+                }
+            }
+
+            <div class="acoes">
+                <button type="button" disabled="@_salvando" @onclick="SalvarAsync">@(_salvando ? "Salvando…" : "Salvar")</button>
+                <button type="button" class="secundario" disabled="@_salvando" @onclick="Cancelar">Cancelar</button>
+            </div>
+        </div>
+    }
+</section>
+
+@code {
+    /// <summary>Nulo para uma atividade nova.</summary>
+    [Parameter] public Guid? AtividadeId { get; set; }
+
+    /// <summary>Os dados atuais, para preencher o formulário de edição.</summary>
+    [Parameter] public AtividadeDetalhe? Atual { get; set; }
+
+    /// <summary>Avisado com o Id da atividade salva.</summary>
+    [Parameter] public EventCallback<Guid> OnSalvo { get; set; }
+
+    [Parameter] public EventCallback OnCancelado { get; set; }
+
+    [Parameter] public EventCallback OnAcessoEncerrado { get; set; }
+
+    private bool _carregado;
+    private bool _salvando;
+    private string? _mensagem;
+
+    private string _titulo = string.Empty;
+    private string _descricao = string.Empty;
+    private DateOnly? _dataEntrega;
+    private Guid _clienteId;
+    private string? _clienteNome;
+    private Guid _areaId;
+    private ProcessoDetalhe? _processo;
+    private IReadOnlyList<AreaAtuacaoResumo> _areas = [];
+
+    private string? _buscaDeProcesso;
+    private IReadOnlyList<ProcessoResumo> _processosEncontrados = [];
+    private bool _nenhumProcesso;
+    private bool _processosTruncados;
+
+    private string? _buscaDeCliente;
+    private IReadOnlyList<ClienteResumo> _clientesEncontrados = [];
+    private bool _nenhumCliente;
+    private bool _clientesTruncados;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var areas = await Despachante.EnviarAsync(new ListarAreasAtuacao());
+        if (await EncerradoAsync(areas)) return;
+        if (!areas.Sucesso)
+        {
+            _mensagem = areas.Mensagem ?? "Não foi possível consultar as áreas de atuação.";
+            return;
+        }
+
+        // Áreas ativas, mais a área atual da atividade quando ela está inativa.
+        _areas = [.. areas.Valor!.Where(a => a.Ativo || a.Id == Atual?.AreaAtuacaoId)];
+
+        if (Atual is { } atual)
+        {
+            _titulo = atual.Titulo;
+            _descricao = atual.Descricao;
+            _dataEntrega = atual.DataEntrega;
+            _clienteId = atual.ClienteId ?? Guid.Empty;
+            _clienteNome = atual.ClienteNome;
+            _areaId = atual.AreaAtuacaoId ?? Guid.Empty;
+
+            if (atual.ProcessoId is { } processoId)
+            {
+                var processo = await Despachante.EnviarAsync(new ObterProcesso(processoId));
+                if (await EncerradoAsync(processo)) return;
+                if (processo.Valor is null)
+                {
+                    _mensagem = processo.Mensagem ?? "Não foi possível consultar o processo da atividade.";
+                    return;
+                }
+
+                _processo = processo.Valor;
+            }
+        }
+
+        _carregado = true;
+    }
+
+    private async Task<bool> EncerradoAsync(Resultado resultado)
+    {
+        if (resultado.Erro != TipoErro.AcessoNegado) return false;
+
+        await OnAcessoEncerrado.InvokeAsync();
+        return true;
+    }
+
+    private async Task Cancelar() => await OnCancelado.InvokeAsync();
+
+    private async Task TeclaNaBuscaDeProcesso(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await ProcurarProcessosAsync();
+    }
+
+    private async Task TeclaNaBuscaDeCliente(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await ProcurarClientesAsync();
+    }
+
+    private async Task ProcurarProcessosAsync()
+    {
+        _mensagem = null;
+        var resultado = await Despachante.EnviarAsync(new ListarProcessos(_buscaDeProcesso));
+        if (await EncerradoAsync(resultado)) return;
+
+        var itens = resultado.Valor?.Itens ?? [];
+        _processosEncontrados = itens;
+        // Os avisos valem só para uma busca que deu certo; uma falha mostra o erro no lugar deles.
+        _nenhumProcesso = resultado.Sucesso && itens.Count == 0;
+        _processosTruncados = resultado.Sucesso && resultado.Valor!.Total > itens.Count;
+        if (!resultado.Sucesso) _mensagem = resultado.Mensagem;
+    }
+
+    private async Task EscolherProcessoAsync(Guid id)
+    {
+        _mensagem = null;
+        var resultado = await Despachante.EnviarAsync(new ObterProcesso(id));
+        if (await EncerradoAsync(resultado)) return;
+        if (resultado.Valor is not { } processo)
+        {
+            _mensagem = resultado.Mensagem;
+            return;
+        }
+
+        _processo = processo;
+        _processosEncontrados = [];
+        _nenhumProcesso = false;
+        _processosTruncados = false;
+        _buscaDeProcesso = null;
+
+        // O cliente passa a ser um dos clientes do processo: mantém o atual se ele é um deles; senão, o único que houver.
+        var clientes = processo.Clientes;
+        if (clientes.All(c => c.ClienteId != _clienteId))
+            _clienteId = clientes.Count == 1 ? clientes[0].ClienteId : Guid.Empty;
+    }
+
+    private void RemoverProcesso()
+    {
+        // O cliente escolhido entre os do processo continua valendo, agora como cliente avulso.
+        _clienteNome = _processo?.Clientes.FirstOrDefault(c => c.ClienteId == _clienteId)?.Nome ?? _clienteNome;
+        _processo = null;
+        _areaId = Guid.Empty;
+    }
+
+    private void RemoverCliente()
+    {
+        _clienteId = Guid.Empty;
+        _clienteNome = null;
+    }
+
+    private async Task ProcurarClientesAsync()
+    {
+        _mensagem = null;
+        var resultado = await Despachante.EnviarAsync(new ListarClientes(_buscaDeCliente));
+        if (await EncerradoAsync(resultado)) return;
+
+        var itens = resultado.Valor?.Itens ?? [];
+        _clientesEncontrados = itens;
+        _nenhumCliente = resultado.Sucesso && itens.Count == 0;
+        _clientesTruncados = resultado.Sucesso && resultado.Valor!.Total > itens.Count;
+        if (!resultado.Sucesso) _mensagem = resultado.Mensagem;
+    }
+
+    private void EscolherCliente(ClienteResumo cliente)
+    {
+        _clienteId = cliente.Id;
+        _clienteNome = cliente.Nome;
+        _clientesEncontrados = [];
+        _nenhumCliente = false;
+        _clientesTruncados = false;
+        _buscaDeCliente = null;
+    }
+
+    private async Task SalvarAsync()
+    {
+        if (_salvando) return;
+
+        _salvando = true;
+        _mensagem = null;
+        try
+        {
+            var resultado = await Despachante.EnviarAsync(new SalvarAtividade(
+                AtividadeId, _titulo, _descricao, _dataEntrega,
+                _clienteId == Guid.Empty ? null : _clienteId,
+                _processo?.Id,
+                // Com processo, a área é a do processo (o caso de uso a ignora); sem processo, a escolhida.
+                _processo is not null || _areaId == Guid.Empty ? null : _areaId));
+            if (await EncerradoAsync(resultado)) return;
+
+            if (!resultado.Sucesso)
+            {
+                // O formulário permanece aberto com o que foi digitado.
+                _mensagem = resultado.Mensagem;
+                return;
+            }
+
+            await OnSalvo.InvokeAsync(resultado.Valor);
+        }
+        finally
+        {
+            _salvando = false;
+        }
+    }
+}
