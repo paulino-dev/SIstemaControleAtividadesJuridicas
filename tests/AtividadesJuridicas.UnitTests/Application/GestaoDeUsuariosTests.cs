@@ -180,6 +180,56 @@ public class GestaoDeUsuariosTests
         alvo.Ativo.Should().BeTrue();
     }
 
+    private const string PerfilInativoNaAtivacao =
+        "O perfil deste usuário está inativo. Reative o perfil ou troque o perfil do usuário antes de ativá-lo.";
+
+    [Fact]
+    public async Task Usuario_de_perfil_inativo_nao_e_reativado_e_nada_e_gravado_nem_auditado()
+    {
+        var alvo = _c.NovoUsuario("Pedro", "pedro@x.com", _c.PerfilProducao);
+        alvo.Inativar();
+        _c.PerfilProducao.Inativar();
+
+        var resultado = await DefinirAtivo(_c.Diretor, alvo.Id, true);
+
+        resultado.Erro.Should().Be(TipoErro.Conflito);
+        resultado.Mensagem.Should().Be(PerfilInativoNaAtivacao);
+        alvo.Ativo.Should().BeFalse();
+        _c.Unidade.Salvamentos.Should().Be(0);
+        _c.Auditoria.Eventos.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Saida_para_usuario_inativo_de_perfil_inativo_e_trocar_o_perfil_e_ativar()
+    {
+        var alvo = _c.NovoUsuario("Pedro", "pedro@x.com", _c.PerfilProducao);
+        alvo.Inativar();
+        _c.PerfilProducao.Inativar();
+        var outro = Perfil.Criar("Estagiário", TipoPerfil.Producao);
+        _c.Perfis.Itens.Add(outro);
+
+        (await Editar(_c.Diretor, new EditarUsuario(alvo.Id, "Pedro", "pedro@x.com", outro.Id, null)))
+            .Sucesso.Should().BeTrue();
+        var ativou = await DefinirAtivo(_c.Diretor, alvo.Id, true);
+
+        ativou.Sucesso.Should().BeTrue(ativou.Mensagem);
+        alvo.Ativo.Should().BeTrue();
+        alvo.PerfilId.Should().Be(outro.Id);
+    }
+
+    [Fact]
+    public async Task Editar_para_perfil_inativo_e_erro_de_validacao()
+    {
+        var alvo = _c.NovoUsuario("Pedro", "pedro@x.com", _c.PerfilProducao);
+        _c.PerfilDiretor.Inativar();
+
+        var resultado = await Editar(_c.Diretor,
+            new EditarUsuario(alvo.Id, "Pedro", "pedro@x.com", _c.PerfilDiretor.Id, null));
+
+        resultado.Erro.Should().Be(TipoErro.Validacao);
+        alvo.PerfilId.Should().Be(_c.PerfilProducao.Id);
+    }
+
     [Fact]
     public async Task Producao_nao_inativa_ninguem()
     {

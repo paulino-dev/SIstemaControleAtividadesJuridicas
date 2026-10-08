@@ -173,6 +173,7 @@ public class PerfisTests(BancoFixture banco) : TesteComBanco(banco)
     [Theory]
     [InlineData("Produção")]
     [InlineData(" produção ")]
+    [InlineData("PRODUÇÃO")]
     public async Task Nome_repetido_e_conflito_no_banco_real(string nome)
     {
         var resultado = await ExecutarAsync(_admin, new SalvarPerfil(null, nome, TipoPerfil.Producao));
@@ -229,6 +230,11 @@ public class PerfisTests(BancoFixture banco) : TesteComBanco(banco)
         emUso.Erro.Should().Be(TipoErro.Conflito);
         livre.Sucesso.Should().BeTrue(livre.Mensagem);
         atribuir.Sucesso.Should().BeFalse("perfil inativo não pode ser atribuído a usuário");
+        atribuir.Erro.Should().Be(TipoErro.Validacao);
+        var doPedro = await EmEscopoAsync(null, sp =>
+            sp.GetRequiredService<AppDbContext>().Usuarios.AsNoTracking().SingleAsync(u => u.Id == pedro));
+        doPedro.PerfilId.Should().Be(_perfilProducao);
+        doPedro.Ativo.Should().BeTrue();
         (await ExecutarAsync(_admin, new ListarPerfisAtivos())).Valor!.Select(p => p.Id).Should().NotContain(estagio);
         pedro.Should().NotBeEmpty();
     }
@@ -249,6 +255,53 @@ public class PerfisTests(BancoFixture banco) : TesteComBanco(banco)
         aposManter.Should().BeEquivalentTo([_perfilDiretor, estagio]);
         retirar.Sucesso.Should().BeTrue(retirar.Mensagem);
         devolver.Erro.Should().Be(TipoErro.Validacao, "perfil inativo não entra em lista nova");
+    }
+
+    [Fact]
+    public async Task Usuario_inativo_de_perfil_inativo_nao_e_reativado_e_nada_e_auditado()
+    {
+        var pedro = await CriarUsuarioAsync("Pedro", "pedro@x.com", _perfilProducao);
+        (await ExecutarAsync(_admin, new DefinirAtivoUsuario(pedro, false))).Sucesso.Should().BeTrue();
+        (await ExecutarAsync(_admin, new DefinirAtivoPerfil(_perfilProducao, false))).Sucesso.Should().BeTrue();
+
+        var reativar = await ExecutarAsync(_admin, new DefinirAtivoUsuario(pedro, true));
+
+        reativar.Erro.Should().Be(TipoErro.Conflito);
+        reativar.Mensagem.Should().Be(
+            "O perfil deste usuário está inativo. Reative o perfil ou troque o perfil do usuário antes de ativá-lo.");
+        var noBanco = await EmEscopoAsync(null, sp =>
+            sp.GetRequiredService<AppDbContext>().Usuarios.AsNoTracking().SingleAsync(u => u.Id == pedro));
+        noBanco.Ativo.Should().BeFalse();
+        (await AuditoriaAsync()).Should().NotContain(r => r.Evento == EventosDeSeguranca.UsuarioAtivado);
+    }
+
+    [Fact]
+    public async Task Inclusao_em_massa_e_o_perfil_desfazem_juntos_quando_algo_falha_depois_do_insert()
+    {
+        await EnviarAsync(CategoriaDocumento.DocumentoGeral, "um.pdf");
+        var perfilId = Guid.Empty;
+
+        var acao = () => EmEscopoAsync(_admin, async sp =>
+        {
+            var unidade = sp.GetRequiredService<IUnidadeDeTrabalho>();
+            await unidade.EmTransacaoAsync(async () =>
+            {
+                var perfil = Perfil.Criar("Fantasma", TipoPerfil.Producao);
+                perfilId = perfil.Id;
+                sp.GetRequiredService<IPerfilRepositorio>().Adicionar(perfil);
+                await unidade.SalvarAsync(default);
+                var incluidos = await sp.GetRequiredService<IAcessoInicialDePerfil>()
+                    .IncluirNosDocumentosGeraisAsync(perfil.Id, default);
+                incluidos.Should().BeGreaterThanOrEqualTo(1);
+                throw new InvalidOperationException("falhou depois do insert em massa");
+            }, default);
+            return 0;
+        });
+
+        await acao.Should().ThrowAsync<InvalidOperationException>().WithMessage("falhou depois do insert em massa");
+        perfilId.Should().NotBeEmpty();
+        (await PerfisNoBancoAsync()).Should().NotContain(p => p.Id == perfilId);
+        (await EntradasDoPerfilAsync(perfilId)).Should().BeEmpty();
     }
 
     [Fact]

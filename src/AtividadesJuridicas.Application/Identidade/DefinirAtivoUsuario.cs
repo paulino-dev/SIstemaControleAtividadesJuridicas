@@ -25,6 +25,12 @@ public sealed class DefinirAtivoUsuarioManipulador(
 
         if (requisicao.Ativo)
         {
+            // Quem foi inativado pode ter ficado com um perfil que depois também foi inativado.
+            var perfil = await perfis.ObterPorIdAsync(usuario.PerfilId, ct);
+            if (perfil is not { Ativo: true })
+                return Resultado.Falha(TipoErro.Conflito,
+                    "O perfil deste usuário está inativo. Reative o perfil ou troque o perfil do usuário antes de ativá-lo.");
+
             usuario.Ativar();
             auditoria.Anotar(EventosDeSeguranca.UsuarioAtivado, "Usuario", usuario.Id);
         }

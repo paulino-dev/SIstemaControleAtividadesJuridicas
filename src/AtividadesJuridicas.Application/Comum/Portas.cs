@@ -7,7 +7,8 @@ public interface IUnidadeDeTrabalho
 
     /// <summary>
     /// Roda <paramref name="acao"/> numa transação: tudo o que ela gravar (inclusive por mais de um
-    /// <see cref="SalvarAsync"/>) é confirmado junto, ou nada é, se ela lançar.
+    /// <see cref="SalvarAsync"/>) é confirmado junto, ou nada é, se ela lançar. As chamadas não podem ser
+    /// aninhadas, e, depois de uma falha, o contexto do escopo não deve ser reutilizado.
     /// </summary>
     Task EmTransacaoAsync(Func<Task> acao, CancellationToken ct);
 }

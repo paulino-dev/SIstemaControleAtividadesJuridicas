@@ -48,6 +48,17 @@ public class AreasAtuacaoTests(BancoFixture banco) : TesteComBanco(banco)
         await direto.Should().ThrowAsync<ExcecaoDeConflito>();
     }
 
+    [Theory]
+    [InlineData("CÍVEL")]
+    [InlineData("  cível ")]
+    public async Task Nome_repetido_com_acento_em_maiuscula_e_conflito_no_banco_real(string nome)
+    {
+        var adminId = await IdDoAdminAsync();
+        await ExecutarAsync(adminId, new SalvarAreaAtuacao(null, "Cível"));
+
+        (await ExecutarAsync(adminId, new SalvarAreaAtuacao(null, nome))).Erro.Should().Be(TipoErro.Conflito);
+    }
+
     [Fact]
     public async Task Renomear_registra_de_e_para()
     {

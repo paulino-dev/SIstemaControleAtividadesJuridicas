@@ -9,6 +9,8 @@ namespace AtividadesJuridicas.Infrastructure.Persistencia.Repositorios;
 /// Inclui um perfil novo na lista de acesso de todos os Documentos Gerais com um único comando. É uma
 /// gravação por fora dos interceptores (uma linha por documento, sem registro de auditoria por linha):
 /// o caso de uso a registra com o evento perfil_incluido_nos_documentos_gerais, na mesma transação.
+/// Corrida conhecida: um documento enviado no mesmo instante pode nascer sem o perfil novo; a Diretoria
+/// o inclui pelo editor de acesso do documento.
 /// </summary>
 public sealed class AcessoInicialDePerfil(AppDbContext db, IIdentidadeAtual identidade, IRelogio relogio)
     : IAcessoInicialDePerfil
