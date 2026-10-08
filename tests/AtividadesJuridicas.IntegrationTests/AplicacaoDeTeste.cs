@@ -120,7 +120,7 @@ public sealed partial class AplicacaoDeTeste(BancoFixture banco) : WebApplicatio
         var adminId = await IdDoUsuarioAsync(EmailDoAdmin);
         var producao = await EmEscopoAsync(null, async sp =>
             (await sp.GetRequiredService<AppDbContext>().Perfis.AsNoTracking()
-                .SingleAsync(p => p.Tipo == TipoPerfil.Producao)).Id);
+                .SingleAsync(p => p.Tipo == TipoPerfil.Producao && p.Ativo)).Id);
 
         var criado = await ExecutarAsync(adminId,
             new CriarUsuario("Pedro Produção", EmailDoPedro, SenhaDoPedro, producao, null));

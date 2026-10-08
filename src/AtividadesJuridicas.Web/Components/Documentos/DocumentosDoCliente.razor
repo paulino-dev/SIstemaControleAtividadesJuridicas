@@ -344,7 +344,7 @@
 
         var acesso = await Despachante.EnviarAsync(new ObterAcessoDoDocumento(id));
         if (await EncerradoAsync(acesso)) return;
-        var perfis = await Despachante.EnviarAsync(new ListarPerfisAtivos());
+        var perfis = await Despachante.EnviarAsync(new ListarPerfis());
         if (await EncerradoAsync(perfis)) return;
         var usuarios = await Despachante.EnviarAsync(new ListarUsuarios());
         if (await EncerradoAsync(usuarios)) return;
@@ -356,10 +356,12 @@
         }
 
         // Tudo o que consta na lista aparece com uma caixa que funciona, para poder ser retirado; e só o que
-        // aparece é enviado ao salvar. Perfis ativos e usuários ativos de Produção são as opções para incluir.
-        var perfisDaTela = new List<OpcaoDeAcesso>(perfis.Valor.Select(p => new OpcaoDeAcesso(
-            p.Id, p.Tipo == TipoPerfil.Diretoria ? $"{p.Nome} (Diretoria — acessa sempre)" : p.Nome)));
-        perfisDaTela.AddRange(acesso.Valor.Perfis.Where(perfilId => perfisDaTela.All(o => o.Id != perfilId))
+        // aparece é enviado ao salvar. Perfis ativos e usuários ativos de Produção são as opções para incluir;
+        // um perfil inativo só aparece se já consta na lista (o domínio recusaria incluí-lo), identificado como tal.
+        var naLista = acesso.Valor.Perfis.ToHashSet();
+        var perfisDaTela = new List<OpcaoDeAcesso>(perfis.Valor.Where(p => p.Ativo || naLista.Contains(p.Id))
+            .Select(p => new OpcaoDeAcesso(p.Id, RotuloDoPerfil(p))));
+        perfisDaTela.AddRange(naLista.Where(perfilId => perfisDaTela.All(o => o.Id != perfilId))
             .Select(perfilId => new OpcaoDeAcesso(perfilId, "Perfil não identificado")));
 
         var usuariosDaTela = new List<OpcaoDeAcesso>(usuarios.Valor.Where(u => u.Ativo && u.TipoPerfil == TipoPerfil.Producao)
@@ -378,6 +380,11 @@
         _usuariosMarcados = [.. acesso.Valor.Usuarios];
         _acesso = acesso.Valor;
     }
+
+    private static string RotuloDoPerfil(PerfilDetalhe perfil) =>
+        !perfil.Ativo ? $"{perfil.Nome} (inativo)"
+        : perfil.Tipo == TipoPerfil.Diretoria ? $"{perfil.Nome} (Diretoria — acessa sempre)"
+        : perfil.Nome;
 
     private static void Marcar(HashSet<Guid> marcados, Guid id, ChangeEventArgs e)
     {

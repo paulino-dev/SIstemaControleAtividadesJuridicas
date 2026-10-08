@@ -1,0 +1,169 @@
+@page "/perfis"
+@using System.ComponentModel.DataAnnotations
+@inject IDespachante Despachante
+
+<PageTitle>Perfis</PageTitle>
+
+<h1>Perfis</h1>
+
+@if (!_carregado)
+{
+    <p>Carregando…</p>
+}
+else if (!_autorizado)
+{
+    <p class="erro">Acesso negado.</p>
+}
+else
+{
+    @if (_mensagem is not null)
+    {
+        <p class="@(_falhou ? "erro" : "ok")" role="status">@_mensagem</p>
+    }
+
+    <table>
+        <thead>
+            <tr><th>Nome</th><th>Tipo</th><th>Usuários ativos</th><th>Situação</th><th></th></tr>
+        </thead>
+        <tbody>
+            @foreach (var perfil in _perfis)
+            {
+                <tr class="@(perfil.Ativo ? null : "inativo")" @key="perfil.Id">
+                    <td>@perfil.Nome</td>
+                    <td>@NomeDoTipo(perfil.Tipo)</td>
+                    <td>@perfil.UsuariosAtivos</td>
+                    <td>@(perfil.Ativo ? "Ativo" : "Inativo")</td>
+                    <td class="acoes">
+                        <button type="button" class="secundario" @onclick="() => Editar(perfil)">Renomear</button>
+                        <button type="button" class="secundario" @onclick="() => AlternarAtivoAsync(perfil)">
+                            @(perfil.Ativo ? "Inativar" : "Ativar")
+                        </button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <h2>@(_form.Id is null ? "Novo perfil" : "Renomear perfil")</h2>
+
+    <EditForm Model="_form" OnValidSubmit="SalvarAsync" FormName="perfil" class="formulario">
+        <DataAnnotationsValidator />
+        <label>
+            Nome
+            <InputText @bind-Value="_form.Nome" />
+            <ValidationMessage For="() => _form.Nome" />
+        </label>
+        <label>
+            Tipo
+            <InputSelect @bind-Value="_form.Tipo" disabled="@(_form.Id is not null)">
+                <option value="@TipoPerfil.Producao">Produção</option>
+                <option value="@TipoPerfil.Diretoria">Diretoria</option>
+            </InputSelect>
+        </label>
+        @if (_form.Id is null)
+        {
+            <p>O tipo não pode ser mudado depois. Um perfil novo passa a acessar todos os Documentos Gerais já existentes; um perfil de Diretoria acessa tudo, inclusive os Contratos de Honorários.</p>
+        }
+        <div class="acoes">
+            <button type="submit">Salvar</button>
+            <button type="button" class="secundario" @onclick="Limpar">Cancelar</button>
+        </div>
+    </EditForm>
+}
+
+@code {
+    private bool _carregado;
+    private bool _autorizado;
+    private bool _falhou;
+    private string? _mensagem;
+    private IReadOnlyList<PerfilDetalhe> _perfis = [];
+    private Formulario _form = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _autorizado = await Despachante.EnviarAsync(new ObterMeuAcesso()) is { EhDiretoria: true };
+        if (_autorizado) await RecarregarAsync();
+        _carregado = true;
+    }
+
+    private static string NomeDoTipo(TipoPerfil tipo) => tipo == TipoPerfil.Diretoria ? "Diretoria" : "Produção";
+
+    // Falso quando a recarga falhou; a mensagem do motivo já ficou na tela.
+    private async Task<bool> RecarregarAsync()
+    {
+        var resultado = await Despachante.EnviarAsync(new ListarPerfis());
+        if (resultado.Erro == TipoErro.AcessoNegado)
+        {
+            _autorizado = false;
+            return false;
+        }
+
+        _perfis = resultado.Valor ?? [];
+        if (resultado.Sucesso) return true;
+
+        // Falha que não é de acesso: mostra o motivo em vez de uma lista vazia sem explicação.
+        _falhou = true;
+        _mensagem = resultado.Mensagem;
+        return false;
+    }
+
+    private void Limpar()
+    {
+        _form = new Formulario();
+        _mensagem = null;
+    }
+
+    private void Editar(PerfilDetalhe perfil)
+    {
+        _mensagem = null;
+        _form = new Formulario { Id = perfil.Id, Nome = perfil.Nome, Tipo = perfil.Tipo };
+    }
+
+    private async Task SalvarAsync()
+    {
+        var resultado = await Despachante.EnviarAsync(new SalvarPerfil(_form.Id, _form.Nome, _form.Tipo));
+        if (await ConcluirAsync(resultado, "Perfil salvo.")) _form = new Formulario();
+    }
+
+    private async Task AlternarAtivoAsync(PerfilDetalhe perfil)
+    {
+        var resultado = await Despachante.EnviarAsync(new DefinirAtivoPerfil(perfil.Id, !perfil.Ativo));
+        await ConcluirAsync(resultado, perfil.Ativo ? "Perfil inativado." : "Perfil ativado.");
+    }
+
+    // Verdadeiro quando a ação deu certo.
+    private async Task<bool> ConcluirAsync(Resultado resultado, string mensagemDeSucesso)
+    {
+        // Perdeu o acesso no meio do uso: some a tela de gestão, o servidor já recusou a gravação.
+        if (resultado.Erro == TipoErro.AcessoNegado)
+        {
+            _autorizado = false;
+            return false;
+        }
+
+        if (!resultado.Sucesso)
+        {
+            _falhou = true;
+            _mensagem = resultado.Mensagem;
+            return false;
+        }
+
+        // A mensagem de sucesso não pode esconder uma falha na recarga da lista.
+        if (await RecarregarAsync())
+        {
+            _falhou = false;
+            _mensagem = mensagemDeSucesso;
+        }
+        return true;
+    }
+
+    private sealed class Formulario
+    {
+        public Guid? Id { get; set; }
+
+        [Required(ErrorMessage = "Informe o nome.")]
+        public string Nome { get; set; } = string.Empty;
+
+        public TipoPerfil Tipo { get; set; } = TipoPerfil.Producao;
+    }
+}

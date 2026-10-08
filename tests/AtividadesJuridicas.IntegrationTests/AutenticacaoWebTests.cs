@@ -59,6 +59,7 @@ public partial class AutenticacaoWebTests(BancoFixture banco) : IAsyncLifetime
     [Theory]
     [InlineData("/")]
     [InlineData("/usuarios")]
+    [InlineData("/perfis")]
     [InlineData("/minha-senha")]
     [InlineData("/rota-que-nao-existe")]
     public async Task Anonimo_e_redirecionado_ao_login_em_qualquer_rota(string rota)
