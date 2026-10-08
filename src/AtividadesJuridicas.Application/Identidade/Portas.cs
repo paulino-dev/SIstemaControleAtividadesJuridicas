@@ -45,6 +45,10 @@ public interface IUsuarioRepositorio
 
     /// <summary>Os usuários com os Ids informados; os inexistentes simplesmente não vêm.</summary>
     Task<IReadOnlyList<Usuario>> ObterVariosAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct);
+
+    /// <summary>Id e nome dos usuários ativos, por nome.</summary>
+    Task<IReadOnlyList<(Guid Id, string Nome)>> ListarNomesDosAtivosAsync(CancellationToken ct);
+
     void Adicionar(Usuario usuario);
 
     /// <summary>

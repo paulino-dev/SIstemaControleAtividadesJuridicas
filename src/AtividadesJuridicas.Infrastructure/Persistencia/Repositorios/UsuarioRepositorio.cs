@@ -27,6 +27,13 @@ public sealed class UsuarioRepositorio(AppDbContext db) : IUsuarioRepositorio
     public async Task<IReadOnlyList<Usuario>> ObterVariosAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct) =>
         await db.Usuarios.Where(u => ids.Contains(u.Id)).ToListAsync(ct);
 
+    public async Task<IReadOnlyList<(Guid Id, string Nome)>> ListarNomesDosAtivosAsync(CancellationToken ct)
+    {
+        var linhas = await db.Usuarios.AsNoTracking().Where(u => u.Ativo)
+            .OrderBy(u => u.Nome).Select(u => new { u.Id, u.Nome }).ToListAsync(ct);
+        return [.. linhas.Select(u => (u.Id, u.Nome))];
+    }
+
     public async Task<IReadOnlyList<UsuarioResumo>> ListarAsync(CancellationToken ct)
     {
         // O e-mail usa conversor de valor; a leitura de .Valor acontece depois de materializar.

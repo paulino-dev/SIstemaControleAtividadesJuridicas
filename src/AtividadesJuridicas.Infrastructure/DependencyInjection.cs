@@ -1,3 +1,4 @@
+using AtividadesJuridicas.Application.Agenda;
 using AtividadesJuridicas.Application.Atividades;
 using AtividadesJuridicas.Application.Auditoria;
 using AtividadesJuridicas.Application.Cadastros;
@@ -49,6 +50,7 @@ public static class DependencyInjection
         servicos.AddScoped<IDocumentoRepositorio, DocumentoRepositorio>();
         servicos.AddScoped<IAtividadeRepositorio, AtividadeRepositorio>();
         servicos.AddScoped<IComentarioRepositorio, ComentarioRepositorio>();
+        servicos.AddScoped<IEventoRepositorio, EventoRepositorio>();
         servicos.AddScoped<IAtividadesDoProcesso, AtividadesDoProcesso>();
         servicos.AddScoped<IResponsaveisDeAtividade, ResponsaveisDeAtividade>();
         servicos.AddScoped<IConsultaDeAuditoria, ConsultaDeAuditoria>();

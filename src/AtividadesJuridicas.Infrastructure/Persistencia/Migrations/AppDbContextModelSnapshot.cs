@@ -23,6 +23,165 @@ namespace AtividadesJuridicas.Infrastructure.Persistencia.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("AtividadesJuridicas.Domain.Agenda.Evento", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("AtividadeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("atividade_id");
+
+                    b.Property<DateTime?>("AtualizadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("atualizado_em");
+
+                    b.Property<Guid?>("AtualizadoPor")
+                        .HasColumnType("uuid")
+                        .HasColumnName("atualizado_por");
+
+                    b.Property<Guid?>("ClienteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("cliente_id");
+
+                    b.Property<DateTime>("CriadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("criado_em");
+
+                    b.Property<Guid?>("CriadoPor")
+                        .HasColumnType("uuid")
+                        .HasColumnName("criado_por");
+
+                    b.Property<Guid>("CriadorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("criador_id");
+
+                    b.Property<string>("Descricao")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("descricao");
+
+                    b.Property<int>("DuracaoEstimadaMinutos")
+                        .HasColumnType("integer")
+                        .HasColumnName("duracao_estimada_minutos");
+
+                    b.Property<DateTime?>("ExcluidoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("excluido_em");
+
+                    b.Property<Guid?>("ExcluidoPor")
+                        .HasColumnType("uuid")
+                        .HasColumnName("excluido_por");
+
+                    b.Property<DateTime>("InicioEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("inicio_em");
+
+                    b.Property<string>("Local")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("local");
+
+                    b.Property<Guid?>("ProcessoId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("processo_id");
+
+                    b.Property<int>("Tipo")
+                        .HasColumnType("integer")
+                        .HasColumnName("tipo");
+
+                    b.Property<string>("Titulo")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("titulo");
+
+                    b.Property<uint>("Versao")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.Property<int>("VersaoDosParticipantes")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("versao_dos_participantes");
+
+                    b.HasKey("Id")
+                        .HasName("pk_eventos");
+
+                    b.HasIndex("AtividadeId")
+                        .HasDatabaseName("ix_eventos_atividade_id");
+
+                    b.HasIndex("ClienteId")
+                        .HasDatabaseName("ix_eventos_cliente_id");
+
+                    b.HasIndex("CriadorId")
+                        .HasDatabaseName("ix_eventos_criador_id");
+
+                    b.HasIndex("InicioEm")
+                        .HasDatabaseName("ix_eventos_inicio_em");
+
+                    b.HasIndex("ProcessoId")
+                        .HasDatabaseName("ix_eventos_processo_id");
+
+                    b.ToTable("eventos", (string)null);
+                });
+
+            modelBuilder.Entity("AtividadesJuridicas.Domain.Agenda.EventoParticipante", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime?>("AtualizadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("atualizado_em");
+
+                    b.Property<Guid?>("AtualizadoPor")
+                        .HasColumnType("uuid")
+                        .HasColumnName("atualizado_por");
+
+                    b.Property<DateTime>("CriadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("criado_em");
+
+                    b.Property<Guid?>("CriadoPor")
+                        .HasColumnType("uuid")
+                        .HasColumnName("criado_por");
+
+                    b.Property<Guid>("EventoId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("evento_id");
+
+                    b.Property<DateTime?>("ExcluidoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("excluido_em");
+
+                    b.Property<Guid?>("ExcluidoPor")
+                        .HasColumnType("uuid")
+                        .HasColumnName("excluido_por");
+
+                    b.Property<Guid>("UsuarioId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("usuario_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_eventos_participantes");
+
+                    b.HasIndex("UsuarioId")
+                        .HasDatabaseName("ix_eventos_participantes_usuario_id");
+
+                    b.HasIndex("EventoId", "UsuarioId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_eventos_participantes_evento_id_usuario_id")
+                        .HasFilter("excluido_em IS NULL");
+
+                    b.ToTable("eventos_participantes", (string)null);
+                });
+
             modelBuilder.Entity("AtividadesJuridicas.Domain.Atividades.Atividade", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1195,6 +1354,51 @@ namespace AtividadesJuridicas.Infrastructure.Persistencia.Migrations
                     b.HasDiscriminator().HasValue(2);
                 });
 
+            modelBuilder.Entity("AtividadesJuridicas.Domain.Agenda.Evento", b =>
+                {
+                    b.HasOne("AtividadesJuridicas.Domain.Atividades.Atividade", null)
+                        .WithMany()
+                        .HasForeignKey("AtividadeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_eventos_atividades_atividade_id");
+
+                    b.HasOne("AtividadesJuridicas.Domain.Cadastros.Cliente", null)
+                        .WithMany()
+                        .HasForeignKey("ClienteId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_eventos_clientes_cliente_id");
+
+                    b.HasOne("AtividadesJuridicas.Domain.Identidade.Usuario", null)
+                        .WithMany()
+                        .HasForeignKey("CriadorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_eventos_usuarios_criador_id");
+
+                    b.HasOne("AtividadesJuridicas.Domain.Cadastros.Processo", null)
+                        .WithMany()
+                        .HasForeignKey("ProcessoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_eventos_processos_processo_id");
+                });
+
+            modelBuilder.Entity("AtividadesJuridicas.Domain.Agenda.EventoParticipante", b =>
+                {
+                    b.HasOne("AtividadesJuridicas.Domain.Agenda.Evento", null)
+                        .WithMany("Participantes")
+                        .HasForeignKey("EventoId")
+                        .OnDelete(DeleteBehavior.ClientCascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_eventos_participantes_eventos_evento_id");
+
+                    b.HasOne("AtividadesJuridicas.Domain.Identidade.Usuario", null)
+                        .WithMany()
+                        .HasForeignKey("UsuarioId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_eventos_participantes_usuarios_usuario_id");
+                });
+
             modelBuilder.Entity("AtividadesJuridicas.Domain.Atividades.Atividade", b =>
                 {
                     b.HasOne("AtividadesJuridicas.Domain.Cadastros.AreaAtuacao", null)
@@ -1362,6 +1566,11 @@ namespace AtividadesJuridicas.Infrastructure.Persistencia.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_usuarios_perfis_perfil_id");
+                });
+
+            modelBuilder.Entity("AtividadesJuridicas.Domain.Agenda.Evento", b =>
+                {
+                    b.Navigation("Participantes");
                 });
 
             modelBuilder.Entity("AtividadesJuridicas.Domain.Atividades.Atividade", b =>

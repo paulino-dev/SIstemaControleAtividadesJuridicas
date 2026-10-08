@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using AtividadesJuridicas.Domain.Agenda;
 using AtividadesJuridicas.Domain.Atividades;
 using AtividadesJuridicas.Domain.Auditoria;
 using AtividadesJuridicas.Domain.Cadastros;
@@ -18,6 +19,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> opcoes) : DbCont
     public DbSet<Processo> Processos => Set<Processo>();
     public DbSet<Documento> Documentos => Set<Documento>();
     public DbSet<Atividade> Atividades => Set<Atividade>();
+    public DbSet<Evento> Eventos => Set<Evento>();
     public DbSet<RegistroAuditoria> RegistrosAuditoria => Set<RegistroAuditoria>();
     public DbSet<RegistroAcesso> RegistrosAcesso => Set<RegistroAcesso>();
 

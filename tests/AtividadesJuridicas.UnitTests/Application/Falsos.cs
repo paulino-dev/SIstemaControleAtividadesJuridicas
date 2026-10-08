@@ -1,12 +1,14 @@
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
+using AtividadesJuridicas.Application.Agenda;
 using AtividadesJuridicas.Application.Atividades;
 using AtividadesJuridicas.Application.Auditoria;
 using AtividadesJuridicas.Application.Cadastros;
 using AtividadesJuridicas.Application.Comum;
 using AtividadesJuridicas.Application.Documentos;
 using AtividadesJuridicas.Application.Identidade;
+using AtividadesJuridicas.Domain.Agenda;
 using AtividadesJuridicas.Domain.Atividades;
 using AtividadesJuridicas.Domain.Cadastros;
 using AtividadesJuridicas.Domain.Documentos;
@@ -98,6 +100,10 @@ public sealed class UsuarioRepositorioFalso(PerfilRepositorioFalso perfis) : IUs
 
     public Task<IReadOnlyList<Usuario>> ObterVariosAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct) =>
         Task.FromResult<IReadOnlyList<Usuario>>([.. Itens.Where(u => ids.Contains(u.Id))]);
+
+    public Task<IReadOnlyList<(Guid Id, string Nome)>> ListarNomesDosAtivosAsync(CancellationToken ct) =>
+        Task.FromResult<IReadOnlyList<(Guid Id, string Nome)>>(
+            [.. Itens.Where(u => u.Ativo).OrderBy(u => u.Nome).Select(u => (u.Id, u.Nome))]);
 
     public int Reservas { get; private set; }
 
@@ -398,6 +404,54 @@ public sealed class AtividadesDoProcessoFalso(AtividadeRepositorioFalso atividad
     }
 }
 
+/// <summary>Mesma semântica da consulta real: intervalos semiabertos, evento excluído sai do repositório.</summary>
+public sealed class EventoRepositorioFalso(
+    UsuarioRepositorioFalso usuarios, ClienteRepositorioFalso clientes, ProcessoRepositorioFalso processos)
+    : IEventoRepositorio
+{
+    public List<Evento> Itens { get; } = [];
+
+    public Task<Evento?> ObterPorIdAsync(Guid id, CancellationToken ct) =>
+        Task.FromResult(Itens.FirstOrDefault(e => e.Id == id));
+
+    public Task<IReadOnlyList<EventoResumo>> ListarAsync(FiltroDeEventos filtro, CancellationToken ct)
+    {
+        string? NomeDoUsuario(Guid id) => usuarios.Itens.FirstOrDefault(u => u.Id == id)?.Nome;
+
+        var eventos = Itens
+            .Where(e => e.Sobrepoe(filtro.DeUtc, filtro.AteUtc))
+            .Where(e => filtro.Tipo is null || e.Tipo == filtro.Tipo)
+            .Where(e => filtro.ParticipanteId is null || e.Participa(filtro.ParticipanteId.Value))
+            .Where(e => filtro.VisivelPara is not { } v || e.CriadorId == v || e.Participa(v))
+            .OrderBy(e => e.InicioEm).ThenBy(e => e.Id)
+            .Select(e => new EventoResumo(
+                e.Id, e.Titulo, e.Tipo, e.InicioEm, e.FimEm, e.Local,
+                clientes.Itens.FirstOrDefault(c => c.Id == e.ClienteId)?.Nome,
+                processos.Itens.FirstOrDefault(p => p.Id == e.ProcessoId)?.Titulo,
+                [.. e.Participantes.Select(p => NomeDoUsuario(p.UsuarioId) ?? string.Empty)
+                    .Order(StringComparer.CurrentCultureIgnoreCase)]))
+            .ToList();
+        return Task.FromResult<IReadOnlyList<EventoResumo>>(eventos);
+    }
+
+    public Task<IReadOnlyList<SobreposicaoDeAgenda>> SobreposicoesAsync(
+        Guid? excetoEventoId, IReadOnlyCollection<Guid> usuarioIds, DateTime inicioUtc, DateTime fimUtc, CancellationToken ct)
+    {
+        var avisos = Itens
+            .Where(e => e.Id != excetoEventoId && e.Sobrepoe(inicioUtc, fimUtc))
+            .SelectMany(e => e.Participantes.Where(p => usuarioIds.Contains(p.UsuarioId)).Select(p =>
+                new SobreposicaoDeAgenda(
+                    p.UsuarioId, usuarios.Itens.FirstOrDefault(u => u.Id == p.UsuarioId)?.Nome, e.InicioEm, e.FimEm)))
+            .OrderBy(a => a.UsuarioNome, StringComparer.CurrentCultureIgnoreCase).ThenBy(a => a.InicioEm)
+            .ToList();
+        return Task.FromResult<IReadOnlyList<SobreposicaoDeAgenda>>(avisos);
+    }
+
+    public void Adicionar(Evento evento) => Itens.Add(evento);
+
+    public void Remover(Evento evento) => Itens.Remove(evento);
+}
+
 /// <summary>Monta um cenário com os dois perfis padrão e um diretor ativo.</summary>
 public sealed class Cenario
 {
@@ -408,6 +462,7 @@ public sealed class Cenario
     public ClienteRepositorioFalso Clientes { get; } = new();
     public ProcessoRepositorioFalso Processos { get; }
     public AtividadeRepositorioFalso Atividades { get; }
+    public EventoRepositorioFalso Eventos { get; }
     public AtividadesDoProcessoFalso AtividadesDoProcesso { get; }
     public ComentarioRepositorioFalso Comentarios { get; }
     public CalendarioFixo Calendario { get; } = new();
@@ -429,6 +484,7 @@ public sealed class Cenario
         Perfis.UsuariosAtivosDoPerfil = id => Usuarios.Itens.Count(u => u.Ativo && u.PerfilId == id);
         Processos = new ProcessoRepositorioFalso(Areas, Clientes);
         Atividades = new AtividadeRepositorioFalso(Usuarios, Clientes, Processos, Areas);
+        Eventos = new EventoRepositorioFalso(Usuarios, Clientes, Processos);
         AtividadesDoProcesso = new AtividadesDoProcessoFalso(Atividades);
         Documentos = new DocumentoRepositorioFalso(Atividades);
         ResponsaveisDeAtividade = new ResponsaveisDeAtividadeFalso(Atividades);

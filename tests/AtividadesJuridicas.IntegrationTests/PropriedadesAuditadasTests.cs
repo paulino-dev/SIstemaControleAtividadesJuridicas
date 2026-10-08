@@ -53,6 +53,12 @@ public class PropriedadesAuditadasTests
             ],
             ["DocumentoPerfilAcesso"] = ["DocumentoId", "PerfilId"],
             ["DocumentoUsuarioAcesso"] = ["DocumentoId", "UsuarioId"],
+            ["Evento"] =
+            [
+                "AtividadeId", "ClienteId", "CriadorId", "Descricao", "DuracaoEstimadaMinutos", "InicioEm", "Local",
+                "ProcessoId", "Tipo", "Titulo",
+            ],
+            ["EventoParticipante"] = ["EventoId", "UsuarioId"],
             ["Perfil"] = ["Ativo", "Nome", "Tipo"],
             ["Processo"] =
             [
