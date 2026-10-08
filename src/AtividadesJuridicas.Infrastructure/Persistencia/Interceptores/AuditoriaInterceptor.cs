@@ -110,37 +110,43 @@ public sealed class AuditoriaInterceptor(IIdentidadeAtual identidade, IRelogio r
     /// </summary>
     private static IEnumerable<(string Nome, PropertyEntry Entrada)> Folhas(EntityEntry entrada)
     {
-        foreach (var propriedade in entrada.Properties.Where(p => Auditavel(p.Metadata)))
+        foreach (var propriedade in entrada.Properties.Where(p => Auditavel(p.Metadata, naEntidade: true)))
             yield return (propriedade.Metadata.Name, propriedade);
 
-        foreach (var complexa in entrada.ComplexProperties)
+        foreach (var complexa in entrada.ComplexProperties.Where(c => Auditavel(c.Metadata)))
             foreach (var folha in Folhas(complexa, complexa.Metadata.Name))
                 yield return folha;
     }
 
     private static IEnumerable<(string Nome, PropertyEntry Entrada)> Folhas(ComplexPropertyEntry complexa, string prefixo)
     {
-        foreach (var propriedade in complexa.Properties.Where(p => Auditavel(p.Metadata)))
+        foreach (var propriedade in complexa.Properties.Where(p => Auditavel(p.Metadata, naEntidade: false)))
             yield return ($"{prefixo}.{propriedade.Metadata.Name}", propriedade);
 
-        foreach (var interna in complexa.ComplexProperties)
+        foreach (var interna in complexa.ComplexProperties.Where(c => Auditavel(c.Metadata)))
             foreach (var folha in Folhas(interna, $"{prefixo}.{interna.Metadata.Name}"))
                 yield return folha;
     }
 
     /// <summary>Nomes das propriedades de <paramref name="tipo"/> que vão para os dados da auditoria.</summary>
     public static IReadOnlyList<string> PropriedadesAuditadas(IEntityType tipo) =>
-        [.. tipo.GetProperties().Where(Auditavel).Select(p => p.Name),
-         .. tipo.GetComplexProperties().SelectMany(c => PropriedadesAuditadas(c, c.Name))];
+        [.. tipo.GetProperties().Where(p => Auditavel(p, naEntidade: true)).Select(p => p.Name),
+         .. tipo.GetComplexProperties().Where(Auditavel).SelectMany(c => PropriedadesAuditadas(c, c.Name))];
 
     private static IEnumerable<string> PropriedadesAuditadas(IComplexProperty complexa, string prefixo) =>
-        complexa.ComplexType.GetProperties().Where(Auditavel).Select(p => $"{prefixo}.{p.Name}")
-            .Concat(complexa.ComplexType.GetComplexProperties()
+        complexa.ComplexType.GetProperties().Where(p => Auditavel(p, naEntidade: false)).Select(p => $"{prefixo}.{p.Name}")
+            .Concat(complexa.ComplexType.GetComplexProperties().Where(Auditavel)
                 .SelectMany(c => PropriedadesAuditadas(c, $"{prefixo}.{c.Name}")));
 
-    private static bool Auditavel(IProperty propriedade) =>
-        !ForaDosDados.Contains(propriedade.Name) &&
+    // Regra única, usada pela leitura em tempo de execução e pelo modelo estático. Os nomes de controle da
+    // entidade (Id, carimbos) só valem nas propriedades da própria entidade, nunca nos membros de tipos complexos.
+    private static bool Auditavel(IProperty propriedade, bool naEntidade) =>
+        !(naEntidade && ForaDosDados.Contains(propriedade.Name)) &&
         propriedade.PropertyInfo?.GetCustomAttribute<NaoAuditarAttribute>() is null;
+
+    // [NaoAuditar] numa propriedade complexa inteira tira toda a subárvore.
+    private static bool Auditavel(IComplexProperty complexa) =>
+        complexa.PropertyInfo?.GetCustomAttribute<NaoAuditarAttribute>() is null;
 
     private static object? Valor(PropertyEntry propriedade, object? valor) => valor switch
     {
