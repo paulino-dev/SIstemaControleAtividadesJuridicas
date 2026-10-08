@@ -149,7 +149,8 @@ Regras:
 
 | Recurso | Diretoria | Produção |
 |---|---|---|
-| Usuários, perfis, áreas de atuação | Tudo | Sem acesso |
+| Usuários e perfis | Tudo | Sem acesso |
+| Áreas de atuação | Tudo | Lê os nomes ao consultar cadastros; não gerencia |
 | Clientes e processos | Tudo | Somente leitura |
 | Documentos Gerais | Tudo | Leitura conforme lista de acesso |
 | Contratos de Honorários | Tudo | Sem acesso |
@@ -173,7 +174,10 @@ Classe abstrata com duas derivadas, persistidas em uma tabela com discriminador.
 | `ClientePessoaFisica` | `NomeCompleto` (obrigatório), `Cpf` (value object, obrigatório, único), `Rg`, `DataNascimento` |
 | `ClientePessoaJuridica` | `RazaoSocial` (obrigatório), `NomeFantasia`, `Cnpj` (value object, obrigatório, único), `NomeResponsavel`, `InscricaoEstadual`, `InscricaoMunicipal` |
 
-- `Cpf` e `Cnpj` validam dígitos verificadores.
+- `Cpf` e `Cnpj` validam dígitos verificadores. O CNPJ aceita o formato alfanumérico (letras maiúsculas nas doze primeiras posições).
+- O nome de exibição fica em um campo só, `Nome`: é o nome completo da pessoa física e a razão social da pessoa jurídica.
+- O endereço é um objeto de valor sempre presente, que pode estar vazio.
+- A busca por nome não diferencia maiúsculas nem acentos; um texto que seja um CPF ou CNPJ válido procura pelo documento exato.
 - O tipo do cliente (PF ou PJ) não muda depois de criado.
 - As áreas "Documentos Gerais", "Contratos de Honorários" e "Documentos de Atividades" do cliente são consultas ao contexto Documentos filtradas por cliente e categoria; não são coleções do agregado `Cliente`.
 
@@ -385,6 +389,8 @@ Registra criação, alteração e exclusão de dados e eventos de segurança.
 - Eventos de segurança: login, falha de login, bloqueio de login, logout, troca e redefinição de senha, mudança de perfil, ativação e inativação de usuário, mudança na lista de acesso de documento, tentativa de acesso negada.
 - Gravações que não são alteração de negócio (último acesso, contagem de falhas e bloqueio de login) não geram registro de alteração; os eventos de segurança correspondentes cobrem esses fatos.
 - `SenhaHash` e `VersaoDeSessao` nunca aparecem em `Dados`.
+- Em hierarquias, o registro leva o nome do tipo raiz (`Cliente` para pessoa física e jurídica). Os campos de objetos de valor entram com o nome composto (`Endereco.Cidade`).
+- Os dados pessoais dos cadastros (documento, endereço, contato, observações) fazem parte do registro de cada alteração, e o texto digitado nas buscas faz parte do registro de consultas. Como as duas tabelas são somente-inserção, um dado corrigido ou excluído no cadastro permanece na trilha.
 
 ### RegistroAcesso
 
