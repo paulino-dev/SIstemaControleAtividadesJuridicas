@@ -61,6 +61,65 @@ public class FusoDoEscritorioTests
             .Should().Be(new DateTime(2026, 11, 1, 4, 0, 0, DateTimeKind.Utc));
     }
 
+    // Em Nova York, 2026-03-08 02:00-03:00 não existe e 2026-11-01 01:00-02:00 se repete.
+    private readonly FusoDoEscritorio _novaYork = new("America/New_York");
+
+    [Fact]
+    public void ParaUtc_converte_horario_normal_em_Sao_Paulo()
+    {
+        var utc = _fuso.ParaUtc(new DateTime(2026, 10, 7, 9, 0, 0));
+
+        utc.Should().Be(new DateTime(2026, 10, 7, 12, 0, 0, DateTimeKind.Utc));
+        utc.Kind.Should().Be(DateTimeKind.Utc);
+    }
+
+    [Fact]
+    public void ParaUtc_converte_horario_normal_em_fuso_com_horario_de_verao()
+    {
+        _novaYork.ParaUtc(new DateTime(2026, 7, 1, 12, 0, 0))
+            .Should().Be(new DateTime(2026, 7, 1, 16, 0, 0, DateTimeKind.Utc));
+        _novaYork.ParaUtc(new DateTime(2026, 1, 15, 12, 0, 0))
+            .Should().Be(new DateTime(2026, 1, 15, 17, 0, 0, DateTimeKind.Utc));
+    }
+
+    [Fact]
+    public void ParaUtc_empurra_horario_inexistente_para_o_primeiro_instante_valido()
+    {
+        // 02:30 não existe; o primeiro instante válido é 03:00 EDT (07:00 UTC).
+        var utc = _novaYork.ParaUtc(new DateTime(2026, 3, 8, 2, 30, 0));
+
+        utc.Should().Be(new DateTime(2026, 3, 8, 7, 0, 0, DateTimeKind.Utc));
+        utc.Kind.Should().Be(DateTimeKind.Utc);
+    }
+
+    [Fact]
+    public void ParaUtc_vale_a_primeira_ocorrencia_de_horario_ambiguo()
+    {
+        // 01:30 acontece duas vezes; a primeira é em EDT (05:30 UTC), não em EST (06:30 UTC).
+        _novaYork.ParaUtc(new DateTime(2026, 11, 1, 1, 30, 0))
+            .Should().Be(new DateTime(2026, 11, 1, 5, 30, 0, DateTimeKind.Utc));
+    }
+
+    [Fact]
+    public void ParaUtc_aceita_hora_de_Havana_como_o_inicio_do_dia()
+    {
+        // Mesma política de InicioDoDiaEmUtc: a meia-noite repetida vale a primeira ocorrência.
+        _havana.ParaUtc(new DateTime(2026, 11, 1, 0, 0, 0))
+            .Should().Be(_havana.InicioDoDiaEmUtc(new DateOnly(2026, 11, 1)));
+    }
+
+    [Theory]
+    [InlineData("America/Sao_Paulo", 2026, 10, 7, 9, 15)]
+    [InlineData("America/New_York", 2026, 7, 1, 12, 0)]
+    [InlineData("America/New_York", 2026, 1, 15, 23, 59)]
+    public void Ida_e_volta_com_ParaLocal_devolve_o_mesmo_horario(string id, int ano, int mes, int dia, int hora, int minuto)
+    {
+        var fuso = new FusoDoEscritorio(id);
+        var local = new DateTime(ano, mes, dia, hora, minuto, 0);
+
+        fuso.ParaLocal(fuso.ParaUtc(local)).Should().Be(local);
+    }
+
     [Fact]
     public void Data_ausente_vira_travessao()
     {

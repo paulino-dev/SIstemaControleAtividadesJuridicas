@@ -1,0 +1,451 @@
+@inject IDespachante Despachante
+@inject FusoDoEscritorio Fuso
+
+@* Sem EditForm: os campos de busca ficam neste mesmo componente, e Enter neles só faz a busca. *@
+<section class="ficha">
+    <h3>@(EventoId is null ? "Novo evento" : "Editar evento")</h3>
+
+    @if (_mensagem is not null)
+    {
+        <p class="erro" role="status">@_mensagem</p>
+    }
+
+    @if (!_carregado)
+    {
+        @if (!_falhouAoCarregar)
+        {
+            <p>Carregando…</p>
+        }
+
+        @* Se os dados não chegaram, ainda assim é possível desistir. *@
+        <div class="acoes">
+            <button type="button" class="secundario" @onclick="Cancelar">Cancelar</button>
+        </div>
+    }
+    else
+    {
+        <div class="formulario">
+            <div class="grade">
+                <label>Título <input type="text" maxlength="@Evento.TamanhoMaximoTitulo" @bind="_titulo" /></label>
+                <label>
+                    Tipo
+                    <select @bind="_tipo">
+                        @foreach (var tipo in Enum.GetValues<TipoEvento>())
+                        {
+                            <option value="@tipo">@RotulosDeAgenda.Tipo(tipo)</option>
+                        }
+                    </select>
+                </label>
+            </div>
+            <div class="grade">
+                <label>Data (horário do escritório) <input type="date" @bind="_data" /></label>
+                <label>Hora <input type="time" @bind="_hora" /></label>
+                <label>Duração em minutos <input type="number" min="1" max="@Evento.DuracaoMaximaMinutos" @bind="_duracao" /></label>
+            </div>
+            <label>Local <input type="text" maxlength="@Evento.TamanhoMaximoLocal" @bind="_local" /></label>
+            <label>Descrição <textarea rows="3" maxlength="@Evento.TamanhoMaximoDescricao" @bind="_descricao"></textarea></label>
+
+            @if (_clienteId is not null)
+            {
+                <div class="acoes">
+                    <span>Cliente: <strong>@_clienteNome</strong></span>
+                    <button type="button" class="secundario" disabled="@_salvando" @onclick="RemoverCliente">Sem cliente</button>
+                </div>
+            }
+
+            <div class="filtros formulario">
+                <label>
+                    Escolher cliente (nome, CPF ou CNPJ)
+                    <input type="text" @bind="_buscaDeCliente" @bind:event="oninput" @onkeydown="TeclaNaBuscaDeCliente" />
+                </label>
+                <button type="button" class="secundario" disabled="@_salvando" @onclick="ProcurarClientesAsync">Procurar cliente</button>
+            </div>
+            @foreach (var candidato in _clientesEncontrados)
+            {
+                <div class="acoes" @key="candidato.Id">
+                    <span>@candidato.Nome — @candidato.Documento</span>
+                    <button type="button" class="secundario" disabled="@_salvando" @onclick="() => EscolherCliente(candidato)">Escolher</button>
+                </div>
+            }
+            @if (_nenhumCliente)
+            {
+                <p>Nenhum cliente encontrado.</p>
+            }
+            @if (_clientesTruncados)
+            {
+                <p>Mostrando os primeiros resultados. Refine a busca para ver outros.</p>
+            }
+
+            @if (_processoId is not null)
+            {
+                <div class="acoes">
+                    <span>Processo: <strong>@_processoTitulo</strong></span>
+                    <button type="button" class="secundario" disabled="@_salvando" @onclick="RemoverProcesso">Sem processo</button>
+                </div>
+            }
+
+            <div class="filtros formulario">
+                <label>
+                    Escolher processo (título, parte contrária ou número CNJ)
+                    <input type="text" @bind="_buscaDeProcesso" @bind:event="oninput" @onkeydown="TeclaNaBuscaDeProcesso" />
+                </label>
+                <button type="button" class="secundario" disabled="@_salvando" @onclick="ProcurarProcessosAsync">Procurar processo</button>
+            </div>
+            @foreach (var candidato in _processosEncontrados)
+            {
+                <div class="acoes" @key="candidato.Id">
+                    <span>@candidato.Titulo — @candidato.AreaNome (@string.Join(", ", candidato.Clientes))</span>
+                    <button type="button" class="secundario" disabled="@_salvando" @onclick="() => EscolherProcesso(candidato)">Escolher</button>
+                </div>
+            }
+            @if (_nenhumProcesso)
+            {
+                <p>Nenhum processo encontrado.</p>
+            }
+            @if (_processosTruncados)
+            {
+                <p>Mostrando os primeiros resultados. Refine a busca para ver outros.</p>
+            }
+
+            @if (_atividadeId is not null)
+            {
+                <div class="acoes">
+                    <span>Atividade: <strong>@(_atividadeTitulo ?? RotulosDeAgenda.AtividadeSemAcesso)</strong></span>
+                    <button type="button" class="secundario" disabled="@_salvando" @onclick="RemoverAtividade">Sem atividade</button>
+                </div>
+            }
+
+            <div class="filtros formulario">
+                <label>
+                    Escolher atividade (título)
+                    <input type="text" @bind="_buscaDeAtividade" @bind:event="oninput" @onkeydown="TeclaNaBuscaDeAtividade" />
+                </label>
+                <button type="button" class="secundario" disabled="@_salvando" @onclick="ProcurarAtividadesAsync">Procurar atividade</button>
+            </div>
+            @foreach (var candidata in _atividadesEncontradas)
+            {
+                <div class="acoes" @key="candidata.Id">
+                    <span>@candidata.Titulo</span>
+                    <button type="button" class="secundario" disabled="@_salvando" @onclick="() => EscolherAtividade(candidata)">Escolher</button>
+                </div>
+            }
+            @if (_nenhumaAtividade)
+            {
+                <p>Nenhuma atividade encontrada.</p>
+            }
+            @if (_atividadesTruncadas)
+            {
+                <p>Mostrando os primeiros resultados. Refine a busca para ver outras.</p>
+            }
+
+            <fieldset>
+                <legend>Participantes</legend>
+                @foreach (var pessoa in _pessoas)
+                {
+                    <label @key="pessoa.Id">
+                        <input type="checkbox" checked="@_marcados.Contains(pessoa.Id)" disabled="@_salvando"
+                               @onchange="e => MarcarParticipante(pessoa.Id, e)" /> @pessoa.Nome@(pessoa.Ativo ? "" : " (inativo)")
+                    </label>
+                }
+            </fieldset>
+
+            <div class="acoes">
+                <button type="button" disabled="@_salvando" @onclick="SalvarAsync">@(_salvando ? "Salvando…" : "Salvar")</button>
+                <button type="button" class="secundario" disabled="@_salvando" @onclick="Cancelar">Cancelar</button>
+            </div>
+        </div>
+    }
+</section>
+
+@code {
+    private sealed record Pessoa(Guid Id, string Nome, bool Ativo);
+
+    /// <summary>Nulo para um evento novo.</summary>
+    [Parameter] public Guid? EventoId { get; set; }
+
+    /// <summary>Os dados atuais, para preencher o formulário de edição.</summary>
+    [Parameter] public EventoDetalhe? Atual { get; set; }
+
+    /// <summary>Avisado com o que foi gravado (inclusive os avisos de sobreposição).</summary>
+    [Parameter] public EventCallback<EventoGravado> OnSalvo { get; set; }
+
+    /// <summary>Avisado (com a mensagem) quando o evento mudou ou sumiu e o registro precisa ser recarregado.</summary>
+    [Parameter] public EventCallback<string?> OnConflito { get; set; }
+
+    [Parameter] public EventCallback OnCancelado { get; set; }
+
+    [Parameter] public EventCallback OnAcessoEncerrado { get; set; }
+
+    private bool _carregado;
+    private bool _salvando;
+    private bool _falhouAoCarregar;
+    private string? _mensagem;
+
+    private string _titulo = string.Empty;
+    private string _descricao = string.Empty;
+    private string _local = string.Empty;
+    private TipoEvento _tipo = TipoEvento.Reuniao;
+    private DateOnly? _data;
+    private TimeOnly? _hora;
+    private int _duracao = 60;
+
+    private Guid? _clienteId;
+    private string? _clienteNome;
+    private Guid? _processoId;
+    private string? _processoTitulo;
+    private Guid? _atividadeId;
+    private string? _atividadeTitulo;
+
+    private string? _buscaDeCliente;
+    private IReadOnlyList<ClienteResumo> _clientesEncontrados = [];
+    private bool _nenhumCliente;
+    private bool _clientesTruncados;
+
+    private string? _buscaDeProcesso;
+    private IReadOnlyList<ProcessoResumo> _processosEncontrados = [];
+    private bool _nenhumProcesso;
+    private bool _processosTruncados;
+
+    private string? _buscaDeAtividade;
+    private IReadOnlyList<AtividadeResumo> _atividadesEncontradas = [];
+    private bool _nenhumaAtividade;
+    private bool _atividadesTruncadas;
+
+    // Todas as pessoas que o formulário mostra; só as marcadas são enviadas.
+    private IReadOnlyList<Pessoa> _pessoas = [];
+    private HashSet<Guid> _marcados = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var usuarios = await Despachante.EnviarAsync(new ListarUsuariosParaAgenda());
+        if (await EncerradoAsync(usuarios)) return;
+        if (usuarios.Valor is not { } ativos)
+        {
+            _mensagem = usuarios.Mensagem ?? "Não foi possível consultar os usuários.";
+            _falhouAoCarregar = true;
+            return;
+        }
+
+        var pessoas = ativos.Select(u => new Pessoa(u.Id, u.Nome, true)).ToList();
+
+        if (Atual is { } atual)
+        {
+            _titulo = atual.Titulo;
+            _descricao = atual.Descricao ?? string.Empty;
+            _local = atual.Local ?? string.Empty;
+            _tipo = atual.Tipo;
+            var inicio = Fuso.ParaLocal(atual.InicioEm);
+            _data = DateOnly.FromDateTime(inicio);
+            _hora = TimeOnly.FromDateTime(inicio);
+            _duracao = atual.DuracaoEstimadaMinutos;
+            _clienteId = atual.ClienteId;
+            _clienteNome = atual.ClienteNome ?? "Cliente indisponível";
+            _processoId = atual.ProcessoId;
+            _processoTitulo = atual.ProcessoTitulo ?? "Processo indisponível";
+            _atividadeId = atual.AtividadeId;
+            _atividadeTitulo = atual.AtividadeTitulo;   // nulo: a atividade existe mas o usuário não a vê
+
+            // Na edição a lista enviada é a que vale: todos os participantes atuais (inclusive os inativos, que a
+            // lista de ativos não traz) aparecem marcados; os demais usuários ativos, desmarcados.
+            foreach (var p in atual.Participantes)
+            {
+                pessoas.RemoveAll(x => x.Id == p.UsuarioId);
+                pessoas.Add(new Pessoa(p.UsuarioId, p.Nome ?? "Usuário não encontrado", p.Ativo));
+            }
+
+            _marcados = [.. atual.Participantes.Select(p => p.UsuarioId)];
+        }
+        else
+        {
+            var hoje = Fuso.ParaLocal(DateTime.UtcNow);
+            _data = DateOnly.FromDateTime(hoje);
+            _hora = new TimeOnly(9, 0);
+
+            // O servidor sempre inclui quem cria; o formulário já mostra isso.
+            var eu = await Despachante.EnviarAsync(new ObterMeuAcesso());
+            if (eu is null)
+            {
+                await OnAcessoEncerrado.InvokeAsync();
+                return;
+            }
+
+            if (pessoas.All(x => x.Id != eu.Id)) pessoas.Add(new Pessoa(eu.Id, eu.Nome, true));
+            _marcados = [eu.Id];
+        }
+
+        _pessoas = [.. pessoas.OrderBy(p => p.Nome, StringComparer.CurrentCultureIgnoreCase)];
+        _carregado = true;
+    }
+
+    private async Task<bool> EncerradoAsync(Resultado resultado)
+    {
+        if (resultado.Erro != TipoErro.AcessoNegado) return false;
+
+        await OnAcessoEncerrado.InvokeAsync();
+        return true;
+    }
+
+    private async Task Cancelar() => await OnCancelado.InvokeAsync();
+
+    private void MarcarParticipante(Guid id, ChangeEventArgs e)
+    {
+        if (e.Value is true) _marcados.Add(id);
+        else _marcados.Remove(id);
+    }
+
+    private async Task TeclaNaBuscaDeCliente(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await ProcurarClientesAsync();
+    }
+
+    private async Task TeclaNaBuscaDeProcesso(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await ProcurarProcessosAsync();
+    }
+
+    private async Task TeclaNaBuscaDeAtividade(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await ProcurarAtividadesAsync();
+    }
+
+    private async Task ProcurarClientesAsync()
+    {
+        _mensagem = null;
+        var resultado = await Despachante.EnviarAsync(new ListarClientes(_buscaDeCliente));
+        if (await EncerradoAsync(resultado)) return;
+
+        var itens = resultado.Valor?.Itens ?? [];
+        _clientesEncontrados = itens;
+        // Os avisos valem só para uma busca que deu certo; uma falha mostra o erro no lugar deles.
+        _nenhumCliente = resultado.Sucesso && itens.Count == 0;
+        _clientesTruncados = resultado.Sucesso && resultado.Valor!.Total > itens.Count;
+        if (!resultado.Sucesso) _mensagem = resultado.Mensagem;
+    }
+
+    private void EscolherCliente(ClienteResumo cliente)
+    {
+        _clienteId = cliente.Id;
+        _clienteNome = cliente.Nome;
+        _clientesEncontrados = [];
+        _nenhumCliente = false;
+        _clientesTruncados = false;
+        _buscaDeCliente = null;
+    }
+
+    private void RemoverCliente()
+    {
+        _clienteId = null;
+        _clienteNome = null;
+    }
+
+    private async Task ProcurarProcessosAsync()
+    {
+        _mensagem = null;
+        var resultado = await Despachante.EnviarAsync(new ListarProcessos(_buscaDeProcesso));
+        if (await EncerradoAsync(resultado)) return;
+
+        var itens = resultado.Valor?.Itens ?? [];
+        _processosEncontrados = itens;
+        _nenhumProcesso = resultado.Sucesso && itens.Count == 0;
+        _processosTruncados = resultado.Sucesso && resultado.Valor!.Total > itens.Count;
+        if (!resultado.Sucesso) _mensagem = resultado.Mensagem;
+    }
+
+    private void EscolherProcesso(ProcessoResumo processo)
+    {
+        // O cliente escolhido não é trocado aqui: se ele não é do processo, o servidor recusa e a mensagem aparece.
+        _processoId = processo.Id;
+        _processoTitulo = processo.Titulo;
+        _processosEncontrados = [];
+        _nenhumProcesso = false;
+        _processosTruncados = false;
+        _buscaDeProcesso = null;
+    }
+
+    private void RemoverProcesso()
+    {
+        _processoId = null;
+        _processoTitulo = null;
+    }
+
+    private async Task ProcurarAtividadesAsync()
+    {
+        _mensagem = null;
+        // O servidor só devolve as atividades que o usuário pode ver.
+        var resultado = await Despachante.EnviarAsync(new ListarAtividades(Busca: _buscaDeAtividade));
+        if (await EncerradoAsync(resultado)) return;
+
+        var itens = resultado.Valor?.Itens ?? [];
+        _atividadesEncontradas = itens;
+        _nenhumaAtividade = resultado.Sucesso && itens.Count == 0;
+        _atividadesTruncadas = resultado.Sucesso && resultado.Valor!.Total > itens.Count;
+        if (!resultado.Sucesso) _mensagem = resultado.Mensagem;
+    }
+
+    private void EscolherAtividade(AtividadeResumo atividade)
+    {
+        _atividadeId = atividade.Id;
+        _atividadeTitulo = atividade.Titulo;
+        _atividadesEncontradas = [];
+        _nenhumaAtividade = false;
+        _atividadesTruncadas = false;
+        _buscaDeAtividade = null;
+    }
+
+    private void RemoverAtividade()
+    {
+        _atividadeId = null;
+        _atividadeTitulo = null;
+    }
+
+    private async Task SalvarAsync()
+    {
+        if (_salvando) return;
+
+        _salvando = true;
+        _mensagem = null;
+        try
+        {
+            if (_data is not { } data || _hora is not { } hora)
+            {
+                _mensagem = "Informe a data e a hora do evento.";
+                return;
+            }
+
+            // Só o que está marcado na tela é enviado; na edição a lista enviada é a que vale.
+            IReadOnlyList<Guid> participantes = [.. _pessoas.Where(p => _marcados.Contains(p.Id)).Select(p => p.Id)];
+            if (participantes.Count == 0)
+            {
+                _mensagem = "Marque ao menos um participante.";
+                return;
+            }
+
+            // Data e hora são do fuso do escritório; o servidor recebe UTC.
+            var inicio = Fuso.ParaUtc(data.ToDateTime(hora));
+
+            var resultado = await Despachante.EnviarAsync(new SalvarEvento(
+                EventoId, _titulo, _descricao, _local, _tipo, inicio, _duracao, _clienteId, _processoId, _atividadeId,
+                participantes,
+                // Na edição, a versão com que o formulário foi aberto; evento novo não tem.
+                EventoId is null ? null : Atual?.Versao));
+            if (await EncerradoAsync(resultado)) return;
+
+            if (!resultado.Sucesso)
+            {
+                // O formulário permanece aberto com o que foi digitado.
+                _mensagem = resultado.Mensagem;
+                // Evento alterado por outra pessoa (ou que sumiu): quem editava recarrega o registro.
+                if (EventoId is not null && (resultado.Erro is TipoErro.Conflito or TipoErro.NaoEncontrado))
+                    await OnConflito.InvokeAsync(resultado.Mensagem);
+                return;
+            }
+
+            var salvo = resultado.Valor!;
+            await OnSalvo.InvokeAsync(new EventoGravado(salvo.Id, salvo.Sobreposicoes, inicio));
+        }
+        finally
+        {
+            _salvando = false;
+        }
+    }
+}

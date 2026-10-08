@@ -1,0 +1,295 @@
+@page "/agenda"
+@inject IDespachante Despachante
+@inject FusoDoEscritorio Fuso
+
+<PageTitle>Agenda</PageTitle>
+
+<h1>Agenda</h1>
+
+@if (!_carregado)
+{
+    <p>Carregando…</p>
+}
+else if (_ator is null)
+{
+    <p class="erro">Seu acesso foi encerrado. Entre novamente.</p>
+}
+else
+{
+    <div class="acoes">
+        <button type="button" class="secundario" disabled="@_carregando" @onclick="SemanaAnteriorAsync">Semana anterior</button>
+        <button type="button" class="secundario" disabled="@_carregando" @onclick="IrParaHojeAsync">Hoje</button>
+        <button type="button" class="secundario" disabled="@_carregando" @onclick="ProximaSemanaAsync">Próxima semana</button>
+        <strong>Semana de @_segunda.ToString("dd/MM/yyyy") a @_segunda.AddDays(6).ToString("dd/MM/yyyy")</strong>
+    </div>
+
+    <EditForm Model="_filtro" OnSubmit="FiltrarAsync" FormName="filtro-agenda" class="formulario filtros">
+        <label>
+            Tipo
+            <InputSelect @bind-Value="_filtro.Tipo">
+                <option value="">Todos</option>
+                @foreach (var tipo in Enum.GetValues<TipoEvento>())
+                {
+                    <option value="@tipo">@RotulosDeAgenda.Tipo(tipo)</option>
+                }
+            </InputSelect>
+        </label>
+        @if (_ator.EhDiretoria)
+        {
+            <label>
+                Participante
+                <InputSelect @bind-Value="_filtro.ParticipanteId">
+                    <option value="">Todos</option>
+                    @foreach (var usuario in _usuarios)
+                    {
+                        <option value="@usuario.Id">@usuario.Nome</option>
+                    }
+                </InputSelect>
+            </label>
+        }
+        <button type="submit" disabled="@_carregando">Filtrar</button>
+    </EditForm>
+
+    @if (_mensagem is not null)
+    {
+        <p class="@_classeDaMensagem" role="status">@_mensagem</p>
+    }
+
+    <div class="acoes">
+        <button type="button" @onclick="Novo">Novo evento</button>
+    </div>
+
+    @if (_criando)
+    {
+        <FormularioDeEvento @key="_versaoDoFormulario" EventoId="null" OnSalvo="CriadoAsync"
+                            OnCancelado="CancelarCriacao" OnAcessoEncerrado="EncerrarAcesso" />
+    }
+
+    @if (_abertoId is { } id)
+    {
+        @* Os avisos levam o id da ficha que os enviou: o de uma ficha que já não é a aberta é ignorado. *@
+        <FichaDoEvento @key="id" EventoId="id" OnMudou="() => AtualizarListaAsync(id)" OnAcessoEncerrado="EncerrarAcesso"
+                       OnFechar="() => FecharFicha(id)" />
+    }
+
+    @if (_erroDaLista is not null)
+    {
+        @* Falha na consulta não é "semana sem eventos": mostra o erro no lugar dos dias. *@
+        <p class="erro">@_erroDaLista</p>
+        <div class="acoes">
+            <button type="button" class="secundario" disabled="@_carregando" @onclick="TentarDeNovoAsync">Tentar de novo</button>
+        </div>
+    }
+    else
+    {
+        @foreach (var (dia, eventos) in _dias)
+        {
+            <section class="dia" @key="dia">
+                <h2>@RotulosDeAgenda.Dia(dia)</h2>
+                @if (eventos.Count == 0)
+                {
+                    <p>Sem eventos.</p>
+                }
+                else
+                {
+                    <table>
+                        <thead>
+                            <tr><th>Horário</th><th>Título</th><th>Tipo</th><th>Local</th><th>Cliente</th><th>Processo</th><th>Participantes</th><th></th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var evento in eventos)
+                            {
+                                <tr @key="evento.Id">
+                                    <td class="horario">@RotulosDeAgenda.Intervalo(Fuso, evento, dia)</td>
+                                    <td>@evento.Titulo</td>
+                                    <td>@RotulosDeAgenda.Tipo(evento.Tipo)</td>
+                                    <td>@evento.Local</td>
+                                    <td>@evento.ClienteNome</td>
+                                    <td>@evento.ProcessoTitulo</td>
+                                    <td>@string.Join(", ", evento.Participantes)</td>
+                                    <td class="acoes">
+                                        <button type="button" class="secundario" @onclick="() => Abrir(evento.Id)">Abrir</button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </section>
+        }
+    }
+}
+
+@code {
+    private bool _carregado;
+    private bool _carregando;
+    private bool _criando;
+    private int _versaoDoFormulario;
+    private int _geracao;
+    private string? _mensagem;
+    private string _classeDaMensagem = "erro";
+    private string? _erroDaLista;
+    private UsuarioAutenticado? _ator;
+    private readonly Filtro _filtro = new();
+    private IReadOnlyList<UsuarioDaAgenda> _usuarios = [];
+    private DateOnly _segunda;
+    private IReadOnlyList<(DateOnly Dia, IReadOnlyList<EventoResumo> Eventos)> _dias = [];
+    private Guid? _abertoId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _segunda = SegundaDe(Hoje());
+        _ator = await Despachante.EnviarAsync(new ObterMeuAcesso());
+        if (_ator is not null)
+        {
+            if (_ator.EhDiretoria) await CarregarUsuariosAsync();
+            if (_ator is not null) await CarregarAsync();
+        }
+
+        _carregado = true;
+    }
+
+    /// <summary>O dia de hoje no fuso do escritório.</summary>
+    private DateOnly Hoje() => DateOnly.FromDateTime(Fuso.ParaLocal(DateTime.UtcNow));
+
+    /// <summary>A segunda-feira da semana do dia (a semana vai de segunda a domingo).</summary>
+    private static DateOnly SegundaDe(DateOnly dia) => dia.AddDays(-(((int)dia.DayOfWeek + 6) % 7));
+
+    private async Task CarregarUsuariosAsync()
+    {
+        var resultado = await Despachante.EnviarAsync(new ListarUsuariosParaAgenda());
+        if (AcessoEncerrado(resultado)) return;
+
+        _usuarios = resultado.Valor ?? [];
+        if (!resultado.Sucesso) Avisar(resultado.Mensagem ?? "Não foi possível consultar os usuários.", "erro");
+    }
+
+    private Task SemanaAnteriorAsync() => MudarSemanaAsync(_segunda.AddDays(-7));
+
+    private Task ProximaSemanaAsync() => MudarSemanaAsync(_segunda.AddDays(7));
+
+    private Task IrParaHojeAsync() => MudarSemanaAsync(SegundaDe(Hoje()));
+
+    private Task FiltrarAsync() => MudarSemanaAsync(_segunda);
+
+    private Task TentarDeNovoAsync() => MudarSemanaAsync(_segunda);
+
+    /// <summary>Troca de semana, novo filtro ou nova tentativa: o aviso de uma ação anterior não vale mais.</summary>
+    private async Task MudarSemanaAsync(DateOnly segunda)
+    {
+        if (_carregando) return;
+
+        _mensagem = null;
+        _segunda = segunda;
+        await CarregarAsync();
+    }
+
+    /// <summary>Consulta a semana atual; devolve se a agenda ficou mostrando dados atuais.</summary>
+    private async Task<bool> CarregarAsync()
+    {
+        // Uma resposta que chega depois de outra consulta mais nova é descartada.
+        var geracao = ++_geracao;
+        var segunda = _segunda;
+        _carregando = true;
+        try
+        {
+            var resultado = await Despachante.EnviarAsync(new ListarEventos(
+                Fuso.InicioDoDiaEmUtc(segunda), Fuso.InicioDoDiaEmUtc(segunda.AddDays(7)),
+                _ator?.EhDiretoria == true ? _filtro.ParticipanteId : null, _filtro.Tipo));
+            if (geracao != _geracao) return false;
+            if (AcessoEncerrado(resultado)) return false;
+
+            if (resultado.Valor is not { } eventos)
+            {
+                // Dados antigos não ficam na tela depois de uma falha.
+                _dias = [];
+                _erroDaLista = resultado.Mensagem ?? "Não foi possível consultar a agenda.";
+                return false;
+            }
+
+            _erroDaLista = null;
+            _dias = [.. Enumerable.Range(0, 7).Select(i =>
+            {
+                var dia = segunda.AddDays(i);
+                return (dia, (IReadOnlyList<EventoResumo>)[.. eventos.Where(e => RotulosDeAgenda.TocaODia(Fuso, e, dia))]);
+            })];
+            return true;
+        }
+        finally
+        {
+            if (geracao == _geracao) _carregando = false;
+        }
+    }
+
+    /// <summary>A ficha avisou que algo mudou: a semana é recarregada. Aviso de uma ficha que já não é a aberta é ignorado.</summary>
+    private async Task AtualizarListaAsync(Guid idDaFicha)
+    {
+        if (_abertoId != idDaFicha) return;
+
+        await CarregarAsync();
+    }
+
+    private void Abrir(Guid id) => _abertoId = id;
+
+    private void FecharFicha(Guid idDaFicha)
+    {
+        if (_abertoId == idDaFicha) _abertoId = null;
+    }
+
+    private void Novo()
+    {
+        _mensagem = null;
+        _versaoDoFormulario++;   // formulário novo, vazio, mesmo que o anterior ainda estivesse aberto
+        _criando = true;
+    }
+
+    private void CancelarCriacao() => _criando = false;
+
+    private async Task CriadoAsync(EventoGravado gravado)
+    {
+        _criando = false;
+        _abertoId = gravado.Id;
+
+        // Mostra a semana em que o evento caiu, para quem criou vê-lo.
+        _segunda = SegundaDe(DateOnly.FromDateTime(Fuso.ParaLocal(gravado.InicioEm)));
+        var atualizada = await CarregarAsync();
+        if (_ator is null) return;
+
+        // O evento foi gravado; a sobreposição é só um aviso.
+        var salvo = RotulosDeAgenda.MensagemDeSalvo(Fuso, gravado.Sobreposicoes);
+        if (!atualizada) Avisar($"{salvo} Não foi possível atualizar a agenda.", "erro");
+        else Avisar(salvo, gravado.Sobreposicoes.Count == 0 ? "ok" : "aviso");
+    }
+
+    /// <summary>Uma resposta de acesso negado encerra a tela: nada do que estava aberto continua visível.</summary>
+    private bool AcessoEncerrado(Resultado resultado)
+    {
+        if (resultado.Erro != TipoErro.AcessoNegado) return false;
+
+        EncerrarAcesso();
+        return true;
+    }
+
+    private void EncerrarAcesso()
+    {
+        _ator = null;
+        _dias = [];
+        _usuarios = [];
+        _erroDaLista = null;
+        _criando = false;
+        _abertoId = null;
+        _mensagem = null;
+    }
+
+    private void Avisar(string? mensagem, string classe)
+    {
+        _mensagem = mensagem;
+        _classeDaMensagem = classe;
+    }
+
+    private sealed class Filtro
+    {
+        public TipoEvento? Tipo { get; set; }
+        public Guid? ParticipanteId { get; set; }
+    }
+}

@@ -20,6 +20,7 @@ th, td { padding: .5rem .75rem; border-bottom: 1px solid var(--borda); text-alig
 .acoes { display: flex; gap: .5rem; }
 .erro, .validation-message { color: var(--erro); }
 .ok { color: var(--ok); }
+.aviso { color: #93370d; }
 .inativo { opacity: .55; }
 
 #blazor-error-ui {

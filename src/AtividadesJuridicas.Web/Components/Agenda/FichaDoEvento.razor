@@ -1,0 +1,305 @@
+@inject IDespachante Despachante
+@inject FusoDoEscritorio Fuso
+
+<section class="ficha">
+    @if (_mensagem is not null)
+    {
+        <p class="@_classeDaMensagem" role="status">@_mensagem</p>
+    }
+
+    @if (!_carregado)
+    {
+        <p>Carregando…</p>
+    }
+    else if (_naoEncontrado)
+    {
+        <p>Evento não encontrado.</p>
+        <div class="acoes"><button type="button" class="secundario" @onclick="FecharAsync">Fechar</button></div>
+    }
+    else if (_detalhe is not { } e)
+    {
+        @* Falha ao consultar: nunca é apresentada como uma ficha vazia. *@
+        <p class="erro">@(_erroDeCarga ?? "Não foi possível consultar o evento.")</p>
+        <div class="acoes">
+            <button type="button" class="secundario" disabled="@_ocupado" @onclick="TentarDeNovoAsync">Tentar de novo</button>
+            <button type="button" class="secundario" @onclick="FecharAsync">Fechar</button>
+        </div>
+    }
+    else
+    {
+        <h2>@e.Titulo</h2>
+        <dl>
+            <dt>Tipo</dt><dd>@RotulosDeAgenda.Tipo(e.Tipo)</dd>
+            <dt>Início</dt><dd>@Fuso.Formatar(e.InicioEm)</dd>
+            <dt>Fim</dt><dd>@Fuso.Formatar(e.FimEm)</dd>
+            <dt>Duração</dt><dd>@e.DuracaoEstimadaMinutos minutos</dd>
+            <dt>Local</dt><dd>@(e.Local ?? "—")</dd>
+            <dt>Descrição</dt><dd class="texto-livre">@e.Descricao</dd>
+            <dt>Cliente</dt><dd>@(e.ClienteId is null ? "—" : e.ClienteNome ?? "Cliente indisponível")</dd>
+            <dt>Processo</dt><dd>@(e.ProcessoId is null ? "—" : e.ProcessoTitulo ?? "Processo indisponível")</dd>
+            <dt>Atividade</dt><dd>@(e.AtividadeId is null ? "—" : e.AtividadeTitulo ?? RotulosDeAgenda.AtividadeSemAcesso)</dd>
+            <dt>Criado por</dt><dd>@(e.CriadorNome ?? "Usuário não encontrado")</dd>
+        </dl>
+
+        <h3>Participantes</h3>
+        <ul>
+            @foreach (var p in e.Participantes)
+            {
+                <li @key="p.UsuarioId">@(p.Nome ?? "Usuário não encontrado")@(p.Ativo ? "" : " (inativo)")</li>
+            }
+        </ul>
+
+        @if (!_editando)
+        {
+            <div class="acoes">
+                @if (e.Acoes.Editar)
+                {
+                    <button type="button" class="secundario" disabled="@_ocupado" @onclick="AbrirEdicaoAsync">Editar</button>
+                }
+                @if (e.Acoes.Excluir)
+                {
+                    @if (_confirmandoExclusao)
+                    {
+                        <button type="button" disabled="@_ocupado" @onclick="ExcluirAsync">Confirmar exclusão</button>
+                        <button type="button" class="secundario" disabled="@_ocupado" @onclick="CancelarExclusao">Cancelar</button>
+                    }
+                    else
+                    {
+                        <button type="button" class="secundario" disabled="@_ocupado" @onclick="PedirExclusao">Excluir</button>
+                    }
+                }
+                <button type="button" class="secundario" disabled="@_ocupado" @onclick="FecharAsync">Fechar</button>
+            </div>
+        }
+        else
+        {
+            <FormularioDeEvento EventoId="e.Id" Atual="e" OnSalvo="EdicaoSalvaAsync" OnConflito="ConflitoAsync"
+                                OnCancelado="FecharEdicao" OnAcessoEncerrado="EncerrarAcessoAsync" />
+        }
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired] public Guid EventoId { get; set; }
+
+    /// <summary>Avisado quando algo no evento mudou: a agenda da página precisa ser recarregada.</summary>
+    [Parameter] public EventCallback OnMudou { get; set; }
+
+    /// <summary>Avisado quando um caso de uso responde acesso negado: a página decide o que mostrar.</summary>
+    [Parameter] public EventCallback OnAcessoEncerrado { get; set; }
+
+    [Parameter] public EventCallback OnFechar { get; set; }
+
+    private bool _carregado;
+    private bool _naoEncontrado;
+    private bool _ocupado;
+    private bool _acessoEncerrado;
+    private bool _editando;
+    private bool _confirmandoExclusao;
+    private string? _mensagem;
+    private string _classeDaMensagem = "erro";
+    private string? _erroDeCarga;
+    private EventoDetalhe? _detalhe;
+
+    // A versão do registro com que a confirmação de exclusão foi pedida.
+    private uint _versaoDaConfirmacao;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarAsync();
+        _carregado = true;
+    }
+
+    /// <summary>Consulta o evento; devolve se a ficha ficou mostrando dados atuais.</summary>
+    private async Task<bool> CarregarAsync()
+    {
+        var resultado = await Despachante.EnviarAsync(new ObterEvento(EventoId));
+        _erroDeCarga = null;
+        _naoEncontrado = false;
+        _acessoEncerrado = false;
+
+        if (resultado.Erro == TipoErro.AcessoNegado)
+        {
+            await EncerrarAcessoAsync();
+            return false;
+        }
+
+        if (resultado.Erro == TipoErro.NaoEncontrado)
+        {
+            // Normal: o evento foi excluído ou o usuário deixou de enxergá-lo.
+            _detalhe = null;
+            _naoEncontrado = true;
+            _editando = false;
+            _confirmandoExclusao = false;
+            return false;
+        }
+
+        if (resultado.Valor is not { } detalhe)
+        {
+            // Dados antigos não ficam na tela depois de uma falha: as ações dependem do que o servidor permite agora.
+            _detalhe = null;
+            _editando = false;
+            _confirmandoExclusao = false;
+            _erroDeCarga = resultado.Mensagem;
+            return false;
+        }
+
+        _detalhe = detalhe;
+        return true;
+    }
+
+    private async Task EncerrarAcessoAsync()
+    {
+        _acessoEncerrado = true;
+        _detalhe = null;
+        _editando = false;
+        _confirmandoExclusao = false;
+        _mensagem = null;
+        await OnAcessoEncerrado.InvokeAsync();
+    }
+
+    private async Task TentarDeNovoAsync()
+    {
+        if (_ocupado) return;
+
+        _ocupado = true;
+        _mensagem = null;
+        try
+        {
+            await CarregarAsync();
+        }
+        finally
+        {
+            _ocupado = false;
+        }
+    }
+
+    private async Task FecharAsync() => await OnFechar.InvokeAsync();
+
+    private void Avisar(string? mensagem, string classe)
+    {
+        _mensagem = mensagem;
+        _classeDaMensagem = classe;
+    }
+
+    // Métodos, e não lambdas de atribuição, nos @onclick: a confirmação tem regra.
+    private void PedirExclusao()
+    {
+        _versaoDaConfirmacao = _detalhe!.Versao;
+        _confirmandoExclusao = true;
+    }
+
+    private void CancelarExclusao() => _confirmandoExclusao = false;
+
+    private void FecharEdicao()
+    {
+        if (_ocupado) return;
+        _mensagem = null;
+        _editando = false;
+    }
+
+    /// <summary>
+    /// A edição nunca abre em cima de uma foto velha do evento: o registro é consultado de novo (sob a trava de uma
+    /// ação por vez) e o formulário só abre se editar ainda é permitido; senão, só a ficha atualizada aparece.
+    /// </summary>
+    private async Task AbrirEdicaoAsync()
+    {
+        if (_ocupado || _detalhe is null) return;
+
+        _ocupado = true;
+        _mensagem = null;
+        _confirmandoExclusao = false;
+        try
+        {
+            var atualizada = await CarregarAsync();
+            if (_acessoEncerrado || !atualizada) return;   // a ficha já mostra o erro, o "não encontrado" ou foi encerrada
+
+            if (!_detalhe!.Acoes.Editar)
+            {
+                _editando = false;
+                Avisar("O evento mudou. Confira os dados atualizados.", "erro");
+                await OnMudou.InvokeAsync();
+                return;
+            }
+
+            _editando = true;
+        }
+        finally
+        {
+            _ocupado = false;
+        }
+    }
+
+    private async Task ExcluirAsync()
+    {
+        if (_ocupado) return;
+
+        _ocupado = true;
+        _mensagem = null;
+        var versao = _versaoDaConfirmacao;
+        try
+        {
+            var resultado = await Despachante.EnviarAsync(new ExcluirEvento(EventoId, versao));
+            if (resultado.Erro == TipoErro.AcessoNegado)
+            {
+                await EncerrarAcessoAsync();
+                return;
+            }
+
+            if (!resultado.Sucesso)
+            {
+                // Qualquer recusa traz a ficha como está agora, para os botões acompanharem o servidor.
+                _confirmandoExclusao = false;
+                await RecarregarAposFalhaAsync(resultado.Mensagem);
+                return;
+            }
+
+            await OnMudou.InvokeAsync();
+            await OnFechar.InvokeAsync();
+        }
+        finally
+        {
+            _ocupado = false;
+        }
+    }
+
+    // O formulário faz a própria chamada; aqui só se reage ao que ele avisa.
+    private async Task EdicaoSalvaAsync(EventoGravado gravado)
+    {
+        // A nova consulta também roda sob a trava: nenhum botão age enquanto a ficha é recarregada.
+        _ocupado = true;
+        _mensagem = null;
+        _editando = false;
+        try
+        {
+            var atualizada = await CarregarAsync();
+            if (_acessoEncerrado) return;
+
+            // O evento foi gravado; a sobreposição é só um aviso.
+            var salvo = RotulosDeAgenda.MensagemDeSalvo(Fuso, gravado.Sobreposicoes);
+            if (!atualizada) Avisar($"{salvo} Não foi possível atualizar a ficha.", "erro");
+            else Avisar(salvo, gravado.Sobreposicoes.Count == 0 ? "ok" : "aviso");
+            await OnMudou.InvokeAsync();
+        }
+        finally
+        {
+            _ocupado = false;
+        }
+    }
+
+    /// <summary>O formulário descobriu que o evento mudou ou sumiu: o painel fecha e a ficha mostra o que o servidor diz.</summary>
+    private async Task ConflitoAsync(string? mensagem)
+    {
+        _editando = false;
+        await RecarregarAposFalhaAsync(mensagem);
+    }
+
+    private async Task RecarregarAposFalhaAsync(string? mensagem)
+    {
+        await CarregarAsync();
+        if (_acessoEncerrado) return;
+
+        Avisar(mensagem, "erro");
+        await OnMudou.InvokeAsync();
+    }
+}
