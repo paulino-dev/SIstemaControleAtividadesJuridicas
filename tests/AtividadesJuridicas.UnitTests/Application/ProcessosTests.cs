@@ -339,4 +339,27 @@ public class ProcessosTests
         obter.Acao.Should().Be(AcaoDeAcesso.Visualizou);
         obter.RecursoId.Should().Be(id);
     }
+
+    private sealed class UnidadeQueConflita : IUnidadeDeTrabalho
+    {
+        public Task SalvarAsync(CancellationToken ct) => throw new ExcecaoDeConcorrencia("outro");
+    }
+
+    [Fact]
+    public async Task Concorrencia_vira_conflito_com_mensagem_de_recarregar()
+    {
+        var criado = await Salvar(_c.Diretor, null);
+        const string mensagem = "O processo foi alterado por outra pessoa. Recarregue e tente novamente.";
+
+        var salvar = await new SalvarProcessoManipulador(
+                _c.Como(_c.Diretor), _c.Processos, _c.Areas, _c.Clientes, new UnidadeQueConflita(), _c.Auditoria)
+            .ManipularAsync(new SalvarProcesso(criado.Valor, Dados("Novo título"), Vinculos((_maria, PoloProcessual.Ativo))), default);
+        var status = await new AlterarStatusProcessoManipulador(_c.Como(_c.Diretor), _c.Processos, new UnidadeQueConflita())
+            .ManipularAsync(new AlterarStatusProcesso(criado.Valor, StatusProcesso.Encerrado), default);
+
+        salvar.Erro.Should().Be(TipoErro.Conflito);
+        salvar.Mensagem.Should().Be(mensagem);
+        status.Erro.Should().Be(TipoErro.Conflito);
+        status.Mensagem.Should().Be(mensagem);
+    }
 }

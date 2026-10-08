@@ -19,6 +19,7 @@ public sealed class SalvarProcessoManipulador(
     IUnidadeDeTrabalho unidade,
     IAuditoria auditoria) : IManipulador<SalvarProcesso, Resultado<Guid>>
 {
+    private const string ProcessoAlterado = "O processo foi alterado por outra pessoa. Recarregue e tente novamente.";
     private const string NumeroEmUso = "Já existe um processo com este número.";
 
     public async Task<Resultado<Guid>> ManipularAsync(SalvarProcesso requisicao, CancellationToken ct)
@@ -95,6 +96,10 @@ public sealed class SalvarProcessoManipulador(
         catch (ExcecaoDeDominio ex)
         {
             return Falha(TipoErro.Validacao, ex.Message);
+        }
+        catch (ExcecaoDeConcorrencia)
+        {
+            return Falha(TipoErro.Conflito, ProcessoAlterado);
         }
         catch (ExcecaoDeConflito ex)
         {

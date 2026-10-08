@@ -338,4 +338,66 @@ public class ProcessosTests(BancoFixture banco) : TesteComBanco(banco)
         auditoria.Count(r => r.Operacao == OperacaoAuditada.Exclusao && r.Entidade == "Processo").Should().Be(1);
         await CriarAsync();
     }
+
+    [Fact]
+    public async Task Banco_recusa_apagar_fisicamente_um_processo_com_vinculos()
+    {
+        var id = await CriarAsync();
+
+        var apagar = () => EmEscopoAsync(null, async sp =>
+        {
+            await sp.GetRequiredService<AppDbContext>().Database
+                .ExecuteSqlInterpolatedAsync($"DELETE FROM processos WHERE id = {id}");
+            return 0;
+        });
+
+        var erro = await apagar.Should().ThrowAsync<Exception>();
+        erro.Which.ToString().Should().Contain("23503");
+        (await VinculosNoBancoAsync(id)).Should().HaveCount(2);
+        (await ExecutarAsync(_admin, new ObterProcesso(id))).Sucesso.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Edicoes_concorrentes_dos_clientes_nao_deixam_o_processo_sem_cliente()
+    {
+        var id = await CriarAsync(); // maria e acme
+
+        // Dois escopos vivos ao mesmo tempo: EmEscopoAsync aninhado, cada chamada cria o seu.
+        await EmEscopoAsync(_admin, async spA =>
+        {
+            var processo = (await spA.GetRequiredService<IProcessoRepositorio>().ObterPorIdAsync(id, default))!;
+            processo.DefinirClientes([new ClienteDoProcesso(_maria, PoloProcessual.Ativo)]);
+
+            var emB = await ExecutarAsync(_admin, new SalvarProcesso(id, Dados(), Vinculos((_acme, PoloProcessual.Passivo))));
+            emB.Sucesso.Should().BeTrue(emB.Mensagem);
+
+            var salvarA = () => spA.GetRequiredService<IUnidadeDeTrabalho>().SalvarAsync(default);
+            await salvarA.Should().ThrowAsync<ExcecaoDeConcorrencia>();
+            return 0;
+        });
+
+        var vivos = (await VinculosNoBancoAsync(id)).Where(v => v.ExcluidoEm == null).ToList();
+        vivos.Should().ContainSingle().Which.ClienteId.Should().Be(_acme);
+    }
+
+    [Fact]
+    public async Task Editar_so_os_clientes_carimba_o_processo_sem_registro_de_alteracao_dele()
+    {
+        var id = await CriarAsync();
+        var antes = await EmEscopoAsync(null, sp => sp.GetRequiredService<AppDbContext>().Processos.AsNoTracking()
+            .SingleAsync(p => p.Id == id));
+        antes.AtualizadoEm.Should().BeNull();
+
+        await ExecutarAsync(_admin, new SalvarProcesso(id, Dados(), Vinculos((_maria, PoloProcessual.Terceiro))));
+
+        var depois = await EmEscopoAsync(null, sp => sp.GetRequiredService<AppDbContext>().Processos.AsNoTracking()
+            .SingleAsync(p => p.Id == id));
+        depois.AtualizadoEm.Should().NotBeNull();
+        depois.AtualizadoPor.Should().Be(_admin);
+        depois.VersaoDosVinculos.Should().Be(1);
+
+        var doProcesso = (await AuditoriaAsync()).Where(r => r.Entidade == "Processo" && r.EntidadeId == id).ToList();
+        doProcesso.Should().NotContain(r => r.Operacao == OperacaoAuditada.Alteracao);
+        doProcesso.Should().ContainSingle(r => r.Evento == EventosDeCadastro.ClientesDoProcessoAlterados);
+    }
 }

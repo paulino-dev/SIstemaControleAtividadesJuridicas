@@ -46,6 +46,17 @@ public sealed class Processo : Entidade
     public decimal? ValorCausa { get; private set; }
     public string? Observacoes { get; private set; }
 
+    /// <summary>Versão da linha, mantida pelo banco (controle de concorrência otimista).</summary>
+    [NaoAuditar]
+    public uint Versao { get; private set; }
+
+    /// <summary>
+    /// Aumenta quando os vínculos mudam. Serve só para que uma alteração apenas nos vínculos também
+    /// grave a linha do processo, acionando a verificação de concorrência e o carimbo de atualização.
+    /// </summary>
+    [NaoAuditar]
+    public int VersaoDosVinculos { get; private set; }
+
     public IReadOnlyCollection<ProcessoCliente> Clientes => _clientes;
 
     public static Processo Criar(DadosDoProcesso dados, IReadOnlyCollection<ClienteDoProcesso> clientes)
@@ -96,7 +107,9 @@ public sealed class Processo : Entidade
             }
         }
 
-        return new AlteracaoDeClientes(adicionados, [.. removidos.Select(v => v.ClienteId)], poloAlterado);
+        var alteracao = new AlteracaoDeClientes(adicionados, [.. removidos.Select(v => v.ClienteId)], poloAlterado);
+        if (alteracao.Houve) VersaoDosVinculos++;
+        return alteracao;
     }
 
     public void AlterarStatus(StatusProcesso status)

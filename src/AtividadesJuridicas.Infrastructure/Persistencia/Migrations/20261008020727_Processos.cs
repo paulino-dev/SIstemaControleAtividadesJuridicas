@@ -26,6 +26,7 @@ namespace AtividadesJuridicas.Infrastructure.Persistencia.Migrations
                     data_distribuicao = table.Column<DateOnly>(type: "date", nullable: true),
                     valor_causa = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: true),
                     observacoes = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true),
+                    versao_dos_vinculos = table.Column<int>(type: "integer", nullable: false, defaultValue: 0),
                     criado_em = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     criado_por = table.Column<Guid>(type: "uuid", nullable: true),
                     atualizado_em = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
@@ -72,8 +73,7 @@ namespace AtividadesJuridicas.Infrastructure.Persistencia.Migrations
                         name: "fk_processos_clientes_processos_processo_id",
                         column: x => x.processo_id,
                         principalTable: "processos",
-                        principalColumn: "id",
-                        onDelete: ReferentialAction.Cascade);
+                        principalColumn: "id");
                 });
 
             migrationBuilder.CreateIndex(

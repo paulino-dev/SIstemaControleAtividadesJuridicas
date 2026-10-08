@@ -29,6 +29,10 @@ public sealed class AlterarStatusProcessoManipulador(
             await unidade.SalvarAsync(ct);
             return Resultado.Ok();
         }
+        catch (ExcecaoDeConcorrencia)
+        {
+            return Resultado.Falha(TipoErro.Conflito, "O processo foi alterado por outra pessoa. Recarregue e tente novamente.");
+        }
         catch (ExcecaoDeDominio ex)
         {
             return Resultado.Falha(TipoErro.Validacao, ex.Message);

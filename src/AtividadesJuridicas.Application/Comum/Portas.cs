@@ -18,3 +18,6 @@ public sealed class ExcecaoDeConflito(string mensagem, Exception? interna = null
     /// <summary>Nome da restrição de unicidade violada, quando o banco o informa.</summary>
     public string? Restricao { get; } = restricao;
 }
+
+/// <summary>O registro foi alterado por outra pessoa desde que foi lido.</summary>
+public sealed class ExcecaoDeConcorrencia(string mensagem, Exception? interna = null) : Exception(mensagem, interna);

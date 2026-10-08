@@ -19,6 +19,9 @@ public sealed class ProcessoConfiguracao : IEntityTypeConfiguration<Processo>
         b.Property(p => p.Comarca).HasMaxLength(Processo.TamanhoMaximoComarca);
         b.Property(p => p.ParteContraria).HasMaxLength(Processo.TamanhoMaximoParteContraria);
         b.Property(p => p.ValorCausa).HasPrecision(18, 2);
+        // xmin é coluna de sistema do PostgreSQL: não cria coluna, só dá o token de concorrência.
+        b.Property(p => p.Versao).HasColumnName("xmin").HasColumnType("xid").ValueGeneratedOnAddOrUpdate().IsConcurrencyToken();
+        b.Property(p => p.VersaoDosVinculos).HasDefaultValue(0);
         b.Property(p => p.Observacoes).HasMaxLength(Processo.TamanhoMaximoObservacoes);
 
         // Único só entre os processos que têm número e não foram excluídos.
@@ -27,10 +30,10 @@ public sealed class ProcessoConfiguracao : IEntityTypeConfiguration<Processo>
 
         b.HasOne<AreaAtuacao>().WithMany().HasForeignKey(p => p.AreaAtuacaoId).OnDelete(DeleteBehavior.Restrict);
 
-        // Os vínculos são gravados pelo campo privado da coleção. O comportamento Cascade faz o EF
+        // Os vínculos são gravados pelo campo privado da coleção. O comportamento ClientCascade (sem cascata no banco) faz o EF
         // marcar como excluído o vínculo retirado da coleção (ou o de um processo excluído); o
         // interceptor de carimbos converte essa exclusão em exclusão lógica.
-        b.HasMany(p => p.Clientes).WithOne().HasForeignKey(v => v.ProcessoId).OnDelete(DeleteBehavior.Cascade);
+        b.HasMany(p => p.Clientes).WithOne().HasForeignKey(v => v.ProcessoId).OnDelete(DeleteBehavior.ClientCascade);
         b.Navigation(p => p.Clientes).HasField("_clientes").UsePropertyAccessMode(PropertyAccessMode.Field);
     }
 }

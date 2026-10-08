@@ -172,4 +172,20 @@ public class ProcessoTests
         var acao = () => processo.AlterarStatus((StatusProcesso)99);
         acao.Should().Throw<ExcecaoDeDominio>();
     }
+
+    [Fact]
+    public void Versao_dos_vinculos_aumenta_so_quando_os_vinculos_mudam()
+    {
+        var processo = Processo.Criar(Dados(), Clientes((Maria, PoloProcessual.Ativo), (Acme, PoloProcessual.Passivo)));
+        processo.VersaoDosVinculos.Should().Be(0);
+
+        processo.DefinirClientes(Clientes((Acme, PoloProcessual.Passivo), (Maria, PoloProcessual.Ativo)));
+        processo.VersaoDosVinculos.Should().Be(0, "nada mudou");
+
+        processo.DefinirClientes(Clientes((Maria, PoloProcessual.Terceiro), (Acme, PoloProcessual.Passivo)));
+        processo.VersaoDosVinculos.Should().Be(1);
+
+        processo.DefinirClientes(Clientes((Maria, PoloProcessual.Terceiro)));
+        processo.VersaoDosVinculos.Should().Be(2);
+    }
 }

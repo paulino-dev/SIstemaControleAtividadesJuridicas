@@ -13,6 +13,10 @@ public sealed class UnidadeDeTrabalho(AppDbContext db) : IUnidadeDeTrabalho
         {
             await db.SaveChangesAsync(ct);
         }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            throw new ExcecaoDeConcorrencia("O registro foi alterado por outra pessoa.", ex);
+        }
         catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation } pg)
         {
             throw new ExcecaoDeConflito("Já existe um registro com o mesmo valor único.", ex, pg.ConstraintName);

@@ -13,7 +13,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AtividadesJuridicas.Infrastructure.Persistencia.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20261008012933_Processos")]
+    [Migration("20261008020727_Processos")]
     partial class Processos
     {
         /// <inheritdoc />
@@ -383,6 +383,18 @@ namespace AtividadesJuridicas.Infrastructure.Persistencia.Migrations
                         .HasColumnType("numeric(18,2)")
                         .HasColumnName("valor_causa");
 
+                    b.Property<uint>("Versao")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.Property<int>("VersaoDosVinculos")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("versao_dos_vinculos");
+
                     b.HasKey("Id")
                         .HasName("pk_processos");
 
@@ -695,7 +707,7 @@ namespace AtividadesJuridicas.Infrastructure.Persistencia.Migrations
                     b.HasOne("AtividadesJuridicas.Domain.Cadastros.Processo", null)
                         .WithMany("Clientes")
                         .HasForeignKey("ProcessoId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.ClientCascade)
                         .IsRequired()
                         .HasConstraintName("fk_processos_clientes_processos_processo_id");
                 });
