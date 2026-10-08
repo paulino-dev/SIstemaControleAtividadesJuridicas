@@ -35,7 +35,7 @@ else
                     <td>@(perfil.Ativo ? "Ativo" : "Inativo")</td>
                     <td class="acoes">
                         <button type="button" class="secundario" @onclick="() => Editar(perfil)">Renomear</button>
-                        <button type="button" class="secundario" @onclick="() => AlternarAtivoAsync(perfil)">
+                        <button type="button" class="secundario" disabled="@_salvando" @onclick="() => AlternarAtivoAsync(perfil)">
                             @(perfil.Ativo ? "Inativar" : "Ativar")
                         </button>
                     </td>
@@ -65,7 +65,7 @@ else
             <p>O tipo não pode ser mudado depois. Um perfil novo passa a acessar todos os Documentos Gerais já existentes; um perfil de Diretoria acessa tudo, inclusive os Contratos de Honorários.</p>
         }
         <div class="acoes">
-            <button type="submit">Salvar</button>
+            <button type="submit" disabled="@_salvando">Salvar</button>
             <button type="button" class="secundario" @onclick="Limpar">Cancelar</button>
         </div>
     </EditForm>
@@ -75,6 +75,7 @@ else
     private bool _carregado;
     private bool _autorizado;
     private bool _falhou;
+    private bool _salvando;
     private string? _mensagem;
     private IReadOnlyList<PerfilDetalhe> _perfis = [];
     private Formulario _form = new();
@@ -98,10 +99,13 @@ else
             return false;
         }
 
-        _perfis = resultado.Valor ?? [];
-        if (resultado.Sucesso) return true;
+        // Falha na recarga não apaga a lista que já está na tela.
+        if (resultado.Sucesso && resultado.Valor is { } lista)
+        {
+            _perfis = lista;
+            return true;
+        }
 
-        // Falha que não é de acesso: mostra o motivo em vez de uma lista vazia sem explicação.
         _falhou = true;
         _mensagem = resultado.Mensagem;
         return false;
@@ -121,14 +125,35 @@ else
 
     private async Task SalvarAsync()
     {
-        var resultado = await Despachante.EnviarAsync(new SalvarPerfil(_form.Id, _form.Nome, _form.Tipo));
-        if (await ConcluirAsync(resultado, "Perfil salvo.")) _form = new Formulario();
+        // Um segundo clique enquanto o primeiro não terminou recriaria o perfil e acusaria nome repetido.
+        if (_salvando) return;
+
+        _salvando = true;
+        try
+        {
+            var resultado = await Despachante.EnviarAsync(new SalvarPerfil(_form.Id, _form.Nome, _form.Tipo));
+            if (await ConcluirAsync(resultado, "Perfil salvo.")) _form = new Formulario();
+        }
+        finally
+        {
+            _salvando = false;
+        }
     }
 
     private async Task AlternarAtivoAsync(PerfilDetalhe perfil)
     {
-        var resultado = await Despachante.EnviarAsync(new DefinirAtivoPerfil(perfil.Id, !perfil.Ativo));
-        await ConcluirAsync(resultado, perfil.Ativo ? "Perfil inativado." : "Perfil ativado.");
+        if (_salvando) return;
+
+        _salvando = true;
+        try
+        {
+            var resultado = await Despachante.EnviarAsync(new DefinirAtivoPerfil(perfil.Id, !perfil.Ativo));
+            await ConcluirAsync(resultado, perfil.Ativo ? "Perfil inativado." : "Perfil ativado.");
+        }
+        finally
+        {
+            _salvando = false;
+        }
     }
 
     // Verdadeiro quando a ação deu certo.
@@ -148,11 +173,16 @@ else
             return false;
         }
 
-        // A mensagem de sucesso não pode esconder uma falha na recarga da lista.
+        // A ação deu certo; se só a recarga falhou, o aviso diz isso e a lista anterior fica na tela.
         if (await RecarregarAsync())
         {
             _falhou = false;
             _mensagem = mensagemDeSucesso;
+        }
+        else if (_autorizado)
+        {
+            _falhou = true;
+            _mensagem = $"{mensagemDeSucesso.TrimEnd('.')}, mas não foi possível atualizar a lista.";
         }
         return true;
     }

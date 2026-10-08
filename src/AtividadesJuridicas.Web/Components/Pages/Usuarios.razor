@@ -40,7 +40,7 @@ else
                 <tr class="@(usuario.Ativo ? null : "inativo")" @key="usuario.Id">
                     <td>@usuario.Nome</td>
                     <td>@usuario.Email</td>
-                    <td>@usuario.PerfilNome</td>
+                    <td>@RotuloDoPerfilDe(usuario)</td>
                     <td>@usuario.NumeroOab</td>
                     <td>@Fuso.Formatar(usuario.UltimoAcessoEm)</td>
                     <td>@(usuario.Ativo ? "Ativo" : "Inativo")</td>
@@ -75,11 +75,24 @@ else
         <label>
             Perfil
             <InputSelect @bind-Value="_form.PerfilId">
-                @foreach (var perfil in _perfis)
+                @if (_form.PerfilId is null)
                 {
-                    <option value="@perfil.Id">@perfil.Nome</option>
+                    <option value="">Selecione…</option>
+                }
+                @if (_perfilInativoAtual is { } inativo)
+                {
+                    <option value="@inativo.Id">@Rotulo(inativo)</option>
+                }
+                @foreach (var perfil in _perfis.Where(p => p.Ativo))
+                {
+                    <option value="@perfil.Id">@Rotulo(perfil)</option>
                 }
             </InputSelect>
+            <ValidationMessage For="() => _form.PerfilId" />
+            @if (_perfilInativoAtual is { } atual && _form.PerfilId == atual.Id)
+            {
+                <small>O perfil atual está inativo. Escolha um perfil ativo para poder reativar o usuário.</small>
+            }
         </label>
 
         <label>
@@ -105,7 +118,8 @@ else
     private bool _falhou;
     private string? _mensagem;
     private IReadOnlyList<UsuarioResumo> _usuarios = [];
-    private IReadOnlyList<PerfilResumo> _perfis = [];
+    private IReadOnlyList<PerfilDetalhe> _perfis = [];
+    private PerfilDetalhe? _perfilInativoAtual;
     private Formulario _form = new();
 
     protected override async Task OnInitializedAsync()
@@ -113,7 +127,7 @@ else
         _autorizado = await Despachante.EnviarAsync(new ObterMeuAcesso()) is { EhDiretoria: true };
         if (_autorizado)
         {
-            _perfis = (await Despachante.EnviarAsync(new ListarPerfisAtivos())).Valor ?? [];
+            _perfis = (await Despachante.EnviarAsync(new ListarPerfis())).Valor ?? [];
             await RecarregarAsync();
             Limpar();
         }
@@ -127,12 +141,27 @@ else
         _usuarios = resultado.Valor ?? [];
     }
 
-    private void Limpar() =>
-        _form = new Formulario { PerfilId = _perfis.Count > 0 ? _perfis[0].Id : Guid.Empty };
+    // Usuário novo começa em um perfil de Produção; sem nenhum, nada é escolhido por ele.
+    private void Limpar()
+    {
+        _perfilInativoAtual = null;
+        _form = new Formulario { PerfilId = _perfis.FirstOrDefault(p => p.Ativo && p.Tipo == TipoPerfil.Producao)?.Id };
+    }
+
+    private static string Rotulo(PerfilDetalhe perfil) =>
+        $"{perfil.Nome} ({(perfil.Tipo == TipoPerfil.Diretoria ? "Diretoria" : "Produção")}{(perfil.Ativo ? "" : " — inativo")})";
+
+    private string RotuloDoPerfilDe(UsuarioResumo usuario)
+    {
+        var tipo = usuario.TipoPerfil == TipoPerfil.Diretoria ? "Diretoria" : "Produção";
+        var inativo = _perfis.Any(p => p.Id == usuario.PerfilId && !p.Ativo);
+        return $"{usuario.PerfilNome} ({tipo}{(inativo ? " — inativo" : "")})";
+    }
 
     private void Editar(UsuarioResumo usuario)
     {
         _mensagem = null;
+        _perfilInativoAtual = _perfis.FirstOrDefault(p => p.Id == usuario.PerfilId && !p.Ativo);
         _form = new Formulario
         {
             Id = usuario.Id,
@@ -149,14 +178,14 @@ else
         if (_form.Id is { } id)
         {
             resultado = await Despachante.EnviarAsync(
-                new EditarUsuario(id, _form.Nome, _form.Email, _form.PerfilId, _form.NumeroOab));
+                new EditarUsuario(id, _form.Nome, _form.Email, _form.PerfilId!.Value, _form.NumeroOab));
             if (resultado.Sucesso && !string.IsNullOrEmpty(_form.Senha))
                 resultado = await Despachante.EnviarAsync(new RedefinirSenhaUsuario(id, _form.Senha));
         }
         else
         {
             resultado = await Despachante.EnviarAsync(
-                new CriarUsuario(_form.Nome, _form.Email, _form.Senha ?? string.Empty, _form.PerfilId, _form.NumeroOab));
+                new CriarUsuario(_form.Nome, _form.Email, _form.Senha ?? string.Empty, _form.PerfilId!.Value, _form.NumeroOab));
         }
 
         await ConcluirAsync(resultado, "Usuário salvo.");
@@ -186,7 +215,8 @@ else
         [Required(ErrorMessage = "Informe o e-mail.")]
         public string Email { get; set; } = string.Empty;
 
-        public Guid PerfilId { get; set; }
+        [Required(ErrorMessage = "Selecione o perfil.")]
+        public Guid? PerfilId { get; set; }
         public string? NumeroOab { get; set; }
         public string? Senha { get; set; }
     }

@@ -107,4 +107,38 @@ public partial class PaginasProtegidasTests(BancoFixture banco) : IAsyncLifetime
 
         html.Should().Contain("Senha atual");
     }
+
+    [Fact]
+    public async Task Cadastro_de_usuarios_mostra_o_tipo_do_perfil_e_marca_o_perfil_inativo()
+    {
+        await using (var escopo = _fabrica.Services.CreateAsyncScope())
+        {
+            var sp = escopo.ServiceProvider;
+            var diana = await sp.GetRequiredService<IUsuarioRepositorio>().ObterPorEmailAsync(Email.Criar("diana@x.com"), default);
+            sp.GetRequiredService<IdentidadeAtual>().DefinirInterno(diana!.Id);
+            var perfil = await sp.GetRequiredService<IManipulador<SalvarPerfil, Resultado<Guid>>>()
+                .ManipularAsync(new SalvarPerfil(null, "Temporário", TipoPerfil.Producao), default);
+            perfil.Sucesso.Should().BeTrue(perfil.Mensagem);
+            var usuario = await sp.GetRequiredService<IManipulador<CriarUsuario, Resultado<Guid>>>().ManipularAsync(
+                new CriarUsuario("Tânia Temporária", "tania@x.com", "senha-da-tania", perfil.Valor, null), default);
+            usuario.Sucesso.Should().BeTrue(usuario.Mensagem);
+            (await sp.GetRequiredService<IManipulador<DefinirAtivoUsuario, Resultado>>()
+                .ManipularAsync(new DefinirAtivoUsuario(usuario.Valor, false), default)).Sucesso.Should().BeTrue();
+            (await sp.GetRequiredService<IManipulador<DefinirAtivoPerfil, Resultado>>()
+                .ManipularAsync(new DefinirAtivoPerfil(perfil.Valor, false), default)).Sucesso.Should().BeTrue();
+        }
+        var cliente = await ClienteAutenticadoAsync("diana@x.com", "senha-segura");
+
+        var html = WebUtility.HtmlDecode(await cliente.GetStringAsync("/usuarios"));
+
+        html.Should().Contain("Diretor (Diretoria)").And.Contain("Produção (Produção)");
+        html.Should().Contain("Temporário (Produção — inativo)");
+        // O perfil inativo não é opção para um usuário novo.
+        // Opções do formulário: só os perfis ativos, e o selecionado de início é de Produção.
+        var select = Regex.Match(html, "<select[^>]*>.*?</select>", RegexOptions.Singleline).Value;
+        select.Should().Contain(">Diretor (Diretoria)</option>").And.Contain(">Produção (Produção)</option>");
+        select.Should().NotContain("Temporário");
+        Regex.Matches(select, "<option[^>]*selected[^>]*>[^<]*</option>").Select(m => m.Value).Should()
+            .ContainSingle().Which.Should().Contain("Produção (Produção)").And.NotContain("Diretoria");
+    }
 }

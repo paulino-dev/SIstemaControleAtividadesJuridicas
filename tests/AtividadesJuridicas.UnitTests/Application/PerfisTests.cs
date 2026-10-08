@@ -63,6 +63,7 @@ public class PerfisTests
     {
         var resultado = await Salvar(_c.Diretor, null, "Sócio", TipoPerfil.Diretoria);
 
+        resultado.Sucesso.Should().BeTrue(resultado.Mensagem);
         _c.Perfis.Itens.Single(p => p.Id == resultado.Valor).Tipo.Should().Be(TipoPerfil.Diretoria);
     }
 
@@ -122,6 +123,21 @@ public class PerfisTests
         _c.PerfilProducao.Nome.Should().Be("Advogados");
         _c.AcessoInicial.Inclusoes.Should().BeEmpty();
         _c.Unidade.Salvamentos.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Renomear_para_o_nome_de_outro_perfil_e_conflito_e_nada_muda()
+    {
+        var estagio = (await Salvar(_c.Diretor, null, "Estagiário")).Valor;
+        var salvamentos = _c.Unidade.Salvamentos;
+
+        var resultado = await Salvar(_c.Diretor, estagio, "PRODUÇÃO");
+
+        resultado.Erro.Should().Be(TipoErro.Conflito);
+        resultado.Mensagem.Should().Be("Já existe um perfil com este nome.");
+        _c.Perfis.Itens.Single(p => p.Id == estagio).Nome.Should().Be("Estagiário");
+        _c.PerfilProducao.Nome.Should().Be("Produção");
+        _c.Unidade.Salvamentos.Should().Be(salvamentos);
     }
 
     [Fact]

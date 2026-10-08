@@ -317,4 +317,56 @@ public class PerfisTests(BancoFixture banco) : TesteComBanco(banco)
         (await PerfisNoBancoAsync()).Should().HaveCount(2);
         (await AuditoriaAsync()).Count(r => r.Evento == EventosDeSeguranca.AcessoNegado && r.UsuarioId == pedro).Should().Be(2);
     }
+
+    [Fact]
+    public async Task Renomear_para_o_nome_de_outro_perfil_e_conflito_no_banco_real_e_nada_muda()
+    {
+        var estagio = await CriarPerfilAsync("Estagiário");
+
+        var resultado = await ExecutarAsync(_admin, new SalvarPerfil(estagio, "PRODUÇÃO", TipoPerfil.Producao));
+
+        resultado.Erro.Should().Be(TipoErro.Conflito);
+        resultado.Mensagem.Should().Be("Já existe um perfil com este nome.");
+        (await PerfisNoBancoAsync()).Select(p => p.Nome).Should().Equal("Diretor", "Estagiário", "Produção");
+    }
+
+    [Fact]
+    public async Task Reativar_o_perfil_tambem_libera_a_reativacao_do_usuario()
+    {
+        var pedro = await CriarUsuarioAsync("Pedro", "pedro@x.com", _perfilProducao);
+        (await ExecutarAsync(_admin, new DefinirAtivoUsuario(pedro, false))).Sucesso.Should().BeTrue();
+        (await ExecutarAsync(_admin, new DefinirAtivoPerfil(_perfilProducao, false))).Sucesso.Should().BeTrue();
+        (await ExecutarAsync(_admin, new DefinirAtivoUsuario(pedro, true))).Erro.Should().Be(TipoErro.Conflito);
+
+        (await ExecutarAsync(_admin, new DefinirAtivoPerfil(_perfilProducao, true))).Sucesso.Should().BeTrue();
+        var reativar = await ExecutarAsync(_admin, new DefinirAtivoUsuario(pedro, true));
+
+        reativar.Sucesso.Should().BeTrue(reativar.Mensagem);
+        var noBanco = await EmEscopoAsync(null, sp =>
+            sp.GetRequiredService<AppDbContext>().Usuarios.AsNoTracking().SingleAsync(u => u.Id == pedro));
+        noBanco.Ativo.Should().BeTrue();
+        (await AuditoriaAsync()).Should().ContainSingle(r => r.Evento == EventosDeSeguranca.UsuarioAtivado && r.EntidadeId == pedro);
+    }
+
+    [Fact]
+    public async Task Usuario_de_perfil_novo_de_diretoria_acessa_contratos_e_conta_como_diretor()
+    {
+        var contrato = await EnviarAsync(CategoriaDocumento.ContratoHonorarios, "contrato.pdf");
+        var perfilSocio = await CriarPerfilAsync("Sócio", TipoPerfil.Diretoria);
+        var socio = await CriarUsuarioAsync("Sócio da Silva", "socio@x.com", perfilSocio);
+
+        var lista = (await ExecutarAsync(socio, new ListarDocumentosDoCliente(_maria, CategoriaDocumento.ContratoHonorarios))).Valor!;
+        var baixou = await ExecutarAsync(socio, new BaixarDocumento(contrato));
+
+        lista.Itens.Select(d => d.Id).Should().Equal(contrato);
+        baixou.Sucesso.Should().BeTrue(baixou.Mensagem);
+        await baixou.Valor!.Conteudo.DisposeAsync();
+
+        var inativarDiana = await ExecutarAsync(_admin, new DefinirAtivoUsuario(_admin, false));
+        var inativarSocio = await ExecutarAsync(socio, new DefinirAtivoUsuario(socio, false));
+
+        inativarDiana.Sucesso.Should().BeTrue(inativarDiana.Mensagem);
+        inativarSocio.Erro.Should().Be(TipoErro.Conflito);
+        inativarSocio.Mensagem.Should().Be("O sistema precisa de ao menos um usuário ativo de Diretoria.");
+    }
 }

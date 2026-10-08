@@ -29,6 +29,9 @@ public class PerfisWebTests(BancoFixture banco) : IAsyncLifetime
         html.Should().Contain("Perfis").And.Contain("Diretor").And.Contain("Produção").And.Contain("Estagiário");
         html.Should().Contain("Diretoria").And.Contain("Inativo");
         html.Should().Contain("Novo perfil").And.Contain("Renomear").And.Contain("Inativar").And.Contain("Ativar");
+        html.Should().Contain("<th>Usuários ativos</th>");
+        html.Should().Contain("<td>Estagiário</td>").And.Contain("<td>Diretor</td>").And.Contain("<td>Produção</td>");
+        html.Should().Contain("<td>Inativo</td>").And.Contain("<td>Ativo</td>");
         html.Should().NotContain("Acesso negado");
     }
 
