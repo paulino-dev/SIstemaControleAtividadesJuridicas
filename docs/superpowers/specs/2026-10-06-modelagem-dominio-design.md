@@ -205,8 +205,8 @@ Classe abstrata com duas derivadas, persistidas em uma tabela com discriminador.
 Regras:
 
 - Um processo tem ao menos um cliente; um cliente não se repete no mesmo processo.
-- Não é possível remover do processo um cliente que tenha atividade vinculada a esse processo.
-- Alterar a área do processo altera a área de todas as atividades vinculadas a ele.
+- Não é possível remover do processo um cliente que tenha atividade vinculada a esse processo. Conta a atividade viva; atividade excluída não impede.
+- Alterar a área do processo altera a área de todas as atividades vinculadas a ele, inclusive as concluídas, na mesma transação, com um registro de alteração por atividade.
 - Área ou cliente inativo não entra em vínculo novo, mas permanece no processo que já o tinha.
 - `ValorCausa`, quando informado, não é negativo, tem no máximo duas casas decimais e cabe em `numeric(18,2)`.
 - Cada vínculo com cliente é um registro com carimbos e exclusão lógica próprios; retirar um cliente exclui logicamente o vínculo, e o mesmo cliente pode voltar ao processo depois. O banco não apaga vínculos em cascata.
@@ -254,14 +254,15 @@ Uma única função de domínio decide se um usuário pode acessar um documento:
 
 1. Usuário com perfil de tipo `Diretoria` acessa sempre.
 2. Contrato de Honorários nunca é acessado por quem não é da Diretoria, mesmo que o usuário ou o seu perfil constem na lista de acesso (caso de quem era da Diretoria quando foi incluído e depois mudou de perfil).
-3. Nos demais casos, acessa se o seu `PerfilId` constar em `DocumentoPerfilAcesso` ou se ele constar em `DocumentoUsuarioAcesso`.
+3. Documento de atividade: acessa quem é responsável atual da atividade, enquanto ela não estiver excluída. As listas de acesso não contam para essa categoria, e não são editáveis.
+4. Nos demais casos (documento geral), acessa se o seu `PerfilId` constar em `DocumentoPerfilAcesso` ou se ele constar em `DocumentoUsuarioAcesso`.
 
 Listagens exibem apenas documentos que o usuário pode acessar, e o total informado conta só esses.
 
 - Baixar um documento sem ter acesso responde como não encontrado (seção 11) e gera o evento de segurança de acesso negado, com o documento.
 - Pedir a lista de Contratos de Honorários sem ser da Diretoria responde acesso negado: a existência da área não é segredo, o conteúdo dela é.
 - Cada entrada das listas de acesso é um registro com carimbos e exclusão lógica próprios. Perfil ou usuário inativo não entra em lista nova, mas permanece na lista em que já estava, e pode ser retirado dela.
-- Enviar, renomear, excluir e alterar a lista de acesso são da Diretoria. Um cliente inativo continua recebendo documentos.
+- Em documento geral e contrato de honorários, enviar, renomear, excluir e alterar a lista de acesso são da Diretoria. Um cliente inativo continua recebendo documentos.
 
 ### Comportamento por categoria
 
@@ -269,18 +270,19 @@ Listagens exibem apenas documentos que o usuário pode acessar, e o total inform
 |---|---|---|---|
 | `DocumentoGeral` | Todos os perfis ativos | Nenhuma | Diretoria |
 | `ContratoHonorarios` | Vazia | O domínio só aceita na lista perfil de tipo `Diretoria` e usuário de perfil `Diretoria`, sem exceção | Diretoria |
-| `DocumentoAtividade` | Usuários responsáveis da atividade | Nenhuma | Responsáveis, revisor e autor da atividade enviam; Diretoria gerencia |
+| `DocumentoAtividade` | Não há lista gravada: o acesso é o dos responsáveis atuais da atividade | A lista não é editável | Quem vê a atividade (Diretoria e responsáveis) envia; a Diretoria renomeia e exclui |
 
 - Um perfil criado depois é incluído automaticamente na lista de acesso de todos os Documentos Gerais existentes, na mesma transação da criação. Essas entradas são gravadas de uma vez, sem um registro de auditoria por entrada: o evento `perfil_incluido_nos_documentos_gerais` guarda o perfil e a quantidade de documentos, e cada entrada leva quem e quando a criou. O Id dessas entradas é gerado pelo banco (exceção à regra do Guid versão 7 da seção 4).
 - Reativar um perfil não o inclui nos Documentos Gerais enviados enquanto ele esteve inativo.
 - Um documento enviado no mesmo instante em que um perfil é criado pode nascer sem o perfil novo; a Diretoria o inclui pelo editor de acesso.
-- Um usuário incluído como responsável de uma atividade recebe acesso aos documentos já anexados a ela. Removê-lo da atividade retira esse acesso.
+- Um usuário incluído como responsável de uma atividade recebe acesso aos documentos já anexados a ela. Removê-lo da atividade retira esse acesso. Como o acesso é calculado a cada consulta, isso vale na operação seguinte, sem cópia a manter.
 
 ### Documentos de atividade
 
-- Anexam arquivos a uma atividade os seus responsáveis, o seu revisor e o seu autor. Revisor e autor são sempre de Diretoria, que já tem acesso total; a regra efetiva para Produção é ser responsável.
+- Anexa arquivos a uma atividade quem a vê: a Diretoria (onde estão o revisor e o autor) e os responsáveis. A regra efetiva para Produção é ser responsável.
 - Todo documento de atividade fica vinculado também ao cliente da atividade: o `ClienteId` do documento é preenchido com o da atividade no envio. Em atividade avulsa ele fica nulo.
-- Se o cliente da atividade for alterado, o `ClienteId` dos documentos dela acompanha a alteração.
+- Se o cliente da atividade for alterado, o `ClienteId` dos documentos dela acompanha a alteração. Toda edição da atividade realinha os documentos que estiverem com outro cliente.
+- Excluir uma atividade não exclui os seus documentos: eles continuam na ficha do cliente para a Diretoria e deixam de aparecer para a Produção.
 - Na ficha do cliente esses documentos aparecem em uma terceira área, "Documentos de Atividades", ao lado de "Documentos Gerais" e "Contratos de Honorários", com a indicação da atividade de origem.
 - O vínculo com o cliente não amplia o acesso: a área lista apenas os documentos que o usuário pode acessar pela regra acima. Um usuário de Produção vê ali somente os documentos das atividades em que é responsável.
 
@@ -313,7 +315,7 @@ Regras de vínculo:
 | Entidade | Campos | Regra |
 |---|---|---|
 | `AtividadeResponsavel` | `UsuarioId`, `Direcionamento`, `ConcluidoEm` | Um usuário não se repete na mesma atividade. `ConcluidoEm` nulo significa parte pendente |
-| `AtividadeComentario` | `Texto`, `UsuarioId`, `DataHora` | Imutável depois de criado |
+| `AtividadeComentario` | `Texto`, `UsuarioId`, `DataHora` | Imutável depois de criado. É gravado à parte da atividade: comentar não altera a atividade nem a versão dela. Vale em qualquer status. Com a atividade excluída, os comentários ficam inacessíveis |
 | `AtividadeHistoricoStatus` | `Ordem`, `StatusAnterior`, `StatusNovo`, `UsuarioId`, `DataHora`, `Motivo` | Somente inserção. `Ordem` numera as transições dentro da atividade. `UsuarioId` nulo indica transição feita pelo sistema |
 
 ### Fluxo de status
@@ -453,7 +455,8 @@ Registra consultas.
 
 - Gravado na `Application`, em cada caso de uso de consulta concluído com sucesso. Se o registro do acesso falhar, a consulta falha.
 - A consulta interna que a interface faz para saber quem é o usuário atual não gera registro.
-- Em documentos: listar os documentos de um cliente registra `Listou`; baixar registra `Baixou`; ver a lista de acesso de um documento registra `Visualizou`.
+- Em documentos: listar os documentos de um cliente ou de uma atividade registra `Listou`; baixar registra `Baixou`; ver a lista de acesso de um documento registra `Visualizou`.
+- Em atividades: listar registra `Listou`; abrir uma atividade registra `Visualizou`; listar os comentários de uma atividade registra `Listou` (recurso `AtividadeComentario`).
 
 ### Regras comuns
 
