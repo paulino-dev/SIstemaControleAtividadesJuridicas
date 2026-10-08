@@ -146,7 +146,7 @@ else
                 <dt>E-mail</dt><dd>@_ficha.Email</dd>
                 <dt>Telefone</dt><dd>@_ficha.Telefone</dd>
                 <dt>Endereço</dt>
-                <dd>@_ficha.Logradouro @_ficha.Numero @_ficha.Complemento — @_ficha.Bairro — @_ficha.Cidade/@_ficha.Uf — @_ficha.Cep</dd>
+                <dd>@LinhaDeEndereco(_ficha)</dd>
                 <dt>Observações</dt><dd>@_ficha.Observacoes</dd>
                 <dt>Situação</dt><dd>@(_ficha.Ativo ? "Ativo" : "Inativo")</dd>
             </dl>
@@ -186,7 +186,15 @@ else
         if (AcessoEncerrado(resultado)) return;
 
         _pagina = resultado.Valor ?? Vazia;
-        if (!resultado.Sucesso) Avisar(resultado.Mensagem, falhou: true);
+        if (!resultado.Sucesso)
+        {
+            Avisar(resultado.Mensagem, falhou: true);
+            return;
+        }
+
+        // A última página ficou além do fim (por exemplo, ao inativar o único item dela): volta à última.
+        if (_pagina.Itens.Count == 0 && _pagina.Total > 0 && _pagina.Numero > _pagina.TotalDePaginas)
+            await CarregarAsync(_pagina.TotalDePaginas);
     }
 
     // Perdeu o acesso no meio do uso: some tudo que estava na tela, nada de dados antigos.
@@ -243,6 +251,17 @@ else
     {
         _form = null;
         _ficha = null;
+        _mensagem = null;
+    }
+
+    // Só as partes preenchidas, sem separadores soltos.
+    private static string LinhaDeEndereco(ClienteDetalhe c)
+    {
+        static string Juntar(string separador, params string?[] partes) =>
+            string.Join(separador, partes.Where(p => !string.IsNullOrWhiteSpace(p)));
+
+        var cidadeUf = Juntar("/", c.Cidade, c.Uf);
+        return Juntar(" — ", Juntar(" ", c.Logradouro, c.Numero, c.Complemento), c.Bairro, cidadeUf, c.Cep);
     }
 
     private string Titulo() => (_form!.Id is null ? "Nova " : "Editar ") +
@@ -271,8 +290,9 @@ else
         }
 
         _form = null;
+        _falhou = false;
         await CarregarAsync(_pagina.Numero);
-        if (_ator is not null) Avisar("Cliente salvo.", falhou: false);
+        if (_ator is not null && !_falhou) Avisar("Cliente salvo.", falhou: false);
     }
 
     private async Task AlternarAtivoAsync(ClienteResumo cliente)
@@ -280,8 +300,9 @@ else
         var resultado = await Despachante.EnviarAsync(new DefinirAtivoCliente(cliente.Id, !cliente.Ativo));
         if (AcessoEncerrado(resultado)) return;
 
+        _falhou = false;
         await CarregarAsync(_pagina.Numero);
-        if (_ator is null) return;
+        if (_ator is null || (_falhou && resultado.Sucesso)) return;
 
         Avisar(resultado.Sucesso ? (cliente.Ativo ? "Cliente inativado." : "Cliente ativado.") : resultado.Mensagem,
             falhou: !resultado.Sucesso);

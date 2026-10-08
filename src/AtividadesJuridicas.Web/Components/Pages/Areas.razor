@@ -78,6 +78,13 @@ else
         var resultado = await Despachante.EnviarAsync(new ListarAreasAtuacao());
         if (resultado.Erro == TipoErro.AcessoNegado) _autorizado = false;
         _areas = resultado.Valor ?? [];
+
+        // Falha que não é de acesso: mostra o motivo em vez de uma lista vazia sem explicação.
+        if (!resultado.Sucesso && resultado.Erro != TipoErro.AcessoNegado)
+        {
+            _falhou = true;
+            _mensagem = resultado.Mensagem;
+        }
     }
 
     private void Limpar()
@@ -109,6 +116,14 @@ else
     {
         _falhou = !resultado.Sucesso;
         _mensagem = resultado.Sucesso ? mensagemDeSucesso : resultado.Mensagem;
+
+        // Perdeu o acesso no meio do uso: some a tela de gestão, o servidor já recusou a gravação.
+        if (resultado.Erro == TipoErro.AcessoNegado)
+        {
+            _autorizado = false;
+            return;
+        }
+
         await RecarregarAsync();
     }
 
