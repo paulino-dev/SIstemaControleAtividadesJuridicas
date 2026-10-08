@@ -36,6 +36,9 @@ public sealed class Documento : Entidade
     public const string ContratoSoParaDiretoria =
         "Contrato de Honorários não pode ser liberado para perfil ou usuário de Produção.";
 
+    private const string PerfilInativo = "Perfil inativo não pode receber acesso a documento.";
+    private const string UsuarioInativo = "Usuário inativo não pode receber acesso a documento.";
+
     private readonly List<DocumentoPerfilAcesso> _perfisComAcesso = [];
     private readonly List<DocumentoUsuarioAcesso> _usuariosComAcesso = [];
 
@@ -60,6 +63,8 @@ public sealed class Documento : Entidade
         Guid clienteId, string? nome, ArquivoDoDocumento arquivo, IReadOnlyCollection<Perfil> perfisAtivos)
     {
         ArgumentNullException.ThrowIfNull(perfisAtivos);
+        if (perfisAtivos.Any(p => p is null))
+            throw new ArgumentException("A lista de perfis não pode conter perfil nulo.", nameof(perfisAtivos));
         if (perfisAtivos.Any(p => !p.Ativo))
             throw new ExcecaoDeDominio(PerfilInativo);
 
@@ -105,6 +110,10 @@ public sealed class Documento : Entidade
     {
         ArgumentNullException.ThrowIfNull(perfis);
         ArgumentNullException.ThrowIfNull(usuarios);
+        if (perfis.Any(p => p is null))
+            throw new ArgumentException("A lista de perfis não pode conter perfil nulo.", nameof(perfis));
+        if (usuarios.Any(u => u is null || u.Usuario is null || u.Perfil is null))
+            throw new ArgumentException("Cada usuário informado deve vir com o usuário e o perfil.", nameof(usuarios));
         if (usuarios.Any(u => u.Usuario.PerfilId != u.Perfil.Id))
             throw new ArgumentException("O perfil informado não é o do usuário.", nameof(usuarios));
 
@@ -115,13 +124,13 @@ public sealed class Documento : Entidade
 
         // Tudo é verificado antes de qualquer mudança, para não deixar a lista pela metade.
         if (Categoria == CategoriaDocumento.ContratoHonorarios &&
-            (perfisDesejados.Any(p => p.Tipo == TipoPerfil.Producao) ||
-             usuariosDesejados.Any(u => u.Perfil.Tipo == TipoPerfil.Producao)))
+            (perfisDesejados.Any(p => p.Tipo != TipoPerfil.Diretoria) ||
+             usuariosDesejados.Any(u => u.Perfil.Tipo != TipoPerfil.Diretoria)))
             throw new ExcecaoDeDominio(ContratoSoParaDiretoria);
         if (perfisNovos.Any(p => !p.Ativo))
             throw new ExcecaoDeDominio(PerfilInativo);
         if (usuariosNovos.Any(u => !u.Usuario.Ativo))
-            throw new ExcecaoDeDominio("Usuário inativo não pode receber acesso a documento.");
+            throw new ExcecaoDeDominio(UsuarioInativo);
 
         var idsDePerfis = perfisDesejados.Select(p => p.Id).ToHashSet();
         var idsDeUsuarios = usuariosDesejados.Select(u => u.Usuario.Id).ToHashSet();
@@ -137,8 +146,6 @@ public sealed class Documento : Entidade
             [.. perfisNovos.Select(p => p.Id)], [.. perfisRemovidos.Select(a => a.PerfilId)],
             [.. usuariosNovos.Select(u => u.Usuario.Id)], [.. usuariosRemovidos.Select(a => a.UsuarioId)]);
     }
-
-    private const string PerfilInativo = "Perfil inativo não pode receber acesso a documento.";
 
     private static Documento Criar(CategoriaDocumento categoria, Guid clienteId, string? nome, ArquivoDoDocumento arquivo)
     {

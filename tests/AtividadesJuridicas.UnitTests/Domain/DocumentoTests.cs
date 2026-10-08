@@ -326,6 +326,8 @@ public class DocumentoTests
         var alteracao = documento.DefinirAcesso([_diretor, _producao], [new UsuarioComPerfil(ester, _estagio)]);
 
         alteracao.Houve.Should().BeFalse();
+        documento.PerfisComAcesso.Select(a => a.PerfilId).Should().BeEquivalentTo([_diretor.Id, _producao.Id]);
+        documento.UsuariosComAcesso.Select(a => a.UsuarioId).Should().Equal(ester.Id);
     }
 
     [Fact]
@@ -337,5 +339,84 @@ public class DocumentoTests
         var acao = () => documento.DefinirAcesso([], [new UsuarioComPerfil(pedro, _diretor)]);
 
         acao.Should().Throw<ArgumentException>();
+    }
+
+    // ---- Elementos nulos ----
+
+    [Fact]
+    public void Perfil_nulo_na_criacao_e_erro_de_programacao()
+    {
+        var acao = () => Documento.CriarGeral(Cliente, null, Arquivo(), [_diretor, null!]);
+
+        acao.Should().Throw<ArgumentException>().WithParameterName("perfisAtivos");
+    }
+
+    [Fact]
+    public void Perfil_nulo_em_definir_acesso_e_erro_de_programacao_e_nada_muda()
+    {
+        var documento = Geral(_diretor);
+        var original = documento.PerfisComAcesso.ToList();
+
+        var acao = () => documento.DefinirAcesso([_producao, null!], []);
+
+        acao.Should().Throw<ArgumentException>().WithParameterName("perfis");
+        documento.PerfisComAcesso.Should().Equal(original);
+    }
+
+    [Fact]
+    public void Usuario_com_perfil_nulo_ou_incompleto_e_erro_de_programacao_e_nada_muda()
+    {
+        var pedro = NovoUsuario("Pedro", _producao);
+        var documento = Geral(_diretor);
+        documento.DefinirAcesso([_diretor], [new UsuarioComPerfil(pedro, _producao)]);
+        var perfis = documento.PerfisComAcesso.ToList();
+        var usuarios = documento.UsuariosComAcesso.ToList();
+
+        var elementoNulo = () => documento.DefinirAcesso([], [null!]);
+        var semUsuario = () => documento.DefinirAcesso([], [new UsuarioComPerfil(null!, _producao)]);
+        var semPerfil = () => documento.DefinirAcesso([], [new UsuarioComPerfil(pedro, null!)]);
+
+        elementoNulo.Should().Throw<ArgumentException>().WithParameterName("usuarios");
+        semUsuario.Should().Throw<ArgumentException>().WithParameterName("usuarios");
+        semPerfil.Should().Throw<ArgumentException>().WithParameterName("usuarios");
+        documento.PerfisComAcesso.Should().Equal(perfis);
+        documento.UsuariosComAcesso.Should().Equal(usuarios);
+    }
+
+    // ---- Atomicidade ----
+
+    [Fact]
+    public void Perfil_inativo_novo_com_remocoes_no_mesmo_pedido_nao_muda_nada()
+    {
+        var pedro = NovoUsuario("Pedro", _producao);
+        var documento = Geral(_diretor, _producao);
+        documento.DefinirAcesso([_diretor, _producao], [new UsuarioComPerfil(pedro, _producao)]);
+        var perfis = documento.PerfisComAcesso.ToList();
+        var usuarios = documento.UsuariosComAcesso.ToList();
+        _estagio.Inativar();
+
+        var acao = () => documento.DefinirAcesso([_diretor, _estagio], []);
+
+        acao.Should().Throw<ExcecaoDeDominio>().WithMessage("Perfil inativo não pode receber acesso a documento.");
+        documento.PerfisComAcesso.Should().HaveCount(2).And.Contain(perfis);
+        documento.UsuariosComAcesso.Should().Equal(usuarios);
+    }
+
+    [Fact]
+    public void Usuario_inativo_novo_com_remocoes_no_mesmo_pedido_nao_muda_nada()
+    {
+        var pedro = NovoUsuario("Pedro", _producao);
+        var ester = NovoUsuario("Ester", _estagio);
+        ester.Inativar();
+        var documento = Geral(_diretor, _producao);
+        documento.DefinirAcesso([_diretor, _producao], [new UsuarioComPerfil(pedro, _producao)]);
+        var perfis = documento.PerfisComAcesso.ToList();
+        var usuarios = documento.UsuariosComAcesso.ToList();
+
+        var acao = () => documento.DefinirAcesso([_diretor], [new UsuarioComPerfil(ester, _estagio)]);
+
+        acao.Should().Throw<ExcecaoDeDominio>().WithMessage("Usuário inativo não pode receber acesso a documento.");
+        documento.PerfisComAcesso.Should().HaveCount(2).And.Contain(perfis);
+        documento.UsuariosComAcesso.Should().HaveCount(1).And.Contain(usuarios);
     }
 }
