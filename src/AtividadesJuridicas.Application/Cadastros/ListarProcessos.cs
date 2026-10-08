@@ -26,6 +26,6 @@ public sealed class ListarProcessosManipulador(IContextoDeAcesso contexto, IProc
 
         return Resultado<Pagina<ProcessoResumo>>.Ok(await processos.ListarAsync(
             new FiltroDeProcessos(requisicao.Busca, requisicao.ClienteId, requisicao.Status),
-            Math.Max(1, requisicao.Pagina), ProcessosOpcoes.TamanhoDaPagina, ct));
+            Paginacao.Normalizar(requisicao.Pagina, ProcessosOpcoes.TamanhoDaPagina), ProcessosOpcoes.TamanhoDaPagina, ct));
     }
 }

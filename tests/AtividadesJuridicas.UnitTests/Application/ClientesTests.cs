@@ -231,6 +231,17 @@ public class ClientesTests
     }
 
     [Fact]
+    public async Task Pagina_absurda_devolve_lista_vazia_com_o_total_certo_sem_estourar()
+    {
+        await SalvarPf(_c.Diretor, null);
+
+        var lista = (await Listar(_c.Diretor, pagina: int.MaxValue)).Valor!;
+
+        lista.Itens.Should().BeEmpty();
+        lista.Total.Should().Be(1);
+    }
+
+    [Fact]
     public async Task Producao_abre_a_ficha_completa()
     {
         var pf = await SalvarPf(_c.Diretor, null);

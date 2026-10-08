@@ -95,8 +95,12 @@ public sealed class UnidadeDeTrabalhoFalsa : IUnidadeDeTrabalho
 {
     public int Salvamentos { get; private set; }
 
+    /// <summary>Quando definida, é lançada em cada gravação, como o banco faria numa violação.</summary>
+    public Exception? Falha { get; set; }
+
     public Task SalvarAsync(CancellationToken ct)
     {
+        if (Falha is not null) throw Falha;
         Salvamentos++;
         return Task.CompletedTask;
     }

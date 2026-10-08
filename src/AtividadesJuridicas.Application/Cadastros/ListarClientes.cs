@@ -23,7 +23,7 @@ public sealed class ListarClientesManipulador(IContextoDeAcesso contexto, IClien
             return Resultado<Pagina<ClienteResumo>>.Falha(TipoErro.AcessoNegado, "Acesso negado.");
 
         var pagina = await clientes.ListarAsync(
-            requisicao.Busca, requisicao.IncluirInativos, Math.Max(1, requisicao.Pagina), ClientesOpcoes.TamanhoDaPagina, ct);
+            requisicao.Busca, requisicao.IncluirInativos, Paginacao.Normalizar(requisicao.Pagina, ClientesOpcoes.TamanhoDaPagina), ClientesOpcoes.TamanhoDaPagina, ct);
 
         return Resultado<Pagina<ClienteResumo>>.Ok(new Pagina<ClienteResumo>(
             [.. pagina.Itens.Select(ClienteMapeamento.ParaResumo)], pagina.Total, pagina.Numero, pagina.Tamanho));

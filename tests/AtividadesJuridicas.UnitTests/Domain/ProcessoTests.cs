@@ -73,6 +73,39 @@ public class ProcessoTests
         comarcaLonga.Should().Throw<ExcecaoDeDominio>();
     }
 
+    [Theory]
+    [InlineData("0.001", "O valor da causa deve ter no máximo duas casas decimais.")]
+    [InlineData("1.005", "O valor da causa deve ter no máximo duas casas decimais.")]
+    [InlineData("10000000000000000", "O valor da causa é alto demais.")]
+    public void Recusa_valor_da_causa_com_mais_de_duas_casas_ou_grande_demais(string texto, string mensagem)
+    {
+        var valor = decimal.Parse(texto, System.Globalization.CultureInfo.InvariantCulture);
+
+        var criar = () => Processo.Criar(Dados(valor: valor), Clientes((Maria, PoloProcessual.Ativo)));
+        var alterar = () => Novo().Alterar(Dados(valor: valor));
+
+        criar.Should().Throw<ExcecaoDeDominio>().WithMessage(mensagem);
+        alterar.Should().Throw<ExcecaoDeDominio>().WithMessage(mensagem);
+    }
+
+    [Theory]
+    [InlineData("1234.50")]
+    [InlineData("1234.5000")]
+    [InlineData("0")]
+    [InlineData("9999999999999999.99")]
+    [InlineData(null)]
+    public void Aceita_valor_da_causa_que_cabe_em_numeric_18_2(string? texto)
+    {
+        decimal? valor = texto is null ? null : decimal.Parse(texto, System.Globalization.CultureInfo.InvariantCulture);
+
+        var processo = Processo.Criar(Dados(valor: valor), Clientes((Maria, PoloProcessual.Ativo)));
+        var outro = Novo();
+        outro.Alterar(Dados(valor: valor));
+
+        processo.ValorCausa.Should().Be(valor);
+        outro.ValorCausa.Should().Be(valor);
+    }
+
     [Fact]
     public void Recusa_processo_sem_cliente_e_cliente_repetido()
     {

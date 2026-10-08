@@ -17,7 +17,7 @@ else if (_ator is null)
 else
 {
     <EditForm Model="_busca" OnSubmit="BuscarAsync" FormName="busca-processos" class="formulario filtros">
-        <label>Título, parte contrária ou número <InputText @bind-Value="_busca.Texto" /></label>
+        <label>Busca <InputText @bind-Value="_busca.Texto" placeholder="Título, parte contrária ou número CNJ completo" /></label>
         <label>
             Situação
             <InputSelect @bind-Value="_busca.Status">
@@ -149,6 +149,14 @@ else
                         <button type="button" class="secundario" @onclick="() => Vincular(candidato)">Adicionar</button>
                     </div>
                 }
+                @if (_nenhumClienteEncontrado)
+                {
+                    <p>Nenhum cliente encontrado.</p>
+                }
+                @if (_clientesTruncados)
+                {
+                    <p>Mostrando os primeiros resultados. Refine a busca para ver outros.</p>
+                }
 
                 <div class="acoes">
                     <button type="submit" form="formulario-processo">Salvar</button>
@@ -208,6 +216,8 @@ else
     private Formulario? _form;
     private ProcessoDetalhe? _ficha;
     private string? _buscaDeCliente;
+    private bool _nenhumClienteEncontrado;
+    private bool _clientesTruncados;
     private IReadOnlyList<ClienteResumo> _candidatos = [];
 
     protected override async Task OnInitializedAsync()
@@ -283,6 +293,8 @@ else
         _mensagem = null;
         _buscaDeCliente = null;
         _candidatos = [];
+        _nenhumClienteEncontrado = false;
+        _clientesTruncados = false;
         _form = form;
     }
 
@@ -292,7 +304,12 @@ else
         if (AcessoEncerrado(resultado)) return;
 
         var jaVinculados = _form!.Clientes.Select(c => c.ClienteId).ToHashSet();
-        _candidatos = [.. (resultado.Valor?.Itens ?? []).Where(c => !jaVinculados.Contains(c.Id))];
+        var itens = resultado.Valor?.Itens ?? [];
+        _candidatos = [.. itens.Where(c => !jaVinculados.Contains(c.Id))];
+
+        // Os avisos valem só para uma busca que deu certo; uma falha mostra o erro no lugar deles.
+        _nenhumClienteEncontrado = resultado.Sucesso && itens.Count == 0;
+        _clientesTruncados = resultado.Sucesso && itens.Count >= ClientesOpcoes.TamanhoDaPagina;
         if (!resultado.Sucesso) Avisar(resultado.Mensagem, falhou: true);
     }
 

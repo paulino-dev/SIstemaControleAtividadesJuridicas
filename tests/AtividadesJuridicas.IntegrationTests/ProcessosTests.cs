@@ -9,6 +9,7 @@ using AtividadesJuridicas.Domain.Identidade;
 using AtividadesJuridicas.Infrastructure.Persistencia;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
 
 namespace AtividadesJuridicas.IntegrationTests;
 
@@ -174,9 +175,10 @@ public class ProcessosTests(BancoFixture banco) : TesteComBanco(banco)
         var id = await CriarAsync();
         var antes = (await AuditoriaAsync()).Count;
 
-        await ExecutarAsync(_admin, new SalvarProcesso(
+        var salvo = await ExecutarAsync(_admin, new SalvarProcesso(
             id, Dados(cnj: "12345678520248020001"), Vinculos((_acme, PoloProcessual.Passivo), (_maria, PoloProcessual.Ativo))));
 
+        salvo.Sucesso.Should().BeTrue(salvo.Mensagem);
         (await AuditoriaAsync()).Should().HaveCount(antes);
     }
 
@@ -352,7 +354,7 @@ public class ProcessosTests(BancoFixture banco) : TesteComBanco(banco)
         });
 
         var erro = await apagar.Should().ThrowAsync<Exception>();
-        erro.Which.ToString().Should().Contain("23503");
+        PostgresDe(erro.Which).SqlState.Should().Be(PostgresErrorCodes.ForeignKeyViolation);
         (await VinculosNoBancoAsync(id)).Should().HaveCount(2);
         (await ExecutarAsync(_admin, new ObterProcesso(id))).Sucesso.Should().BeTrue();
     }
@@ -376,8 +378,16 @@ public class ProcessosTests(BancoFixture banco) : TesteComBanco(banco)
             return 0;
         });
 
-        var vivos = (await VinculosNoBancoAsync(id)).Where(v => v.ExcluidoEm == null).ToList();
+        var vinculos = await VinculosNoBancoAsync(id);
+        var vivos = vinculos.Where(v => v.ExcluidoEm == null).ToList();
         vivos.Should().ContainSingle().Which.ClienteId.Should().Be(_acme);
+
+        // A requisição que perdeu não deixou rastro: nada sobre o vínculo da Acme que ela tentou remover
+        // e um único evento de alteração de clientes, o da que ganhou.
+        var daAcme = vinculos.Single(v => v.ClienteId == _acme);
+        var auditoria = await AuditoriaAsync();
+        auditoria.Should().NotContain(r => r.EntidadeId == daAcme.Id && r.Operacao == OperacaoAuditada.Exclusao);
+        auditoria.Count(r => r.Evento == EventosDeCadastro.ClientesDoProcessoAlterados && r.EntidadeId == id).Should().Be(1);
     }
 
     [Fact]
@@ -388,7 +398,8 @@ public class ProcessosTests(BancoFixture banco) : TesteComBanco(banco)
             .SingleAsync(p => p.Id == id));
         antes.AtualizadoEm.Should().BeNull();
 
-        await ExecutarAsync(_admin, new SalvarProcesso(id, Dados(), Vinculos((_maria, PoloProcessual.Terceiro))));
+        var salvo = await ExecutarAsync(_admin, new SalvarProcesso(id, Dados(), Vinculos((_maria, PoloProcessual.Terceiro))));
+        salvo.Sucesso.Should().BeTrue(salvo.Mensagem);
 
         var depois = await EmEscopoAsync(null, sp => sp.GetRequiredService<AppDbContext>().Processos.AsNoTracking()
             .SingleAsync(p => p.Id == id));
@@ -399,5 +410,74 @@ public class ProcessosTests(BancoFixture banco) : TesteComBanco(banco)
         var doProcesso = (await AuditoriaAsync()).Where(r => r.Entidade == "Processo" && r.EntidadeId == id).ToList();
         doProcesso.Should().NotContain(r => r.Operacao == OperacaoAuditada.Alteracao);
         doProcesso.Should().ContainSingle(r => r.Evento == EventosDeCadastro.ClientesDoProcessoAlterados);
+    }
+
+    private static PostgresException PostgresDe(Exception erro)
+    {
+        for (var e = erro; e is not null; e = e.InnerException)
+            if (e is PostgresException pg) return pg;
+        throw new InvalidOperationException("Nenhuma PostgresException na cadeia de exceções: " + erro);
+    }
+
+    [Fact]
+    public async Task Banco_recusa_um_segundo_vinculo_vivo_do_mesmo_cliente_no_mesmo_processo()
+    {
+        var id = await CriarAsync();
+
+        var duplicar = () => EmEscopoAsync(null, async sp =>
+        {
+            await sp.GetRequiredService<AppDbContext>().Database.ExecuteSqlInterpolatedAsync(
+                $"INSERT INTO processos_clientes (id, processo_id, cliente_id, polo, criado_em) VALUES ({Guid.CreateVersion7()}, {id}, {_maria}, 1, now())");
+            return 0;
+        });
+
+        var erro = await duplicar.Should().ThrowAsync<Exception>();
+        var pg = PostgresDe(erro.Which);
+        pg.SqlState.Should().Be(PostgresErrorCodes.UniqueViolation);
+        pg.ConstraintName.Should().Be("ix_processos_clientes_processo_id_cliente_id");
+        (await VinculosNoBancoAsync(id)).Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task Listagem_de_processos_pagina_de_vinte_em_vinte_e_cada_item_traz_os_nomes_dos_clientes()
+    {
+        for (var i = 1; i <= 21; i++)
+            await CriarAsync(Dados($"Processo {i:00}", null), Vinculos((i % 2 == 0 ? _maria : _acme, PoloProcessual.Ativo)));
+
+        async Task<Pagina<ProcessoResumo>> PaginaAsync(int numero) =>
+            (await ExecutarAsync(_admin, new ListarProcessos(Pagina: numero))).Valor!;
+
+        var primeira = await PaginaAsync(1);
+        primeira.Total.Should().Be(21);
+        primeira.Tamanho.Should().Be(ProcessosOpcoes.TamanhoDaPagina).And.Be(20);
+        primeira.Itens.Should().HaveCount(20);
+        primeira.Itens.Select(p => p.Titulo).Should().Equal(Enumerable.Range(1, 20).Select(i => $"Processo {i:00}"));
+        primeira.Itens.Should().OnlyContain(p => p.Clientes.Count == 1);
+
+        var segunda = await PaginaAsync(2);
+        segunda.Total.Should().Be(21);
+        segunda.Itens.Should().ContainSingle().Which.Titulo.Should().Be("Processo 21");
+        segunda.Itens[0].Clientes.Should().Equal("Acme Ltda");
+
+        foreach (var invalida in new[] { 0, -3 })
+        {
+            var pagina = await PaginaAsync(invalida);
+            pagina.Numero.Should().Be(1);
+            pagina.Itens.Select(p => p.Titulo).Should().Equal(primeira.Itens.Select(p => p.Titulo));
+        }
+    }
+
+    [Fact]
+    public async Task Pagina_absurda_devolve_lista_vazia_com_o_total_certo_em_processos_e_clientes()
+    {
+        await CriarAsync();
+
+        var processos = (await ExecutarAsync(_admin, new ListarProcessos(Pagina: int.MaxValue))).Valor!;
+        var clientes = (await ExecutarAsync(_admin, new ListarClientes(Pagina: int.MaxValue))).Valor!;
+
+        processos.Itens.Should().BeEmpty();
+        processos.Total.Should().Be(1);
+        clientes.Itens.Should().BeEmpty();
+        clientes.Total.Should().Be(3);
     }
 }

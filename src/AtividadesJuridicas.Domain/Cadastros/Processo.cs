@@ -31,6 +31,9 @@ public sealed class Processo : Entidade
     public const int TamanhoMaximoParteContraria = 200;
     public const int TamanhoMaximoObservacoes = 2000;
 
+    /// <summary>A coluna é numeric(18,2): 16 dígitos antes da vírgula; 10^16 já não cabe.</summary>
+    private const decimal LimiteDoValorDaCausa = 10_000_000_000_000_000m;
+
     private readonly List<ProcessoCliente> _clientes = [];
 
     private Processo() { }
@@ -128,6 +131,13 @@ public sealed class Processo : Entidade
             throw new ExcecaoDeDominio("A área de atuação é obrigatória.");
         if (dados.ValorCausa is < 0)
             throw new ExcecaoDeDominio("O valor da causa não pode ser negativo.");
+        if (dados.ValorCausa is { } valor)
+        {
+            if (decimal.Round(valor, 2) != valor)
+                throw new ExcecaoDeDominio("O valor da causa deve ter no máximo duas casas decimais.");
+            if (valor >= LimiteDoValorDaCausa)
+                throw new ExcecaoDeDominio("O valor da causa é alto demais.");
+        }
         Limite(dados.Titulo, TamanhoMaximoTitulo, "título");
         Limite(dados.Orgao, TamanhoMaximoOrgao, "órgão");
         Limite(dados.Comarca, TamanhoMaximoComarca, "comarca");

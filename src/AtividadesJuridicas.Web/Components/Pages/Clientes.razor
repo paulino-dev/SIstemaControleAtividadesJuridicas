@@ -266,7 +266,6 @@ else
         if (!await CarregarProcessosDoClienteAsync(id)) return;
 
         _ficha = ficha;
-        if (!resultado.Sucesso) Avisar(resultado.Mensagem, falhou: true);
     }
 
     // Primeira página dos processos do cliente aberto; falso quando o acesso foi encerrado.

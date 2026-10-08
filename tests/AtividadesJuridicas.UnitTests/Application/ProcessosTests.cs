@@ -48,9 +48,9 @@ public class ProcessosTests
             .ManipularAsync(new AlterarStatusProcesso(id, status), default);
 
     private Task<Resultado<Pagina<ProcessoResumo>>> Listar(Usuario? ator, string? busca = null, Guid? cliente = null,
-        StatusProcesso? status = null) =>
+        StatusProcesso? status = null, int pagina = 1) =>
         new ListarProcessosManipulador(_c.Como(ator), _c.Processos)
-            .ManipularAsync(new ListarProcessos(busca, cliente, status), default);
+            .ManipularAsync(new ListarProcessos(busca, cliente, status, pagina), default);
 
     private Task<Resultado<ProcessoDetalhe>> Obter(Usuario? ator, Guid id) =>
         new ObterProcessoManipulador(_c.Como(ator), _c.Processos).ManipularAsync(new ObterProcesso(id), default);
@@ -91,6 +91,55 @@ public class ProcessosTests
 
         repetido.Erro.Should().Be(TipoErro.Conflito);
         _c.Processos.Itens.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Conflito_de_unicidade_do_numero_no_banco_vira_conflito_com_a_mensagem_do_numero()
+    {
+        _c.Unidade.Falha = new ExcecaoDeConflito("duplicado", null, "ix_processos_numero_cnj");
+
+        var resultado = await Salvar(_c.Diretor, null);
+
+        resultado.Erro.Should().Be(TipoErro.Conflito);
+        resultado.Mensagem.Should().Be("Já existe um processo com este número.");
+    }
+
+    [Fact]
+    public async Task Conflito_de_outra_restricao_vira_conflito_com_a_mensagem_dos_clientes()
+    {
+        _c.Unidade.Falha = new ExcecaoDeConflito("duplicado", null, "ix_processos_clientes_processo_id_cliente_id");
+
+        var resultado = await Salvar(_c.Diretor, null);
+
+        resultado.Erro.Should().Be(TipoErro.Conflito);
+        resultado.Mensagem.Should().Be("Os clientes do processo não podem se repetir.");
+    }
+
+    [Theory]
+    [InlineData("1.005")]
+    [InlineData("10000000000000000")]
+    [InlineData("-1")]
+    public async Task Valor_da_causa_recusado_pelo_dominio_vira_validacao_e_nada_e_gravado(string texto)
+    {
+        var dados = Dados() with { ValorCausa = decimal.Parse(texto, System.Globalization.CultureInfo.InvariantCulture) };
+
+        var resultado = await Salvar(_c.Diretor, null, dados);
+
+        resultado.Erro.Should().Be(TipoErro.Validacao);
+        _c.Unidade.Salvamentos.Should().Be(0);
+    }
+
+    [Theory]
+    [InlineData(int.MaxValue)]
+    [InlineData(int.MaxValue / 20 + 5)]
+    public async Task Pagina_absurda_devolve_lista_vazia_com_o_total_certo_sem_estourar(int pagina)
+    {
+        await Salvar(_c.Diretor, null);
+
+        var lista = (await Listar(_c.Diretor, pagina: pagina)).Valor!;
+
+        lista.Itens.Should().BeEmpty();
+        lista.Total.Should().Be(1);
     }
 
     [Fact]
