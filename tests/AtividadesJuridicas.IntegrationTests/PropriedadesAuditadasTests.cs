@@ -16,6 +16,26 @@ public class PropriedadesAuditadasTests
         var esperado = new SortedDictionary<string, string[]>
         {
             ["AreaAtuacao"] = ["Ativo", "Nome"],
+            ["Cliente"] =
+            [
+                "Ativo", "Email", "Nome", "Observacoes", "Telefone", "Tipo",
+                "Endereco.Bairro", "Endereco.Cep", "Endereco.Cidade", "Endereco.Complemento",
+                "Endereco.Logradouro", "Endereco.Numero", "Endereco.Uf",
+            ],
+            ["ClientePessoaFisica"] =
+            [
+                "Ativo", "Email", "Nome", "Observacoes", "Telefone", "Tipo",
+                "Endereco.Bairro", "Endereco.Cep", "Endereco.Cidade", "Endereco.Complemento",
+                "Endereco.Logradouro", "Endereco.Numero", "Endereco.Uf",
+                "Cpf", "DataNascimento", "Rg",
+            ],
+            ["ClientePessoaJuridica"] =
+            [
+                "Ativo", "Email", "Nome", "Observacoes", "Telefone", "Tipo",
+                "Endereco.Bairro", "Endereco.Cep", "Endereco.Cidade", "Endereco.Complemento",
+                "Endereco.Logradouro", "Endereco.Numero", "Endereco.Uf",
+                "Cnpj", "InscricaoEstadual", "InscricaoMunicipal", "NomeFantasia", "NomeResponsavel",
+            ],
             ["Perfil"] = ["Ativo", "Nome", "Tipo"],
             ["Usuario"] = ["Ativo", "Email", "Nome", "NumeroOab", "PerfilId"],
         };

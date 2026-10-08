@@ -56,7 +56,7 @@ public sealed class AuditoriaInterceptor(IIdentidadeAtual identidade, IRelogio r
             if (Descrever(entrada) is not (var operacao, var dados)) continue;
 
             db.Add(RegistroAuditoria.DeAlteracao(
-                agora, identidade.UsuarioId, operacao, entrada.Metadata.ClrType.Name, entrada.Entity.Id,
+                agora, identidade.UsuarioId, operacao, entrada.Metadata.GetRootType().ClrType.Name, entrada.Entity.Id,
                 dados, identidade.Ip, identidade.IdCorrelacao));
         }
     }
@@ -74,42 +74,73 @@ public sealed class AuditoriaInterceptor(IIdentidadeAtual identidade, IRelogio r
 
     private static (OperacaoAuditada Operacao, string Dados)? Descrever(EntityEntry<Entidade> entrada)
     {
-        var auditaveis = entrada.Properties.Where(Auditavel).ToList();
+        var auditaveis = Folhas(entrada).ToList();
 
         switch (entrada.State)
         {
             case EntityState.Added:
                 return (OperacaoAuditada.Criacao,
-                    Serializar(auditaveis.ToDictionary(Nome, p => Valor(p, p.CurrentValue))));
+                    Serializar(auditaveis.ToDictionary(f => f.Nome, f => Valor(f.Entrada, f.Entrada.CurrentValue))));
 
             case EntityState.Modified:
                 var exclusao = entrada.Property(nameof(Entidade.ExcluidoEm));
                 if (exclusao is { IsModified: true, OriginalValue: null, CurrentValue: not null })
                     return (OperacaoAuditada.Exclusao,
-                        Serializar(auditaveis.ToDictionary(Nome, p => Valor(p, p.OriginalValue))));
+                        Serializar(auditaveis.ToDictionary(f => f.Nome, f => Valor(f.Entrada, f.Entrada.OriginalValue))));
 
-                var alteradas = auditaveis.Where(p => p.IsModified).ToList();
+                var alteradas = auditaveis.Where(f => f.Entrada.IsModified).ToList();
                 if (alteradas.Count == 0) return null;
 
                 return (OperacaoAuditada.Alteracao, Serializar(alteradas.ToDictionary(
-                    Nome, p => (object?)new { de = Valor(p, p.OriginalValue), para = Valor(p, p.CurrentValue) })));
+                    f => f.Nome,
+                    f => (object?)new
+                    {
+                        de = Valor(f.Entrada, f.Entrada.OriginalValue),
+                        para = Valor(f.Entrada, f.Entrada.CurrentValue),
+                    })));
 
             default:
                 return null;
         }
     }
 
+    /// <summary>
+    /// Propriedades escalares da entidade e, achatadas, as dos seus tipos complexos
+    /// (por exemplo "Endereco.Cidade"), já sem as que ficam fora da auditoria.
+    /// </summary>
+    private static IEnumerable<(string Nome, PropertyEntry Entrada)> Folhas(EntityEntry entrada)
+    {
+        foreach (var propriedade in entrada.Properties.Where(p => Auditavel(p.Metadata)))
+            yield return (propriedade.Metadata.Name, propriedade);
+
+        foreach (var complexa in entrada.ComplexProperties)
+            foreach (var folha in Folhas(complexa, complexa.Metadata.Name))
+                yield return folha;
+    }
+
+    private static IEnumerable<(string Nome, PropertyEntry Entrada)> Folhas(ComplexPropertyEntry complexa, string prefixo)
+    {
+        foreach (var propriedade in complexa.Properties.Where(p => Auditavel(p.Metadata)))
+            yield return ($"{prefixo}.{propriedade.Metadata.Name}", propriedade);
+
+        foreach (var interna in complexa.ComplexProperties)
+            foreach (var folha in Folhas(interna, $"{prefixo}.{interna.Metadata.Name}"))
+                yield return folha;
+    }
+
     /// <summary>Nomes das propriedades de <paramref name="tipo"/> que vão para os dados da auditoria.</summary>
     public static IReadOnlyList<string> PropriedadesAuditadas(IEntityType tipo) =>
-        tipo.GetProperties().Where(Auditavel).Select(p => p.Name).ToList();
+        [.. tipo.GetProperties().Where(Auditavel).Select(p => p.Name),
+         .. tipo.GetComplexProperties().SelectMany(c => PropriedadesAuditadas(c, c.Name))];
+
+    private static IEnumerable<string> PropriedadesAuditadas(IComplexProperty complexa, string prefixo) =>
+        complexa.ComplexType.GetProperties().Where(Auditavel).Select(p => $"{prefixo}.{p.Name}")
+            .Concat(complexa.ComplexType.GetComplexProperties()
+                .SelectMany(c => PropriedadesAuditadas(c, $"{prefixo}.{c.Name}")));
 
     private static bool Auditavel(IProperty propriedade) =>
         !ForaDosDados.Contains(propriedade.Name) &&
         propriedade.PropertyInfo?.GetCustomAttribute<NaoAuditarAttribute>() is null;
-
-    private static bool Auditavel(PropertyEntry propriedade) => Auditavel(propriedade.Metadata);
-
-    private static string Nome(PropertyEntry propriedade) => propriedade.Metadata.Name;
 
     private static object? Valor(PropertyEntry propriedade, object? valor) => valor switch
     {

@@ -125,6 +125,38 @@ public sealed class ContextoDeAcessoFixo(UsuarioAutenticado? ator) : IContextoDe
     public Task<UsuarioAutenticado?> ObterAsync(CancellationToken ct) => Task.FromResult(ator);
 }
 
+public sealed class ClienteRepositorioFalso : IClienteRepositorio
+{
+    public List<Cliente> Itens { get; } = [];
+
+    public Task<Cliente?> ObterPorIdAsync(Guid id, CancellationToken ct) =>
+        Task.FromResult(Itens.FirstOrDefault(c => c.Id == id));
+
+    public Task<bool> ExisteCpfAsync(Cpf cpf, Guid? excetoId, CancellationToken ct) =>
+        Task.FromResult(Itens.OfType<ClientePessoaFisica>().Any(c => c.Cpf == cpf && c.Id != excetoId));
+
+    public Task<bool> ExisteCnpjAsync(Cnpj cnpj, Guid? excetoId, CancellationToken ct) =>
+        Task.FromResult(Itens.OfType<ClientePessoaJuridica>().Any(c => c.Cnpj == cnpj && c.Id != excetoId));
+
+    public Task<Pagina<Cliente>> ListarAsync(string? busca, bool incluirInativos, int pagina, int tamanho, CancellationToken ct)
+    {
+        IEnumerable<Cliente> consulta = Itens.Where(c => incluirInativos || c.Ativo);
+
+        if (Cpf.TentarCriar(busca, out var cpf))
+            consulta = consulta.Where(c => c is ClientePessoaFisica pf && pf.Cpf == cpf);
+        else if (Cnpj.TentarCriar(busca, out var cnpj))
+            consulta = consulta.Where(c => c is ClientePessoaJuridica pj && pj.Cnpj == cnpj);
+        else if (!string.IsNullOrWhiteSpace(busca))
+            consulta = consulta.Where(c => c.Nome.Contains(busca.Trim(), StringComparison.OrdinalIgnoreCase));
+
+        var todos = consulta.OrderBy(c => c.Nome).ToList();
+        return Task.FromResult(new Pagina<Cliente>(
+            [.. todos.Skip((pagina - 1) * tamanho).Take(tamanho)], todos.Count, pagina, tamanho));
+    }
+
+    public void Adicionar(Cliente cliente) => Itens.Add(cliente);
+}
+
 /// <summary>Monta um cenário com os dois perfis padrão e um diretor ativo.</summary>
 public sealed class Cenario
 {
@@ -132,6 +164,7 @@ public sealed class Cenario
     public UsuarioRepositorioFalso Usuarios { get; }
     public UnidadeDeTrabalhoFalsa Unidade { get; } = new();
     public AreaAtuacaoRepositorioFalso Areas { get; } = new();
+    public ClienteRepositorioFalso Clientes { get; } = new();
     public HasherFalso Hasher { get; } = new();
     public RelogioFixo Relogio { get; } = new();
     public AuditoriaFalsa Auditoria { get; } = new();
