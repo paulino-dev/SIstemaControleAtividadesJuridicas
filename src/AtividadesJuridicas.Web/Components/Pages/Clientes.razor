@@ -125,24 +125,7 @@ else
 
             @if (_form.Id is not null)
             {
-                <h3>Processos do cliente</h3>
-                @if (_processosDoCliente.Count == 0)
-                {
-                    <p>Nenhum processo vinculado.</p>
-                }
-                else
-                {
-                    <ul>
-                        @foreach (var processo in _processosDoCliente)
-                        {
-                            <li @key="processo.Id">@processo.Titulo — @(processo.NumeroCnj ?? "sem número") — @processo.Status</li>
-                        }
-                    </ul>
-                    @if (_totalDeProcessosDoCliente > _processosDoCliente.Count)
-                    {
-                        <p>Há mais processos; veja todos em Processos.</p>
-                    }
-                }
+                @ProcessosDoCliente
             }
         }
     }
@@ -172,24 +155,7 @@ else
                 <dt>Observações</dt><dd>@_ficha.Observacoes</dd>
                 <dt>Situação</dt><dd>@(_ficha.Ativo ? "Ativo" : "Inativo")</dd>
             </dl>
-            <h3>Processos do cliente</h3>
-            @if (_processosDoCliente.Count == 0)
-            {
-                <p>Nenhum processo vinculado.</p>
-            }
-            else
-            {
-                <ul>
-                    @foreach (var processo in _processosDoCliente)
-                    {
-                        <li @key="processo.Id">@processo.Titulo — @(processo.NumeroCnj ?? "sem número") — @processo.Status</li>
-                    }
-                </ul>
-                @if (_totalDeProcessosDoCliente > _processosDoCliente.Count)
-                {
-                    <p>Há mais processos; veja todos em Processos.</p>
-                }
-            }
+            @ProcessosDoCliente
             <div class="acoes"><button type="button" class="secundario" @onclick="Fechar">Fechar</button></div>
         </section>
     }
@@ -208,6 +174,7 @@ else
     private ClienteDetalhe? _ficha;
     private IReadOnlyList<ProcessoResumo> _processosDoCliente = [];
     private int _totalDeProcessosDoCliente;
+    private string? _erroDosProcessosDoCliente;
 
     protected override async Task OnInitializedAsync()
     {
@@ -308,8 +275,16 @@ else
         var processos = await Despachante.EnviarAsync(new ListarProcessos(ClienteId: clienteId));
         if (AcessoEncerrado(processos)) return false;
 
-        _processosDoCliente = processos.Valor?.Itens ?? [];
-        _totalDeProcessosDoCliente = processos.Valor?.Total ?? 0;
+        LimparProcessosDoCliente();
+        if (!processos.Sucesso || processos.Valor is not { } pagina)
+        {
+            // Falha na consulta não é "sem processos": mostra o erro no lugar da lista.
+            _erroDosProcessosDoCliente = processos.Mensagem ?? "Não foi possível consultar os processos do cliente.";
+            return true;
+        }
+
+        _processosDoCliente = pagina.Itens;
+        _totalDeProcessosDoCliente = pagina.Total;
         return true;
     }
 
@@ -317,7 +292,33 @@ else
     {
         _processosDoCliente = [];
         _totalDeProcessosDoCliente = 0;
+        _erroDosProcessosDoCliente = null;
     }
+
+    private RenderFragment ProcessosDoCliente => @<text>
+        <h3>Processos do cliente</h3>
+        @if (_erroDosProcessosDoCliente is not null)
+        {
+            <p class="erro">@_erroDosProcessosDoCliente</p>
+        }
+        else if (_processosDoCliente.Count == 0)
+        {
+            <p>Nenhum processo vinculado.</p>
+        }
+        else
+        {
+            <ul>
+                @foreach (var processo in _processosDoCliente)
+                {
+                    <li @key="processo.Id">@processo.Titulo — @(processo.NumeroCnj ?? "sem número") — @processo.Status</li>
+                }
+            </ul>
+            @if (_totalDeProcessosDoCliente > _processosDoCliente.Count)
+            {
+                <p>Há mais processos; veja todos em Processos.</p>
+            }
+        }
+    </text>;
 
     private void Fechar()
     {

@@ -81,7 +81,7 @@ else
         {
             <h2>@(_form.Id is null ? "Novo processo" : "Editar processo")</h2>
 
-            <EditForm Model="_form" OnValidSubmit="SalvarAsync" FormName="processo" class="formulario">
+            <EditForm Model="_form" OnValidSubmit="SalvarAsync" FormName="processo" id="formulario-processo" class="formulario">
                 <DataAnnotationsValidator />
 
                 <div class="grade">
@@ -135,8 +135,11 @@ else
                     </table>
                 }
 
+            </EditForm>
+
+            @* A busca de cliente fica fora do <form>: sem formulário ao redor, Enter no campo não envia o processo. *@
                 <div class="filtros formulario">
-                    <label>Adicionar cliente (nome, CPF ou CNPJ) <InputText @bind-Value="_buscaDeCliente" /></label>
+                    <label>Adicionar cliente (nome, CPF ou CNPJ) <input type="text" @bind="_buscaDeCliente" @bind:event="oninput" @onkeydown="TeclaNaBuscaDeCliente" /></label>
                     <button type="button" class="secundario" @onclick="ProcurarClientesAsync">Procurar</button>
                 </div>
                 @foreach (var candidato in _candidatos)
@@ -148,10 +151,9 @@ else
                 }
 
                 <div class="acoes">
-                    <button type="submit">Salvar</button>
+                    <button type="submit" form="formulario-processo">Salvar</button>
                     <button type="button" class="secundario" @onclick="Fechar">Cancelar</button>
                 </div>
-            </EditForm>
 
             @if (_form.Id is { } idEmEdicao)
             {
@@ -292,6 +294,11 @@ else
         var jaVinculados = _form!.Clientes.Select(c => c.ClienteId).ToHashSet();
         _candidatos = [.. (resultado.Valor?.Itens ?? []).Where(c => !jaVinculados.Contains(c.Id))];
         if (!resultado.Sucesso) Avisar(resultado.Mensagem, falhou: true);
+    }
+
+    private async Task TeclaNaBuscaDeCliente(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await ProcurarClientesAsync();
     }
 
     private void Vincular(ClienteResumo cliente)
