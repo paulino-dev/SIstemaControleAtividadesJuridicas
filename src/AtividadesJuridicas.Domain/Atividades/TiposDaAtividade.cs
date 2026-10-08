@@ -64,6 +64,11 @@ public sealed record VinculoDaAtividade
     /// </summary>
     public static VinculoDaAtividade Criar(Guid? clienteId, Processo? processo, Guid? areaAtuacaoId)
     {
+        if (clienteId == Guid.Empty)
+            throw new ExcecaoDeDominio("Cliente inválido.");
+        if (areaAtuacaoId == Guid.Empty)
+            throw new ExcecaoDeDominio("Área de atuação inválida.");
+
         if (processo is null) return new VinculoDaAtividade(clienteId, null, areaAtuacaoId);
 
         if (clienteId is null)

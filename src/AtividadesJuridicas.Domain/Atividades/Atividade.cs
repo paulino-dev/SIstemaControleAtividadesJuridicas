@@ -11,6 +11,9 @@ public sealed class Atividade : Entidade
     public const string RevisorTravado =
         "O revisor desta atividade é o seu único responsável de Diretoria e não pode ser outro.";
 
+    public const string RevisorPrecisaSerDiretor =
+        "O revisor precisa ser um usuário ativo de Diretoria. Peça à Diretoria para trocar o revisor da atividade.";
+
     private const string SoAlteraResponsaveis =
         "Os responsáveis só podem ser alterados enquanto a atividade está criada, direcionada, em correção ou reaberta.";
     private const string SoAguardandoRevisao =
@@ -66,6 +69,7 @@ public sealed class Atividade : Entidade
     public static Atividade Criar(
         DadosDaAtividade dados, VinculoDaAtividade vinculo, TipoAutor tipoAutor, Guid? autorId, DateTime agoraUtc)
     {
+        ExigirUtc(agoraUtc);
         Validar(dados, StatusAtividade.Criada);
         ArgumentNullException.ThrowIfNull(vinculo);
         if (!Enum.IsDefined(tipoAutor))
@@ -97,9 +101,12 @@ public sealed class Atividade : Entidade
     public AlteracaoDeResponsaveis DefinirResponsaveis(
         IReadOnlyCollection<ResponsavelInformado> responsaveis, PessoaDaAtividade? revisor, DateTime agoraUtc, Guid? atorId)
     {
+        ExigirUtc(agoraUtc);
         ArgumentNullException.ThrowIfNull(responsaveis);
         if (responsaveis.Any(r => r is null || r.Pessoa is null))
             throw new ArgumentException("A lista de responsáveis não pode conter elemento nulo.", nameof(responsaveis));
+        if (responsaveis.Any(r => r.Pessoa.UsuarioId == Guid.Empty))
+            throw new ExcecaoDeDominio("Usuário inválido.");
 
         // Tudo é verificado antes de qualquer mudança, para não deixar a atividade pela metade.
         if (!PodeAlterarResponsaveis)
@@ -154,7 +161,7 @@ public sealed class Atividade : Entidade
         if (Status == StatusAtividade.Criada && _responsaveis.Count > 0)
             Transicionar(StatusAtividade.Direcionada, atorId, agoraUtc, null);
         else
-            AvancarSeTodosConcluiram(atorId, agoraUtc);
+            AvancarSeTodosConcluiram(atorId, agoraUtc, responsaveis.Count == 1 && responsaveis.First().Pessoa.EhDiretoriaAtiva);
 
         return alteracao;
     }
@@ -164,7 +171,10 @@ public sealed class Atividade : Entidade
     {
         ArgumentNullException.ThrowIfNull(revisor);
         ArgumentNullException.ThrowIfNull(responsaveisAtuais);
-        if (!responsaveisAtuais.Select(p => p.UsuarioId).ToHashSet().SetEquals(_responsaveis.Select(e => e.UsuarioId)))
+        if (responsaveisAtuais.Any(p => p is null))
+            throw new ArgumentException("A lista de responsáveis não pode conter elemento nulo.", nameof(responsaveisAtuais));
+        if (responsaveisAtuais.Count != _responsaveis.Count
+            || !responsaveisAtuais.Select(p => p.UsuarioId).ToHashSet().SetEquals(_responsaveis.Select(e => e.UsuarioId)))
             throw new ArgumentException("A lista informada não é a dos responsáveis atuais.", nameof(responsaveisAtuais));
         if (!PodeTrocarRevisor)
             throw new ExcecaoDeDominio("O revisor não pode ser trocado depois que a atividade foi concluída.");
@@ -172,8 +182,11 @@ public sealed class Atividade : Entidade
         RevisorId = ResolverRevisor(responsaveisAtuais, revisor);
     }
 
-    public void ConcluirParte(Guid usuarioId, DateTime agoraUtc)
+    public void ConcluirParte(PessoaDaAtividade quem, DateTime agoraUtc)
     {
+        ArgumentNullException.ThrowIfNull(quem);
+        ExigirUtc(agoraUtc);
+        var usuarioId = quem.UsuarioId;
         if (!AguardaPartes)
             throw new ExcecaoDeDominio(
                 "A parte só pode ser concluída enquanto a atividade está direcionada, em correção ou reaberta.");
@@ -185,26 +198,29 @@ public sealed class Atividade : Entidade
 
         parte.Concluir(agoraUtc);
         VersaoDasPartes++;
-        AvancarSeTodosConcluiram(usuarioId, agoraUtc);
+        AvancarSeTodosConcluiram(usuarioId, agoraUtc, quem.EhDiretoriaAtiva);
     }
 
-    public void Aprovar(Guid revisorId, DateTime agoraUtc)
+    public void Aprovar(PessoaDaAtividade revisor, DateTime agoraUtc)
     {
-        ExigirRevisao(revisorId);
-        Transicionar(StatusAtividade.Concluida, revisorId, agoraUtc, null);
+        ExigirUtc(agoraUtc);
+        ExigirRevisao(revisor);
+        Transicionar(StatusAtividade.Concluida, revisor.UsuarioId, agoraUtc, null);
     }
 
     /// <summary>Devolve para correção: só as partes dos responsáveis selecionados voltam a ficar pendentes.</summary>
-    public void Devolver(Guid revisorId, string motivo, IReadOnlyCollection<Guid> responsaveis, DateTime agoraUtc)
+    public void Devolver(PessoaDaAtividade revisor, string motivo, IReadOnlyCollection<Guid> responsaveis, DateTime agoraUtc)
     {
-        ExigirRevisao(revisorId);
+        ExigirUtc(agoraUtc);
+        ExigirRevisao(revisor);
         var motivoValido = MotivoValido(motivo);
         ReabrirPartes(responsaveis);
-        Transicionar(StatusAtividade.ParaCorrecao, revisorId, agoraUtc, motivoValido);
+        Transicionar(StatusAtividade.ParaCorrecao, revisor.UsuarioId, agoraUtc, motivoValido);
     }
 
     public void Reabrir(string motivo, IReadOnlyCollection<Guid> responsaveis, DateTime agoraUtc, Guid? atorId)
     {
+        ExigirUtc(agoraUtc);
         if (Status != StatusAtividade.Concluida)
             throw new ExcecaoDeDominio("Só uma atividade concluída pode ser reaberta.");
 
@@ -222,11 +238,14 @@ public sealed class Atividade : Entidade
     // vale o informado (que precisa ser diretor ativo) ou, sem informado, o revisor atual é mantido.
     private Guid? ResolverRevisor(IReadOnlyCollection<PessoaDaAtividade> responsaveis, PessoaDaAtividade? informado)
     {
+        if (informado is not null && informado.UsuarioId == Guid.Empty)
+            throw new ExcecaoDeDominio("Usuário inválido.");
+
         var diretores = responsaveis.Where(p => p.EhDiretoriaAtiva).ToList();
         if (diretores.Count == 1)
         {
             var travado = diretores[0].UsuarioId;
-            if (informado is not null && informado.UsuarioId != travado)
+            if (informado is not null && informado.UsuarioId != travado && informado.UsuarioId != RevisorId)
                 throw new ExcecaoDeDominio(RevisorTravado);
             return travado;
         }
@@ -237,12 +256,21 @@ public sealed class Atividade : Entidade
         return informado.UsuarioId;
     }
 
-    private void ExigirRevisao(Guid revisorId)
+    private void ExigirRevisao(PessoaDaAtividade revisor)
     {
+        ArgumentNullException.ThrowIfNull(revisor);
         if (!AguardaRevisao)
             throw new ExcecaoDeDominio(SoAguardandoRevisao);
-        if (RevisorId != revisorId)
+        if (RevisorId != revisor.UsuarioId)
             throw new ExcecaoDeDominio(SoORevisor);
+        if (!revisor.EhDiretoriaAtiva)
+            throw new ExcecaoDeDominio(RevisorPrecisaSerDiretor);
+    }
+
+    private static void ExigirUtc(DateTime valor)
+    {
+        if (valor.Kind != DateTimeKind.Utc)
+            throw new ArgumentException("O horário deve estar em UTC.", nameof(valor));
     }
 
     // Valida tudo antes de reabrir a primeira parte.
@@ -259,7 +287,8 @@ public sealed class Atividade : Entidade
         VersaoDasPartes++;
     }
 
-    private void AvancarSeTodosConcluiram(Guid? usuarioId, DateTime agoraUtc)
+    // unicoResponsavelEhDiretorAtivo: o atalho só vale se o único responsável é o revisor e ainda é diretor ativo.
+    private void AvancarSeTodosConcluiram(Guid? usuarioId, DateTime agoraUtc, bool unicoResponsavelEhDiretorAtivo)
     {
         if (!AguardaPartes || _responsaveis.Count == 0 || _responsaveis.Any(e => e.Pendente)) return;
 
@@ -268,7 +297,7 @@ public sealed class Atividade : Entidade
             usuarioId, agoraUtc, null);
 
         // O revisor é o único responsável: não há a quem submeter, a atividade se conclui.
-        if (_responsaveis.Count == 1 && _responsaveis[0].UsuarioId == RevisorId)
+        if (unicoResponsavelEhDiretorAtivo && _responsaveis.Count == 1 && _responsaveis[0].UsuarioId == RevisorId)
             Transicionar(StatusAtividade.Concluida, usuarioId, agoraUtc, null);
     }
 

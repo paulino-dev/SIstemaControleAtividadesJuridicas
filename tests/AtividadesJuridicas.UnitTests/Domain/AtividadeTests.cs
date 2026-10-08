@@ -37,15 +37,15 @@ public class AtividadeTests
     private Atividade Feita()
     {
         var atividade = Direcionada();
-        atividade.ConcluirParte(_pedro.UsuarioId, T0.AddHours(1));
-        atividade.ConcluirParte(_paula.UsuarioId, T0.AddHours(2));
+        atividade.ConcluirParte(_pedro, T0.AddHours(1));
+        atividade.ConcluirParte(_paula, T0.AddHours(2));
         return atividade;
     }
 
     private Atividade Concluida()
     {
         var atividade = Feita();
-        atividade.Aprovar(_diana.UsuarioId, T0.AddHours(3));
+        atividade.Aprovar(_diana, T0.AddHours(3));
         return atividade;
     }
 
@@ -298,7 +298,7 @@ public class AtividadeTests
     public void Redefinir_responsaveis_preserva_quem_fica_e_conta_o_que_mudou()
     {
         var atividade = Direcionada();
-        atividade.ConcluirParte(_pedro.UsuarioId, T0.AddHours(1));
+        atividade.ConcluirParte(_pedro, T0.AddHours(1));
         var entradaDoPedro = atividade.Responsaveis.Single(r => r.UsuarioId == _pedro.UsuarioId);
 
         var alteracao = atividade.DefinirResponsaveis([R(_pedro, "Redigir e revisar"), R(_ester, "Protocolar")], _diana, T0.AddHours(2), _diana.UsuarioId);
@@ -328,7 +328,7 @@ public class AtividadeTests
     public void Remover_o_ultimo_pendente_avanca_a_atividade()
     {
         var atividade = Direcionada();
-        atividade.ConcluirParte(_pedro.UsuarioId, T0.AddHours(1));
+        atividade.ConcluirParte(_pedro, T0.AddHours(1));
 
         atividade.DefinirResponsaveis([R(_pedro, "Redigir")], _diana, T0.AddHours(2), _diana.UsuarioId);
 
@@ -470,11 +470,11 @@ public class AtividadeTests
     {
         var atividade = Direcionada();
 
-        atividade.ConcluirParte(_pedro.UsuarioId, T0.AddHours(1));
+        atividade.ConcluirParte(_pedro, T0.AddHours(1));
         atividade.Status.Should().Be(StatusAtividade.Direcionada);
         atividade.Responsaveis.Single(r => r.UsuarioId == _pedro.UsuarioId).ConcluidoEm.Should().Be(T0.AddHours(1));
 
-        atividade.ConcluirParte(_paula.UsuarioId, T0.AddHours(2));
+        atividade.ConcluirParte(_paula, T0.AddHours(2));
         atividade.Status.Should().Be(StatusAtividade.Feita);
         atividade.ConcluidaEm.Should().BeNull();
         var linha = atividade.Historico.Last();
@@ -488,10 +488,10 @@ public class AtividadeTests
     public void Quem_nao_e_responsavel_ou_ja_concluiu_nao_conclui()
     {
         var atividade = Direcionada();
-        atividade.ConcluirParte(_pedro.UsuarioId, T0.AddHours(1));
+        atividade.ConcluirParte(_pedro, T0.AddHours(1));
 
-        var deFora = () => atividade.ConcluirParte(_ester.UsuarioId, T0.AddHours(2));
-        var deNovo = () => atividade.ConcluirParte(_pedro.UsuarioId, T0.AddHours(2));
+        var deFora = () => atividade.ConcluirParte(_ester, T0.AddHours(2));
+        var deNovo = () => atividade.ConcluirParte(_pedro, T0.AddHours(2));
 
         deFora.Should().Throw<ExcecaoDeDominio>().WithMessage("Você não é responsável por esta atividade.");
         deNovo.Should().Throw<ExcecaoDeDominio>().WithMessage("Sua parte já está concluída.");
@@ -512,7 +512,7 @@ public class AtividadeTests
             _ => Concluida(),
         };
 
-        var acao = () => atividade.ConcluirParte(_pedro.UsuarioId, T0.AddDays(1));
+        var acao = () => atividade.ConcluirParte(_pedro, T0.AddDays(1));
 
         acao.Should().Throw<ExcecaoDeDominio>()
             .WithMessage("A parte só pode ser concluída enquanto a atividade está direcionada, em correção ou reaberta.");
@@ -525,7 +525,7 @@ public class AtividadeTests
         var atividade = Nova();
         atividade.DefinirResponsaveis([R(_diana)], null, T0.AddMinutes(1), _diana.UsuarioId);
 
-        atividade.ConcluirParte(_diana.UsuarioId, T0.AddHours(1));
+        atividade.ConcluirParte(_diana, T0.AddHours(1));
 
         atividade.Status.Should().Be(StatusAtividade.Concluida);
         atividade.ConcluidaEm.Should().Be(T0.AddHours(1));
@@ -544,8 +544,8 @@ public class AtividadeTests
         var atividade = Nova();
         atividade.DefinirResponsaveis([R(_diana), R(_pedro)], null, T0, _diana.UsuarioId);
 
-        atividade.ConcluirParte(_diana.UsuarioId, T0.AddHours(1));
-        atividade.ConcluirParte(_pedro.UsuarioId, T0.AddHours(2));
+        atividade.ConcluirParte(_diana, T0.AddHours(1));
+        atividade.ConcluirParte(_pedro, T0.AddHours(2));
 
         atividade.Status.Should().Be(StatusAtividade.Feita);
     }
@@ -557,7 +557,7 @@ public class AtividadeTests
     {
         var atividade = Feita();
 
-        atividade.Aprovar(_diana.UsuarioId, T0.AddHours(3));
+        atividade.Aprovar(_diana, T0.AddHours(3));
 
         atividade.Status.Should().Be(StatusAtividade.Concluida);
         atividade.ConcluidaEm.Should().Be(T0.AddHours(3));
@@ -573,8 +573,8 @@ public class AtividadeTests
     {
         var atividade = Feita();
 
-        var aprovar = () => atividade.Aprovar(_davi.UsuarioId, T0.AddHours(3));
-        var devolver = () => atividade.Devolver(_pedro.UsuarioId, "Faltou a procuração", [_pedro.UsuarioId], T0.AddHours(3));
+        var aprovar = () => atividade.Aprovar(_davi, T0.AddHours(3));
+        var devolver = () => atividade.Devolver(_pedro, "Faltou a procuração", [_pedro.UsuarioId], T0.AddHours(3));
 
         aprovar.Should().Throw<ExcecaoDeDominio>().WithMessage(Atividade.SoORevisor);
         devolver.Should().Throw<ExcecaoDeDominio>().WithMessage(Atividade.SoORevisor);
@@ -594,8 +594,8 @@ public class AtividadeTests
             _ => Concluida(),
         };
 
-        var aprovar = () => atividade.Aprovar(_diana.UsuarioId, T0.AddDays(1));
-        var devolver = () => atividade.Devolver(_diana.UsuarioId, "motivo", [_pedro.UsuarioId], T0.AddDays(1));
+        var aprovar = () => atividade.Aprovar(_diana, T0.AddDays(1));
+        var devolver = () => atividade.Devolver(_diana, "motivo", [_pedro.UsuarioId], T0.AddDays(1));
 
         aprovar.Should().Throw<ExcecaoDeDominio>().WithMessage("A atividade só pode ser aprovada ou devolvida quando está feita ou corrigida.");
         devolver.Should().Throw<ExcecaoDeDominio>().WithMessage("A atividade só pode ser aprovada ou devolvida quando está feita ou corrigida.");
@@ -607,7 +607,7 @@ public class AtividadeTests
     {
         var atividade = Feita();
 
-        atividade.Devolver(_diana.UsuarioId, "  Faltou a procuração  ", [_paula.UsuarioId], T0.AddHours(3));
+        atividade.Devolver(_diana, "  Faltou a procuração  ", [_paula.UsuarioId], T0.AddHours(3));
 
         atividade.Status.Should().Be(StatusAtividade.ParaCorrecao);
         atividade.Responsaveis.Single(r => r.UsuarioId == _paula.UsuarioId).Pendente.Should().BeTrue();
@@ -622,18 +622,18 @@ public class AtividadeTests
     public void A_atividade_devolvida_fica_corrigida_quando_o_ultimo_selecionado_conclui()
     {
         var atividade = Feita();
-        atividade.Devolver(_diana.UsuarioId, "Ajustar", [_pedro.UsuarioId, _paula.UsuarioId], T0.AddHours(3));
+        atividade.Devolver(_diana, "Ajustar", [_pedro.UsuarioId, _paula.UsuarioId], T0.AddHours(3));
 
-        atividade.ConcluirParte(_pedro.UsuarioId, T0.AddHours(4));
+        atividade.ConcluirParte(_pedro, T0.AddHours(4));
         atividade.Status.Should().Be(StatusAtividade.ParaCorrecao);
 
-        atividade.ConcluirParte(_paula.UsuarioId, T0.AddHours(5));
+        atividade.ConcluirParte(_paula, T0.AddHours(5));
         atividade.Status.Should().Be(StatusAtividade.Corrigida);
 
-        atividade.Devolver(_diana.UsuarioId, "Ainda falta", [_paula.UsuarioId], T0.AddHours(6));
+        atividade.Devolver(_diana, "Ainda falta", [_paula.UsuarioId], T0.AddHours(6));
         atividade.Status.Should().Be(StatusAtividade.ParaCorrecao);
-        atividade.ConcluirParte(_paula.UsuarioId, T0.AddHours(7));
-        atividade.Aprovar(_diana.UsuarioId, T0.AddHours(8));
+        atividade.ConcluirParte(_paula, T0.AddHours(7));
+        atividade.Aprovar(_diana, T0.AddHours(8));
 
         atividade.Status.Should().Be(StatusAtividade.Concluida);
         Percurso(atividade).Select(p => p.Para).Should().Equal(
@@ -649,7 +649,7 @@ public class AtividadeTests
         var feita = Feita();
         var concluida = Concluida();
 
-        var devolver = () => feita.Devolver(_diana.UsuarioId, motivo, [_pedro.UsuarioId], T0.AddHours(3));
+        var devolver = () => feita.Devolver(_diana, motivo, [_pedro.UsuarioId], T0.AddHours(3));
         var reabrir = () => concluida.Reabrir(motivo, [_pedro.UsuarioId], T0.AddHours(4), _diana.UsuarioId);
 
         devolver.Should().Throw<ExcecaoDeDominio>().WithMessage("Informe o motivo.");
@@ -663,7 +663,7 @@ public class AtividadeTests
     {
         var feita = Feita();
 
-        var acao = () => feita.Devolver(_diana.UsuarioId, new string('a', 2001), [_pedro.UsuarioId], T0.AddHours(3));
+        var acao = () => feita.Devolver(_diana, new string('a', 2001), [_pedro.UsuarioId], T0.AddHours(3));
 
         acao.Should().Throw<ExcecaoDeDominio>().WithMessage("O motivo deve ter até 2000 caracteres.");
     }
@@ -673,8 +673,8 @@ public class AtividadeTests
     {
         var feita = Feita();
 
-        var nenhum = () => feita.Devolver(_diana.UsuarioId, "Ajustar", [], T0.AddHours(3));
-        var deFora = () => feita.Devolver(_diana.UsuarioId, "Ajustar", [_pedro.UsuarioId, _ester.UsuarioId], T0.AddHours(3));
+        var nenhum = () => feita.Devolver(_diana, "Ajustar", [], T0.AddHours(3));
+        var deFora = () => feita.Devolver(_diana, "Ajustar", [_pedro.UsuarioId, _ester.UsuarioId], T0.AddHours(3));
 
         nenhum.Should().Throw<ExcecaoDeDominio>().WithMessage("Selecione ao menos um responsável.");
         deFora.Should().Throw<ExcecaoDeDominio>().WithMessage("Responsável selecionado não faz parte da atividade.");
@@ -708,7 +708,7 @@ public class AtividadeTests
         var atividade = Concluida();
         atividade.Reabrir("Ajuste", [_pedro.UsuarioId], T0.AddDays(2), _diana.UsuarioId);
 
-        atividade.ConcluirParte(_pedro.UsuarioId, T0.AddDays(3));
+        atividade.ConcluirParte(_pedro, T0.AddDays(3));
 
         atividade.Status.Should().Be(StatusAtividade.Feita);
         atividade.Historico.Last().StatusAnterior.Should().Be(StatusAtividade.Reaberta);
@@ -766,5 +766,413 @@ public class AtividadeTests
 
         var perfilErrado = () => PessoaDaAtividade.De(pedro, diretor);
         perfilErrado.Should().Throw<ArgumentException>();
+    }
+
+    // ================= Rodada de correção 1 =================
+
+    private const string MsgSoAguardandoRevisao = "A atividade só pode ser aprovada ou devolvida quando está feita ou corrigida.";
+    private const string MsgSoReabreConcluida = "Só uma atividade concluída pode ser reaberta.";
+
+    private Atividade ParaCorrecao()
+    {
+        var atividade = Feita();
+        atividade.Devolver(_diana, "Ajustar", [_pedro.UsuarioId, _paula.UsuarioId], T0.AddHours(3));
+        return atividade;
+    }
+
+    private Atividade Corrigida()
+    {
+        var atividade = ParaCorrecao();
+        atividade.ConcluirParte(_pedro, T0.AddHours(4));
+        atividade.ConcluirParte(_paula, T0.AddHours(5));
+        return atividade;
+    }
+
+    private Atividade Reaberta()
+    {
+        var atividade = Concluida();
+        atividade.Reabrir("Ajuste", [_pedro.UsuarioId, _paula.UsuarioId], T0.AddDays(2), _diana.UsuarioId);
+        return atividade;
+    }
+
+    private Atividade Em(StatusAtividade status) => status switch
+    {
+        StatusAtividade.Criada => Nova(),
+        StatusAtividade.Direcionada => Direcionada(),
+        StatusAtividade.Feita => Feita(),
+        StatusAtividade.ParaCorrecao => ParaCorrecao(),
+        StatusAtividade.Corrigida => Corrigida(),
+        StatusAtividade.Concluida => Concluida(),
+        _ => Reaberta(),
+    };
+
+    // ---- A: o revisor precisa ser diretor ativo ----
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Revisor_que_deixou_de_ser_diretor_ativo_nao_aprova_nem_devolve(bool rebaixado)
+    {
+        var atividade = Feita();
+        var antiga = rebaixado ? _diana with { Tipo = TipoPerfil.Producao } : _diana with { Ativo = false };
+
+        var aprovar = () => atividade.Aprovar(antiga, T0.AddHours(3));
+        var devolver = () => atividade.Devolver(antiga, "Ajustar", [_pedro.UsuarioId], T0.AddHours(3));
+
+        aprovar.Should().Throw<ExcecaoDeDominio>().WithMessage(Atividade.RevisorPrecisaSerDiretor);
+        devolver.Should().Throw<ExcecaoDeDominio>().WithMessage(Atividade.RevisorPrecisaSerDiretor);
+        atividade.Status.Should().Be(StatusAtividade.Feita);
+        atividade.Responsaveis.Should().OnlyContain(r => !r.Pendente);
+    }
+
+    [Fact]
+    public void Revisor_unico_responsavel_rebaixado_deixa_a_atividade_feita_ate_trocar_o_revisor()
+    {
+        var atividade = Nova();
+        atividade.DefinirResponsaveis([R(_diana)], null, T0.AddMinutes(1), _diana.UsuarioId);
+        var dianaRebaixada = _diana with { Tipo = TipoPerfil.Producao };
+
+        atividade.ConcluirParte(dianaRebaixada, T0.AddHours(1));
+
+        atividade.Status.Should().Be(StatusAtividade.Feita);
+        atividade.ConcluidaEm.Should().BeNull();
+
+        atividade.TrocarRevisor(_davi, [dianaRebaixada]);
+        atividade.Aprovar(_davi, T0.AddHours(2));
+
+        atividade.Status.Should().Be(StatusAtividade.Concluida);
+        atividade.ConcluidaEm.Should().Be(T0.AddHours(2));
+    }
+
+    [Fact]
+    public void Remover_o_ultimo_pendente_deixando_so_o_revisor_rebaixado_nao_conclui_a_atividade()
+    {
+        var atividade = Nova();
+        atividade.DefinirResponsaveis([R(_diana), R(_pedro)], null, T0, _diana.UsuarioId);
+        atividade.ConcluirParte(_diana, T0.AddHours(1));
+        var dianaRebaixada = _diana with { Tipo = TipoPerfil.Producao };
+
+        atividade.DefinirResponsaveis([R(dianaRebaixada)], null, T0.AddHours(2), _davi.UsuarioId);
+
+        atividade.Status.Should().Be(StatusAtividade.Feita);
+        atividade.ConcluidaEm.Should().BeNull();
+        atividade.RevisorId.Should().Be(_diana.UsuarioId);
+    }
+
+    // ---- B: informado igual ao atual na regra de travamento ----
+
+    [Fact]
+    public void Informar_o_revisor_atual_quando_a_reavaliacao_trava_passa_o_cargo_ao_diretor_responsavel()
+    {
+        var atividade = Direcionada();   // revisora Diana
+
+        var acao = () => atividade.DefinirResponsaveis([R(_pedro), R(_paula), R(_davi)], _diana, T0, _diana.UsuarioId);
+
+        acao.Should().NotThrow();
+        atividade.RevisorId.Should().Be(_davi.UsuarioId);
+    }
+
+    [Fact]
+    public void Informar_um_terceiro_quando_a_reavaliacao_trava_continua_recusado()
+    {
+        var atividade = Direcionada();   // revisora Diana
+        var ester = _ester with { Tipo = TipoPerfil.Diretoria };
+
+        var acao = () => atividade.DefinirResponsaveis([R(_pedro), R(_paula), R(_davi)], ester, T0, _diana.UsuarioId);
+
+        acao.Should().Throw<ExcecaoDeDominio>().WithMessage(Atividade.RevisorTravado);
+        atividade.RevisorId.Should().Be(_diana.UsuarioId);
+    }
+
+    // ---- C: TrocarRevisor valida a lista ----
+
+    [Fact]
+    public void Trocar_revisor_recusa_elemento_nulo_e_repeticao_na_lista()
+    {
+        var atividade = Nova();
+        atividade.DefinirResponsaveis([R(_davi), R(_pedro)], null, T0, _diana.UsuarioId);
+
+        var nulo = () => atividade.TrocarRevisor(_diana, [_davi, _pedro, null!]);
+        var repetido = () => atividade.TrocarRevisor(_diana, [_davi, _davi, _pedro]);
+
+        nulo.Should().Throw<ArgumentException>();
+        repetido.Should().Throw<ArgumentException>();
+        atividade.RevisorId.Should().Be(_davi.UsuarioId);
+    }
+
+    // ---- D: Guid.Empty ----
+
+    [Fact]
+    public void Responsavel_ou_revisor_com_id_vazio_e_recusado_sem_mudar_nada()
+    {
+        var atividade = Nova();
+        var vazioProducao = new PessoaDaAtividade(Guid.Empty, TipoPerfil.Producao, true);
+        var vazioDiretoria = new PessoaDaAtividade(Guid.Empty, TipoPerfil.Diretoria, true);
+
+        var responsavel = () => atividade.DefinirResponsaveis([R(_pedro), R(vazioProducao)], _diana, T0, _diana.UsuarioId);
+        var revisor = () => atividade.DefinirResponsaveis([R(_pedro)], vazioDiretoria, T0, _diana.UsuarioId);
+
+        responsavel.Should().Throw<ExcecaoDeDominio>().WithMessage("Usuário inválido.");
+        revisor.Should().Throw<ExcecaoDeDominio>().WithMessage("Usuário inválido.");
+        atividade.Responsaveis.Should().BeEmpty();
+        atividade.RevisorId.Should().BeNull();
+        atividade.Status.Should().Be(StatusAtividade.Criada);
+    }
+
+    [Fact]
+    public void Vinculo_com_cliente_ou_area_vazios_e_recusado()
+    {
+        var cliente = () => VinculoDaAtividade.Criar(Guid.Empty, null, null);
+        var area = () => VinculoDaAtividade.Criar(null, null, Guid.Empty);
+
+        cliente.Should().Throw<ExcecaoDeDominio>().WithMessage("Cliente inválido.");
+        area.Should().Throw<ExcecaoDeDominio>().WithMessage("Área de atuação inválida.");
+    }
+
+    // ---- E: horários em UTC ----
+
+    [Theory]
+    [InlineData(DateTimeKind.Local)]
+    [InlineData(DateTimeKind.Unspecified)]
+    public void Horario_que_nao_e_utc_e_recusado_em_todas_as_operacoes(DateTimeKind tipo)
+    {
+        var agora = DateTime.SpecifyKind(T0.AddHours(5), tipo);
+        var direcionada = Direcionada();
+        var feitaParaAprovar = Feita();
+        var feitaParaDevolver = Feita();
+        var concluida = Concluida();
+
+        var acoes = new Action[]
+        {
+            () => Atividade.Criar(Dados(), VinculoDaAtividade.Avulsa, TipoAutor.Usuario, _diana.UsuarioId, agora),
+            () => Nova().DefinirResponsaveis([R(_pedro)], _diana, agora, _diana.UsuarioId),
+            () => direcionada.ConcluirParte(_pedro, agora),
+            () => feitaParaAprovar.Aprovar(_diana, agora),
+            () => feitaParaDevolver.Devolver(_diana, "Ajustar", [_pedro.UsuarioId], agora),
+            () => concluida.Reabrir("Ajuste", [_pedro.UsuarioId], agora, _diana.UsuarioId),
+        };
+
+        foreach (var acao in acoes) acao.Should().Throw<ArgumentException>();
+        direcionada.Status.Should().Be(StatusAtividade.Direcionada);
+        feitaParaAprovar.Status.Should().Be(StatusAtividade.Feita);
+        feitaParaDevolver.Status.Should().Be(StatusAtividade.Feita);
+        concluida.Status.Should().Be(StatusAtividade.Concluida);
+    }
+
+    // ---- F1: VersaoDasPartes ----
+
+    [Fact]
+    public void Versao_das_partes_so_sobe_quando_os_responsaveis_ou_as_partes_mudam()
+    {
+        var igual = Direcionada();
+        igual.DefinirResponsaveis([R(_pedro, "Redigir"), R(_paula, "Juntar documentos")], _diana, T0, _diana.UsuarioId);
+        igual.VersaoDasPartes.Should().Be(1);
+
+        var direcionamento = Direcionada();
+        direcionamento.DefinirResponsaveis([R(_pedro, "Redigir com calma"), R(_paula, "Juntar documentos")], _diana, T0, _diana.UsuarioId);
+        direcionamento.VersaoDasPartes.Should().Be(2);
+
+        var remocao = Direcionada();
+        remocao.DefinirResponsaveis([R(_pedro, "Redigir")], _diana, T0, _diana.UsuarioId);
+        remocao.VersaoDasPartes.Should().Be(2);
+
+        var feita = Feita();
+        var antesDevolver = feita.VersaoDasPartes;
+        feita.Devolver(_diana, "Ajustar", [_pedro.UsuarioId], T0.AddHours(3));
+        feita.VersaoDasPartes.Should().Be(antesDevolver + 1);
+
+        var concluida = Concluida();
+        var antesReabrir = concluida.VersaoDasPartes;
+        concluida.Reabrir("Ajuste", [_pedro.UsuarioId], T0.AddDays(1), _diana.UsuarioId);
+        concluida.VersaoDasPartes.Should().Be(antesReabrir + 1);
+    }
+
+    // ---- F2: recusas por status ----
+
+    [Theory]
+    [InlineData(StatusAtividade.ParaCorrecao)]
+    [InlineData(StatusAtividade.Reaberta)]
+    public void Aprovar_e_devolver_sao_recusados_em_correcao_e_reaberta(StatusAtividade status)
+    {
+        var atividade = Em(status);
+
+        var aprovar = () => atividade.Aprovar(_diana, T0.AddDays(5));
+        var devolver = () => atividade.Devolver(_diana, "motivo", [_pedro.UsuarioId], T0.AddDays(5));
+
+        aprovar.Should().Throw<ExcecaoDeDominio>().WithMessage(MsgSoAguardandoRevisao);
+        devolver.Should().Throw<ExcecaoDeDominio>().WithMessage(MsgSoAguardandoRevisao);
+        atividade.Status.Should().Be(status);
+    }
+
+    [Fact]
+    public void Concluir_parte_e_recusado_em_atividade_corrigida()
+    {
+        var atividade = Corrigida();
+
+        var acao = () => atividade.ConcluirParte(_pedro, T0.AddDays(5));
+
+        acao.Should().Throw<ExcecaoDeDominio>()
+            .WithMessage("A parte só pode ser concluída enquanto a atividade está direcionada, em correção ou reaberta.");
+        atividade.Status.Should().Be(StatusAtividade.Corrigida);
+    }
+
+    [Theory]
+    [InlineData(StatusAtividade.ParaCorrecao)]
+    [InlineData(StatusAtividade.Corrigida)]
+    [InlineData(StatusAtividade.Reaberta)]
+    public void Reabrir_e_recusado_fora_de_atividade_concluida(StatusAtividade status)
+    {
+        var atividade = Em(status);
+
+        var acao = () => atividade.Reabrir("motivo", [_pedro.UsuarioId], T0.AddDays(5), _diana.UsuarioId);
+
+        acao.Should().Throw<ExcecaoDeDominio>().WithMessage(MsgSoReabreConcluida);
+        atividade.Status.Should().Be(status);
+    }
+
+    [Fact]
+    public void Responsaveis_nao_mudam_em_atividade_corrigida()
+    {
+        var atividade = Corrigida();
+
+        var acao = () => atividade.DefinirResponsaveis([R(_pedro), R(_paula), R(_ester)], _diana, T0.AddDays(5), _diana.UsuarioId);
+
+        acao.Should().Throw<ExcecaoDeDominio>()
+            .WithMessage("Os responsáveis só podem ser alterados enquanto a atividade está criada, direcionada, em correção ou reaberta.");
+        atividade.PodeAlterarResponsaveis.Should().BeFalse();
+        atividade.Responsaveis.Should().HaveCount(2);
+    }
+
+    // ---- F3 e F4: responsáveis em correção e reaberta ----
+
+    [Theory]
+    [InlineData(StatusAtividade.ParaCorrecao)]
+    [InlineData(StatusAtividade.Reaberta)]
+    public void Responsavel_pode_ser_incluido_em_correcao_e_reaberta_e_entra_pendente(StatusAtividade status)
+    {
+        var atividade = Em(status);
+
+        var alteracao = atividade.DefinirResponsaveis(
+            [R(_pedro, "Redigir"), R(_paula, "Juntar documentos"), R(_ester, "Protocolar")], null, T0.AddDays(5), _diana.UsuarioId);
+
+        alteracao.Adicionados.Should().Equal(_ester.UsuarioId);
+        atividade.Status.Should().Be(status);
+        atividade.Responsaveis.Single(r => r.UsuarioId == _ester.UsuarioId).Pendente.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Remover_o_ultimo_pendente_em_correcao_deixa_a_atividade_corrigida()
+    {
+        var atividade = ParaCorrecao();
+        atividade.ConcluirParte(_pedro, T0.AddHours(4));
+
+        atividade.DefinirResponsaveis([R(_pedro, "Redigir")], null, T0.AddHours(5), _diana.UsuarioId);
+
+        atividade.Status.Should().Be(StatusAtividade.Corrigida);
+        atividade.Historico.Last().UsuarioId.Should().Be(_diana.UsuarioId);
+    }
+
+    [Fact]
+    public void Remover_o_ultimo_pendente_em_atividade_reaberta_deixa_a_atividade_feita()
+    {
+        var atividade = Reaberta();
+        atividade.ConcluirParte(_pedro, T0.AddDays(3));
+
+        atividade.DefinirResponsaveis([R(_pedro, "Redigir")], null, T0.AddDays(4), _diana.UsuarioId);
+
+        atividade.Status.Should().Be(StatusAtividade.Feita);
+        atividade.Historico.Last().UsuarioId.Should().Be(_diana.UsuarioId);
+    }
+
+    // ---- F5 e F6: atalho do revisor único responsável ----
+
+    [Fact]
+    public void Atalho_do_revisor_tambem_vale_ao_concluir_uma_atividade_reaberta()
+    {
+        var atividade = Nova();
+        atividade.DefinirResponsaveis([R(_diana)], null, T0.AddMinutes(1), _diana.UsuarioId);
+        atividade.ConcluirParte(_diana, T0.AddHours(1));
+        atividade.Reabrir("Ajuste", [_diana.UsuarioId], T0.AddDays(1), _diana.UsuarioId);
+
+        atividade.ConcluirParte(_diana, T0.AddDays(2));
+
+        atividade.Status.Should().Be(StatusAtividade.Concluida);
+        atividade.ConcluidaEm.Should().Be(T0.AddDays(2));
+        Percurso(atividade).TakeLast(3).Should().Equal(
+            (StatusAtividade.Concluida, StatusAtividade.Reaberta),
+            (StatusAtividade.Reaberta, StatusAtividade.Feita),
+            (StatusAtividade.Feita, StatusAtividade.Concluida));
+        atividade.Historico.Select(h => h.Ordem).Should().Equal(1, 2, 3, 4, 5, 6, 7);
+    }
+
+    [Fact]
+    public void Atalho_do_revisor_tambem_vale_ao_concluir_a_correcao()
+    {
+        var atividade = Nova();
+        atividade.DefinirResponsaveis([R(_diana), R(_pedro)], null, T0, _diana.UsuarioId);
+        atividade.ConcluirParte(_diana, T0.AddHours(1));
+        atividade.ConcluirParte(_pedro, T0.AddHours(2));
+        atividade.Devolver(_diana, "Ajustar", [_diana.UsuarioId], T0.AddHours(3));
+        atividade.DefinirResponsaveis([R(_diana)], null, T0.AddHours(4), _diana.UsuarioId);
+        atividade.Status.Should().Be(StatusAtividade.ParaCorrecao);
+
+        atividade.ConcluirParte(_diana, T0.AddHours(5));
+
+        atividade.Status.Should().Be(StatusAtividade.Concluida);
+        atividade.ConcluidaEm.Should().Be(T0.AddHours(5));
+        Percurso(atividade).TakeLast(2).Should().Equal(
+            (StatusAtividade.ParaCorrecao, StatusAtividade.Corrigida),
+            (StatusAtividade.Corrigida, StatusAtividade.Concluida));
+    }
+
+    [Fact]
+    public void Atalho_do_revisor_tambem_vale_ao_remover_o_ultimo_pendente()
+    {
+        var atividade = Nova();
+        atividade.DefinirResponsaveis([R(_diana), R(_pedro)], null, T0, _diana.UsuarioId);
+        atividade.ConcluirParte(_diana, T0.AddHours(1));
+        atividade.Status.Should().Be(StatusAtividade.Direcionada);
+
+        atividade.DefinirResponsaveis([R(_diana)], null, T0.AddHours(2), _davi.UsuarioId);
+
+        atividade.Status.Should().Be(StatusAtividade.Concluida);
+        atividade.ConcluidaEm.Should().Be(T0.AddHours(2));
+        atividade.Historico.TakeLast(2).Should().OnlyContain(h => h.UsuarioId == _davi.UsuarioId && h.DataHora == T0.AddHours(2));
+        Percurso(atividade).TakeLast(2).Should().Equal(
+            (StatusAtividade.Direcionada, StatusAtividade.Feita),
+            (StatusAtividade.Feita, StatusAtividade.Concluida));
+    }
+
+    // ---- F7: revisor mantido quando a diretoria passa de um para dois ----
+
+    [Fact]
+    public void Revisor_e_mantido_quando_os_responsaveis_de_diretoria_passam_de_um_para_dois()
+    {
+        var atividade = Nova();
+        atividade.DefinirResponsaveis([R(_davi), R(_pedro)], null, T0, _diana.UsuarioId);
+
+        atividade.DefinirResponsaveis([R(_davi), R(_diana), R(_pedro)], null, T0, _diana.UsuarioId);
+
+        atividade.RevisorId.Should().Be(_davi.UsuarioId);
+    }
+
+    // ---- F8: Reabrir ----
+
+    [Fact]
+    public void Reabrir_recusa_selecao_vazia_responsavel_de_fora_e_motivo_longo()
+    {
+        var atividade = Concluida();
+        var concluidaEm = atividade.ConcluidaEm;
+
+        var nenhum = () => atividade.Reabrir("Ajuste", [], T0.AddDays(2), _diana.UsuarioId);
+        var deFora = () => atividade.Reabrir("Ajuste", [_ester.UsuarioId], T0.AddDays(2), _diana.UsuarioId);
+        var longo = () => atividade.Reabrir(new string('a', 2001), [_pedro.UsuarioId], T0.AddDays(2), _diana.UsuarioId);
+
+        nenhum.Should().Throw<ExcecaoDeDominio>().WithMessage("Selecione ao menos um responsável.");
+        deFora.Should().Throw<ExcecaoDeDominio>().WithMessage("Responsável selecionado não faz parte da atividade.");
+        longo.Should().Throw<ExcecaoDeDominio>().WithMessage("O motivo deve ter até 2000 caracteres.");
+        atividade.Status.Should().Be(StatusAtividade.Concluida);
+        atividade.ConcluidaEm.Should().Be(concluidaEm);
+        atividade.Historico.Should().HaveCount(4);
     }
 }
