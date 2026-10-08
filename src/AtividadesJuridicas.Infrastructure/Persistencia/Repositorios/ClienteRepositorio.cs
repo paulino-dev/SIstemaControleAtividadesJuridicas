@@ -34,7 +34,7 @@ public sealed class ClienteRepositorio(AppDbContext db) : IClienteRepositorio
         {
             // % e _ digitados pelo usuário são texto, não curingas.
             var padrao = "%" + busca.Trim().Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_") + "%";
-            consulta = consulta.Where(c => EF.Functions.ILike(c.Nome, padrao, "\\"));
+            consulta = consulta.Where(c => EF.Functions.ILike(EF.Functions.Unaccent(c.Nome), EF.Functions.Unaccent(padrao), "\\"));
         }
 
         var total = await consulta.CountAsync(ct);

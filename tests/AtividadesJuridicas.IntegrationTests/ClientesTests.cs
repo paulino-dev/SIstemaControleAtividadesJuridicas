@@ -187,6 +187,36 @@ public class ClientesTests(BancoFixture banco) : TesteComBanco(banco)
     }
 
     [Fact]
+    public async Task Busca_por_nome_ignora_acentos_nos_dois_sentidos()
+    {
+        var adminId = await IdDoAdminAsync();
+        await CriarPfAsync(adminId, "José Conceição", "529.982.247-25");
+        await CriarPfAsync(adminId, "Jose Silva", "111.444.777-35");
+
+        async Task<IEnumerable<string>> NomesAsync(string busca) =>
+            (await ExecutarAsync(adminId, new ListarClientes(busca))).Valor!.Itens.Select(c => c.Nome);
+
+        (await NomesAsync("jose")).Should().BeEquivalentTo("Jose Silva", "José Conceição");
+        (await NomesAsync("JOSÉ")).Should().BeEquivalentTo("Jose Silva", "José Conceição");
+        (await NomesAsync("conceicao")).Should().Equal("José Conceição");
+        (await NomesAsync("Conceição")).Should().Equal("José Conceição");
+    }
+
+    [Fact]
+    public async Task Busca_com_acento_grava_o_detalhe_legivel_no_registro_de_acesso()
+    {
+        var adminId = await IdDoAdminAsync();
+        await CriarPfAsync(adminId, "José Conceição", "529.982.247-25");
+        var pedroId = await CriarProducaoAsync(adminId);
+
+        await ExecutarAsync(pedroId, new ListarClientes("José"));
+
+        var acessos = await EmEscopoAsync(null, sp => sp.GetRequiredService<AppDbContext>().RegistrosAcesso
+            .AsNoTracking().Where(a => a.UsuarioId == pedroId && a.TipoRecurso == "Cliente").ToListAsync());
+        acessos.Should().Contain(a => a.Detalhe!.Contains("José"));
+    }
+
+    [Fact]
     public async Task Listagem_pagina_de_vinte_em_vinte_e_esconde_inativos()
     {
         var adminId = await IdDoAdminAsync();

@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text;
 using AtividadesJuridicas.Application.Auditoria;
 using AtividadesJuridicas.Application.Cadastros;
 using AtividadesJuridicas.Application.Comum;
@@ -147,7 +149,7 @@ public sealed class ClienteRepositorioFalso : IClienteRepositorio
         else if (Cnpj.TentarCriar(busca, out var cnpj))
             consulta = consulta.Where(c => c is ClientePessoaJuridica pj && pj.Cnpj == cnpj);
         else if (!string.IsNullOrWhiteSpace(busca))
-            consulta = consulta.Where(c => c.Nome.Contains(busca.Trim(), StringComparison.OrdinalIgnoreCase));
+            consulta = consulta.Where(c => SemAcentos(c.Nome).Contains(SemAcentos(busca.Trim()), StringComparison.OrdinalIgnoreCase));
 
         var todos = consulta.OrderBy(c => c.Nome).ToList();
         return Task.FromResult(new Pagina<Cliente>(
@@ -155,6 +157,11 @@ public sealed class ClienteRepositorioFalso : IClienteRepositorio
     }
 
     public void Adicionar(Cliente cliente) => Itens.Add(cliente);
+
+    // Mesma semântica do unaccent do banco: remove os diacríticos antes de comparar.
+    private static string SemAcentos(string texto) => new(
+        [.. texto.Normalize(NormalizationForm.FormD)
+            .Where(ch => CharUnicodeInfo.GetUnicodeCategory(ch) != UnicodeCategory.NonSpacingMark)]);
 }
 
 /// <summary>Monta um cenário com os dois perfis padrão e um diretor ativo.</summary>

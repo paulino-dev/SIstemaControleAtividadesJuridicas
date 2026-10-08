@@ -35,6 +35,29 @@ public class ClientesTests
         new DefinirAtivoClienteManipulador(_c.Como(ator), _c.Clientes, _c.Unidade)
             .ManipularAsync(new DefinirAtivoCliente(id, ativo), default);
 
+    [Fact]
+    public void Detalhe_da_listagem_guarda_acentos_literalmente()
+    {
+        IConsultaAuditavel consulta = new ListarClientes("José da Conceição");
+
+        consulta.Detalhe.Should().Contain("José da Conceição");
+        consulta.Detalhe.Should().NotContain("\\u00");
+    }
+
+    [Fact]
+    public async Task Busca_por_nome_ignora_acentos_e_caixa()
+    {
+        await SalvarPf(_c.Diretor, null, "529.982.247-25", Dados("José Conceição"));
+        await SalvarPf(_c.Diretor, null, "111.444.777-35", Dados("Jose Silva"));
+
+        async Task<IEnumerable<string>> Nomes(string busca) =>
+            (await Listar(_c.Diretor, busca)).Valor!.Itens.Select(c => c.Nome);
+
+        (await Nomes("jose")).Should().BeEquivalentTo("Jose Silva", "José Conceição");
+        (await Nomes("JOSÉ")).Should().BeEquivalentTo("Jose Silva", "José Conceição");
+        (await Nomes("conceicao")).Should().Equal("José Conceição");
+    }
+
     // ---- Salvar ----
 
     [Fact]
