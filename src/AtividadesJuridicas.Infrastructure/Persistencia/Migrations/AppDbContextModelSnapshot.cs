@@ -135,6 +135,57 @@ namespace AtividadesJuridicas.Infrastructure.Persistencia.Migrations
                     b.ToTable("registros_auditoria", (string)null);
                 });
 
+            modelBuilder.Entity("AtividadesJuridicas.Domain.Cadastros.AreaAtuacao", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<bool>("Ativo")
+                        .HasColumnType("boolean")
+                        .HasColumnName("ativo");
+
+                    b.Property<DateTime?>("AtualizadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("atualizado_em");
+
+                    b.Property<Guid?>("AtualizadoPor")
+                        .HasColumnType("uuid")
+                        .HasColumnName("atualizado_por");
+
+                    b.Property<DateTime>("CriadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("criado_em");
+
+                    b.Property<Guid?>("CriadoPor")
+                        .HasColumnType("uuid")
+                        .HasColumnName("criado_por");
+
+                    b.Property<DateTime?>("ExcluidoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("excluido_em");
+
+                    b.Property<Guid?>("ExcluidoPor")
+                        .HasColumnType("uuid")
+                        .HasColumnName("excluido_por");
+
+                    b.Property<string>("Nome")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("nome");
+
+                    b.HasKey("Id")
+                        .HasName("pk_areas_atuacao");
+
+                    b.HasIndex("Nome")
+                        .IsUnique()
+                        .HasDatabaseName("ix_areas_atuacao_nome")
+                        .HasFilter("excluido_em IS NULL");
+
+                    b.ToTable("areas_atuacao", (string)null);
+                });
+
             modelBuilder.Entity("AtividadesJuridicas.Domain.Identidade.Perfil", b =>
                 {
                     b.Property<Guid>("Id")

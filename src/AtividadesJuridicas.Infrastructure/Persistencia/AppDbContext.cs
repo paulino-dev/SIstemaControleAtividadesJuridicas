@@ -1,5 +1,6 @@
 using System.Linq.Expressions;
 using AtividadesJuridicas.Domain.Auditoria;
+using AtividadesJuridicas.Domain.Cadastros;
 using AtividadesJuridicas.Domain.Comum;
 using AtividadesJuridicas.Domain.Identidade;
 using Microsoft.EntityFrameworkCore;
@@ -10,6 +11,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> opcoes) : DbCont
 {
     public DbSet<Usuario> Usuarios => Set<Usuario>();
     public DbSet<Perfil> Perfis => Set<Perfil>();
+    public DbSet<AreaAtuacao> AreasAtuacao => Set<AreaAtuacao>();
     public DbSet<RegistroAuditoria> RegistrosAuditoria => Set<RegistroAuditoria>();
     public DbSet<RegistroAcesso> RegistrosAcesso => Set<RegistroAcesso>();
 

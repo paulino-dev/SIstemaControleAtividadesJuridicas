@@ -1,4 +1,5 @@
 using AtividadesJuridicas.Application.Auditoria;
+using AtividadesJuridicas.Application.Cadastros;
 using AtividadesJuridicas.Application.Comum;
 using AtividadesJuridicas.Application.Identidade;
 using AtividadesJuridicas.Infrastructure.Comum;
@@ -32,6 +33,7 @@ public static class DependencyInjection
         servicos.AddScoped<IUnidadeDeTrabalho, UnidadeDeTrabalho>();
         servicos.AddScoped<IUsuarioRepositorio, UsuarioRepositorio>();
         servicos.AddScoped<IPerfilRepositorio, PerfilRepositorio>();
+        servicos.AddScoped<IAreaAtuacaoRepositorio, AreaAtuacaoRepositorio>();
         servicos.AddScoped<IConsultaDeAuditoria, ConsultaDeAuditoria>();
         servicos.AddScoped<SemeadorInicial>();
 

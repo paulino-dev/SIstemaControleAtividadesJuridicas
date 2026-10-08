@@ -1,9 +1,30 @@
 using AtividadesJuridicas.Application.Auditoria;
+using AtividadesJuridicas.Application.Cadastros;
 using AtividadesJuridicas.Application.Comum;
 using AtividadesJuridicas.Application.Identidade;
+using AtividadesJuridicas.Domain.Cadastros;
 using AtividadesJuridicas.Domain.Identidade;
 
 namespace AtividadesJuridicas.UnitTests.Application;
+
+public sealed class AreaAtuacaoRepositorioFalso : IAreaAtuacaoRepositorio
+{
+    public List<AreaAtuacao> Itens { get; } = [];
+
+    public Task<AreaAtuacao?> ObterPorIdAsync(Guid id, CancellationToken ct) =>
+        Task.FromResult(Itens.FirstOrDefault(a => a.Id == id));
+
+    public Task<bool> ExisteNomeAsync(string nome, Guid? excetoId, CancellationToken ct) =>
+        Task.FromResult(Itens.Any(a =>
+            a.Id != excetoId && string.Equals(a.Nome, nome.Trim(), StringComparison.OrdinalIgnoreCase)));
+
+    public Task<IReadOnlyList<AreaAtuacaoResumo>> ListarAsync(bool somenteAtivas, CancellationToken ct) =>
+        Task.FromResult<IReadOnlyList<AreaAtuacaoResumo>>(
+            [.. Itens.Where(a => !somenteAtivas || a.Ativo).OrderBy(a => a.Nome)
+                .Select(a => new AreaAtuacaoResumo(a.Id, a.Nome, a.Ativo))]);
+
+    public void Adicionar(AreaAtuacao area) => Itens.Add(area);
+}
 
 public sealed class PerfilRepositorioFalso : IPerfilRepositorio
 {
@@ -110,6 +131,7 @@ public sealed class Cenario
     public PerfilRepositorioFalso Perfis { get; } = new();
     public UsuarioRepositorioFalso Usuarios { get; }
     public UnidadeDeTrabalhoFalsa Unidade { get; } = new();
+    public AreaAtuacaoRepositorioFalso Areas { get; } = new();
     public HasherFalso Hasher { get; } = new();
     public RelogioFixo Relogio { get; } = new();
     public AuditoriaFalsa Auditoria { get; } = new();

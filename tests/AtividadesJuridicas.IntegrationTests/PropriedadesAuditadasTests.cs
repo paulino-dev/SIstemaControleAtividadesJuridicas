@@ -15,6 +15,7 @@ public class PropriedadesAuditadasTests
     {
         var esperado = new SortedDictionary<string, string[]>
         {
+            ["AreaAtuacao"] = ["Ativo", "Nome"],
             ["Perfil"] = ["Ativo", "Nome", "Tipo"],
             ["Usuario"] = ["Ativo", "Email", "Nome", "NumeroOab", "PerfilId"],
         };

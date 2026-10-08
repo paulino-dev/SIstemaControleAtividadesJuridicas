@@ -1,0 +1,122 @@
+@page "/areas"
+@using System.ComponentModel.DataAnnotations
+@inject IDespachante Despachante
+
+<PageTitle>Áreas de atuação</PageTitle>
+
+<h1>Áreas de atuação</h1>
+
+@if (!_carregado)
+{
+    <p>Carregando…</p>
+}
+else if (!_autorizado)
+{
+    <p class="erro">Acesso negado.</p>
+}
+else
+{
+    @if (_mensagem is not null)
+    {
+        <p class="@(_falhou ? "erro" : "ok")" role="status">@_mensagem</p>
+    }
+
+    <table>
+        <thead>
+            <tr><th>Nome</th><th>Situação</th><th></th></tr>
+        </thead>
+        <tbody>
+            @foreach (var area in _areas)
+            {
+                <tr class="@(area.Ativo ? null : "inativo")" @key="area.Id">
+                    <td>@area.Nome</td>
+                    <td>@(area.Ativo ? "Ativa" : "Inativa")</td>
+                    <td class="acoes">
+                        <button type="button" class="secundario" @onclick="() => Editar(area)">Renomear</button>
+                        <button type="button" class="secundario" @onclick="() => AlternarAtivoAsync(area)">
+                            @(area.Ativo ? "Inativar" : "Ativar")
+                        </button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <h2>@(_form.Id is null ? "Nova área" : "Renomear área")</h2>
+
+    <EditForm Model="_form" OnValidSubmit="SalvarAsync" FormName="area" class="formulario">
+        <DataAnnotationsValidator />
+        <label>
+            Nome
+            <InputText @bind-Value="_form.Nome" />
+            <ValidationMessage For="() => _form.Nome" />
+        </label>
+        <div class="acoes">
+            <button type="submit">Salvar</button>
+            <button type="button" class="secundario" @onclick="Limpar">Cancelar</button>
+        </div>
+    </EditForm>
+}
+
+@code {
+    private bool _carregado;
+    private bool _autorizado;
+    private bool _falhou;
+    private string? _mensagem;
+    private IReadOnlyList<AreaAtuacaoResumo> _areas = [];
+    private Formulario _form = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _autorizado = await Despachante.EnviarAsync(new ObterMeuAcesso()) is { EhDiretoria: true };
+        if (_autorizado) await RecarregarAsync();
+        _carregado = true;
+    }
+
+    private async Task RecarregarAsync()
+    {
+        var resultado = await Despachante.EnviarAsync(new ListarAreasAtuacao());
+        if (resultado.Erro == TipoErro.AcessoNegado) _autorizado = false;
+        _areas = resultado.Valor ?? [];
+    }
+
+    private void Limpar()
+    {
+        _form = new Formulario();
+        _mensagem = null;
+    }
+
+    private void Editar(AreaAtuacaoResumo area)
+    {
+        _mensagem = null;
+        _form = new Formulario { Id = area.Id, Nome = area.Nome };
+    }
+
+    private async Task SalvarAsync()
+    {
+        var resultado = await Despachante.EnviarAsync(new SalvarAreaAtuacao(_form.Id, _form.Nome));
+        await ConcluirAsync(resultado, "Área salva.");
+        if (resultado.Sucesso) _form = new Formulario();
+    }
+
+    private async Task AlternarAtivoAsync(AreaAtuacaoResumo area)
+    {
+        var resultado = await Despachante.EnviarAsync(new DefinirAtivoAreaAtuacao(area.Id, !area.Ativo));
+        await ConcluirAsync(resultado, area.Ativo ? "Área inativada." : "Área ativada.");
+    }
+
+    private async Task ConcluirAsync(Resultado resultado, string mensagemDeSucesso)
+    {
+        _falhou = !resultado.Sucesso;
+        _mensagem = resultado.Sucesso ? mensagemDeSucesso : resultado.Mensagem;
+        await RecarregarAsync();
+    }
+
+    private sealed class Formulario
+    {
+        public Guid? Id { get; set; }
+
+        [Required(ErrorMessage = "Informe o nome.")]
+        public string Nome { get; set; } = string.Empty;
+    }
+}
