@@ -4,6 +4,12 @@ public interface IUnidadeDeTrabalho
 {
     /// <summary>Grava as alterações pendentes. Lança <see cref="ExcecaoDeConflito"/> em violação de unicidade.</summary>
     Task SalvarAsync(CancellationToken ct);
+
+    /// <summary>
+    /// Roda <paramref name="acao"/> numa transação: tudo o que ela gravar (inclusive por mais de um
+    /// <see cref="SalvarAsync"/>) é confirmado junto, ou nada é, se ela lançar.
+    /// </summary>
+    Task EmTransacaoAsync(Func<Task> acao, CancellationToken ct);
 }
 
 public interface IRelogio

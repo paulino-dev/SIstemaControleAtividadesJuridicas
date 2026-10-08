@@ -392,6 +392,8 @@ public class ProcessosTests
     private sealed class UnidadeQueConflita : IUnidadeDeTrabalho
     {
         public Task SalvarAsync(CancellationToken ct) => throw new ExcecaoDeConcorrencia("outro");
+
+        public Task EmTransacaoAsync(Func<Task> acao, CancellationToken ct) => acao();
     }
 
     [Fact]

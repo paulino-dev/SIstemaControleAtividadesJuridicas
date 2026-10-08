@@ -12,6 +12,8 @@ public partial class GravacoesPorForaTests
     private static readonly Dictionary<string, string> Permitidos = new()
     {
         ["UsuarioRepositorio.cs"] = "estado de login (falhas, bloqueio, último acesso): não é alteração de negócio",
+        ["AcessoInicialDePerfil.cs"] = "perfil novo incluído em todos os Documentos Gerais num só comando: " +
+                                      "registrado pelo evento perfil_incluido_nos_documentos_gerais",
     };
 
     [GeneratedRegex(@"\b(ExecuteUpdate|ExecuteDelete|ExecuteSql|SqlQuery|FromSql)\w*\s*[<(]")]

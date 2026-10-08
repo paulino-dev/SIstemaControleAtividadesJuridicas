@@ -22,4 +22,11 @@ public sealed class UnidadeDeTrabalho(AppDbContext db) : IUnidadeDeTrabalho
             throw new ExcecaoDeConflito("Já existe um registro com o mesmo valor único.", ex, pg.ConstraintName);
         }
     }
+
+    public async Task EmTransacaoAsync(Func<Task> acao, CancellationToken ct)
+    {
+        await using var transacao = await db.Database.BeginTransactionAsync(ct);
+        await acao();
+        await transacao.CommitAsync(ct);
+    }
 }

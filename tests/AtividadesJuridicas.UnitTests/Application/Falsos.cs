@@ -47,6 +47,19 @@ public sealed class PerfilRepositorioFalso : IPerfilRepositorio
 
     public Task<IReadOnlyList<Perfil>> ObterVariosAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct) =>
         Task.FromResult<IReadOnlyList<Perfil>>([.. Itens.Where(p => ids.Contains(p.Id))]);
+
+    /// <summary>Preenchido pelo cenário: quantos usuários ativos têm o perfil.</summary>
+    public Func<Guid, int> UsuariosAtivosDoPerfil { get; set; } = _ => 0;
+
+    public Task<bool> ExisteNomeAsync(string nome, Guid? excetoId, CancellationToken ct) =>
+        Task.FromResult(Itens.Any(p =>
+            p.Id != excetoId && string.Equals(p.Nome, nome.Trim(), StringComparison.OrdinalIgnoreCase)));
+
+    public Task<IReadOnlyList<PerfilDetalhe>> ListarAsync(CancellationToken ct) =>
+        Task.FromResult<IReadOnlyList<PerfilDetalhe>>(
+            [.. Itens.OrderBy(p => p.Nome).Select(p => new PerfilDetalhe(p.Id, p.Nome, p.Tipo, p.Ativo, UsuariosAtivosDoPerfil(p.Id)))]);
+
+    public void Adicionar(Perfil perfil) => Itens.Add(perfil);
 }
 
 public sealed class UsuarioRepositorioFalso(PerfilRepositorioFalso perfis) : IUsuarioRepositorio
@@ -61,6 +74,9 @@ public sealed class UsuarioRepositorioFalso(PerfilRepositorioFalso perfis) : IUs
 
     public Task<bool> ExisteEmailAsync(Email email, Guid? excetoUsuarioId, CancellationToken ct) =>
         Task.FromResult(Itens.Any(u => u.Email == email && u.Id != excetoUsuarioId));
+
+    public Task<int> ContarAtivosComPerfilAsync(Guid perfilId, CancellationToken ct) =>
+        Task.FromResult(Itens.Count(u => u.Ativo && u.PerfilId == perfilId));
 
     public Task<int> ContarDiretoresAtivosAsync(Guid? excetoUsuarioId, CancellationToken ct) =>
         Task.FromResult(Itens.Count(u =>
@@ -115,6 +131,37 @@ public sealed class UnidadeDeTrabalhoFalsa : IUnidadeDeTrabalho
         if (Falha is not null) throw Falha;
         Salvamentos++;
         return Task.CompletedTask;
+    }
+
+    public int Transacoes { get; private set; }
+
+    /// <summary>Verdadeiro enquanto a ação de uma transação está rodando.</summary>
+    public bool EmTransacao { get; private set; }
+
+    public async Task EmTransacaoAsync(Func<Task> acao, CancellationToken ct)
+    {
+        Transacoes++;
+        EmTransacao = true;
+        try { await acao(); }
+        finally { EmTransacao = false; }
+    }
+}
+
+public sealed class AcessoInicialDePerfilFalso(UnidadeDeTrabalhoFalsa unidade) : IAcessoInicialDePerfil
+{
+    /// <summary>Quantos documentos gerais "existem" para receber o perfil.</summary>
+    public int DocumentosGerais { get; set; }
+
+    public Exception? Falha { get; set; }
+
+    /// <summary>Perfil incluído e se a inclusão aconteceu dentro de uma transação.</summary>
+    public List<(Guid PerfilId, bool EmTransacao)> Inclusoes { get; } = [];
+
+    public Task<int> IncluirNosDocumentosGeraisAsync(Guid perfilId, CancellationToken ct)
+    {
+        if (Falha is not null) throw Falha;
+        Inclusoes.Add((perfilId, unidade.EmTransacao));
+        return Task.FromResult(DocumentosGerais);
     }
 }
 
@@ -265,10 +312,13 @@ public sealed class Cenario
     public Perfil PerfilDiretor { get; } = Perfil.Criar("Diretor", TipoPerfil.Diretoria);
     public Perfil PerfilProducao { get; } = Perfil.Criar("Produção", TipoPerfil.Producao);
     public Usuario Diretor { get; }
+    public AcessoInicialDePerfilFalso AcessoInicial { get; }
 
     public Cenario()
     {
+        AcessoInicial = new AcessoInicialDePerfilFalso(Unidade);
         Usuarios = new UsuarioRepositorioFalso(Perfis);
+        Perfis.UsuariosAtivosDoPerfil = id => Usuarios.Itens.Count(u => u.Ativo && u.PerfilId == id);
         Processos = new ProcessoRepositorioFalso(Areas, Clientes);
         Perfis.Itens.AddRange([PerfilDiretor, PerfilProducao]);
         Diretor = NovoUsuario("Diana Diretora", "diana@x.com", PerfilDiretor);

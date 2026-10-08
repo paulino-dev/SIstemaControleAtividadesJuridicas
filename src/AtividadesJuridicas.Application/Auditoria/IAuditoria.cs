@@ -15,6 +15,7 @@ public static class EventosDeSeguranca
     public const string UsuarioInativado = "usuario_inativado";
     public const string AcessoNegado = "acesso_negado";
     public const string DocumentoAcessoAlterado = "documento_acesso_alterado";
+    public const string PerfilIncluidoNosDocumentosGerais = "perfil_incluido_nos_documentos_gerais";
 }
 
 /// <summary>Marca uma requisição de consulta: o executor registra o acesso quando ela termina bem.</summary>

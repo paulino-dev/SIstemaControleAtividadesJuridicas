@@ -6,6 +6,9 @@ namespace AtividadesJuridicas.Infrastructure.Persistencia.Repositorios;
 
 public sealed class UsuarioRepositorio(AppDbContext db) : IUsuarioRepositorio
 {
+    public Task<int> ContarAtivosComPerfilAsync(Guid perfilId, CancellationToken ct) =>
+        db.Usuarios.CountAsync(u => u.Ativo && u.PerfilId == perfilId, ct);
+
     public Task<Usuario?> ObterPorIdAsync(Guid id, CancellationToken ct) =>
         db.Usuarios.FirstOrDefaultAsync(u => u.Id == id, ct);
 

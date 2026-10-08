@@ -15,6 +15,9 @@ public sealed record UsuarioResumo(
 
 public sealed record PerfilResumo(Guid Id, string Nome, TipoPerfil Tipo);
 
+/// <summary><paramref name="UsuariosAtivos"/>: quantos usuários ativos têm o perfil.</summary>
+public sealed record PerfilDetalhe(Guid Id, string Nome, TipoPerfil Tipo, bool Ativo, int UsuariosAtivos);
+
 public enum TentativaDeLogin
 {
     /// <summary>A tentativa foi contada e pode verificar a senha.</summary>
@@ -35,6 +38,8 @@ public interface IUsuarioRepositorio
 
     /// <summary>Usuários ativos cujo perfil é de tipo Diretoria, desconsiderando <paramref name="excetoUsuarioId"/>.</summary>
     Task<int> ContarDiretoresAtivosAsync(Guid? excetoUsuarioId, CancellationToken ct);
+
+    Task<int> ContarAtivosComPerfilAsync(Guid perfilId, CancellationToken ct);
 
     Task<IReadOnlyList<UsuarioResumo>> ListarAsync(CancellationToken ct);
 
@@ -61,6 +66,24 @@ public interface IPerfilRepositorio
 
     /// <summary>Os perfis com os Ids informados; os inexistentes simplesmente não vêm.</summary>
     Task<IReadOnlyList<Perfil>> ObterVariosAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct);
+
+    /// <summary>Compara sem diferenciar maiúsculas, desconsiderando <paramref name="excetoId"/>.</summary>
+    Task<bool> ExisteNomeAsync(string nome, Guid? excetoId, CancellationToken ct);
+
+    /// <summary>Todos os perfis, ativos e inativos, por nome.</summary>
+    Task<IReadOnlyList<PerfilDetalhe>> ListarAsync(CancellationToken ct);
+
+    void Adicionar(Perfil perfil);
+}
+
+/// <summary>O que um perfil recém-criado recebe: acesso a todos os Documentos Gerais existentes.</summary>
+public interface IAcessoInicialDePerfil
+{
+    /// <summary>
+    /// Inclui o perfil na lista de acesso de cada Documento Geral que ainda não o tem e devolve quantos
+    /// foram. Grava por fora dos interceptores: quem chama registra o evento de auditoria.
+    /// </summary>
+    Task<int> IncluirNosDocumentosGeraisAsync(Guid perfilId, CancellationToken ct);
 }
 
 public interface IHasherDeSenha
