@@ -161,6 +161,57 @@ public class AtividadeTests
         [.. clientes.Select(c => new ClienteDoProcesso(c, PoloProcessual.Ativo))]);
 
     [Fact]
+    public void Acompanhar_a_area_do_processo_troca_so_a_area()
+    {
+        var cliente = Guid.CreateVersion7();
+        var processo = NovoProcesso(Guid.CreateVersion7(), cliente);
+        var atividade = Atividade.Criar(
+            Dados(), VinculoDaAtividade.Criar(cliente, processo, null), TipoAutor.Usuario, _diana.UsuarioId, T0);
+        atividade.DefinirResponsaveis([R(_pedro)], _diana, T0.AddMinutes(1), _diana.UsuarioId);
+        atividade.ConcluirParte(_pedro, T0.AddHours(1));
+        atividade.Aprovar(_diana, T0.AddHours(2));
+        var percurso = Percurso(atividade);
+        var versao = atividade.VersaoDasPartes;
+        var concluidaEm = atividade.ConcluidaEm;
+        var nova = Guid.CreateVersion7();
+
+        atividade.AcompanharAreaDoProcesso(nova);
+
+        atividade.AreaAtuacaoId.Should().Be(nova);
+        atividade.Status.Should().Be(StatusAtividade.Concluida);
+        atividade.ConcluidaEm.Should().Be(concluidaEm);
+        atividade.ProcessoId.Should().Be(processo.Id);
+        atividade.ClienteId.Should().Be(cliente);
+        Percurso(atividade).Should().Equal(percurso);
+        atividade.VersaoDasPartes.Should().Be(versao);
+    }
+
+    [Fact]
+    public void Atividade_sem_processo_nao_acompanha_area()
+    {
+        var atividade = Nova();
+
+        var acompanhar = () => atividade.AcompanharAreaDoProcesso(Guid.CreateVersion7());
+
+        acompanhar.Should().Throw<InvalidOperationException>();
+    }
+
+    [Fact]
+    public void Area_vazia_nao_e_aceita_ao_acompanhar_o_processo()
+    {
+        var cliente = Guid.CreateVersion7();
+        var area = Guid.CreateVersion7();
+        var processo = NovoProcesso(area, cliente);
+        var atividade = Atividade.Criar(
+            Dados(), VinculoDaAtividade.Criar(cliente, processo, null), TipoAutor.Usuario, _diana.UsuarioId, T0);
+
+        var acompanhar = () => atividade.AcompanharAreaDoProcesso(Guid.Empty);
+
+        acompanhar.Should().Throw<ArgumentException>();
+        atividade.AreaAtuacaoId.Should().Be(area);
+    }
+
+    [Fact]
     public void Atividade_avulsa_nao_tem_cliente_processo_nem_area()
     {
         VinculoDaAtividade.Avulsa.Should().Be(VinculoDaAtividade.Criar(null, null, null));

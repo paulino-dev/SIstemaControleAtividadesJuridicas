@@ -344,6 +344,31 @@ public sealed class AtividadeRepositorioFalso(
     public void Remover(Atividade atividade) => Itens.Remove(atividade);
 }
 
+public sealed class AtividadesDoProcessoFalso(AtividadeRepositorioFalso atividades) : IAtividadesDoProcesso
+{
+    public int ConsultasDeClientes { get; private set; }
+
+    /// <summary>Cada chamada a AcompanharAreaAsync: processo e área pedidos.</summary>
+    public List<(Guid ProcessoId, Guid AreaAtuacaoId)> Acompanhamentos { get; } = [];
+
+    public Task<IReadOnlyList<Guid>> ClientesComAtividadeAsync(
+        Guid processoId, IReadOnlyCollection<Guid> clienteIds, CancellationToken ct)
+    {
+        ConsultasDeClientes++;
+        return Task.FromResult<IReadOnlyList<Guid>>([.. atividades.Itens
+            .Where(a => a.ProcessoId == processoId && a.ClienteId is { } c && clienteIds.Contains(c))
+            .Select(a => a.ClienteId!.Value).Distinct()]);
+    }
+
+    public Task<int> AcompanharAreaAsync(Guid processoId, Guid areaAtuacaoId, CancellationToken ct)
+    {
+        Acompanhamentos.Add((processoId, areaAtuacaoId));
+        var alteradas = atividades.Itens.Where(a => a.ProcessoId == processoId && a.AreaAtuacaoId != areaAtuacaoId).ToList();
+        foreach (var atividade in alteradas) atividade.AcompanharAreaDoProcesso(areaAtuacaoId);
+        return Task.FromResult(alteradas.Count);
+    }
+}
+
 /// <summary>Monta um cenário com os dois perfis padrão e um diretor ativo.</summary>
 public sealed class Cenario
 {
@@ -354,6 +379,7 @@ public sealed class Cenario
     public ClienteRepositorioFalso Clientes { get; } = new();
     public ProcessoRepositorioFalso Processos { get; }
     public AtividadeRepositorioFalso Atividades { get; }
+    public AtividadesDoProcessoFalso AtividadesDoProcesso { get; }
     public CalendarioFixo Calendario { get; } = new();
     public HasherFalso Hasher { get; } = new();
     public RelogioFixo Relogio { get; } = new();
@@ -372,6 +398,7 @@ public sealed class Cenario
         Perfis.UsuariosAtivosDoPerfil = id => Usuarios.Itens.Count(u => u.Ativo && u.PerfilId == id);
         Processos = new ProcessoRepositorioFalso(Areas, Clientes);
         Atividades = new AtividadeRepositorioFalso(Usuarios, Clientes, Processos, Areas);
+        AtividadesDoProcesso = new AtividadesDoProcessoFalso(Atividades);
         Perfis.Itens.AddRange([PerfilDiretor, PerfilProducao]);
         Diretor = NovoUsuario("Diana Diretora", "diana@x.com", PerfilDiretor);
     }

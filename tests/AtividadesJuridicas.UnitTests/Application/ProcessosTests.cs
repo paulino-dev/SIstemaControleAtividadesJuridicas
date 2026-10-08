@@ -1,6 +1,7 @@
 using AtividadesJuridicas.Application.Auditoria;
 using AtividadesJuridicas.Application.Cadastros;
 using AtividadesJuridicas.Application.Comum;
+using AtividadesJuridicas.Domain.Atividades;
 using AtividadesJuridicas.Domain.Auditoria;
 using AtividadesJuridicas.Domain.Cadastros;
 using AtividadesJuridicas.Domain.Identidade;
@@ -39,7 +40,8 @@ public class ProcessosTests
 
     private Task<Resultado<Guid>> Salvar(Usuario? ator, Guid? id, DadosDoProcessoEntrada? dados = null,
         ClienteDoProcessoEntrada[]? clientes = null) =>
-        new SalvarProcessoManipulador(_c.Como(ator), _c.Processos, _c.Areas, _c.Clientes, _c.Unidade, _c.Auditoria)
+        new SalvarProcessoManipulador(_c.Como(ator), _c.Processos, _c.Areas, _c.Clientes, _c.Unidade, _c.Auditoria,
+            _c.AtividadesDoProcesso)
             .ManipularAsync(new SalvarProcesso(
                 id, dados ?? Dados(), clientes ?? Vinculos((_maria, PoloProcessual.Ativo))), default);
 
@@ -290,6 +292,107 @@ public class ProcessosTests
         (await Obter(_c.Diretor, Guid.CreateVersion7())).Erro.Should().Be(TipoErro.NaoEncontrado);
     }
 
+    // ---- Atividades do processo ----
+
+    private Atividade AtividadeDe(Cliente cliente, Processo? processo)
+    {
+        var atividade = Atividade.Criar(
+            new DadosDaAtividade("Elaborar contestação", "Prazo de 15 dias.", new DateOnly(2026, 10, 20)),
+            VinculoDaAtividade.Criar(cliente.Id, processo, null), TipoAutor.Usuario, _c.Diretor.Id,
+            new DateTime(2026, 10, 9, 12, 0, 0, DateTimeKind.Utc));
+        _c.Atividades.Itens.Add(atividade);
+        return atividade;
+    }
+
+    [Fact]
+    public async Task Cliente_com_atividade_no_processo_nao_e_retirado()
+    {
+        var criado = await Salvar(_c.Diretor, null,
+            clientes: Vinculos((_maria, PoloProcessual.Ativo), (_acme, PoloProcessual.Passivo)));
+        AtividadeDe(_acme, _c.Processos.Itens.Single());
+        var salvamentos = _c.Unidade.Salvamentos;
+
+        var resultado = await Salvar(_c.Diretor, criado.Valor, Dados("Título novo", area: _civel.Id),
+            Vinculos((_maria, PoloProcessual.Passivo)));
+
+        resultado.Erro.Should().Be(TipoErro.Validacao);
+        resultado.Mensagem.Should().Be("O cliente Acme Ltda tem atividade vinculada a este processo e não pode ser retirado.");
+        var processo = _c.Processos.Itens.Single();
+        processo.Clientes.Select(c => c.ClienteId).Should().BeEquivalentTo([_maria.Id, _acme.Id]);
+        processo.Clientes.Single(c => c.ClienteId == _maria.Id).Polo.Should().Be(PoloProcessual.Ativo);
+        processo.Titulo.Should().Be("Reclamação trabalhista");
+        processo.AreaAtuacaoId.Should().Be(_trabalhista.Id);
+        _c.Unidade.Salvamentos.Should().Be(salvamentos);
+        _c.Auditoria.Eventos.Should().BeEmpty();
+        _c.AtividadesDoProcesso.Acompanhamentos.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Cliente_sem_atividade_no_processo_pode_ser_retirado()
+    {
+        var criado = await Salvar(_c.Diretor, null,
+            clientes: Vinculos((_maria, PoloProcessual.Ativo), (_acme, PoloProcessual.Passivo)));
+        AtividadeDe(_maria, _c.Processos.Itens.Single());
+
+        var resultado = await Salvar(_c.Diretor, criado.Valor, clientes: Vinculos((_maria, PoloProcessual.Ativo)));
+
+        resultado.Sucesso.Should().BeTrue(resultado.Mensagem);
+        _c.Processos.Itens.Single().Clientes.Should().ContainSingle().Which.ClienteId.Should().Be(_maria.Id);
+    }
+
+    [Fact]
+    public async Task Atividade_do_cliente_em_outro_processo_ou_sem_processo_nao_impede()
+    {
+        var criado = await Salvar(_c.Diretor, null,
+            clientes: Vinculos((_maria, PoloProcessual.Ativo), (_acme, PoloProcessual.Passivo)));
+        var outro = await Salvar(_c.Diretor, null, Dados("Outro", null), Vinculos((_acme, PoloProcessual.Ativo)));
+        AtividadeDe(_acme, _c.Processos.Itens.Single(p => p.Id == outro.Valor));
+        AtividadeDe(_acme, null);
+
+        var resultado = await Salvar(_c.Diretor, criado.Valor, clientes: Vinculos((_maria, PoloProcessual.Ativo)));
+
+        resultado.Sucesso.Should().BeTrue(resultado.Mensagem);
+        _c.Processos.Itens.Single(p => p.Id == criado.Valor).Clientes.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Trocar_a_area_do_processo_leva_as_atividades_junto()
+    {
+        var criado = await Salvar(_c.Diretor, null);
+        var outro = await Salvar(_c.Diretor, null, Dados("Outro", null));
+        var doProcesso = AtividadeDe(_maria, _c.Processos.Itens.Single(p => p.Id == criado.Valor));
+        var deOutro = AtividadeDe(_maria, _c.Processos.Itens.Single(p => p.Id == outro.Valor));
+
+        var resultado = await Salvar(_c.Diretor, criado.Valor, Dados(area: _civel.Id));
+
+        resultado.Sucesso.Should().BeTrue(resultado.Mensagem);
+        doProcesso.AreaAtuacaoId.Should().Be(_civel.Id);
+        deOutro.AreaAtuacaoId.Should().Be(_trabalhista.Id);
+        _c.AtividadesDoProcesso.Acompanhamentos.Should().ContainSingle().Which.Should().Be((criado.Valor, _civel.Id));
+    }
+
+    [Fact]
+    public async Task Manter_a_area_nao_toca_nas_atividades()
+    {
+        var criado = await Salvar(_c.Diretor, null);
+        AtividadeDe(_maria, _c.Processos.Itens.Single());
+
+        var resultado = await Salvar(_c.Diretor, criado.Valor, Dados("Título novo"));
+
+        resultado.Sucesso.Should().BeTrue(resultado.Mensagem);
+        _c.AtividadesDoProcesso.Acompanhamentos.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Criar_processo_nao_consulta_atividades()
+    {
+        var criado = await Salvar(_c.Diretor, null);
+
+        criado.Sucesso.Should().BeTrue(criado.Mensagem);
+        _c.AtividadesDoProcesso.ConsultasDeClientes.Should().Be(0);
+        _c.AtividadesDoProcesso.Acompanhamentos.Should().BeEmpty();
+    }
+
     // ---- Situação ----
 
     [Fact]
@@ -403,7 +506,8 @@ public class ProcessosTests
         const string mensagem = "O processo foi alterado por outra pessoa. Recarregue e tente novamente.";
 
         var salvar = await new SalvarProcessoManipulador(
-                _c.Como(_c.Diretor), _c.Processos, _c.Areas, _c.Clientes, new UnidadeQueConflita(), _c.Auditoria)
+                _c.Como(_c.Diretor), _c.Processos, _c.Areas, _c.Clientes, new UnidadeQueConflita(), _c.Auditoria,
+                _c.AtividadesDoProcesso)
             .ManipularAsync(new SalvarProcesso(criado.Valor, Dados("Novo título"), Vinculos((_maria, PoloProcessual.Ativo))), default);
         var status = await new AlterarStatusProcessoManipulador(_c.Como(_c.Diretor), _c.Processos, new UnidadeQueConflita())
             .ManipularAsync(new AlterarStatusProcesso(criado.Valor, StatusProcesso.Encerrado), default);

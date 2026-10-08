@@ -29,6 +29,19 @@ public interface IProcessoRepositorio
     void Adicionar(Processo processo);
 }
 
+/// <summary>O que o cadastro de processos precisa saber das atividades e pedir a elas.</summary>
+public interface IAtividadesDoProcesso
+{
+    /// <summary>Dentre os clientes informados, os que têm atividade viva neste processo.</summary>
+    Task<IReadOnlyList<Guid>> ClientesComAtividadeAsync(Guid processoId, IReadOnlyCollection<Guid> clienteIds, CancellationToken ct);
+
+    /// <summary>
+    /// Faz as atividades do processo acompanharem a nova área. Só altera as entidades no contexto da
+    /// requisição: quem grava é o SalvarAsync do caso de uso, na mesma transação. Devolve quantas mudaram.
+    /// </summary>
+    Task<int> AcompanharAreaAsync(Guid processoId, Guid areaAtuacaoId, CancellationToken ct);
+}
+
 public sealed record DadosDoProcessoEntrada(
     string? NumeroCnj, string Titulo, Guid AreaAtuacaoId, string? Orgao, string? Comarca, string? ParteContraria,
     DateOnly? DataDistribuicao, decimal? ValorCausa, string? Observacoes);

@@ -234,6 +234,20 @@ public sealed class Atividade : Entidade
         Transicionar(StatusAtividade.Reaberta, atorId, agoraUtc, motivoValido);
     }
 
+    /// <summary>
+    /// A área de uma atividade com processo é a do processo: quando ela muda, a atividade a acompanha.
+    /// Vale em qualquer status e não gera histórico nem mexe nas partes.
+    /// </summary>
+    public void AcompanharAreaDoProcesso(Guid areaAtuacaoId)
+    {
+        if (ProcessoId is null)
+            throw new InvalidOperationException("Só uma atividade com processo acompanha a área dele.");
+        if (areaAtuacaoId == Guid.Empty)
+            throw new ArgumentException("Área de atuação inválida.", nameof(areaAtuacaoId));
+
+        AreaAtuacaoId = areaAtuacaoId;
+    }
+
     /// <summary>"Atrasada" não é status: é a data de entrega anterior a hoje em atividade não concluída.</summary>
     public bool EstaAtrasada(DateOnly hoje) => Status != StatusAtividade.Concluida && DataEntrega < hoje;
 

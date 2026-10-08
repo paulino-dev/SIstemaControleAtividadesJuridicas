@@ -17,7 +17,8 @@ public sealed class SalvarProcessoManipulador(
     IAreaAtuacaoRepositorio areas,
     IClienteRepositorio clientes,
     IUnidadeDeTrabalho unidade,
-    IAuditoria auditoria) : IManipulador<SalvarProcesso, Resultado<Guid>>
+    IAuditoria auditoria,
+    IAtividadesDoProcesso atividades) : IManipulador<SalvarProcesso, Resultado<Guid>>
 {
     private const string ProcessoAlterado = "O processo foi alterado por outra pessoa. Recarregue e tente novamente.";
     private const string NumeroEmUso = "Já existe um processo com este número.";
@@ -61,6 +62,26 @@ public sealed class SalvarProcessoManipulador(
         if (inativoNovo is not null)
             return Falha(TipoErro.Validacao, $"O cliente {inativoNovo.Nome} está inativo.");
 
+        // Quem tem atividade viva neste processo não sai dele: a atividade ficaria apontando para um cliente
+        // que já não faz parte do processo.
+        if (existente is not null)
+        {
+            var retirados = existente.Clientes.Select(c => c.ClienteId).Where(c => !ids.Contains(c)).ToList();
+            if (retirados.Count > 0)
+            {
+                var comAtividade = await atividades.ClientesComAtividadeAsync(existente.Id, retirados, ct);
+                if (comAtividade.Count > 0)
+                {
+                    var nomes = await clientes.ObterVariosAsync([.. comAtividade], ct);
+                    // Cliente excluído logicamente não vem do repositório: a recusa vale mesmo sem o nome.
+                    var nome = nomes.OrderBy(c => c.Nome, StringComparer.CurrentCultureIgnoreCase)
+                        .FirstOrDefault()?.Nome ?? "retirado";
+                    return Falha(TipoErro.Validacao,
+                        $"O cliente {nome} tem atividade vinculada a este processo e não pode ser retirado.");
+                }
+            }
+        }
+
         try
         {
             var d = requisicao.Dados;
@@ -78,6 +99,7 @@ public sealed class SalvarProcessoManipulador(
             {
                 // Cada chamada valida tudo antes de aplicar. Se a segunda falhar, o que a primeira aplicou
                 // fica só na entidade em memória: nada é gravado, e o escopo da requisição é descartado.
+                var trocouArea = existente.AreaAtuacaoId != d.AreaAtuacaoId;
                 existente.Alterar(dados);
                 var alteracao = existente.DefinirClientes(vinculos);
 
@@ -88,6 +110,9 @@ public sealed class SalvarProcessoManipulador(
                         removidos = alteracao.Removidos,
                         poloAlterado = alteracao.PoloAlterado,
                     });
+
+                // As atividades do processo seguem a área nova; quem grava tudo junto é o SalvarAsync abaixo.
+                if (trocouArea) await atividades.AcompanharAreaAsync(existente.Id, d.AreaAtuacaoId, ct);
             }
 
             await unidade.SalvarAsync(ct);
