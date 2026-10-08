@@ -16,6 +16,8 @@ public sealed class ConsultaDeAuditoria(AppDbContext db) : IConsultaDeAuditoria
         if (filtro.UsuarioId is { } usuarioId) consulta = consulta.Where(r => r.UsuarioId == usuarioId);
         if (!string.IsNullOrWhiteSpace(filtro.Entidade)) consulta = consulta.Where(r => r.Entidade == filtro.Entidade);
         if (filtro.Operacao is { } operacao) consulta = consulta.Where(r => r.Operacao == operacao);
+        if (filtro.EntidadeId is { } entidadeId) consulta = consulta.Where(r => r.EntidadeId == entidadeId);
+        if (filtro.IdCorrelacao is { } idCorrelacao) consulta = consulta.Where(r => r.IdCorrelacao == idCorrelacao);
 
         var total = await consulta.CountAsync(ct);
 
@@ -27,7 +29,7 @@ public sealed class ConsultaDeAuditoria(AppDbContext db) : IConsultaDeAuditoria
             .Select(r => new RegistroAuditoriaResumo(
                 r.Id, r.DataHora, r.UsuarioId,
                 usuarios.Where(u => u.Id == r.UsuarioId).Select(u => u.Nome).FirstOrDefault(),
-                r.Operacao, r.Entidade, r.EntidadeId, r.Evento, r.Dados, r.Ip))
+                r.Operacao, r.Entidade, r.EntidadeId, r.Evento, r.Dados, r.Ip, r.IdCorrelacao))
             .ToListAsync(ct);
 
         return new Pagina<RegistroAuditoriaResumo>(itens, total, pagina, tamanho);

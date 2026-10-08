@@ -40,6 +40,8 @@ else
         @if (_aba == Aba.Alteracoes)
         {
             <label>Entidade <InputText @bind-Value="_filtro.Entidade" placeholder="Usuario, Perfil…" /></label>
+            <label>Registro <InputText @bind-Value="_filtro.EntidadeId" placeholder="Identificador do registro" /></label>
+            <label>Gravação <InputText @bind-Value="_filtro.IdCorrelacao" placeholder="Identificador de correlação" /></label>
             <label>
                 Operação
                 <InputSelect @bind-Value="_filtro.Operacao">
@@ -77,7 +79,7 @@ else
     {
         <table>
             <thead>
-                <tr><th>Quando</th><th>Quem</th><th>Operação</th><th>Sobre</th><th>Dados</th><th>IP</th></tr>
+                <tr><th>Quando</th><th>Quem</th><th>Operação</th><th>Sobre</th><th>Dados</th><th>IP</th><th>Correlação</th></tr>
             </thead>
             <tbody>
                 @foreach (var registro in _alteracoes.Itens)
@@ -86,9 +88,23 @@ else
                         <td>@Fuso.Formatar(registro.DataHora)</td>
                         <td>@(registro.UsuarioNome ?? (registro.UsuarioId is null ? "Sistema" : "—"))</td>
                         <td>@(registro.Evento ?? Rotulo(registro.Operacao))</td>
-                        <td>@registro.Entidade @registro.EntidadeId</td>
+                        <td>
+                            @registro.Entidade
+                            @if (registro.EntidadeId is { } entidadeId)
+                            {
+                                <button type="button" class="secundario" title="Ver tudo deste registro"
+                                        disabled="@_ocupado" @onclick="() => FiltrarPorRegistroAsync(entidadeId)">@entidadeId</button>
+                            }
+                        </td>
                         <td><code>@registro.Dados</code></td>
                         <td>@registro.Ip</td>
+                        <td>
+                            @if (registro.IdCorrelacao is { } correlacao)
+                            {
+                                <button type="button" class="secundario" title="Ver o que foi gravado junto"
+                                        disabled="@_ocupado" @onclick="() => FiltrarPorCorrelacaoAsync(correlacao)">@correlacao</button>
+                            }
+                        </td>
                     </tr>
                 }
             </tbody>
@@ -131,6 +147,7 @@ else
 
     private bool _carregado;
     private bool _autorizado;
+    private bool _ocupado;
     private string? _erro;
     private Aba _aba = Aba.Alteracoes;
     private int _pagina = 1;
@@ -150,7 +167,7 @@ else
             var usuarios = await Despachante.EnviarAsync(new ListarUsuarios());
             _usuarios = usuarios.Valor ?? [];
             if (usuarios.Sucesso)
-                await CarregarAsync();
+                await IrParaAsync(1);
             else
                 Concluir(usuarios);
         }
@@ -159,19 +176,72 @@ else
 
     private Task TrocarAbaAsync(Aba aba)
     {
+        if (_ocupado) return Task.CompletedTask;
         _aba = aba;
         return IrParaAsync(1);
     }
 
     private Task FiltrarAsync() => IrParaAsync(1);
 
-    private Task IrParaAsync(int pagina)
+    private Task FiltrarPorRegistroAsync(Guid entidadeId)
     {
-        _pagina = pagina;
-        return CarregarAsync();
+        _filtro.EntidadeId = entidadeId.ToString();
+        return IrParaAsync(1);
     }
 
-    private async Task CarregarAsync()
+    private Task FiltrarPorCorrelacaoAsync(Guid idCorrelacao)
+    {
+        _filtro.IdCorrelacao = idCorrelacao.ToString();
+        return IrParaAsync(1);
+    }
+
+    private async Task IrParaAsync(int pagina)
+    {
+        var anterior = _pagina;
+        _pagina = pagina;
+        // Sem consulta, a página mostrada continua sendo a anterior.
+        if (!await CarregarAsync()) _pagina = anterior;
+    }
+
+    /// <summary>Falso quando a consulta não foi feita: outra em andamento ou identificador inválido.</summary>
+    private async Task<bool> CarregarAsync()
+    {
+        if (_ocupado) return false;
+        _erro = null;
+
+        // Um identificador que não é um Guid não consulta nada.
+        Guid? entidadeId = null, idCorrelacao = null;
+        if (_aba == Aba.Alteracoes)
+        {
+            if (!TentarLerGuid(_filtro.EntidadeId, out entidadeId) || !TentarLerGuid(_filtro.IdCorrelacao, out idCorrelacao))
+            {
+                _erro = "Identificador inválido.";
+                return false;
+            }
+        }
+
+        _ocupado = true;
+        try
+        {
+            await ConsultarAsync(entidadeId, idCorrelacao);
+            return true;
+        }
+        finally
+        {
+            _ocupado = false;
+        }
+    }
+
+    private static bool TentarLerGuid(string? texto, out Guid? valor)
+    {
+        valor = null;
+        if (string.IsNullOrWhiteSpace(texto)) return true;
+        if (!Guid.TryParse(texto.Trim(), out var guid)) return false;
+        valor = guid;
+        return true;
+    }
+
+    private async Task ConsultarAsync(Guid? entidadeId, Guid? idCorrelacao)
     {
         // Os dois limites são dias do escritório: "até" inclui o dia informado inteiro.
         DateTime? de = _filtro.De is { } d ? Fuso.InicioDoDiaEmUtc(d) : null;
@@ -181,7 +251,7 @@ else
         if (_aba == Aba.Alteracoes)
         {
             var resultado = await Despachante.EnviarAsync(new ConsultarAuditoria(
-                new FiltroDeAuditoria(de, ate, _filtro.UsuarioId, Limpo(_filtro.Entidade), _filtro.Operacao), _pagina));
+                new FiltroDeAuditoria(de, ate, _filtro.UsuarioId, Limpo(_filtro.Entidade), _filtro.Operacao, entidadeId, idCorrelacao), _pagina));
             _alteracoes = resultado.Valor ?? SemAlteracoes;
             Concluir(resultado);
         }
@@ -217,6 +287,8 @@ else
         public DateOnly? Ate { get; set; }
         public Guid? UsuarioId { get; set; }
         public string? Entidade { get; set; }
+        public string? EntidadeId { get; set; }
+        public string? IdCorrelacao { get; set; }
         public OperacaoAuditada? Operacao { get; set; }
         public string? TipoRecurso { get; set; }
         public AcaoDeAcesso? Acao { get; set; }

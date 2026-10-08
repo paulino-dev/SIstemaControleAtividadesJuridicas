@@ -90,6 +90,19 @@ public interface IAcessoInicialDePerfil
     Task<int> IncluirNosDocumentosGeraisAsync(Guid perfilId, CancellationToken ct);
 }
 
+/// <summary>
+/// <paramref name="PartesPendentes"/>: partes de atividade ainda por concluir; <paramref name="RevisoesEmAberto"/>:
+/// atividades não concluídas em que o usuário é o revisor; <paramref name="EventosFuturos"/>: eventos que ainda
+/// não terminaram e em que ele participa.
+/// </summary>
+public sealed record PendenciasDoUsuario(int PartesPendentes, int RevisoesEmAberto, int EventosFuturos);
+
+/// <summary>O que o cadastro de usuários pede às atividades e à agenda. Implementada na infraestrutura.</summary>
+public interface IPendenciasDoUsuario
+{
+    Task<PendenciasDoUsuario> ContarAsync(Guid usuarioId, DateTime agoraUtc, CancellationToken ct);
+}
+
 public interface IHasherDeSenha
 {
     string Gerar(string senha);

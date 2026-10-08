@@ -22,6 +22,18 @@ else
         <p class="@(_falhou ? "erro" : "ok")" role="status">@_mensagem</p>
     }
 
+    @if (_inativando is { } alvo)
+    {
+        <div class="confirmacao" role="alertdialog" aria-label="Confirmar inativação">
+            <p><strong>@alvo.Nome</strong></p>
+            <p>@_textoDasPendencias</p>
+            <div class="acoes">
+                <button type="button" disabled="@_emAndamento" @onclick="ConfirmarInativacaoAsync">Confirmar inativação</button>
+                <button type="button" class="secundario" disabled="@_emAndamento" @onclick="CancelarInativacao">Cancelar</button>
+            </div>
+        </div>
+    }
+
     <table>
         <thead>
             <tr>
@@ -46,7 +58,8 @@ else
                     <td>@(usuario.Ativo ? "Ativo" : "Inativo")</td>
                     <td class="acoes">
                         <button type="button" class="secundario" @onclick="() => Editar(usuario)">Editar</button>
-                        <button type="button" class="secundario" @onclick="() => AlternarAtivoAsync(usuario)">
+                        <button type="button" class="secundario" disabled="@_emAndamento"
+                                @onclick="() => AlternarAtivoAsync(usuario)">
                             @(usuario.Ativo ? "Inativar" : "Ativar")
                         </button>
                     </td>
@@ -117,6 +130,9 @@ else
     private bool _autorizado;
     private bool _falhou;
     private string? _mensagem;
+    private bool _emAndamento;
+    private UsuarioResumo? _inativando;
+    private string _textoDasPendencias = string.Empty;
     private IReadOnlyList<UsuarioResumo> _usuarios = [];
     private IReadOnlyList<PerfilDetalhe> _perfis = [];
     private PerfilDetalhe? _perfilInativoAtual;
@@ -192,10 +208,84 @@ else
         if (resultado.Sucesso) Limpar();
     }
 
+    // Ativar é um clique. Inativar é em dois: o primeiro mostra o que o usuário deixa pendente.
     private async Task AlternarAtivoAsync(UsuarioResumo usuario)
     {
-        var resultado = await Despachante.EnviarAsync(new DefinirAtivoUsuario(usuario.Id, !usuario.Ativo));
-        await ConcluirAsync(resultado, usuario.Ativo ? "Usuário inativado." : "Usuário ativado.");
+        if (_emAndamento) return;
+        _emAndamento = true;
+        _mensagem = null;
+        _falhou = false;
+        _inativando = null;
+        try
+        {
+            if (!usuario.Ativo)
+            {
+                var ativado = await Despachante.EnviarAsync(new DefinirAtivoUsuario(usuario.Id, true));
+                await ConcluirAsync(ativado, "Usuário ativado.");
+                return;
+            }
+
+            var pendencias = await Despachante.EnviarAsync(new ObterPendenciasDoUsuario(usuario.Id));
+            if (pendencias.Erro == TipoErro.AcessoNegado)
+            {
+                _autorizado = false;
+                return;
+            }
+
+            // Se a contagem falhar, o motivo aparece e a confirmação continua disponível.
+            if (pendencias.Sucesso)
+            {
+                _textoDasPendencias = TextoDasPendencias(pendencias.Valor!);
+            }
+            else
+            {
+                _falhou = true;
+                _mensagem = pendencias.Mensagem;
+                _textoDasPendencias = "Não foi possível verificar as pendências deste usuário.";
+            }
+            _inativando = usuario;
+        }
+        finally
+        {
+            _emAndamento = false;
+        }
+    }
+
+    private async Task ConfirmarInativacaoAsync()
+    {
+        if (_emAndamento || _inativando is not { } usuario) return;
+        _emAndamento = true;
+        _mensagem = null;
+        _falhou = false;
+        try
+        {
+            var resultado = await Despachante.EnviarAsync(new DefinirAtivoUsuario(usuario.Id, false));
+            _inativando = null;
+            await ConcluirAsync(resultado, "Usuário inativado.");
+        }
+        finally
+        {
+            _emAndamento = false;
+        }
+    }
+
+    private void CancelarInativacao()
+    {
+        _inativando = null;
+        _mensagem = null;
+        _falhou = false;
+    }
+
+    private static string TextoDasPendencias(PendenciasDoUsuario p)
+    {
+        var partes = new List<string>();
+        if (p.PartesPendentes > 0) partes.Add($"{p.PartesPendentes} {(p.PartesPendentes == 1 ? "parte pendente" : "partes pendentes")}");
+        if (p.RevisoesEmAberto > 0) partes.Add($"{p.RevisoesEmAberto} {(p.RevisoesEmAberto == 1 ? "revisão em aberto" : "revisões em aberto")}");
+        if (p.EventosFuturos > 0) partes.Add($"{p.EventosFuturos} {(p.EventosFuturos == 1 ? "evento futuro" : "eventos futuros")}");
+        if (partes.Count == 0) return "Este usuário não tem pendências.";
+
+        var lista = partes.Count == 1 ? partes[0] : string.Join(", ", partes[..^1]) + " e " + partes[^1];
+        return $"Este usuário tem {lista}. Elas continuam com ele até serem redistribuídas.";
     }
 
     private async Task ConcluirAsync(Resultado resultado, string mensagemDeSucesso)

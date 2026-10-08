@@ -14,7 +14,9 @@ public sealed record FiltroDeAuditoria(
     DateTime? AteUtc = null,
     Guid? UsuarioId = null,
     string? Entidade = null,
-    OperacaoAuditada? Operacao = null);
+    OperacaoAuditada? Operacao = null,
+    Guid? EntidadeId = null,
+    Guid? IdCorrelacao = null);
 
 /// <summary><paramref name="DeUtc"/> é inclusivo; <paramref name="AteUtc"/> é exclusivo.</summary>
 public sealed record FiltroDeAcessos(
@@ -26,7 +28,8 @@ public sealed record FiltroDeAcessos(
 
 public sealed record RegistroAuditoriaResumo(
     Guid Id, DateTime DataHora, Guid? UsuarioId, string? UsuarioNome, OperacaoAuditada Operacao,
-    string? Entidade, Guid? EntidadeId, string? Evento, string? Dados, string? Ip);
+    string? Entidade, Guid? EntidadeId, string? Evento, string? Dados, string? Ip,
+    Guid? IdCorrelacao);
 
 public sealed record RegistroAcessoResumo(
     Guid Id, DateTime DataHora, Guid UsuarioId, string? UsuarioNome, string TipoRecurso,

@@ -52,6 +52,7 @@ public static class DependencyInjection
         servicos.AddScoped<IComentarioRepositorio, ComentarioRepositorio>();
         servicos.AddScoped<IEventoRepositorio, EventoRepositorio>();
         servicos.AddScoped<IAtividadesDoProcesso, AtividadesDoProcesso>();
+        servicos.AddScoped<IPendenciasDoUsuario, ContadorDePendencias>();
         servicos.AddScoped<IResponsaveisDeAtividade, ResponsaveisDeAtividade>();
         servicos.AddScoped<IConsultaDeAuditoria, ConsultaDeAuditoria>();
         servicos.AddScoped<SemeadorInicial>();

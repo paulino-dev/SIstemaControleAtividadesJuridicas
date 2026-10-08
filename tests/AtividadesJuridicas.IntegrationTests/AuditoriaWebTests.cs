@@ -25,6 +25,19 @@ public class AuditoriaWebTests(BancoFixture banco) : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Diretor_ve_os_campos_de_filtro_por_registro_e_por_correlacao_e_os_botoes_das_linhas()
+    {
+        var cliente = await _app.ClienteAutenticadoAsync();
+
+        var html = WebUtility.HtmlDecode(await cliente.GetStringAsync("/auditoria"));
+
+        html.Should().Contain("Registro").And.Contain("Gravação");
+        html.Should().Contain("Identificador do registro").And.Contain("Identificador de correlação");
+        html.Should().Contain("Ver tudo deste registro").And.Contain("Ver o que foi gravado junto");
+        html.Should().NotContain("Identificador inválido.");
+    }
+
+    [Fact]
     public async Task Producao_recebe_acesso_negado_e_nao_ve_registros()
     {
         await _app.CriarPedroAsync();
