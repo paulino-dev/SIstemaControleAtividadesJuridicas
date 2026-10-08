@@ -1,0 +1,330 @@
+@page "/clientes"
+@using System.ComponentModel.DataAnnotations
+@inject IDespachante Despachante
+
+<PageTitle>Clientes</PageTitle>
+
+<h1>Clientes</h1>
+
+@if (!_carregado)
+{
+    <p>Carregando…</p>
+}
+else if (_ator is null)
+{
+    <p class="erro">Seu acesso foi encerrado. Entre novamente.</p>
+}
+else
+{
+    <EditForm Model="_busca" OnSubmit="BuscarAsync" FormName="busca-clientes" class="formulario filtros">
+        <label>Nome, CPF ou CNPJ <InputText @bind-Value="_busca.Texto" /></label>
+        <label><InputCheckbox @bind-Value="_busca.IncluirInativos" /> Incluir inativos</label>
+        <button type="submit">Buscar</button>
+    </EditForm>
+
+    @if (_mensagem is not null)
+    {
+        <p class="@(_falhou ? "erro" : "ok")" role="status">@_mensagem</p>
+    }
+
+    <table>
+        <thead>
+            <tr><th>Nome</th><th>Documento</th><th>E-mail</th><th>Telefone</th><th>Cidade</th><th>Situação</th><th></th></tr>
+        </thead>
+        <tbody>
+            @foreach (var cliente in _pagina.Itens)
+            {
+                <tr class="@(cliente.Ativo ? null : "inativo")" @key="cliente.Id">
+                    <td>@cliente.Nome</td>
+                    <td>@cliente.Documento</td>
+                    <td>@cliente.Email</td>
+                    <td>@cliente.Telefone</td>
+                    <td>@cliente.Cidade</td>
+                    <td>@(cliente.Ativo ? "Ativo" : "Inativo")</td>
+                    <td class="acoes">
+                        @if (_ator.EhDiretoria)
+                        {
+                            <button type="button" class="secundario" @onclick="() => EditarAsync(cliente.Id)">Editar</button>
+                            <button type="button" class="secundario" @onclick="() => AlternarAtivoAsync(cliente)">
+                                @(cliente.Ativo ? "Inativar" : "Ativar")
+                            </button>
+                        }
+                        else
+                        {
+                            <button type="button" class="secundario" @onclick="() => VerAsync(cliente.Id)">Ver</button>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <div class="acoes">
+        <button type="button" class="secundario" disabled="@(_pagina.Numero <= 1)" @onclick="() => IrParaAsync(_pagina.Numero - 1)">Anterior</button>
+        <span>Página @_pagina.Numero de @_pagina.TotalDePaginas (@_pagina.Total clientes)</span>
+        <button type="button" class="secundario" disabled="@(_pagina.Numero >= _pagina.TotalDePaginas)" @onclick="() => IrParaAsync(_pagina.Numero + 1)">Próxima</button>
+    </div>
+
+    @if (_ator.EhDiretoria)
+    {
+        <div class="acoes">
+            <button type="button" @onclick="() => Novo(TipoCliente.PessoaFisica)">Nova pessoa física</button>
+            <button type="button" @onclick="() => Novo(TipoCliente.PessoaJuridica)">Nova pessoa jurídica</button>
+        </div>
+
+        @if (_form is not null)
+        {
+            <h2>@Titulo()</h2>
+
+            <EditForm Model="_form" OnValidSubmit="SalvarAsync" FormName="cliente" class="formulario">
+                <DataAnnotationsValidator />
+
+                <div class="grade">
+                    <label>
+                        @(_form.Tipo == TipoCliente.PessoaFisica ? "Nome completo" : "Razão social")
+                        <InputText @bind-Value="_form.Nome" />
+                        <ValidationMessage For="() => _form.Nome" />
+                    </label>
+
+                    @if (_form.Tipo == TipoCliente.PessoaFisica)
+                    {
+                        <label>CPF <InputText @bind-Value="_form.Documento" /><ValidationMessage For="() => _form.Documento" /></label>
+                        <label>RG <InputText @bind-Value="_form.Rg" /></label>
+                        <label>Data de nascimento <InputDate @bind-Value="_form.DataNascimento" /></label>
+                    }
+                    else
+                    {
+                        <label>CNPJ <InputText @bind-Value="_form.Documento" /><ValidationMessage For="() => _form.Documento" /></label>
+                        <label>Nome fantasia <InputText @bind-Value="_form.NomeFantasia" /></label>
+                        <label>Responsável <InputText @bind-Value="_form.NomeResponsavel" /></label>
+                        <label>Inscrição estadual <InputText @bind-Value="_form.InscricaoEstadual" /></label>
+                        <label>Inscrição municipal <InputText @bind-Value="_form.InscricaoMunicipal" /></label>
+                    }
+
+                    <label>E-mail <InputText @bind-Value="_form.Email" type="email" /></label>
+                    <label>Telefone <InputText @bind-Value="_form.Telefone" /></label>
+                </div>
+
+                <div class="grade">
+                    <label>Logradouro <InputText @bind-Value="_form.Logradouro" /></label>
+                    <label>Número <InputText @bind-Value="_form.Numero" /></label>
+                    <label>Complemento <InputText @bind-Value="_form.Complemento" /></label>
+                    <label>Bairro <InputText @bind-Value="_form.Bairro" /></label>
+                    <label>Cidade <InputText @bind-Value="_form.Cidade" /></label>
+                    <label>UF <InputText @bind-Value="_form.Uf" maxlength="2" /></label>
+                    <label>CEP <InputText @bind-Value="_form.Cep" /></label>
+                </div>
+
+                <label>Observações <InputTextArea @bind-Value="_form.Observacoes" rows="3" /></label>
+
+                <div class="acoes">
+                    <button type="submit">Salvar</button>
+                    <button type="button" class="secundario" @onclick="Fechar">Cancelar</button>
+                </div>
+            </EditForm>
+        }
+    }
+    else if (_ficha is not null)
+    {
+        <section class="ficha">
+            <h2>@_ficha.Nome</h2>
+            <dl>
+                @if (_ficha.Tipo == TipoCliente.PessoaFisica)
+                {
+                    <dt>CPF</dt><dd>@_ficha.Cpf</dd>
+                    <dt>RG</dt><dd>@_ficha.Rg</dd>
+                    <dt>Data de nascimento</dt><dd>@_ficha.DataNascimento?.ToString("dd/MM/yyyy")</dd>
+                }
+                else
+                {
+                    <dt>CNPJ</dt><dd>@_ficha.Cnpj</dd>
+                    <dt>Nome fantasia</dt><dd>@_ficha.NomeFantasia</dd>
+                    <dt>Responsável</dt><dd>@_ficha.NomeResponsavel</dd>
+                    <dt>Inscrição estadual</dt><dd>@_ficha.InscricaoEstadual</dd>
+                    <dt>Inscrição municipal</dt><dd>@_ficha.InscricaoMunicipal</dd>
+                }
+                <dt>E-mail</dt><dd>@_ficha.Email</dd>
+                <dt>Telefone</dt><dd>@_ficha.Telefone</dd>
+                <dt>Endereço</dt>
+                <dd>@_ficha.Logradouro @_ficha.Numero @_ficha.Complemento — @_ficha.Bairro — @_ficha.Cidade/@_ficha.Uf — @_ficha.Cep</dd>
+                <dt>Observações</dt><dd>@_ficha.Observacoes</dd>
+                <dt>Situação</dt><dd>@(_ficha.Ativo ? "Ativo" : "Inativo")</dd>
+            </dl>
+            <div class="acoes"><button type="button" class="secundario" @onclick="Fechar">Fechar</button></div>
+        </section>
+    }
+}
+
+@code {
+    private static readonly Pagina<ClienteResumo> Vazia = new([], 0, 1, ClientesOpcoes.TamanhoDaPagina);
+
+    private bool _carregado;
+    private bool _falhou;
+    private string? _mensagem;
+    private UsuarioAutenticado? _ator;
+    private Busca _busca = new();
+    private Pagina<ClienteResumo> _pagina = Vazia;
+    private Formulario? _form;
+    private ClienteDetalhe? _ficha;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _ator = await Despachante.EnviarAsync(new ObterMeuAcesso());
+        if (_ator is not null) await CarregarAsync(1);
+        _carregado = true;
+    }
+
+    private Task BuscarAsync() => CarregarAsync(1);
+
+    private Task IrParaAsync(int pagina) => CarregarAsync(pagina);
+
+    private async Task CarregarAsync(int pagina)
+    {
+        var resultado = await Despachante.EnviarAsync(
+            new ListarClientes(_busca.Texto, _busca.IncluirInativos, pagina));
+
+        if (AcessoEncerrado(resultado)) return;
+
+        _pagina = resultado.Valor ?? Vazia;
+        if (!resultado.Sucesso) Avisar(resultado.Mensagem, falhou: true);
+    }
+
+    // Perdeu o acesso no meio do uso: some tudo que estava na tela, nada de dados antigos.
+    private bool AcessoEncerrado(Resultado resultado)
+    {
+        if (resultado.Erro != TipoErro.AcessoNegado) return false;
+
+        _ator = null;
+        _pagina = Vazia;
+        _form = null;
+        _ficha = null;
+        return true;
+    }
+
+    private void Novo(TipoCliente tipo)
+    {
+        _mensagem = null;
+        _form = new Formulario { Tipo = tipo };
+    }
+
+    private async Task EditarAsync(Guid id)
+    {
+        var resultado = await Despachante.EnviarAsync(new ObterCliente(id));
+        if (AcessoEncerrado(resultado)) return;
+
+        if (resultado.Valor is not { } c)
+        {
+            Avisar(resultado.Mensagem, falhou: true);
+            return;
+        }
+
+        _mensagem = null;
+        _form = new Formulario
+        {
+            Id = c.Id, Tipo = c.Tipo, Nome = c.Nome, Email = c.Email, Telefone = c.Telefone,
+            Documento = c.Cpf ?? c.Cnpj ?? string.Empty, Rg = c.Rg, DataNascimento = c.DataNascimento,
+            NomeFantasia = c.NomeFantasia, NomeResponsavel = c.NomeResponsavel,
+            InscricaoEstadual = c.InscricaoEstadual, InscricaoMunicipal = c.InscricaoMunicipal,
+            Logradouro = c.Logradouro, Numero = c.Numero, Complemento = c.Complemento, Bairro = c.Bairro,
+            Cidade = c.Cidade, Uf = c.Uf, Cep = c.Cep, Observacoes = c.Observacoes,
+        };
+    }
+
+    private async Task VerAsync(Guid id)
+    {
+        var resultado = await Despachante.EnviarAsync(new ObterCliente(id));
+        if (AcessoEncerrado(resultado)) return;
+
+        _ficha = resultado.Valor;
+        if (!resultado.Sucesso) Avisar(resultado.Mensagem, falhou: true);
+    }
+
+    private void Fechar()
+    {
+        _form = null;
+        _ficha = null;
+    }
+
+    private string Titulo() => (_form!.Id is null ? "Nova " : "Editar ") +
+        (_form.Tipo == TipoCliente.PessoaFisica ? "pessoa física" : "pessoa jurídica");
+
+    private async Task SalvarAsync()
+    {
+        var f = _form!;
+        var dados = new DadosDoClienteEntrada(
+            f.Nome, f.Email, f.Telefone,
+            new EnderecoEntrada(f.Logradouro, f.Numero, f.Complemento, f.Bairro, f.Cidade, f.Uf, f.Cep),
+            f.Observacoes);
+
+        Resultado resultado = f.Tipo == TipoCliente.PessoaFisica
+            ? await Despachante.EnviarAsync(new SalvarClientePessoaFisica(f.Id, dados, f.Documento, f.Rg, f.DataNascimento))
+            : await Despachante.EnviarAsync(new SalvarClientePessoaJuridica(
+                f.Id, dados, f.Documento, f.NomeFantasia, f.NomeResponsavel, f.InscricaoEstadual, f.InscricaoMunicipal));
+
+        if (AcessoEncerrado(resultado)) return;
+
+        if (!resultado.Sucesso)
+        {
+            // O formulário permanece aberto com o que foi digitado.
+            Avisar(resultado.Mensagem, falhou: true);
+            return;
+        }
+
+        _form = null;
+        await CarregarAsync(_pagina.Numero);
+        if (_ator is not null) Avisar("Cliente salvo.", falhou: false);
+    }
+
+    private async Task AlternarAtivoAsync(ClienteResumo cliente)
+    {
+        var resultado = await Despachante.EnviarAsync(new DefinirAtivoCliente(cliente.Id, !cliente.Ativo));
+        if (AcessoEncerrado(resultado)) return;
+
+        await CarregarAsync(_pagina.Numero);
+        if (_ator is null) return;
+
+        Avisar(resultado.Sucesso ? (cliente.Ativo ? "Cliente inativado." : "Cliente ativado.") : resultado.Mensagem,
+            falhou: !resultado.Sucesso);
+    }
+
+    private void Avisar(string? mensagem, bool falhou)
+    {
+        _mensagem = mensagem;
+        _falhou = falhou;
+    }
+
+    private sealed class Busca
+    {
+        public string? Texto { get; set; }
+        public bool IncluirInativos { get; set; }
+    }
+
+    private sealed class Formulario
+    {
+        public Guid? Id { get; set; }
+        public TipoCliente Tipo { get; set; }
+
+        [Required(ErrorMessage = "Informe o nome.")]
+        public string Nome { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Informe o documento.")]
+        public string Documento { get; set; } = string.Empty;
+
+        public string? Email { get; set; }
+        public string? Telefone { get; set; }
+        public string? Rg { get; set; }
+        public DateOnly? DataNascimento { get; set; }
+        public string? NomeFantasia { get; set; }
+        public string? NomeResponsavel { get; set; }
+        public string? InscricaoEstadual { get; set; }
+        public string? InscricaoMunicipal { get; set; }
+        public string? Logradouro { get; set; }
+        public string? Numero { get; set; }
+        public string? Complemento { get; set; }
+        public string? Bairro { get; set; }
+        public string? Cidade { get; set; }
+        public string? Uf { get; set; }
+        public string? Cep { get; set; }
+        public string? Observacoes { get; set; }
+    }
+}
