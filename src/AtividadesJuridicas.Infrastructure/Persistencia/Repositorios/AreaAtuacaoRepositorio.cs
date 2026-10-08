@@ -11,7 +11,7 @@ public sealed class AreaAtuacaoRepositorio(AppDbContext db) : IAreaAtuacaoReposi
 
     public Task<bool> ExisteNomeAsync(string nome, Guid? excetoId, CancellationToken ct)
     {
-        var procurado = nome.Trim().ToLower();
+        var procurado = nome.Trim().ToLowerInvariant();
         return db.AreasAtuacao.AnyAsync(a => a.Id != excetoId && a.Nome.ToLower() == procurado, ct);
     }
 
