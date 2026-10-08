@@ -47,4 +47,7 @@ public sealed class ClienteRepositorio(AppDbContext db) : IClienteRepositorio
     }
 
     public void Adicionar(Cliente cliente) => db.Clientes.Add(cliente);
+
+    public async Task<IReadOnlyList<Cliente>> ObterVariosAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct) =>
+        await db.Clientes.Where(c => ids.Contains(c.Id)).ToListAsync(ct);
 }

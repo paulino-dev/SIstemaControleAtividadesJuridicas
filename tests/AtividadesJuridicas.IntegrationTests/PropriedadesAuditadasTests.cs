@@ -39,6 +39,12 @@ public class PropriedadesAuditadasTests
                 "Cnpj", "InscricaoEstadual", "InscricaoMunicipal", "NomeFantasia", "NomeResponsavel",
             ],
             ["Perfil"] = ["Ativo", "Nome", "Tipo"],
+            ["Processo"] =
+            [
+                "AreaAtuacaoId", "Comarca", "DataDistribuicao", "NumeroCnj", "Observacoes", "Orgao",
+                "ParteContraria", "Status", "Titulo", "ValorCausa",
+            ],
+            ["ProcessoCliente"] = ["ClienteId", "Polo", "ProcessoId"],
             ["Usuario"] = ["Ativo", "Email", "Nome", "NumeroOab", "PerfilId"],
         };
 

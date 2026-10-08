@@ -301,6 +301,158 @@ namespace AtividadesJuridicas.Infrastructure.Persistencia.Migrations
                     b.UseTphMappingStrategy();
                 });
 
+            modelBuilder.Entity("AtividadesJuridicas.Domain.Cadastros.Processo", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("AreaAtuacaoId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("area_atuacao_id");
+
+                    b.Property<DateTime?>("AtualizadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("atualizado_em");
+
+                    b.Property<Guid?>("AtualizadoPor")
+                        .HasColumnType("uuid")
+                        .HasColumnName("atualizado_por");
+
+                    b.Property<string>("Comarca")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("comarca");
+
+                    b.Property<DateTime>("CriadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("criado_em");
+
+                    b.Property<Guid?>("CriadoPor")
+                        .HasColumnType("uuid")
+                        .HasColumnName("criado_por");
+
+                    b.Property<DateOnly?>("DataDistribuicao")
+                        .HasColumnType("date")
+                        .HasColumnName("data_distribuicao");
+
+                    b.Property<DateTime?>("ExcluidoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("excluido_em");
+
+                    b.Property<Guid?>("ExcluidoPor")
+                        .HasColumnType("uuid")
+                        .HasColumnName("excluido_por");
+
+                    b.Property<string>("NumeroCnj")
+                        .HasMaxLength(20)
+                        .HasColumnType("character(20)")
+                        .HasColumnName("numero_cnj")
+                        .IsFixedLength();
+
+                    b.Property<string>("Observacoes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("observacoes");
+
+                    b.Property<string>("Orgao")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("orgao");
+
+                    b.Property<string>("ParteContraria")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("parte_contraria");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Titulo")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("titulo");
+
+                    b.Property<decimal?>("ValorCausa")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("valor_causa");
+
+                    b.HasKey("Id")
+                        .HasName("pk_processos");
+
+                    b.HasIndex("AreaAtuacaoId")
+                        .HasDatabaseName("ix_processos_area_atuacao_id");
+
+                    b.HasIndex("NumeroCnj")
+                        .IsUnique()
+                        .HasDatabaseName("ix_processos_numero_cnj")
+                        .HasFilter("numero_cnj IS NOT NULL AND excluido_em IS NULL");
+
+                    b.HasIndex("Titulo")
+                        .HasDatabaseName("ix_processos_titulo");
+
+                    b.ToTable("processos", (string)null);
+                });
+
+            modelBuilder.Entity("AtividadesJuridicas.Domain.Cadastros.ProcessoCliente", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTime?>("AtualizadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("atualizado_em");
+
+                    b.Property<Guid?>("AtualizadoPor")
+                        .HasColumnType("uuid")
+                        .HasColumnName("atualizado_por");
+
+                    b.Property<Guid>("ClienteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("cliente_id");
+
+                    b.Property<DateTime>("CriadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("criado_em");
+
+                    b.Property<Guid?>("CriadoPor")
+                        .HasColumnType("uuid")
+                        .HasColumnName("criado_por");
+
+                    b.Property<DateTime?>("ExcluidoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("excluido_em");
+
+                    b.Property<Guid?>("ExcluidoPor")
+                        .HasColumnType("uuid")
+                        .HasColumnName("excluido_por");
+
+                    b.Property<int>("Polo")
+                        .HasColumnType("integer")
+                        .HasColumnName("polo");
+
+                    b.Property<Guid>("ProcessoId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("processo_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_processos_clientes");
+
+                    b.HasIndex("ClienteId")
+                        .HasDatabaseName("ix_processos_clientes_cliente_id");
+
+                    b.HasIndex("ProcessoId", "ClienteId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_processos_clientes_processo_id_cliente_id")
+                        .HasFilter("excluido_em IS NULL");
+
+                    b.ToTable("processos_clientes", (string)null);
+                });
+
             modelBuilder.Entity("AtividadesJuridicas.Domain.Identidade.Perfil", b =>
                 {
                     b.Property<Guid>("Id")
@@ -518,6 +670,33 @@ namespace AtividadesJuridicas.Infrastructure.Persistencia.Migrations
                     b.HasDiscriminator().HasValue(2);
                 });
 
+            modelBuilder.Entity("AtividadesJuridicas.Domain.Cadastros.Processo", b =>
+                {
+                    b.HasOne("AtividadesJuridicas.Domain.Cadastros.AreaAtuacao", null)
+                        .WithMany()
+                        .HasForeignKey("AreaAtuacaoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_processos_areas_atuacao_area_atuacao_id");
+                });
+
+            modelBuilder.Entity("AtividadesJuridicas.Domain.Cadastros.ProcessoCliente", b =>
+                {
+                    b.HasOne("AtividadesJuridicas.Domain.Cadastros.Cliente", null)
+                        .WithMany()
+                        .HasForeignKey("ClienteId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_processos_clientes_clientes_cliente_id");
+
+                    b.HasOne("AtividadesJuridicas.Domain.Cadastros.Processo", null)
+                        .WithMany("Clientes")
+                        .HasForeignKey("ProcessoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_processos_clientes_processos_processo_id");
+                });
+
             modelBuilder.Entity("AtividadesJuridicas.Domain.Identidade.Usuario", b =>
                 {
                     b.HasOne("AtividadesJuridicas.Domain.Identidade.Perfil", null)
@@ -526,6 +705,11 @@ namespace AtividadesJuridicas.Infrastructure.Persistencia.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_usuarios_perfis_perfil_id");
+                });
+
+            modelBuilder.Entity("AtividadesJuridicas.Domain.Cadastros.Processo", b =>
+                {
+                    b.Navigation("Clientes");
                 });
 #pragma warning restore 612, 618
         }

@@ -158,10 +158,78 @@ public sealed class ClienteRepositorioFalso : IClienteRepositorio
 
     public void Adicionar(Cliente cliente) => Itens.Add(cliente);
 
+    public Task<IReadOnlyList<Cliente>> ObterVariosAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct) =>
+        Task.FromResult<IReadOnlyList<Cliente>>([.. Itens.Where(c => ids.Contains(c.Id))]);
+
     // Mesma semântica do unaccent do banco: remove os diacríticos antes de comparar.
     private static string SemAcentos(string texto) => new(
         [.. texto.Normalize(NormalizationForm.FormD)
             .Where(ch => CharUnicodeInfo.GetUnicodeCategory(ch) != UnicodeCategory.NonSpacingMark)]);
+}
+
+public sealed class ProcessoRepositorioFalso(AreaAtuacaoRepositorioFalso areas, ClienteRepositorioFalso clientes)
+    : IProcessoRepositorio
+{
+    public List<Processo> Itens { get; } = [];
+
+    public Task<Processo?> ObterPorIdAsync(Guid id, CancellationToken ct) =>
+        Task.FromResult(Itens.FirstOrDefault(p => p.Id == id));
+
+    public Task<bool> ExisteNumeroCnjAsync(NumeroCnj numero, Guid? excetoId, CancellationToken ct) =>
+        Task.FromResult(Itens.Any(p => p.NumeroCnj == numero && p.Id != excetoId));
+
+    public Task<Pagina<ProcessoResumo>> ListarAsync(FiltroDeProcessos filtro, int pagina, int tamanho, CancellationToken ct)
+    {
+        IEnumerable<Processo> consulta = Itens;
+        if (filtro.Status is { } status) consulta = consulta.Where(p => p.Status == status);
+        if (filtro.ClienteId is { } clienteId) consulta = consulta.Where(p => p.Clientes.Any(c => c.ClienteId == clienteId));
+
+        if (NumeroCnj.TentarCriar(filtro.Busca, out var numero))
+            consulta = consulta.Where(p => p.NumeroCnj == numero);
+        else if (!string.IsNullOrWhiteSpace(filtro.Busca))
+            consulta = consulta.Where(p => Contem(p.Titulo, filtro.Busca) || Contem(p.ParteContraria, filtro.Busca));
+
+        var todos = consulta.OrderBy(p => p.Titulo).ToList();
+        return Task.FromResult(new Pagina<ProcessoResumo>(
+            [.. todos.Skip((pagina - 1) * tamanho).Take(tamanho).Select(Resumo)], todos.Count, pagina, tamanho));
+    }
+
+    public Task<ProcessoDetalhe?> ObterDetalheAsync(Guid id, CancellationToken ct)
+    {
+        var p = Itens.FirstOrDefault(x => x.Id == id);
+        if (p is null) return Task.FromResult<ProcessoDetalhe?>(null);
+
+        return Task.FromResult<ProcessoDetalhe?>(new ProcessoDetalhe(
+            p.Id, p.NumeroCnj?.Formatado, p.Titulo, p.AreaAtuacaoId, NomeDaArea(p.AreaAtuacaoId), p.Status,
+            p.Orgao, p.Comarca, p.ParteContraria, p.DataDistribuicao, p.ValorCausa, p.Observacoes,
+            [.. p.Clientes.Select(v =>
+            {
+                var c = clientes.Itens.First(x => x.Id == v.ClienteId);
+                return new ClienteDoProcessoDetalhe(c.Id, c.Nome, Documento(c), v.Polo, c.Ativo);
+            }).OrderBy(c => c.Nome)]));
+    }
+
+    public void Adicionar(Processo processo) => Itens.Add(processo);
+
+    private ProcessoResumo Resumo(Processo p) => new(
+        p.Id, p.NumeroCnj?.Formatado, p.Titulo, NomeDaArea(p.AreaAtuacaoId), p.Status,
+        [.. p.Clientes.Select(v => clientes.Itens.First(c => c.Id == v.ClienteId).Nome).Order()], p.ParteContraria);
+
+    private string NomeDaArea(Guid id) => areas.Itens.First(a => a.Id == id).Nome;
+
+    private static string Documento(Cliente c) => c switch
+    {
+        ClientePessoaFisica pf => pf.Cpf.Formatado,
+        ClientePessoaJuridica pj => pj.Cnpj.Formatado,
+        _ => string.Empty,
+    };
+
+    // Mesma semântica da busca real: ignora maiúsculas e acentos.
+    private static bool Contem(string? texto, string busca) =>
+        texto is not null && SemAcentos(texto).Contains(SemAcentos(busca.Trim()), StringComparison.OrdinalIgnoreCase);
+
+    private static string SemAcentos(string texto) => new([.. texto.Normalize(System.Text.NormalizationForm.FormD)
+        .Where(c => System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c) != System.Globalization.UnicodeCategory.NonSpacingMark)]);
 }
 
 /// <summary>Monta um cenário com os dois perfis padrão e um diretor ativo.</summary>
@@ -172,6 +240,7 @@ public sealed class Cenario
     public UnidadeDeTrabalhoFalsa Unidade { get; } = new();
     public AreaAtuacaoRepositorioFalso Areas { get; } = new();
     public ClienteRepositorioFalso Clientes { get; } = new();
+    public ProcessoRepositorioFalso Processos { get; }
     public HasherFalso Hasher { get; } = new();
     public RelogioFixo Relogio { get; } = new();
     public AuditoriaFalsa Auditoria { get; } = new();
@@ -182,6 +251,7 @@ public sealed class Cenario
     public Cenario()
     {
         Usuarios = new UsuarioRepositorioFalso(Perfis);
+        Processos = new ProcessoRepositorioFalso(Areas, Clientes);
         Perfis.Itens.AddRange([PerfilDiretor, PerfilProducao]);
         Diretor = NovoUsuario("Diana Diretora", "diana@x.com", PerfilDiretor);
     }

@@ -13,6 +13,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> opcoes) : DbCont
     public DbSet<Perfil> Perfis => Set<Perfil>();
     public DbSet<AreaAtuacao> AreasAtuacao => Set<AreaAtuacao>();
     public DbSet<Cliente> Clientes => Set<Cliente>();
+    public DbSet<Processo> Processos => Set<Processo>();
     public DbSet<RegistroAuditoria> RegistrosAuditoria => Set<RegistroAuditoria>();
     public DbSet<RegistroAcesso> RegistrosAcesso => Set<RegistroAcesso>();
 

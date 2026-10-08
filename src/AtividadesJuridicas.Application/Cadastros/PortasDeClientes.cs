@@ -21,6 +21,9 @@ public interface IClienteRepositorio
     Task<Pagina<Cliente>> ListarAsync(string? busca, bool incluirInativos, int pagina, int tamanho, CancellationToken ct);
 
     void Adicionar(Cliente cliente);
+
+    /// <summary>Os clientes com os Ids informados; os inexistentes simplesmente não vêm.</summary>
+    Task<IReadOnlyList<Cliente>> ObterVariosAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct);
 }
 
 public sealed record EnderecoEntrada(
