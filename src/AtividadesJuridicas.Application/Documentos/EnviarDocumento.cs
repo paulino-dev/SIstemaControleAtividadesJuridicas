@@ -7,8 +7,9 @@ using AtividadesJuridicas.Domain.Identidade;
 namespace AtividadesJuridicas.Application.Documentos;
 
 /// <summary>
-/// Envia um documento geral ou um contrato de honorários de um cliente. <paramref name="NomeArquivo"/> é o
-/// nome que o navegador informou: só o último segmento é guardado, e ele nunca é usado como caminho.
+/// Envia um documento geral, um contrato de honorários ou um documento do cliente (visível a ele no
+/// portal). <paramref name="NomeArquivo"/> é o nome que o navegador informou: só o último segmento é
+/// guardado, e ele nunca é usado como caminho.
 /// </summary>
 public sealed record EnviarDocumento(
     CategoriaDocumento Categoria, Guid ClienteId, string? Nome, string NomeArquivo, string? TipoConteudo, Stream Conteudo)
@@ -27,7 +28,8 @@ public sealed class EnviarDocumentoManipulador(
         if (await contexto.ObterAsync(ct) is not { EhDiretoria: true })
             return Falha(TipoErro.AcessoNegado, "Acesso negado.");
 
-        if (requisicao.Categoria is not (CategoriaDocumento.DocumentoGeral or CategoriaDocumento.ContratoHonorarios))
+        if (requisicao.Categoria is not (CategoriaDocumento.DocumentoGeral or CategoriaDocumento.ContratoHonorarios
+                or CategoriaDocumento.DocumentoDoCliente))
             return Falha(TipoErro.Validacao, "Categoria inválida para envio.");
 
         if (ArquivoEnviado.Validar(requisicao.NomeArquivo, requisicao.Conteudo, requisicao.Nome, out var nomeDoArquivo) is { } recusa)
@@ -39,10 +41,14 @@ public sealed class EnviarDocumentoManipulador(
         return await ArquivoEnviado.GravarAsync(
             armazenamento, documentos, unidade, nomeDoArquivo, requisicao.TipoConteudo, requisicao.Conteudo,
             // O Documento Geral nasce com os perfis internos: o perfil Cliente nunca entra na lista de acesso.
-            async arquivo => requisicao.Categoria == CategoriaDocumento.DocumentoGeral
-                ? Documento.CriarGeral(requisicao.ClienteId, requisicao.Nome, arquivo,
-                    [.. (await perfis.ObterAtivosAsync(ct)).Where(p => p.Tipo != TipoPerfil.Cliente)])
-                : Documento.CriarContratoDeHonorarios(requisicao.ClienteId, requisicao.Nome, arquivo),
+            // O contrato e o documento do cliente nascem sem ninguém na lista.
+            async arquivo => requisicao.Categoria switch
+            {
+                CategoriaDocumento.DocumentoGeral => Documento.CriarGeral(requisicao.ClienteId, requisicao.Nome, arquivo,
+                    [.. (await perfis.ObterAtivosAsync(ct)).Where(p => p.Tipo != TipoPerfil.Cliente)]),
+                CategoriaDocumento.DocumentoDoCliente => Documento.CriarDoCliente(requisicao.ClienteId, requisicao.Nome, arquivo),
+                _ => Documento.CriarContratoDeHonorarios(requisicao.ClienteId, requisicao.Nome, arquivo),
+            },
             ct);
     }
 

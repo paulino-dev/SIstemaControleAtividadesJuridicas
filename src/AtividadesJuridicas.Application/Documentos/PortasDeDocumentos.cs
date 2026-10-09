@@ -8,6 +8,7 @@ public static class DocumentosOpcoes
     public const long TamanhoMaximoBytes = 50L * 1024 * 1024;
     public const int TamanhoDaPagina = 20;
     public const string TipoDeConteudoPadrao = "application/octet-stream";
+    public const string ConfirmacaoExigida = "Confirme que o documento ficará visível para todos os clientes.";
 }
 
 /// <summary>Quem está consultando, quando a consulta precisa respeitar a lista de acesso.</summary>
@@ -20,13 +21,25 @@ public interface IDocumentoRepositorio
 
     /// <summary>
     /// Do mais recente para o mais antigo. Sem <paramref name="acesso"/>, todos os documentos; com ele,
-    /// só os que o perfil ou o usuário alcançam pela lista de acesso, e nunca um contrato de honorários, um documento do cliente nem um documento comum (estes são do
-    /// portal do cliente). Para a
-    /// categoria dos documentos de atividade o filtro não é a lista de acesso: é ser responsável atual de uma
-    /// atividade viva (não excluída) à qual o documento pertence.
+    /// só os que o perfil ou o usuário alcançam pela lista de acesso, e nunca um contrato de honorários, um
+    /// documento do cliente nem um documento comum (estes são do portal do cliente). Para a categoria dos
+    /// documentos de atividade o filtro não é a lista de acesso: é ser responsável atual de uma atividade
+    /// viva (não excluída) à qual o documento pertence.
     /// </summary>
     Task<Pagina<DocumentoResumo>> ListarDoClienteAsync(
         Guid clienteId, CategoriaDocumento categoria, FiltroDeAcesso? acesso, int pagina, int tamanho, CancellationToken ct);
+
+    /// <summary>
+    /// Os documentos do cliente (categoria <see cref="CategoriaDocumento.DocumentoDoCliente"/>) daquele cliente,
+    /// do mais recente para o mais antigo, sem autor. Quem chama já decidiu que o usuário é o cliente.
+    /// </summary>
+    Task<Pagina<DocumentoDoPortal>> ListarDoPortalAsync(Guid clienteId, int pagina, int tamanho, CancellationToken ct);
+
+    /// <summary>
+    /// Todos os documentos comuns, do mais recente para o mais antigo. O nome de quem enviou só é buscado com
+    /// <paramref name="comAutor"/>.
+    /// </summary>
+    Task<Pagina<DocumentoDoPortal>> ListarComunsAsync(bool comAutor, int pagina, int tamanho, CancellationToken ct);
 
     /// <summary>Os documentos de uma atividade, do mais recente para o mais antigo. Quem chama já decidiu que o usuário vê a atividade.</summary>
     Task<Pagina<DocumentoResumo>> ListarDaAtividadeAsync(Guid atividadeId, int pagina, int tamanho, CancellationToken ct);
@@ -57,6 +70,12 @@ public interface IResponsaveisDeAtividade
 public sealed record DocumentoResumo(
     Guid Id, string Nome, string NomeArquivoOriginal, long TamanhoBytes, CategoriaDocumento Categoria,
     DateTime EnviadoEm, string? EnviadoPor, Guid? AtividadeId, string? AtividadeTitulo);
+
+/// <summary>
+/// A linha de documento que o portal mostra: sem nome de arquivo original nem categoria.
+/// <paramref name="EnviadoPor"/> só vem preenchido para a Diretoria.
+/// </summary>
+public sealed record DocumentoDoPortal(Guid Id, string Nome, long TamanhoBytes, DateTime EnviadoEm, string? EnviadoPor = null);
 
 /// <summary>Quem recebe fecha <paramref name="Conteudo"/>.</summary>
 public sealed record ArquivoParaBaixar(string NomeArquivo, long TamanhoBytes, Stream Conteudo) : IAsyncDisposable, IDisposable

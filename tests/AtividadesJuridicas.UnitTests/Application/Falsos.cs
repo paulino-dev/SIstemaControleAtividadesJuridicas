@@ -631,6 +631,26 @@ public sealed class DocumentoRepositorioFalso(AtividadeRepositorioFalso? ativida
         return Task.FromResult<IReadOnlyList<Documento>>([.. Itens.Where(d => d.AtividadeId == atividadeId)]);
     }
 
+    /// <summary>O fake não grava o autor: o nome que o repositório real buscaria do usuário que enviou.</summary>
+    public string? AutorSimulado { get; set; }
+
+    public Task<Pagina<DocumentoDoPortal>> ListarDoPortalAsync(Guid clienteId, int pagina, int tamanho, CancellationToken ct) =>
+        Task.FromResult(DoPortal(
+            Enumerable.Reverse(Itens).Where(d => d.Categoria == CategoriaDocumento.DocumentoDoCliente && d.ClienteId == clienteId),
+            comAutor: false, pagina, tamanho));
+
+    public Task<Pagina<DocumentoDoPortal>> ListarComunsAsync(bool comAutor, int pagina, int tamanho, CancellationToken ct) =>
+        Task.FromResult(DoPortal(
+            Enumerable.Reverse(Itens).Where(d => d.Categoria == CategoriaDocumento.DocumentoComum), comAutor, pagina, tamanho));
+
+    private Pagina<DocumentoDoPortal> DoPortal(IEnumerable<Documento> documentos, bool comAutor, int pagina, int tamanho)
+    {
+        var todos = documentos.ToList();
+        return new([.. todos.Skip((pagina - 1) * tamanho).Take(tamanho).Select(d => new DocumentoDoPortal(
+                d.Id, d.Nome, d.TamanhoBytes, d.CriadoEm, comAutor ? AutorSimulado : null))],
+            todos.Count, pagina, tamanho);
+    }
+
     public void Adicionar(Documento documento) => Itens.Add(documento);
 
     public void Remover(Documento documento) => Itens.Remove(documento);

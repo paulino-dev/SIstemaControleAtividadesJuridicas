@@ -6,7 +6,7 @@ using AtividadesJuridicas.Domain.Documentos;
 
 namespace AtividadesJuridicas.Application.Documentos;
 
-public sealed record BaixarDocumento(Guid Id) : IRequisicao<Resultado<ArquivoParaBaixar>>, IConsultaAuditavel
+public sealed record BaixarDocumento(Guid Id) : IRequisicao<Resultado<ArquivoParaBaixar>>, IConsultaAuditavel, IRequisicaoAbertaAoCliente
 {
     public string TipoRecurso => "Documento";
     public AcaoDeAcesso Acao => AcaoDeAcesso.Baixou;
@@ -35,7 +35,7 @@ public sealed class BaixarDocumentoManipulador(
             && !ator.EhDiretoria
             && await responsaveis.EhResponsavelAsync(atividadeId, ator.Id, ct);
 
-        if (!documento.PodeSerAcessadoPor(ator.Id, ator.PerfilId, ator.TipoPerfil, ehResponsavel))
+        if (!documento.PodeSerAcessadoPor(ator.Id, ator.PerfilId, ator.TipoPerfil, ehResponsavel, ator.ClienteId))
         {
             // Para quem pediu, o documento não existe; para a Diretoria, a tentativa fica registrada.
             await auditoria.RegistrarAsync(

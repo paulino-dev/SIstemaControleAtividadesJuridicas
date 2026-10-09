@@ -307,6 +307,20 @@ public class PerfisTests(BancoFixture banco) : TesteComBanco(banco)
     }
 
     [Fact]
+    public async Task Porta_do_acesso_inicial_nao_inclui_perfil_de_cliente()
+    {
+        var geral = await EnviarAsync(CategoriaDocumento.DocumentoGeral, "um.pdf");
+
+        var incluidos = await EmEscopoAsync(_admin, sp =>
+            sp.GetRequiredService<IAcessoInicialDePerfil>().IncluirNosDocumentosGeraisAsync(_perfilCliente, default));
+
+        incluidos.Should().Be(0);
+        (await EntradasDoPerfilAsync(_perfilCliente)).Should().BeEmpty();
+        var estagio = await CriarPerfilAsync("Estagiário");
+        (await EntradasDoPerfilAsync(estagio)).Select(a => a.DocumentoId).Should().Equal(geral);
+    }
+
+    [Fact]
     public async Task Producao_nao_gerencia_perfis_e_a_tentativa_fica_registrada()
     {
         var pedro = await CriarUsuarioAsync("Pedro", "pedro@x.com", _perfilProducao);

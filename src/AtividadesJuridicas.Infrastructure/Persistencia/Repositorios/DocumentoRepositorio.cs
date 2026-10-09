@@ -40,6 +40,43 @@ public sealed class DocumentoRepositorio(AppDbContext db) : IDocumentoRepositori
         return await PaginaAsync(consulta, pagina, tamanho, ct);
     }
 
+    // As consultas do portal não usam FiltroDeAcesso: a categoria e o cliente já dizem o que o portal mostra.
+    public Task<Pagina<DocumentoDoPortal>> ListarDoPortalAsync(Guid clienteId, int pagina, int tamanho, CancellationToken ct) =>
+        DoPortalAsync(
+            db.Documentos.AsNoTracking()
+                .Where(d => d.Categoria == CategoriaDocumento.DocumentoDoCliente && d.ClienteId == clienteId),
+            comAutor: false, pagina, tamanho, ct);
+
+    public Task<Pagina<DocumentoDoPortal>> ListarComunsAsync(bool comAutor, int pagina, int tamanho, CancellationToken ct) =>
+        DoPortalAsync(
+            db.Documentos.AsNoTracking().Where(d => d.Categoria == CategoriaDocumento.DocumentoComum),
+            comAutor, pagina, tamanho, ct);
+
+    private async Task<Pagina<DocumentoDoPortal>> DoPortalAsync(
+        IQueryable<Documento> consulta, bool comAutor, int pagina, int tamanho, CancellationToken ct)
+    {
+        var total = await consulta.CountAsync(ct);
+        var documentos = await consulta
+            .OrderByDescending(d => d.CriadoEm).ThenByDescending(d => d.Id)
+            .Skip((pagina - 1) * tamanho).Take(tamanho)
+            .ToListAsync(ct);
+
+        // O autor só é buscado para quem pode vê-lo; continua identificado pelo nome mesmo depois de excluído.
+        var nomes = new Dictionary<Guid, string>();
+        if (comAutor)
+        {
+            var autores = documentos.Where(d => d.CriadoPor.HasValue).Select(d => d.CriadoPor!.Value).Distinct().ToList();
+            nomes = await db.Usuarios.IgnoreQueryFilters().AsNoTracking()
+                .Where(u => autores.Contains(u.Id)).ToDictionaryAsync(u => u.Id, u => u.Nome, ct);
+        }
+
+        var itens = documentos.Select(d => new DocumentoDoPortal(
+            d.Id, d.Nome, d.TamanhoBytes, d.CriadoEm,
+            comAutor && d.CriadoPor is { } autor ? nomes.GetValueOrDefault(autor) : null)).ToList();
+
+        return new Pagina<DocumentoDoPortal>(itens, total, pagina, tamanho);
+    }
+
     public Task<Pagina<DocumentoResumo>> ListarDaAtividadeAsync(Guid atividadeId, int pagina, int tamanho, CancellationToken ct) =>
         PaginaAsync(db.Documentos.AsNoTracking().Where(d => d.AtividadeId == atividadeId), pagina, tamanho, ct);
 

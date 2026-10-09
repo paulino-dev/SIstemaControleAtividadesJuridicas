@@ -91,20 +91,46 @@ public class PortalDoClienteWebTests(BancoFixture banco) : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Cliente_nao_baixa_documento_interno()
+    public async Task Cliente_baixa_pelo_endereco_o_documento_dele_e_recebe_404_nos_demais()
     {
-        var enviado = await _app.ExecutarAsync(_admin, new EnviarDocumento(
-            CategoriaDocumento.DocumentoGeral, _maria, null, "procuracao.pdf", "application/pdf",
-            new MemoryStream(Encoding.UTF8.GetBytes("conteúdo"))));
-        enviado.Sucesso.Should().BeTrue(enviado.Mensagem);
+        var jose = (await _app.ExecutarAsync(_admin, new SalvarClientePessoaFisica(
+            null, new DadosDoClienteEntrada("José Souza", null, null, new EnderecoEntrada(), null), "111.444.777-35", null, null))).Valor;
+        var doCliente = await EnviarAsync(CategoriaDocumento.DocumentoDoCliente, _maria, "do-cliente.pdf");
+        var comum = (await _app.ExecutarAsync(_admin, new EnviarDocumentoComum(
+            null, "comum.pdf", "application/pdf", Conteudo(), true))).Valor;
+        var doOutro = await EnviarAsync(CategoriaDocumento.DocumentoDoCliente, jose, "do-outro.pdf");
+        var geral = await EnviarAsync(CategoriaDocumento.DocumentoGeral, _maria, "geral.pdf");
+        var contrato = await EnviarAsync(CategoriaDocumento.ContratoHonorarios, _maria, "contrato.pdf");
         var cliente = await DaCarlaAsync();
 
-        var resposta = await cliente.GetAsync($"/documentos/{enviado.Valor}/baixar");
+        foreach (var (id, nome) in new[] { (doCliente, "do-cliente.pdf"), (comum, "comum.pdf") })
+        {
+            var resposta = await cliente.GetAsync($"/documentos/{id}/baixar");
 
-        resposta.StatusCode.Should().Be(HttpStatusCode.Forbidden);
-        var negado = (await _app.EventosAsync(EventosDeSeguranca.AcessoNegado)).Should().ContainSingle().Subject;
-        negado.UsuarioId.Should().Be(_carla);
-        ((string?)JsonNode.Parse(negado.Dados!)!["requisicao"]).Should().Be("BaixarDocumento");
+            resposta.StatusCode.Should().Be(HttpStatusCode.OK, nome);
+            resposta.Content.Headers.ContentDisposition!.DispositionType.Should().Be("attachment");
+            (resposta.Content.Headers.ContentDisposition.FileNameStar ?? resposta.Content.Headers.ContentDisposition.FileName)!
+                .Trim('"').Should().Be(nome);
+        }
+
+        (await _app.EventosAsync(EventosDeSeguranca.AcessoNegado)).Should().BeEmpty();
+        var negados = new List<Guid> { doOutro, geral, contrato };
+        foreach (var id in negados)
+            (await cliente.GetAsync($"/documentos/{id}/baixar")).StatusCode.Should().Be(HttpStatusCode.NotFound);
+
+        var eventos = await _app.EventosAsync(EventosDeSeguranca.AcessoNegado);
+        eventos.Should().OnlyContain(e => e.UsuarioId == _carla && e.Entidade == "Documento");
+        eventos.Select(e => e.EntidadeId).Should().BeEquivalentTo(negados.Select(id => (Guid?)id));
+    }
+
+    private static MemoryStream Conteudo() => new(Encoding.UTF8.GetBytes("conteúdo"));
+
+    private async Task<Guid> EnviarAsync(CategoriaDocumento categoria, Guid cliente, string arquivo)
+    {
+        var enviado = await _app.ExecutarAsync(_admin, new EnviarDocumento(
+            categoria, cliente, null, arquivo, "application/pdf", Conteudo()));
+        enviado.Sucesso.Should().BeTrue(enviado.Mensagem);
+        return enviado.Valor;
     }
 
     private static string Decodificado(string html) => WebUtility.HtmlDecode(html);

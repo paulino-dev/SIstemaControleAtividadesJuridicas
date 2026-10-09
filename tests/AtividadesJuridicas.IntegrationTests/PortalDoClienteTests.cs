@@ -27,7 +27,7 @@ public class PortalDoClienteTests(BancoFixture banco) : TesteComBanco(banco)
 
     private static readonly DateTime Inicio = new(2090, 6, 15, 13, 0, 0, DateTimeKind.Utc);
 
-    private Guid _admin, _pedro, _carla, _maria, _jose, _atividade, _evento, _geral, _contrato;
+    private Guid _admin, _pedro, _carla, _maria, _jose, _processo, _atividade, _evento, _geral, _contrato;
 
     public override async Task InitializeAsync()
     {
@@ -39,9 +39,11 @@ public class PortalDoClienteTests(BancoFixture banco) : TesteComBanco(banco)
         _jose = await ClienteAsync("José Souza", "111.444.777-35");
 
         var area = (await ExecutarAsync(_admin, new SalvarAreaAtuacao(null, "Trabalhista"))).Valor;
-        (await ExecutarAsync(_admin, new SalvarProcesso(
+        var processo = await ExecutarAsync(_admin, new SalvarProcesso(
             null, new DadosDoProcessoEntrada(null, "Reclamação trabalhista", area, null, null, null, null, null, null),
-            [new ClienteDoProcessoEntrada(_maria, PoloProcessual.Ativo)]))).Sucesso.Should().BeTrue();
+            [new ClienteDoProcessoEntrada(_maria, PoloProcessual.Ativo)]));
+        processo.Sucesso.Should().BeTrue(processo.Mensagem);
+        _processo = processo.Valor;
 
         var atividade = await ExecutarAsync(_admin, new SalvarAtividade(
             null, "Elaborar contestação", "Prazo de 15 dias.", new DateOnly(2090, 6, 20), _maria, null, null, 1));
@@ -100,7 +102,7 @@ public class PortalDoClienteTests(BancoFixture banco) : TesteComBanco(banco)
             () => ComoCarlaAsync(new ObterCliente(_maria)),
             () => ComoCarlaAsync(new ObterCliente(_jose)),
             () => ComoCarlaAsync(new ListarProcessos()),
-            () => ComoCarlaAsync(new ObterProcesso(Guid.CreateVersion7())),
+            () => ComoCarlaAsync(new ObterProcesso(_processo)),
             () => ComoCarlaAsync(new ListarAreasAtuacao()),
             () => ComoCarlaAsync(new ListarAtividades()),
             () => ComoCarlaAsync(new ObterAtividade(_atividade)),
@@ -108,7 +110,6 @@ public class PortalDoClienteTests(BancoFixture banco) : TesteComBanco(banco)
             () => ComoCarlaAsync(new ObterEvento(_evento)),
             () => ComoCarlaAsync(new ListarUsuariosParaAgenda()),
             () => ComoCarlaAsync(new ListarDocumentosDoCliente(_maria, CategoriaDocumento.DocumentoGeral)),
-            () => ComoCarlaAsync(new BaixarDocumento(_geral)),
             () => ComoCarlaAsync(new ListarUsuarios()),
             () => ComoCarlaAsync(new ConsultarAuditoria(new FiltroDeAuditoria())),
             () => ComoCarlaAsync(new SalvarEvento(
@@ -121,9 +122,10 @@ public class PortalDoClienteTests(BancoFixture banco) : TesteComBanco(banco)
         foreach (var (requisicao, resultado) in tentativas)
         {
             resultado.Erro.Should().Be(TipoErro.AcessoNegado, requisicao);
-            // Sem valor: nulo, ou o padrão do tipo quando ele é de valor (ComentarAtividade responde com Resultado<Guid>).
+            // Sem valor: nulo, ou o padrão de um tipo de valor (ComentarAtividade responde com Resultado<Guid>).
             var valor = resultado.GetType().GetProperty("Valor")?.GetValue(resultado);
-            (valor is null || valor.Equals(Activator.CreateInstance(valor.GetType()))).Should().BeTrue(requisicao);
+            (valor is null || (valor.GetType().IsValueType && valor.Equals(Activator.CreateInstance(valor.GetType()))))
+                .Should().BeTrue(requisicao);
         }
 
         var negados = (await EventosAsync(EventosDeSeguranca.AcessoNegado)).Where(e => e.UsuarioId == _carla).ToList();
@@ -134,6 +136,23 @@ public class PortalDoClienteTests(BancoFixture banco) : TesteComBanco(banco)
         var acessos = await EmEscopoAsync(null, sp => sp.GetRequiredService<AppDbContext>().RegistrosAcesso.AsNoTracking()
             .Where(r => r.UsuarioId == _carla).ToListAsync());
         acessos.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Download_de_documento_interno_pelo_cliente_e_negado_como_nao_encontrado_e_fica_registrado()
+    {
+        foreach (var documento in new[] { _geral, _contrato })
+        {
+            var resultado = await ExecutarAsync(_carla, new BaixarDocumento(documento));
+
+            resultado.Erro.Should().Be(TipoErro.NaoEncontrado);
+            resultado.Valor.Should().BeNull();
+        }
+
+        var negados = (await EventosAsync(EventosDeSeguranca.AcessoNegado)).Where(e => e.UsuarioId == _carla).ToList();
+        negados.Select(e => e.EntidadeId).Should().BeEquivalentTo([_geral, _contrato]);
+        negados.Should().OnlyContain(e => e.Entidade == "Documento");
+        negados.Select(e => (string?)JsonNode.Parse(e.Dados!)!["resposta"]).Should().OnlyContain(r => r == "nao_encontrado");
     }
 
     [Fact]

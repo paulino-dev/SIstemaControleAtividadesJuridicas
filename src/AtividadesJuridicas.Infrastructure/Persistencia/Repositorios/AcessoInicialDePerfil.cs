@@ -1,6 +1,7 @@
 using AtividadesJuridicas.Application.Comum;
 using AtividadesJuridicas.Application.Identidade;
 using AtividadesJuridicas.Domain.Documentos;
+using AtividadesJuridicas.Domain.Identidade;
 using Microsoft.EntityFrameworkCore;
 
 namespace AtividadesJuridicas.Infrastructure.Persistencia.Repositorios;
@@ -10,7 +11,8 @@ namespace AtividadesJuridicas.Infrastructure.Persistencia.Repositorios;
 /// gravação por fora dos interceptores (uma linha por documento, sem registro de auditoria por linha):
 /// o caso de uso a registra com o evento perfil_incluido_nos_documentos_gerais, na mesma transação.
 /// Corrida conhecida: um documento enviado no mesmo instante pode nascer sem o perfil novo; a Diretoria
-/// o inclui pelo editor de acesso do documento.
+/// o inclui pelo editor de acesso do documento. Um perfil do tipo Cliente nunca entra em lista de acesso:
+/// para ele o comando não grava nada.
 /// </summary>
 public sealed class AcessoInicialDePerfil(AppDbContext db, IIdentidadeAtual identidade, IRelogio relogio)
     : IAcessoInicialDePerfil
@@ -20,6 +22,7 @@ public sealed class AcessoInicialDePerfil(AppDbContext db, IIdentidadeAtual iden
         var agora = relogio.AgoraUtc;
         var autor = identidade.UsuarioId;
         var geral = (int)CategoriaDocumento.DocumentoGeral;
+        var tipoCliente = (int)TipoPerfil.Cliente;
 
         // Os valores entram como parâmetros; os CAST dão tipo ao parâmetro mesmo quando ele é nulo.
         return db.Database.ExecuteSqlAsync($"""
@@ -28,6 +31,9 @@ public sealed class AcessoInicialDePerfil(AppDbContext db, IIdentidadeAtual iden
             FROM documentos d
             WHERE d.categoria = {geral}
               AND d.excluido_em IS NULL
+              AND EXISTS (
+                  SELECT 1 FROM perfis p
+                  WHERE p.id = CAST({perfilId} AS uuid) AND p.tipo <> {tipoCliente})
               AND NOT EXISTS (
                   SELECT 1 FROM documentos_perfis_acesso a
                   WHERE a.documento_id = d.id AND a.perfil_id = CAST({perfilId} AS uuid) AND a.excluido_em IS NULL)

@@ -20,11 +20,16 @@ public sealed class ListarDocumentosDoClienteManipulador(IContextoDeAcesso conte
     public async Task<Resultado<Pagina<DocumentoResumo>>> ManipularAsync(ListarDocumentosDoCliente requisicao, CancellationToken ct)
     {
         if (await contexto.ObterAsync(ct) is not { } ator)
-            return Falha("Acesso negado.");
+            return Falha(TipoErro.AcessoNegado, "Acesso negado.");
 
-        // Contrato de honorários: Produção não tem acesso, nem à lista.
-        if (requisicao.Categoria == CategoriaDocumento.ContratoHonorarios && !ator.EhDiretoria)
-            return Falha("Acesso negado.");
+        // O documento comum não é de cliente: não há o que listar na ficha.
+        if (requisicao.Categoria == CategoriaDocumento.DocumentoComum)
+            return Falha(TipoErro.Validacao, "Categoria inválida para esta consulta.");
+
+        // Contrato de honorários e documento do cliente: Produção não tem acesso, nem à lista.
+        if (requisicao.Categoria is CategoriaDocumento.ContratoHonorarios or CategoriaDocumento.DocumentoDoCliente
+            && !ator.EhDiretoria)
+            return Falha(TipoErro.AcessoNegado, "Acesso negado.");
 
         var acesso = ator.EhDiretoria ? null : new FiltroDeAcesso(ator.Id, ator.PerfilId);
 
@@ -33,6 +38,6 @@ public sealed class ListarDocumentosDoClienteManipulador(IContextoDeAcesso conte
             Paginacao.Normalizar(requisicao.Pagina, DocumentosOpcoes.TamanhoDaPagina), DocumentosOpcoes.TamanhoDaPagina, ct));
     }
 
-    private static Resultado<Pagina<DocumentoResumo>> Falha(string mensagem) =>
-        Resultado<Pagina<DocumentoResumo>>.Falha(TipoErro.AcessoNegado, mensagem);
+    private static Resultado<Pagina<DocumentoResumo>> Falha(TipoErro erro, string mensagem) =>
+        Resultado<Pagina<DocumentoResumo>>.Falha(erro, mensagem);
 }
