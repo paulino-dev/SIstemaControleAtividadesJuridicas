@@ -74,7 +74,7 @@ Regras:
 
 O executor de requisições consulta o ator antes de chamar o caso de uso:
 
-- Sem usuário autenticado (login, por exemplo), o portão não age; cada caso de uso mantém a verificação que já faz.
+- Sem ator (sem usuário autenticado, como no login, ou autenticado sem acesso: usuário inativo, cliente inativo ou par perfil/cliente incoerente), o portão não age; cada caso de uso mantém a verificação que já faz.
 - Ator de tipo `Diretoria` ou `Producao`: nada muda.
 - Ator de tipo `Cliente`: a requisição só segue se estiver marcada com `IRequisicaoAbertaAoCliente`. Caso contrário, o executor responde `AcessoNegado` sem chamar o caso de uso, e a tentativa gera o evento `acesso_negado` com o nome da requisição.
 
@@ -205,7 +205,7 @@ A guarda vale nos dois sentidos e compara o endereço já decodificado:
 
 | Rota | Quem | Conteúdo |
 |---|---|---|
-| `/` | Todos | Para o cliente: saudação, os dois totais do andamento e atalhos para as três áreas (e para a troca de senha). Para os demais, o início atual. O início faz uma consulta só, a do andamento, e usa apenas os totais; se ela falhar, os atalhos continuam e a mensagem do erro ocupa o lugar dos totais |
+| `/` | Todos | Para o cliente: saudação, os dois totais do andamento e atalhos para as três áreas (e para a troca de senha). Para os demais, o início atual. O início faz uma consulta só, a do andamento, e usa apenas os totais; se ela responder acesso negado, o início mostra "Seu acesso foi encerrado. Entre novamente." e não mostra os atalhos; nas demais falhas, os atalhos continuam e a mensagem do erro ocupa o lugar dos totais |
 | `/andamento` | Cliente | A lista da seção 5, com os totais no topo e o filtro por situação. Falha na consulta mostra o erro no lugar da lista, com "Tentar de novo"; sem atividades, "Nenhuma atividade." |
 | `/meus-documentos` | Cliente | Documentos do cliente, com download; sem documentos, "Nenhum documento." |
 | `/documentos-comuns` | Cliente e Diretoria | Documentos comuns. O cliente só baixa; a Diretoria envia, renomeia e exclui |
@@ -290,7 +290,7 @@ De integração, com PostgreSQL real:
 
 De interface:
 
-- Páginas internas fechadas ao cliente; páginas do portal fechadas a quem não é cliente.
+- Páginas internas fechadas ao cliente; páginas só do portal (Andamento e Meus documentos) fechadas a quem não é cliente; Documentos comuns aberta ao cliente e à Diretoria, e "não encontrada" para a Produção pela própria página.
 - Menu por tipo de perfil.
 - O envio de Documento comum só acontece depois da confirmação.
 
@@ -319,7 +319,8 @@ A fase 8B está concluída, e a modelagem de domínio foi emendada com as regras
 - Feito na 8B: o aviso de inativação do cliente diz quantos usuários ativos do portal ficaram sem acesso.
 - Decisão: o cliente que abre uma página interna recebe "não encontrada" com status 200. A revisão sugeriu 404; o plano da 8B decidiu manter o 200: ele só revela que a rota existe, e trocar o status depende de como o Blazor trata a resposta no meio da renderização.
 - Decisão: o custo do contexto de acesso não foi medido, porque o início do cliente faz uma consulta só (a do andamento).
-- Feito na 8B: as limpezas menores das revisões de tarefa: asserções mais estritas em dois testes do portão, guarda contra dois envios seguidos na busca de cliente da tela de usuários e a redação dos três trechos da modelagem ("Bloqueio de login", "reativar o cliente devolve o acesso" e o termo "sem ator").
+- Feito na 8B: a guarda contra dois envios seguidos na busca de cliente da tela de usuários e a redação dos três trechos da modelagem ("Bloqueio de login", "reativar o cliente devolve o acesso" e o termo "sem ator").
+- Feito em parte: as asserções mais estritas nos testes do portal. Num teste de integração (`PortalDoClienteTests`, o que percorre os casos de uso internos como cliente), a consulta do processo passou a usar o processo real da própria cliente, e a conferência de "sem valor" passou a aceitar só nulo ou o padrão de um tipo de valor. O item original falava em dois testes; não há um segundo teste endurecido que se possa apontar, e esse ponto fica registrado como não concluído.
 
 ## 12. Fora do escopo
 

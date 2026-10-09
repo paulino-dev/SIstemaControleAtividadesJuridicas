@@ -24,7 +24,7 @@ Esta spec define o modelo de domínio e as decisões de arquitetura. Ela não co
 | Plataforma | .NET 10, Blazor com renderização Interactive Server |
 | Persistência | EF Core + PostgreSQL |
 | Solução | Quatro projetos: `Domain`, `Application`, `Infrastructure`, `Web` |
-| Chamada UI → aplicação | As páginas Blazor chamam os casos de uso diretamente; não há API HTTP intermediária |
+| Chamada UI → aplicação | As páginas Blazor chamam os casos de uso pelo despachante (que passa pelo executor); não há API HTTP intermediária |
 
 ### Dependências entre projetos
 
@@ -256,7 +256,7 @@ Regras:
 | `ClienteId` | Obrigatório em `DocumentoGeral`, `ContratoHonorarios` e `DocumentoDoCliente`; nulo em `DocumentoComum`. Em `DocumentoAtividade` é sempre o cliente da atividade (nulo se ela for avulsa) |
 | `AtividadeId` | Obrigatório em `DocumentoAtividade` e só nele |
 
-`DocumentoDoCliente` e `DocumentoComum` são as categorias postas para o cliente no portal. O banco confere o `ClienteId` conforme a categoria (obrigatório nas categorias 1, 2 e 4, nulo na 5, livre na 3).
+`DocumentoDoCliente` e `DocumentoComum` são as categorias postas para o cliente no portal. O banco confere o `ClienteId` conforme a categoria: obrigatório em `DocumentoGeral`, `ContratoHonorarios` e `DocumentoDoCliente`, nulo em `DocumentoComum`, livre em `DocumentoAtividade`.
 
 Tabelas auxiliares, dentro do agregado:
 
@@ -283,7 +283,7 @@ Não há versionamento. Substituir um documento é enviar um novo e excluir logi
 Uma única função de domínio decide se um usuário pode acessar um documento. Além do usuário e do perfil, ela recebe o cliente do usuário (nulo para quem não é do tipo `Cliente`) e decide nesta ordem:
 
 1. Usuário com perfil de tipo `Diretoria` acessa sempre.
-2. Perfil de tipo `Cliente` acessa o `DocumentoComum` e o `DocumentoDoCliente` cujo `ClienteId` é o do seu cliente. Não acessa nenhuma outra categoria, ainda que o usuário ou o perfil conste em lista. Sem cliente vinculado, não acessa o documento do cliente.
+2. Perfil de tipo `Cliente` acessa o `DocumentoComum` e o `DocumentoDoCliente` cujo `ClienteId` é o do seu cliente. Não acessa nenhuma outra categoria, ainda que o usuário ou o perfil conste em lista. Sem cliente vinculado, não acessa o documento do cliente, mas a regra, sozinha, ainda dá a ele a leitura do documento comum. Quem nega antes é o contexto de acesso, que não reconhece o usuário de perfil `Cliente` sem cliente (ou com cliente inativo): por isso, na prática, ele não chega a nenhuma consulta.
 3. Um tipo de perfil que não seja `Producao` não acessa mais nada.
 4. Documento do cliente e documento comum nunca são acessados por perfil de tipo `Producao`.
 5. Contrato de Honorários nunca é acessado por quem não é da Diretoria, mesmo que o usuário ou o seu perfil constem na lista de acesso (caso de quem era da Diretoria quando foi incluído e depois mudou de perfil).
@@ -539,7 +539,7 @@ Registra criação, alteração e exclusão de dados e eventos de segurança.
 - `perfil_incluido_nos_documentos_gerais` registra, no perfil recém-criado, em quantos Documentos Gerais ele foi incluído. Criar, renomear, inativar e reativar um perfil aparecem pelos registros de alteração do próprio perfil, sem evento.
 - `usuario_cliente_alterado` é anotado no usuário quando o seu cliente é trocado, com o cliente anterior e o novo, na mesma transação.
 - A requisição barrada pelo portão do cliente gera `acesso_negado` com o nome da requisição (seção 5).
-- O download negado (documento inexistente para quem pediu, inclusive o do cliente que pede documento de outro cliente ou de categoria interna) gera `acesso_negado` no recurso `Documento`, com o documento.
+- O download negado gera `acesso_negado` no recurso `Documento`, com o documento, quando o documento existe e quem pediu não pode acessá-lo (inclusive o cliente que pede documento de outro cliente ou de categoria interna). Para um Id que não existe a resposta é não encontrado, sem evento.
 - O login recusado por causa do cliente do usuário gera `login_falha` (ou `login_bloqueado`, na tentativa que aciona o bloqueio) com o `motivo` `cliente_inativo` ou `vinculo_incoerente`.
 - `documento_arquivo_ausente` registra a tentativa de baixar um documento cujo arquivo não está no armazenamento.
 - A tentativa de acesso negada, quando vem de uma consulta, leva o recurso ou os filtros pedidos.
@@ -581,7 +581,7 @@ Registra consultas.
 - Violação de invariante lança exceção de domínio.
 - Os casos de uso devolvem um `Resultado` com tipo de erro: `Validacao`, `NaoEncontrado`, `AcessoNegado`, `Conflito`.
 - A interface traduz o tipo de erro em mensagem ao usuário. Erros não previstos são registrados em log técnico e exibidos como mensagem genérica.
-- Um recurso que o usuário não pode ver responde como `NaoEncontrado`, para não revelar a existência dele. Exceção declarada: a lista de Contratos de Honorários responde `AcessoNegado` a quem não é da Diretoria (seção 7).
+- Um recurso que o usuário não pode ver responde como `NaoEncontrado`, para não revelar a existência dele. Exceção declarada: as listas de Contratos de Honorários e de Documentos do cliente respondem `AcessoNegado` a quem não é da Diretoria (seção 7).
 
 ## 12. Testes
 
