@@ -17,5 +17,6 @@ public static class RotasDoCliente
     /// <summary>Verdadeiro para a página que só o cliente abre.</summary>
     public static bool Exclusiva(string caminhoRelativo) => SoDoPortal.Contains(Normalizar(caminhoRelativo));
 
-    private static string Normalizar(string caminhoRelativo) => caminhoRelativo.Split('?', '#')[0].Trim('/');
+    private static string Normalizar(string caminhoRelativo) => 
+        Uri.UnescapeDataString(caminhoRelativo.Split('?', '#')[0]).Trim('/');
 }

@@ -138,7 +138,7 @@
                 <label>Nome (opcional) <input type="text" @bind="_nomeDoEnvio" /></label>
                 @if (_confirmacao.AguardandoConfirmacao)
                 {
-                    <div class="confirmacao" role="alertdialog" aria-label="Confirmar envio">
+                    <div class="confirmacao" role="alertdialog" aria-label="Confirmar envio" tabindex="-1" @ref="_avisoDeEnvio">
                         <p>Documentos desta área ficam visíveis para todos os clientes do escritório. Não envie aqui arquivos de um cliente específico.</p>
                         <div class="acoes">
                             <button type="button" disabled="@_enviando" @onclick="ConfirmarEnvioAsync">Confirmar envio</button>
@@ -147,7 +147,7 @@
                     </div>
                 }
                 <div class="acoes">
-                    <button type="button" disabled="@(_arquivo is null || _enviando)" @onclick="EnviarAsync">
+                    <button type="button" disabled="@(_arquivo is null || _enviando || _confirmacao.AguardandoConfirmacao)" @onclick="EnviarAsync">
                         @(_enviando ? "Enviando…" : "Enviar")
                     </button>
                 </div>
@@ -185,6 +185,8 @@
     // Documento comum fica visível a todos os clientes: o envio pede confirmação. Criado em OnInitializedAsync,
     // quando a categoria já chegou.
     private EnvioComConfirmacao _confirmacao = new(exigeConfirmacao: false);
+    private ElementReference _avisoDeEnvio;
+    private bool _focarAviso;
 
     private IBrowserFile? _arquivo;
     private string? _nomeDoEnvio;
@@ -209,6 +211,12 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // Só o Documento comum não é de um cliente; qualquer outra combinação é erro de quem usa o componente.
+        if (Categoria != CategoriaDocumento.DocumentoComum && ClienteId is null)
+            throw new InvalidOperationException("Informe o ClienteId: só os Documentos comuns dispensam o cliente.");
+        if (Categoria == CategoriaDocumento.DocumentoComum && ClienteId is not null)
+            throw new InvalidOperationException("Documentos comuns não pertencem a um cliente: não informe o ClienteId.");
+
         _confirmacao = new EnvioComConfirmacao(exigeConfirmacao: Categoria == CategoriaDocumento.DocumentoComum);
         await CarregarAsync(1);
         _carregado = true;
@@ -282,12 +290,39 @@
     /// <summary>Clique em "Enviar": nos Documentos comuns só abre o aviso; nas demais categorias envia direto.</summary>
     private async Task EnviarAsync()
     {
-        if (_arquivo is null || _enviando) return;
+        if (_arquivo is not { } arquivo || _enviando || _confirmacao.AguardandoConfirmacao) return;
 
         _mensagem = null;
-        if (!_confirmacao.Pedir()) return;
+        // O aviso só abre para um envio que pode seguir. O arquivo não muda com o aviso aberto (escolher outro o
+        // fecha), então a confirmação não repete esta verificação.
+        if (arquivo.Size > DocumentosOpcoes.TamanhoMaximoBytes)
+        {
+            Avisar($"O arquivo passa do limite de {DocumentosOpcoes.TamanhoMaximoBytes / UmMegabyte} MB.", falhou: true);
+            return;
+        }
+
+        if (!_confirmacao.Pedir())
+        {
+            _focarAviso = true;
+            return;
+        }
 
         await EnviarArquivoAsync(confirmou: false);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_focarAviso) return;
+
+        _focarAviso = false;
+        try
+        {
+            await _avisoDeEnvio.FocusAsync();
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or JSException or JSDisconnectedException)
+        {
+            // Sem foco (circuito caindo, por exemplo) o aviso continua visível e funcional.
+        }
     }
 
     private async Task ConfirmarEnvioAsync()
@@ -307,12 +342,6 @@
         if (_arquivo is not { } arquivo || _enviando) return;
 
         _mensagem = null;
-        if (arquivo.Size > DocumentosOpcoes.TamanhoMaximoBytes)
-        {
-            Avisar($"O arquivo passa do limite de {DocumentosOpcoes.TamanhoMaximoBytes / UmMegabyte} MB.", falhou: true);
-            return;
-        }
-
         _enviando = true;
         try
         {

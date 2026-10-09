@@ -58,6 +58,8 @@ public class DocumentosDoPortalWebTests(BancoFixture banco) : IAsyncLifetime
 
         html.Should().Contain("Documentos comuns").And.Contain("comum.pdf").And.Contain("Enviar documento")
             .And.Contain("Renomear").And.Contain("Excluir");
+        // Controle positivo do que o cliente não vê: a Diretoria vê a coluna do autor e o nome de quem enviou.
+        html.Should().Contain("<th>Por</th>").And.Contain("<td>Diana Diretora</td>");
         html.Should().NotContain("Confirmar envio").And.NotContain("Página não encontrada").And.NotContain("Carregando");
         html.Should().NotContain("do-cliente.pdf");
     }
@@ -138,7 +140,7 @@ public class DocumentosDoPortalWebTests(BancoFixture banco) : IAsyncLifetime
 
         daDiretoria.Should().Contain("/documentos-comuns").And.NotContain("/meus-documentos");
         daDiretoria.Should().ContainInOrder("/documentos-comuns", "/areas");
-        daProducao.Should().NotContain("/documentos-comuns").And.NotContain("/meus-documentos");
+        daProducao.Should().Contain("/clientes").And.NotContain("/documentos-comuns").And.NotContain("/meus-documentos");
     }
 
     private static List<string> Hrefs(string html)

@@ -89,5 +89,9 @@
         _pagina = resultado.Valor ?? Vazia;
         // Falha na consulta não é "nenhum documento": mostra o erro no lugar da lista.
         _erroDaLista = resultado.Sucesso ? null : resultado.Mensagem ?? "Não foi possível consultar os documentos.";
+
+        // A página ficou além do fim (documentos excluídos enquanto o cliente paginava): volta à última.
+        if (resultado.Sucesso && _pagina.Itens.Count == 0 && _pagina.Total > 0 && _pagina.Numero > _pagina.TotalDePaginas)
+            await CarregarAsync(_pagina.TotalDePaginas);
     }
 }

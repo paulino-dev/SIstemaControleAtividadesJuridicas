@@ -89,6 +89,25 @@ public class RotasDoClienteTests
     public void Rotas_do_portal_sao_permitidas(string caminho) =>
         RotasDoCliente.Permite(caminho).Should().BeTrue();
 
+    [Theory]
+    [InlineData("meus-documentos/")]
+    [InlineData("Meus-Documentos")]
+    [InlineData("meus-documentos?x=1")]
+    [InlineData("meus-documentos#topo")]
+    [InlineData("meus%2Ddocumentos")]
+    public void Variantes_do_endereco_de_meus_documentos_valem_nas_duas_funcoes(string caminho)
+    {
+        RotasDoCliente.Exclusiva(caminho).Should().BeTrue();
+        RotasDoCliente.Permite(caminho).Should().BeTrue();
+    }
+
+    [Fact]
+    public void Endereco_duplamente_codificado_nao_e_exclusivo_nem_permitido()
+    {
+        RotasDoCliente.Exclusiva("meus%252Ddocumentos").Should().BeFalse();
+        RotasDoCliente.Permite("meus%252Ddocumentos").Should().BeFalse();
+    }
+
     [Fact]
     public void So_meus_documentos_e_exclusiva_do_portal()
     {
@@ -136,6 +155,10 @@ public class EnvioComConfirmacaoTests
         envio.Confirmar().Should().BeTrue();
         envio.AguardandoConfirmacao.Should().BeFalse();
         envio.Confirmar().Should().BeFalse();
+
+        // O aviso vale para um envio só.
+        envio.Pedir().Should().BeFalse();
+        envio.AguardandoConfirmacao.Should().BeTrue();
     }
 
     [Fact]
@@ -169,13 +192,26 @@ public class TamanhoDeArquivoTests
         TamanhoDeArquivo.Formatar(0).Should().Be("0 B");
         TamanhoDeArquivo.Formatar(1023).Should().Be("1023 B");
         TamanhoDeArquivo.Formatar(1024).Should().Be("1 KB");
-        TamanhoDeArquivo.Formatar(1536).Should().Be($"1{Decimal}5 KB");
+        TamanhoDeArquivo.Formatar(1536).Should().Be("1,5 KB");
         TamanhoDeArquivo.Formatar(1024 * 1024).Should().Be("1 MB");
-        TamanhoDeArquivo.Formatar(5 * 1024 * 1024 + 512 * 1024).Should().Be($"5{Decimal}5 MB");
+        TamanhoDeArquivo.Formatar(5 * 1024 * 1024 + 512 * 1024).Should().Be("5,5 MB");
     }
 
-    // A formatação segue a cultura da tela, como a função que ela substituiu.
-    private static string Decimal => System.Globalization.CultureInfo.CurrentCulture.NumberFormat.NumberDecimalSeparator;
+    [Fact]
+    public void A_formatacao_nao_depende_da_cultura_da_thread()
+    {
+        var anterior = System.Globalization.CultureInfo.CurrentCulture;
+        try
+        {
+            System.Globalization.CultureInfo.CurrentCulture = System.Globalization.CultureInfo.InvariantCulture;
+
+            TamanhoDeArquivo.Formatar(1536).Should().Be("1,5 KB");
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentCulture = anterior;
+        }
+    }
 }
 
 public class IdentidadeHttpTests
