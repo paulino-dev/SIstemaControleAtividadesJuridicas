@@ -84,7 +84,9 @@ public class PortaoDoClienteTests
             var acao = () => ExecutarAsync(executor, tipo, resposta);
 
             // Passou pelo portão e parou onde se espera: não há manipulador registrado neste teste.
-            await acao.Should().ThrowAsync<InvalidOperationException>($"{tipo.Name} deve chegar ao caso de uso");
+            // O portão também lança InvalidOperationException ao barrar o que não responde com Resultado: a mensagem distingue.
+            (await acao.Should().ThrowAsync<InvalidOperationException>($"{tipo.Name} deve chegar ao caso de uso"))
+                .Which.Message.Should().NotContain("não está aberta ao cliente");
         }
     }
 

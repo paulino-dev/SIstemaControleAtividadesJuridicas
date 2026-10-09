@@ -69,13 +69,16 @@ public sealed class AutenticarUsuarioManipulador(
         }
 
         // Usuário de cliente só entra enquanto o cliente dele está ativo. A senha estava certa, mas a resposta é a
-        // de credenciais inválidas, e a tentativa continua contada.
-        if (!AcessoPeloCliente.ParCoerente(usuario, perfil) ||
-            !await AcessoPeloCliente.ClienteAtivoAsync(usuario, clientes, ct))
+        // de credenciais inválidas, e a tentativa continua contada: se foi ela que acionou o bloqueio, responde e
+        // registra como a senha errada, para as respostas não revelarem que a senha estava certa.
+        var parCoerente = AcessoPeloCliente.ParCoerente(usuario, perfil);
+        if (!parCoerente || !await AcessoPeloCliente.ClienteAtivoAsync(usuario, clientes, ct))
         {
-            await auditoria.RegistrarAsync(EventosDeSeguranca.LoginFalha, "Usuario", usuario.Id,
-                new { motivo = "cliente_inativo" }, ator: usuario.Id, ct: ct);
-            return Invalido;
+            var bloqueou = tentativa == TentativaDeLogin.AdmitidaEBloqueou;
+            await auditoria.RegistrarAsync(
+                bloqueou ? EventosDeSeguranca.LoginBloqueado : EventosDeSeguranca.LoginFalha, "Usuario", usuario.Id,
+                new { motivo = parCoerente ? "cliente_inativo" : "vinculo_incoerente" }, ator: usuario.Id, ct: ct);
+            return bloqueou ? Bloqueado : Invalido;
         }
 
         await usuarios.RegistrarLoginBemSucedidoAsync(usuario.Id, agora, ct);

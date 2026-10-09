@@ -222,6 +222,69 @@ public class AutenticarUsuarioTests
     }
 
     [Fact]
+    public async Task Tentativa_que_bloqueia_de_usuario_de_cliente_inativo_responde_como_a_de_senha_errada()
+    {
+        var cliente = _c.NovoCliente();
+        var carla = _c.NovoUsuarioDeCliente("Carla Cliente", "carla@x.com", cliente);
+        for (var i = 0; i < 4; i++) await Autenticar("carla@x.com", "senha-errada");
+        cliente.Inativar();
+
+        var quinta = await Autenticar("carla@x.com", "senha-segura");
+
+        quinta.Erro.Should().Be(TipoErro.AcessoNegado);
+        quinta.Mensagem.Should().Be(Bloqueado);
+        _c.Usuarios.LoginsRegistrados.Should().Be(0);
+        var evento = _c.Auditoria.Eventos.Last();
+        evento.Should().BeEquivalentTo(new
+        {
+            Evento = EventosDeSeguranca.LoginBloqueado, Entidade = "Usuario", EntidadeId = carla.Id, Imediato = true,
+        });
+        evento.Dados.Should().BeEquivalentTo(new { motivo = "cliente_inativo" });
+    }
+
+    [Fact]
+    public async Task Usuario_de_cliente_que_nao_existe_recebe_credenciais_invalidas()
+    {
+        var cliente = _c.NovoCliente();
+        var carla = _c.NovoUsuarioDeCliente("Carla Cliente", "carla@x.com", cliente);
+        _c.Clientes.Itens.Remove(cliente);
+
+        var resultado = await Autenticar("carla@x.com", "senha-segura");
+
+        resultado.Mensagem.Should().Be(Invalido);
+        var evento = _c.Auditoria.Eventos.Last();
+        evento.Should().BeEquivalentTo(new
+        {
+            Evento = EventosDeSeguranca.LoginFalha, Entidade = "Usuario", EntidadeId = carla.Id, Imediato = true,
+        });
+        evento.Dados.Should().BeEquivalentTo(new { motivo = "cliente_inativo" });
+    }
+
+    [Fact]
+    public async Task Par_perfil_cliente_incoerente_nao_autentica()
+    {
+        var cliente = _c.NovoCliente();
+        var carla = _c.NovoUsuarioDeCliente("Carla Cliente", "carla@x.com", cliente);
+        var pedro = _c.NovoUsuario("Pedro", "pedro@x.com", _c.PerfilProducao);
+        var clienteId = typeof(Usuario).GetProperty(nameof(Usuario.ClienteId))!;
+        clienteId.SetValue(pedro, cliente.Id);
+        clienteId.SetValue(carla, null);
+
+        foreach (var (email, usuario) in new[] { ("pedro@x.com", pedro), ("carla@x.com", carla) })
+        {
+            var resultado = await Autenticar(email, "senha-segura");
+
+            resultado.Mensagem.Should().Be(Invalido);
+            var evento = _c.Auditoria.Eventos.Last();
+            evento.Should().BeEquivalentTo(new
+            {
+                Evento = EventosDeSeguranca.LoginFalha, Entidade = "Usuario", EntidadeId = usuario.Id, Imediato = true,
+            });
+            evento.Dados.Should().BeEquivalentTo(new { motivo = "vinculo_incoerente" });
+        }
+    }
+
+    [Fact]
     public async Task Evento_de_email_desconhecido_nao_tem_ator()
     {
         await Autenticar("ninguem@x.com", "qualquer");
