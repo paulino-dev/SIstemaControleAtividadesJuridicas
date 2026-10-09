@@ -290,6 +290,18 @@ A modelagem de domínio é emendada ao fim de cada fase com as regras fixadas, c
 
 **Implantação.** Na primeira subida da versão nova o semeador cria o perfil "Cliente", que passa a aparecer em Perfis e no seletor de Usuários. Depois de existir usuário de cliente, **voltar para uma versão anterior ao portão não é seguro**: a versão antiga trata o tipo Cliente como Produção, e o cliente leria clientes e processos. Antes de reverter, inativar todos os usuários vinculados a cliente.
 
+**Registrado na revisão da 8A, para o plano da 8B.**
+
+- Ao abrir `BaixarDocumento` ao cliente, o acesso dele sai só da regra de acesso do documento. O filtro das listagens internas, por perfil e por usuário, não conhece o tipo do perfil e não é reaproveitado para o cliente.
+- A lista das requisições abertas ao cliente está em quatro lugares, que mudam juntos: o teste que a fixa, a seção 3 desta spec e dois pontos da modelagem de domínio (seções 5 e 12).
+- `/documentos-comuns` é a primeira rota compartilhada entre cliente e Diretoria. O layout passa a precisar também da guarda inversa (página do portal fechada a quem não é cliente), com teste.
+- Um teste de arquitetura: a camada Web só chega aos casos de uso pelo despachante ou pelo executor. O portão só protege o que passa por ele.
+- A porta que inclui um perfil novo em todos os Documentos Gerais por SQL não confere o tipo do perfil. Hoje o único chamador recusa o tipo Cliente antes; a porta ganha a guarda própria.
+- O aviso de inativação do cliente passa a dizer quantos usuários do portal ficam sem acesso.
+- O cliente que abre uma página interna recebe "não encontrada" com status 200; passa a receber 404.
+- Se o início do cliente fizer várias consultas, medir o custo do contexto de acesso, que o portão lê uma vez a mais por requisição interna.
+- Limpezas menores apontadas nas revisões de tarefa: asserções mais estritas em dois testes do portal, guarda contra dois envios seguidos na busca de cliente da tela de usuários, e a redação de três trechos da modelagem ("Bloqueio de login", "reativar o cliente devolve o acesso" e o termo "sem ator").
+
 ## 12. Fora do escopo
 
 Envio de arquivos pelo cliente; aviso ao cliente por e-mail ou mensagem; cadastro do usuário pelo próprio cliente e recuperação de senha por e-mail; um usuário representando mais de um cliente; ocultar uma atividade do cliente; ficha, comentários ou anexos de atividade para o cliente; processos e agenda para o cliente; publicar um Documento Geral existente na área do cliente; versionamento de documentos.
