@@ -96,13 +96,14 @@ erDiagram
 | Campo | Regra |
 |---|---|
 | `Nome` | Obrigatório, único |
-| `Tipo` | Enum `TipoPerfil`: `Diretoria` ou `Producao` |
+| `Tipo` | Enum `TipoPerfil`: `Diretoria`, `Producao` ou `Cliente` |
 | `Ativo` | Perfil inativo não pode ser atribuído a usuário |
 
-Semeado com dois perfis: "Diretor" (`Diretoria`) e "Produção" (`Producao`). Perfis criados depois escolhem um dos dois tipos. As regras de negócio consultam o `Tipo`; a lista de acesso de documentos usa o `PerfilId`.
+Semeado com três perfis: "Diretor" (`Diretoria`), "Produção" (`Producao`) e "Cliente" (`Cliente`). Perfis criados depois escolhem `Diretoria` ou `Producao`. As regras de negócio consultam o `Tipo`; a lista de acesso de documentos usa o `PerfilId`.
 
 Regras:
 
+- Existe um único perfil de tipo `Cliente`, garantido pelo semeador a cada inicialização, inclusive em banco que já existia. Se já houver um perfil chamado "Cliente", o novo nasce como "Cliente (portal)". Criar um perfil desse tipo pela aplicação é recusado ("O perfil de cliente é único e já existe."). O perfil pode ser renomeado.
 - Somente a Diretoria cria, renomeia, inativa e reativa perfis. Não há exclusão de perfil.
 - O `Tipo` não muda depois de criado: trocar o tipo mudaria de uma vez o acesso de todos os usuários do perfil.
 - O nome é único sem diferenciar maiúsculas.
@@ -117,7 +118,8 @@ Regras:
 | `Email` | Obrigatório, único; é o login |
 | `SenhaHash` | PBKDF2; nunca exposto nem auditado |
 | `PerfilId` | Obrigatório; exatamente um perfil por usuário |
-| `NumeroOab` | Opcional |
+| `NumeroOab` | Opcional; sempre nulo no usuário de cliente |
+| `ClienteId` | Preenchido se e somente se o perfil é de tipo `Cliente` |
 | `Ativo` | Ver regras abaixo |
 | `UltimoAcessoEm` | Atualizado no login |
 | `VersaoDeSessao` | Identificador da geração de sessões do usuário; ver "Sessões" |
@@ -129,7 +131,12 @@ Regras:
 - O sistema sempre mantém ao menos um usuário ativo com perfil de tipo `Diretoria`. Inativar, excluir ou trocar o perfil do último é recusado.
 - Não há cadastro público. Somente a Diretoria cria, edita, inativa usuários e troca perfis.
 - Antes de inativar um usuário, a tela mostra à Diretoria o que ficará parado com ele: partes de atividade pendentes, atividades não concluídas em que ele é o revisor e eventos ainda não terminados em que participa. É um aviso, não um bloqueio: a inativação segue com uma segunda confirmação.
-- O nome dos usuários ativos é visível a qualquer usuário autenticado, para a escolha de participantes de evento. Os demais dados de usuário são da Diretoria.
+- O nome dos usuários ativos da equipe (perfis `Diretoria` e `Producao`) é visível a qualquer usuário interno autenticado, para a escolha de participantes de evento. Os demais dados de usuário são da Diretoria.
+- Usuário de cliente pertence a exatamente um cliente (`ClienteId`); um cliente pode ter vários usuários. Só a Diretoria cria e edita usuário de cliente. O cliente precisa existir e estar ativo na criação e na troca; manter o mesmo cliente na edição não o revalida.
+- O usuário não troca entre o tipo `Cliente` e os tipos internos. Perfil de cliente sem cliente, ou perfil interno com cliente, é recusado pelo domínio.
+- A troca do cliente de um usuário renova a `VersaoDeSessao` e gera o evento `usuario_cliente_alterado`, com o cliente anterior e o novo, na mesma transação.
+- Usuário de cliente não é responsável de atividade (o revisor já é sempre da Diretoria), não participa de evento e não entra em lista de acesso de documento: o domínio recusa, e as listas de escolha não o trazem.
+- A ficha do cliente mostra à Diretoria, só para leitura, os usuários vinculados a ele. A consulta registra `Listou` no recurso `Usuario`.
 
 ### Autenticação e autorização
 
@@ -140,6 +147,16 @@ Regras:
   2. a relação do usuário com o recurso (é responsável da atividade, está na lista de acesso do documento, participa do evento).
 - As regras são verificadas nos casos de uso da `Application`. A interface apenas oculta o que o usuário não pode fazer.
 - O perfil e o estado ativo do usuário são lidos do banco a cada operação, não de dados guardados no cookie, para que uma mudança de perfil ou inativação valha imediatamente.
+
+Perfil Cliente e portão:
+
+- O executor de requisições tem um portão: um ator de perfil `Cliente` só executa requisições marcadas como abertas ao cliente. As demais respondem `AcessoNegado` sem chegar ao caso de uso, e a tentativa gera `acesso_negado` com o nome da requisição. Um caso de uso novo nasce fechado ao cliente.
+- Estão abertas `AutenticarUsuario`, `ObterMeuAcesso` e `AlterarMinhaSenha`.
+- Usuário de cliente só tem acesso com o cliente existente e ativo: o login é recusado, o cookie é rejeitado na requisição HTTP seguinte e o contexto de acesso devolve "sem ator". Reativar o cliente devolve o acesso, sem mexer no usuário.
+- O par perfil–cliente incoerente (perfil `Cliente` sem cliente, ou perfil interno com cliente; só possível por edição direta no banco) não tem acesso.
+- O login recusado por causa do cliente responde como senha errada: mensagem de credenciais inválidas e evento `login_falha`; na tentativa que aciona o bloqueio, mensagem de bloqueio e `login_bloqueado`. A tentativa conta para o bloqueio. O evento leva o `motivo`: `cliente_inativo` (cliente inativo ou inexistente) ou `vinculo_incoerente` (par incoerente).
+- O cookie de um usuário de perfil `Cliente` leva uma marca de portal. Ela não autoriza nada: perfil, estado ativo e cliente continuam lidos do banco a cada operação, e quem nega é o portão. Serve só para o layout saber, sem consulta, que não deve montar páginas internas.
+- Para o usuário de cliente, as páginas internas mostram "Página não encontrada" e não são montadas. Nesta fase o cliente abre o início e a troca de senha.
 
 ### Sessões
 
@@ -157,16 +174,16 @@ Regras:
 
 ### Matriz de acesso
 
-| Recurso | Diretoria | Produção |
-|---|---|---|
-| Usuários e perfis | Tudo | Sem acesso |
-| Áreas de atuação | Tudo | Lê os nomes ao consultar cadastros; não gerencia |
-| Clientes e processos | Tudo | Somente leitura |
-| Documentos Gerais | Tudo | Leitura conforme lista de acesso |
-| Contratos de Honorários | Tudo | Sem acesso |
-| Atividades | Tudo | Somente as em que é responsável |
-| Agenda | Todos os eventos | Eventos em que participa ou que criou; cria os seus |
-| Auditoria | Consulta | Sem acesso |
+| Recurso | Diretoria | Produção | Cliente |
+|---|---|---|---|
+| Usuários e perfis | Tudo | Sem acesso | Sem acesso |
+| Áreas de atuação | Tudo | Lê os nomes ao consultar cadastros; não gerencia | Sem acesso |
+| Clientes e processos | Tudo | Somente leitura | Sem acesso |
+| Documentos Gerais | Tudo | Leitura conforme lista de acesso | Sem acesso |
+| Contratos de Honorários | Tudo | Sem acesso | Sem acesso |
+| Atividades | Tudo | Somente as em que é responsável | Sem acesso |
+| Agenda | Todos os eventos | Eventos em que participa ou que criou; cria os seus | Sem acesso |
+| Auditoria | Consulta | Sem acesso | Sem acesso |
 
 ## 6. Cadastros
 
@@ -255,14 +272,16 @@ Não há versionamento. Substituir um documento é enviar um novo e excluir logi
 Uma única função de domínio decide se um usuário pode acessar um documento:
 
 1. Usuário com perfil de tipo `Diretoria` acessa sempre.
-2. Contrato de Honorários nunca é acessado por quem não é da Diretoria, mesmo que o usuário ou o seu perfil constem na lista de acesso (caso de quem era da Diretoria quando foi incluído e depois mudou de perfil).
-3. Documento de atividade: acessa quem é responsável atual da atividade, enquanto ela não estiver excluída. As listas de acesso não contam para essa categoria, e não são editáveis.
-4. Nos demais casos (documento geral), acessa se o seu `PerfilId` constar em `DocumentoPerfilAcesso` ou se ele constar em `DocumentoUsuarioAcesso`.
+2. Perfil de tipo `Cliente` não acessa nenhuma destas categorias, ainda que o usuário ou o perfil conste em lista.
+3. Contrato de Honorários nunca é acessado por quem não é da Diretoria, mesmo que o usuário ou o seu perfil constem na lista de acesso (caso de quem era da Diretoria quando foi incluído e depois mudou de perfil).
+4. Documento de atividade: acessa quem é responsável atual da atividade, enquanto ela não estiver excluída. As listas de acesso não contam para essa categoria, e não são editáveis.
+5. Nos demais casos (documento geral), acessa se o seu `PerfilId` constar em `DocumentoPerfilAcesso` ou se ele constar em `DocumentoUsuarioAcesso`.
 
 Listagens exibem apenas documentos que o usuário pode acessar, e o total informado conta só esses.
 
 - Baixar um documento sem ter acesso responde como não encontrado (seção 11) e gera o evento de segurança de acesso negado, com o documento.
 - Pedir a lista de Contratos de Honorários sem ser da Diretoria responde acesso negado: a existência da área não é segredo, o conteúdo dela é.
+- O domínio recusa perfil de tipo `Cliente` e usuário de perfil `Cliente` em qualquer lista de acesso ("Usuário ou perfil de cliente não entra em lista de acesso de documento.").
 - Cada entrada das listas de acesso é um registro com carimbos e exclusão lógica próprios. Perfil ou usuário inativo não entra em lista nova, mas permanece na lista em que já estava, e pode ser retirado dela.
 - Em documento geral e contrato de honorários, enviar, renomear, excluir e alterar a lista de acesso são da Diretoria. Um cliente inativo continua recebendo documentos.
 
@@ -270,11 +289,12 @@ Listagens exibem apenas documentos que o usuário pode acessar, e o total inform
 
 | Categoria | Lista de acesso inicial | Restrição | Quem envia e gerencia |
 |---|---|---|---|
-| `DocumentoGeral` | Todos os perfis ativos | Nenhuma | Diretoria |
+| `DocumentoGeral` | Todos os perfis internos ativos (`Diretoria` e `Producao`) | Nenhuma | Diretoria |
 | `ContratoHonorarios` | Vazia | O domínio só aceita na lista perfil de tipo `Diretoria` e usuário de perfil `Diretoria`, sem exceção | Diretoria |
 | `DocumentoAtividade` | Não há lista gravada: o acesso é o dos responsáveis atuais da atividade | A lista não é editável | Quem vê a atividade (Diretoria e responsáveis) envia; a Diretoria renomeia e exclui |
 
-- Um perfil criado depois é incluído automaticamente na lista de acesso de todos os Documentos Gerais existentes, na mesma transação da criação. Essas entradas são gravadas de uma vez, sem um registro de auditoria por entrada: o evento `perfil_incluido_nos_documentos_gerais` guarda o perfil e a quantidade de documentos, e cada entrada leva quem e quando a criou. O Id dessas entradas é gerado pelo banco (exceção à regra do Guid versão 7 da seção 4).
+- O perfil de tipo `Cliente` não é incluído em Documento Geral nenhum, nem ao ser criado nem depois.
+- Um perfil interno criado depois é incluído automaticamente na lista de acesso de todos os Documentos Gerais existentes, na mesma transação da criação. Essas entradas são gravadas de uma vez, sem um registro de auditoria por entrada: o evento `perfil_incluido_nos_documentos_gerais` guarda o perfil e a quantidade de documentos, e cada entrada leva quem e quando a criou. O Id dessas entradas é gerado pelo banco (exceção à regra do Guid versão 7 da seção 4).
 - Reativar um perfil não o inclui nos Documentos Gerais enviados enquanto ele esteve inativo.
 - Um documento enviado no mesmo instante em que um perfil é criado pode nascer sem o perfil novo; a Diretoria o inclui pelo editor de acesso.
 - Um usuário incluído como responsável de uma atividade recebe acesso aos documentos já anexados a ela. Removê-lo da atividade retira esse acesso. Como o acesso é calculado a cada consulta, isso vale na operação seguinte, sem cópia a manter.
@@ -359,6 +379,7 @@ Regras do fluxo:
 - Depois de direcionada, a atividade não fica sem responsável: a lista não pode ser esvaziada.
 - Se a Diretoria remove o último responsável pendente e todos os que ficaram já concluíram, a atividade avança como se o último tivesse concluído (`Feita` ou `Corrigida`), e a linha do histórico leva o motivo "Responsável pendente removido."
 - Usuário inativo não entra como responsável, mas quem já era responsável permanece até ser retirado.
+- Usuário de cliente não entra como responsável ("Usuário de cliente não pode ser responsável por atividade.").
 - Edições simultâneas: uma gravação feita sobre uma versão que já mudou é recusada como conflito ("A atividade foi alterada por outra pessoa. Recarregue e tente novamente."). Editar, definir responsáveis, trocar o revisor e excluir enviam a versão que o usuário estava vendo.
 
 ### Regra do revisor
@@ -408,8 +429,9 @@ Regras:
 
 - Um evento tem ao menos um participante; um usuário não se repete no mesmo evento.
 - Com cliente e processo informados, o cliente deve ser um dos clientes do processo.
-- Qualquer usuário cria eventos e é incluído como participante na criação. Depois, pode ser retirado da lista como qualquer outro.
-- Qualquer usuário inclui outros usuários ativos como participantes. Usuário inativo não entra em evento novo, mas permanece no evento em que já estava.
+- Qualquer usuário da equipe cria eventos e é incluído como participante na criação. Depois, pode ser retirado da lista como qualquer outro.
+- Qualquer usuário da equipe inclui outros usuários ativos da equipe como participantes. Usuário inativo não entra em evento novo, mas permanece no evento em que já estava.
+- Usuário de cliente não participa de evento ("Usuário de cliente não pode participar de evento.") e não aparece na escolha de participantes.
 - Produção vê os eventos em que participa e os que criou. Diretoria vê todos. Para quem não pode ver, o evento responde como inexistente, e a tentativa fica registrada.
 - Editam e excluem o evento quem o criou e a Diretoria. Edição e exclusão enviam a versão vista na tela; se o evento mudou nesse intervalo, a operação é recusada com aviso.
 - O vínculo (cliente, processo, atividade) só é validado quando muda. Um evento cujo cliente saiu do processo ou foi inativado continua editável com o vínculo que tinha.
@@ -440,6 +462,9 @@ Registra criação, alteração e exclusão de dados e eventos de segurança.
 - A mudança na lista de acesso de um documento gera o evento `documento_acesso_alterado` no documento, com os perfis e usuários incluídos e retirados, na mesma transação. A criação e a exclusão de um documento aparecem pelos registros do próprio documento e de cada entrada da lista, sem evento.
 - `atividade_responsaveis_alterados` é anotado na atividade quando os seus responsáveis ou direcionamentos mudam, com os usuários incluídos, removidos e com direcionamento alterado, na mesma transação.
 - `perfil_incluido_nos_documentos_gerais` registra, no perfil recém-criado, em quantos Documentos Gerais ele foi incluído. Criar, renomear, inativar e reativar um perfil aparecem pelos registros de alteração do próprio perfil, sem evento.
+- `usuario_cliente_alterado` é anotado no usuário quando o seu cliente é trocado, com o cliente anterior e o novo, na mesma transação.
+- A requisição barrada pelo portão do cliente gera `acesso_negado` com o nome da requisição (seção 5).
+- O login recusado por causa do cliente do usuário gera `login_falha` (ou `login_bloqueado`, na tentativa que aciona o bloqueio) com o `motivo` `cliente_inativo` ou `vinculo_incoerente`.
 - `documento_arquivo_ausente` registra a tentativa de baixar um documento cujo arquivo não está no armazenamento.
 - A tentativa de acesso negada, quando vem de uma consulta, leva o recurso ou os filtros pedidos.
 - `evento_participantes_alterados` é anotado no evento da agenda quando os seus participantes mudam numa edição, com os usuários incluídos e removidos, na mesma transação.
@@ -485,7 +510,10 @@ Registra consultas.
 
 - Unitários no `Domain`, sem banco: fluxo de status da atividade (todas as transições válidas e as recusadas), regra do revisor, conclusão por responsável, regra de acesso a documentos e restrição do Contrato de Honorários, invariantes de vínculo entre atividade, cliente e processo.
 - De integração na `Infrastructure` e `Application`, com PostgreSQL real em contêiner: mapeamentos, filtro de exclusão lógica, interceptor de auditoria, autorização dos casos de uso.
+- Portão do cliente: um teste percorre todas as requisições da aplicação e confere que cada uma não aberta ao cliente responde `AcessoNegado` a um ator de perfil `Cliente`, sem chamar o caso de uso, e que toda requisição não aberta responde com `Resultado`. Outro teste fixa a lista das abertas: `AutenticarUsuario`, `ObterMeuAcesso` e `AlterarMinhaSenha`. Abrir uma requisição ao cliente exige alterar os dois.
 
 ## 13. Fora do escopo
 
-Recursos de IA; notificações por e-mail ou mensagem; recorrência de eventos e de atividades; controle de horas e financeiro; portal do cliente; permissões granulares por ação; versionamento de documentos; múltiplos escritórios.
+Recursos de IA; notificações por e-mail ou mensagem; recorrência de eventos e de atividades; controle de horas e financeiro; permissões granulares por ação; versionamento de documentos; múltiplos escritórios.
+
+O perfil Cliente e o portão do executor são desta fase (8A). Os documentos e o andamento do portal estão em `2026-10-08-portal-do-cliente-design.md`, fase 8B.

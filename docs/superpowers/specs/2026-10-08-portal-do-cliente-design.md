@@ -64,7 +64,7 @@ Regras:
 
 ### Cliente inativo
 
-- O usuário de um cliente inativo não tem acesso. O login responde com a mesma mensagem de credenciais inválidas, e uma sessão aberta é recusada na operação seguinte: o cookie é rejeitado na próxima requisição HTTP, e uma tela já aberta recebe acesso negado.
+- O usuário de um cliente inativo não tem acesso. O login recusado responde como uma senha errada: mensagem de credenciais inválidas e evento `login_falha`; na tentativa que aciona o bloqueio, mensagem de bloqueio e `login_bloqueado`. A tentativa conta para o bloqueio, e o evento leva `motivo`: `cliente_inativo` (cliente inativo ou inexistente) ou `vinculo_incoerente` (perfil `Cliente` sem cliente, ou perfil interno com cliente). Uma sessão aberta é recusada na operação seguinte: o cookie é rejeitado na próxima requisição HTTP, e uma tela já aberta recebe acesso negado.
 - Reativar o cliente devolve o acesso, sem mexer nos usuários.
 - O estado do cliente é lido do banco a cada operação, como já se faz com o perfil e o estado do usuário.
 
@@ -190,7 +190,7 @@ Consequência: o título de toda atividade com cliente passa a ser lido por esse
 | `Producao` | Os atuais |
 | `Cliente` | Início, Andamento, Meus documentos, Documentos comuns, Minha senha |
 
-Uma página interna aberta por um usuário-cliente mostra a página de não encontrada. Uma página do portal aberta por quem não é cliente, idem, com exceção de Documentos comuns, que a Diretoria usa.
+Uma página interna aberta por um usuário-cliente mostra "Página não encontrada" e não é montada: não chega a consultar nada. O cookie de um usuário de perfil `Cliente` leva uma marca de portal (`atividades:portal`), que serve só para o layout saber, sem esperar consulta, que não deve montar páginas internas. A marca não autoriza nada: perfil, estado ativo e cliente continuam lidos do banco a cada operação, e quem nega é o portão. Como o usuário não troca entre o tipo `Cliente` e os internos, a marca não envelhece. Uma página do portal aberta por quem não é cliente, idem, com exceção de Documentos comuns, que a Diretoria usa.
 
 ### Páginas
 
@@ -224,6 +224,7 @@ com os botões "Confirmar envio" e "Cancelar". Só a confirmação envia a requi
 Não há tabela nova.
 
 - Login, falha, bloqueio, logout e troca de senha de usuário-cliente geram os eventos de segurança existentes.
+- O login recusado por causa do cliente gera `login_falha`, ou `login_bloqueado` na tentativa que aciona o bloqueio, com `motivo` `cliente_inativo` ou `vinculo_incoerente` (seção 3).
 - `usuario_cliente_alterado`: evento de segurança no usuário, com o cliente anterior e o novo, na mesma transação da troca.
 - `ListarMeusDocumentos` e `ListarDocumentosComuns` registram `Listou` no recurso `Documento`. `ListarMeuAndamento` registra `Listou` no recurso `Atividade`. O download registra `Baixou`, como hoje.
 - A criação, a renomeação e a exclusão de documentos das categorias novas aparecem pelos registros do próprio documento.
