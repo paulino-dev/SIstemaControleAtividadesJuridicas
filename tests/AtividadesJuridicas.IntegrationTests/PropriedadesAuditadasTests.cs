@@ -66,7 +66,7 @@ public class PropriedadesAuditadasTests
                 "ParteContraria", "Status", "Titulo", "ValorCausa",
             ],
             ["ProcessoCliente"] = ["ClienteId", "Polo", "ProcessoId"],
-            ["Usuario"] = ["Ativo", "Email", "Nome", "NumeroOab", "PerfilId"],
+            ["Usuario"] = ["Ativo", "ClienteId", "Email", "Nome", "NumeroOab", "PerfilId"],
         };
 
         using var db = new AppDbContextFabrica().CreateDbContext([]);

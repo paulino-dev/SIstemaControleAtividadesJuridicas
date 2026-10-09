@@ -541,4 +541,35 @@ public class EventoTests
         alterar.Should().Throw<ExcecaoDeDominio>();
         evento.Titulo.Should().Be("Audiência de instrução");
     }
+
+    // ---- Usuário de cliente ----
+
+    private const string ClienteNoEvento = "Usuário de cliente não pode participar de evento.";
+
+    [Fact]
+    public void Usuario_de_cliente_nao_cria_evento_nem_entra_como_participante_na_criacao()
+    {
+        var carla = new PessoaDoEvento(Guid.CreateVersion7(), true, EhCliente: true);
+
+        var criador = () => Evento.Criar(Dados(), VinculoDoEvento.Nenhum, carla, [_bia]);
+        var participante = () => Evento.Criar(Dados(), VinculoDoEvento.Nenhum, _ana, [_bia, carla]);
+
+        criador.Should().Throw<ExcecaoDeDominio>().WithMessage(ClienteNoEvento);
+        participante.Should().Throw<ExcecaoDeDominio>().WithMessage(ClienteNoEvento);
+    }
+
+    [Fact]
+    public void Usuario_de_cliente_nao_entra_em_evento_existente_e_nada_muda()
+    {
+        var evento = Novo(_bia, _caio);
+        var versao = evento.VersaoDosParticipantes;
+        var carla = new PessoaDoEvento(Guid.CreateVersion7(), true, EhCliente: true);
+
+        // Remove Caio, inclui Duda (válida) e Carla (cliente).
+        var acao = () => evento.DefinirParticipantes([_ana, _bia, _duda, carla]);
+
+        acao.Should().Throw<ExcecaoDeDominio>().WithMessage(ClienteNoEvento);
+        Ids(evento).Should().BeEquivalentTo([_ana.UsuarioId, _bia.UsuarioId, _caio.UsuarioId]);
+        evento.VersaoDosParticipantes.Should().Be(versao);
+    }
 }

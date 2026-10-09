@@ -584,4 +584,63 @@ public class DocumentoTests
         Contrato().PodeSerAcessadoPor(pedro.Id, _producao.Id, TipoPerfil.Producao, ehResponsavelDaAtividade: true)
             .Should().BeFalse();
     }
+
+    // ---- Perfil e usuário de cliente ----
+
+    private readonly Perfil _perfilCliente = Perfil.Criar("Cliente", TipoPerfil.Cliente);
+
+    private Usuario NovoUsuarioDeCliente() =>
+        Usuario.Criar("Carla", Email.Criar($"{Guid.NewGuid():N}@x.com"), "hash", _perfilCliente, null, Cliente);
+
+    [Fact]
+    public void Documento_geral_nao_nasce_com_perfil_de_cliente()
+    {
+        var acao = () => Geral(_diretor, _perfilCliente);
+
+        acao.Should().Throw<ExcecaoDeDominio>().WithMessage(Documento.ClienteForaDasListas);
+    }
+
+    [Theory]
+    [InlineData(CategoriaDocumento.DocumentoGeral)]
+    [InlineData(CategoriaDocumento.ContratoHonorarios)]
+    public void Lista_de_acesso_recusa_perfil_e_usuario_de_cliente_em_qualquer_categoria(CategoriaDocumento categoria)
+    {
+        var documento = categoria == CategoriaDocumento.DocumentoGeral ? Geral(_diretor) : Contrato();
+        var diana = NovoUsuario("Diana", _diretor);
+        var carla = NovoUsuarioDeCliente();
+
+        var porPerfil = () => documento.DefinirAcesso([_diretor, _perfilCliente], []);
+        var porUsuario = () => documento.DefinirAcesso([_diretor], [new UsuarioComPerfil(diana, _diretor), new UsuarioComPerfil(carla, _perfilCliente)]);
+
+        porPerfil.Should().Throw<ExcecaoDeDominio>().WithMessage(Documento.ClienteForaDasListas);
+        porUsuario.Should().Throw<ExcecaoDeDominio>().WithMessage(Documento.ClienteForaDasListas);
+        documento.PerfisComAcesso.Select(a => a.PerfilId)
+            .Should().BeEquivalentTo(categoria == CategoriaDocumento.DocumentoGeral ? [_diretor.Id] : Array.Empty<Guid>());
+        documento.UsuariosComAcesso.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(CategoriaDocumento.DocumentoGeral)]
+    [InlineData(CategoriaDocumento.ContratoHonorarios)]
+    [InlineData(CategoriaDocumento.DocumentoAtividade)]
+    public void Perfil_de_cliente_nao_acessa_nenhuma_categoria_interna_mesmo_constando_na_lista(CategoriaDocumento categoria)
+    {
+        var carla = NovoUsuarioDeCliente();
+        var pedro = NovoUsuario("Pedro", _producao);
+
+        // O domínio não deixa mais pôr um cliente na lista; a função recebe ids e tipo separados, então um
+        // perfil e um usuário internos na lista, consultados com o tipo Cliente, exercitam o mesmo caminho.
+        var documento = categoria switch
+        {
+            CategoriaDocumento.DocumentoGeral => Geral(_producao),
+            CategoriaDocumento.ContratoHonorarios => Contrato(),
+            _ => Documento.CriarDeAtividade(Guid.CreateVersion7(), Cliente, null, Arquivo()),
+        };
+        if (categoria == CategoriaDocumento.DocumentoGeral)
+            documento.DefinirAcesso([_producao], [new UsuarioComPerfil(pedro, _producao)]);
+
+        documento.PodeSerAcessadoPor(pedro.Id, _producao.Id, TipoPerfil.Cliente).Should().BeFalse();
+        documento.PodeSerAcessadoPor(carla.Id, _perfilCliente.Id, TipoPerfil.Cliente, ehResponsavelDaAtividade: true)
+            .Should().BeFalse();
+    }
 }

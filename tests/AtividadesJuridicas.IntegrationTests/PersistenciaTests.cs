@@ -1,11 +1,15 @@
+using System.Text.Json;
 using AtividadesJuridicas.Application;
 using AtividadesJuridicas.Application.Comum;
 using AtividadesJuridicas.Application.Identidade;
+using AtividadesJuridicas.Domain.Auditoria;
+using AtividadesJuridicas.Domain.Cadastros;
 using AtividadesJuridicas.Domain.Identidade;
 using AtividadesJuridicas.Infrastructure;
 using AtividadesJuridicas.Infrastructure.Persistencia;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
 
 namespace AtividadesJuridicas.IntegrationTests;
 
@@ -290,5 +294,61 @@ public class PersistenciaTests(BancoFixture banco) : IAsyncLifetime
 
         usuario.CriadoEm.Should().NotBe(default);
         usuario.CriadoPor.Should().BeNull();
+    }
+
+    private static ClientePessoaFisica NovoCliente() => ClientePessoaFisica.Criar(
+        new DadosDoCliente("Maria Silva", null, null, Endereco.Vazio, null), Cpf.Criar("52998224725"), null, null);
+
+    [Fact]
+    public async Task Usuario_de_cliente_vai_e_volta_do_banco_com_o_cliente()
+    {
+        var adminId = await IdDoAdminAsync();
+        var cliente = NovoCliente();
+        var perfil = Perfil.Criar("Cliente", TipoPerfil.Cliente);
+        var carla = Usuario.Criar("Carla", Email.Criar("carla@x.com"), "hash", perfil, null, cliente.Id);
+
+        await EmEscopoAsync(adminId, async sp =>
+        {
+            var db = sp.GetRequiredService<AppDbContext>();
+            db.Clientes.Add(cliente);
+            db.Perfis.Add(perfil);
+            db.Usuarios.Add(carla);
+            await sp.GetRequiredService<IUnidadeDeTrabalho>().SalvarAsync(default);
+            return 0;
+        });
+
+        var (lido, registros) = await EmEscopoAsync(null, async sp =>
+        {
+            var db = sp.GetRequiredService<AppDbContext>();
+            return (await db.Usuarios.AsNoTracking().SingleAsync(u => u.Id == carla.Id),
+                    await db.RegistrosAuditoria.AsNoTracking()
+                        .Where(r => r.Entidade == "Usuario" && r.EntidadeId == carla.Id).ToListAsync());
+        });
+
+        lido.ClienteId.Should().Be(cliente.Id);
+        lido.EhDeCliente.Should().BeTrue();
+        var criacao = registros.Single(r => r.Operacao == OperacaoAuditada.Criacao);
+        JsonDocument.Parse(criacao.Dados!).RootElement.GetProperty("ClienteId").GetGuid().Should().Be(cliente.Id);
+    }
+
+    [Fact]
+    public async Task Banco_recusa_usuario_de_cliente_inexistente()
+    {
+        var adminId = await IdDoAdminAsync();
+        var perfil = Perfil.Criar("Cliente", TipoPerfil.Cliente);
+        var carla = Usuario.Criar("Carla", Email.Criar("carla@x.com"), "hash", perfil, null, Guid.CreateVersion7());
+
+        var acao = () => EmEscopoAsync(adminId, async sp =>
+        {
+            var db = sp.GetRequiredService<AppDbContext>();
+            db.Perfis.Add(perfil);
+            db.Usuarios.Add(carla);
+            await db.SaveChangesAsync();
+            return 0;
+        });
+
+        var erro = await acao.Should().ThrowAsync<DbUpdateException>();
+        erro.Which.InnerException.Should().BeOfType<PostgresException>()
+            .Which.SqlState.Should().Be(PostgresErrorCodes.ForeignKeyViolation);
     }
 }

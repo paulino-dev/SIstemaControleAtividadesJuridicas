@@ -31,9 +31,28 @@ public sealed class Usuario : Entidade
     [NaoAuditar]
     public Guid VersaoDeSessao { get; private set; }
 
-    public static Usuario Criar(string nome, Email email, string senhaHash, Perfil perfil, string? numeroOab = null)
+    public const string SoDeCliente = "Só um usuário de perfil Cliente é vinculado a um cliente.";
+    public const string TrocaEntreTipos =
+        "Um usuário de cliente não pode receber um perfil interno, nem um usuário interno o perfil de cliente.";
+
+    /// <summary>Preenchido se e somente se o perfil do usuário é de tipo Cliente.</summary>
+    public Guid? ClienteId { get; private set; }
+
+    /// <summary>Usuário do portal. O vínculo com o cliente é o que diz de que lado o usuário está.</summary>
+    public bool EhDeCliente => ClienteId is not null;
+
+    public static Usuario Criar(
+        string nome, Email email, string senhaHash, Perfil perfil, string? numeroOab = null, Guid? clienteId = null)
     {
-        var usuario = new Usuario { Ativo = true };
+        ArgumentNullException.ThrowIfNull(perfil);
+        if (clienteId == Guid.Empty)
+            throw new ExcecaoDeDominio("Cliente inválido.");
+        if (perfil.Tipo == TipoPerfil.Cliente && clienteId is null)
+            throw new ExcecaoDeDominio("Informe o cliente do usuário.");
+        if (perfil.Tipo != TipoPerfil.Cliente && clienteId is not null)
+            throw new ExcecaoDeDominio(SoDeCliente);
+
+        var usuario = new Usuario { Ativo = true, ClienteId = clienteId };
         usuario.AlterarDados(nome, email, numeroOab);
         usuario.DefinirSenha(senhaHash);
         usuario.AlterarPerfil(perfil);
@@ -54,7 +73,7 @@ public sealed class Usuario : Entidade
 
         Nome = nome.Trim();
         Email = email;
-        NumeroOab = oab;
+        NumeroOab = EhDeCliente ? null : oab;
     }
 
     public void AlterarPerfil(Perfil perfil)
@@ -62,7 +81,29 @@ public sealed class Usuario : Entidade
         ArgumentNullException.ThrowIfNull(perfil);
         if (!perfil.Ativo)
             throw new ExcecaoDeDominio("Não é possível atribuir um perfil inativo.");
+
+        // Quem é de cliente não vira equipe, e vice-versa.
+        if ((perfil.Tipo == TipoPerfil.Cliente) != EhDeCliente)
+            throw new ExcecaoDeDominio(TrocaEntreTipos);
+
         PerfilId = perfil.Id;
+    }
+
+    /// <summary>
+    /// Troca o cliente de um usuário de cliente. Devolve falso quando já era esse; ao trocar, as sessões
+    /// abertas deixam de valer.
+    /// </summary>
+    public bool VincularAoCliente(Guid clienteId)
+    {
+        if (!EhDeCliente)
+            throw new ExcecaoDeDominio(SoDeCliente);
+        if (clienteId == Guid.Empty)
+            throw new ExcecaoDeDominio("Cliente inválido.");
+        if (ClienteId == clienteId) return false;
+
+        ClienteId = clienteId;
+        RenovarSessao();
+        return true;
     }
 
     public void DefinirSenha(string senhaHash)
