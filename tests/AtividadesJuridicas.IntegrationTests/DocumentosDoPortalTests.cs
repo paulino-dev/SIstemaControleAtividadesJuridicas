@@ -52,11 +52,15 @@ public class DocumentosDoPortalTests(BancoFixture banco) : TesteComBanco(banco)
         return resultado.Valor;
     }
 
-    private async Task<IReadOnlyList<Guid>> MeusAsync(Guid usuario) =>
-        [.. (await ExecutarAsync(usuario, new ListarMeusDocumentos())).Valor!.Itens.Select(d => d.Id)];
+    private async Task<IReadOnlyList<DocumentoDoPortal>> MeusItensAsync(Guid usuario) =>
+        (await ExecutarAsync(usuario, new ListarMeusDocumentos())).Valor!.Itens;
 
-    private async Task<IReadOnlyList<Guid>> ComunsAsync(Guid usuario) =>
-        [.. (await ExecutarAsync(usuario, new ListarDocumentosComuns())).Valor!.Itens.Select(d => d.Id)];
+    private async Task<IReadOnlyList<DocumentoDoPortal>> ComunsItensAsync(Guid usuario) =>
+        (await ExecutarAsync(usuario, new ListarDocumentosComuns())).Valor!.Itens;
+
+    private async Task<IReadOnlyList<Guid>> MeusAsync(Guid usuario) => [.. (await MeusItensAsync(usuario)).Select(d => d.Id)];
+
+    private async Task<IReadOnlyList<Guid>> ComunsAsync(Guid usuario) => [.. (await ComunsItensAsync(usuario)).Select(d => d.Id)];
 
     private async Task<Resultado<ArquivoParaBaixar>> BaixarAsync(Guid usuario, Guid documento)
     {
@@ -79,9 +83,15 @@ public class DocumentosDoPortalTests(BancoFixture banco) : TesteComBanco(banco)
     {
         var daMaria = await EnviarAsync(CategoriaDocumento.DocumentoDoCliente, _maria, "da-maria.pdf");
         var doJose = await EnviarAsync(CategoriaDocumento.DocumentoDoCliente, _jose, "do-jose.pdf");
+        // Outras categorias da própria Maria, e um comum: nenhuma delas entra em "meus documentos".
+        await EnviarAsync(CategoriaDocumento.DocumentoGeral, _maria, "geral.pdf");
+        await EnviarAsync(CategoriaDocumento.ContratoHonorarios, _maria, "contrato.pdf");
+        await EnviarComumAsync("comum.pdf");
 
         (await MeusAsync(_carla)).Should().Equal(daMaria);
         (await MeusAsync(_joao)).Should().Equal(doJose);
+        (await MeusItensAsync(_carla)).Should().OnlyContain(d => d.EnviadoPor == null);
+        (await MeusItensAsync(_joao)).Should().OnlyContain(d => d.EnviadoPor == null);
         (await BaixarAsync(_carla, daMaria)).Sucesso.Should().BeTrue();
         (await BaixarAsync(_joao, doJose)).Sucesso.Should().BeTrue();
         (await NegadosDeDownloadAsync(_carla)).Should().BeEmpty();
@@ -121,9 +131,13 @@ public class DocumentosDoPortalTests(BancoFixture banco) : TesteComBanco(banco)
     public async Task Documentos_comuns_chegam_a_todo_cliente_e_o_autor_so_a_diretoria()
     {
         var comum = await EnviarComumAsync("comum.pdf");
+        // Documentos de cliente presentes no banco não entram nos comuns.
+        await EnviarAsync(CategoriaDocumento.DocumentoDoCliente, _maria, "da-maria.pdf");
+        await EnviarAsync(CategoriaDocumento.DocumentoGeral, _maria, "geral.pdf");
 
         (await ComunsAsync(_carla)).Should().Equal(comum);
         (await ComunsAsync(_joao)).Should().Equal(comum);
+        (await ComunsAsync(_admin)).Should().Equal(comum);
         (await BaixarAsync(_carla, comum)).Sucesso.Should().BeTrue();
         (await BaixarAsync(_joao, comum)).Sucesso.Should().BeTrue();
 

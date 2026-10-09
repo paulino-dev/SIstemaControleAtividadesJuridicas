@@ -2,6 +2,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
+using AtividadesJuridicas.Application.Atividades;
 using AtividadesJuridicas.Application.Auditoria;
 using AtividadesJuridicas.Application.Cadastros;
 using AtividadesJuridicas.Application.Documentos;
@@ -101,6 +102,12 @@ public class PortalDoClienteWebTests(BancoFixture banco) : IAsyncLifetime
         var doOutro = await EnviarAsync(CategoriaDocumento.DocumentoDoCliente, jose, "do-outro.pdf");
         var geral = await EnviarAsync(CategoriaDocumento.DocumentoGeral, _maria, "geral.pdf");
         var contrato = await EnviarAsync(CategoriaDocumento.ContratoHonorarios, _maria, "contrato.pdf");
+        var atividade = await _app.ExecutarAsync(_admin, new SalvarAtividade(
+            null, "Elaborar contestação", "Prazo de 15 dias.", new DateOnly(2090, 6, 20), _maria, null, null, 1));
+        atividade.Sucesso.Should().BeTrue(atividade.Mensagem);
+        var daAtividade = await _app.ExecutarAsync(_admin, new EnviarDocumentoDaAtividade(
+            atividade.Valor, null, "da-atividade.pdf", "application/pdf", Conteudo()));
+        daAtividade.Sucesso.Should().BeTrue(daAtividade.Mensagem);
         var cliente = await DaCarlaAsync();
 
         foreach (var (id, nome) in new[] { (doCliente, "do-cliente.pdf"), (comum, "comum.pdf") })
@@ -114,13 +121,16 @@ public class PortalDoClienteWebTests(BancoFixture banco) : IAsyncLifetime
         }
 
         (await _app.EventosAsync(EventosDeSeguranca.AcessoNegado)).Should().BeEmpty();
-        var negados = new List<Guid> { doOutro, geral, contrato };
+        var negados = new List<Guid> { doOutro, geral, contrato, daAtividade.Valor };
         foreach (var id in negados)
             (await cliente.GetAsync($"/documentos/{id}/baixar")).StatusCode.Should().Be(HttpStatusCode.NotFound);
 
         var eventos = await _app.EventosAsync(EventosDeSeguranca.AcessoNegado);
         eventos.Should().OnlyContain(e => e.UsuarioId == _carla && e.Entidade == "Documento");
+        eventos.Should().HaveCount(4);
         eventos.Select(e => e.EntidadeId).Should().BeEquivalentTo(negados.Select(id => (Guid?)id));
+        eventos.Select(e => (string?)JsonNode.Parse(e.Dados!)!["requisicao"]).Should().OnlyContain(r => r == "BaixarDocumento");
+        eventos.Select(e => (string?)JsonNode.Parse(e.Dados!)!["resposta"]).Should().OnlyContain(r => r == "nao_encontrado");
     }
 
     private static MemoryStream Conteudo() => new(Encoding.UTF8.GetBytes("conteúdo"));

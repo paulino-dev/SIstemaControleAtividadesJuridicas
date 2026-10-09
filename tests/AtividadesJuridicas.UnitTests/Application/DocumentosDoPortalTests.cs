@@ -118,6 +118,18 @@ public class DocumentosDoPortalTests
     }
 
     [Fact]
+    public async Task Confirmacao_e_conferida_antes_de_validar_o_arquivo()
+    {
+        var resultado = await EnviarComum(_c.Diretor, false, arquivo: "");
+
+        resultado.Erro.Should().Be(TipoErro.Validacao);
+        resultado.Mensagem.Should().Be(DocumentosOpcoes.ConfirmacaoExigida);
+        _c.Armazenamento.Arquivos.Should().BeEmpty();
+        _c.Documentos.Itens.Should().BeEmpty();
+        _c.Unidade.Salvamentos.Should().Be(0);
+    }
+
+    [Fact]
     public async Task Documento_comum_nao_e_enviado_pelo_envio_de_cliente()
     {
         foreach (var categoria in new[] { CategoriaDocumento.DocumentoComum, CategoriaDocumento.DocumentoAtividade })
