@@ -1,7 +1,7 @@
 # Complexidade de Atividades e Produtividade dos Produtores — Desenho
 
 Data: 2026-10-08
-Estado: aprovada
+Estado: implementada
 
 ## 1. Objetivo
 

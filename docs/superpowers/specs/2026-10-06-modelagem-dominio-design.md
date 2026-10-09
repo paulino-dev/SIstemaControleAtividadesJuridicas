@@ -167,6 +167,7 @@ Regras:
 | Atividades | Tudo | Somente as em que é responsável |
 | Agenda | Todos os eventos | Eventos em que participa ou que criou; cria os seus |
 | Auditoria | Consulta | Sem acesso |
+| Produtividade | Consulta, por produtor e por mês | Sem acesso |
 
 ## 6. Cadastros
 
@@ -297,6 +298,7 @@ Listagens exibem apenas documentos que o usuário pode acessar, e o total inform
 | `Titulo` | Obrigatório |
 | `Descricao` | Obrigatório |
 | `DataEntrega` | Obrigatória a partir do status `Direcionada` |
+| `Complexidade` | Obrigatória; inteiro de 1 a 3 |
 | `Status` | Enum `StatusAtividade` (ver fluxo) |
 | `ConcluidaEm` | Preenchido ao entrar em `Concluida`; limpo ao reabrir |
 | `ClienteId` | Opcional |
@@ -311,6 +313,13 @@ Regras de vínculo:
 - Com processo, o cliente é obrigatório e deve ser um dos clientes do processo.
 - Atividade avulsa é a que não tem cliente nem processo.
 - Uma atividade pode ter cliente sem processo.
+
+Regras da complexidade:
+
+- É informada junto com título, descrição e data de entrega, na criação e na edição, pela Diretoria.
+- Um valor fora de 1 a 3 é recusado pelo domínio ("A complexidade deve ser 1, 2 ou 3.").
+- Pode ser alterada em qualquer status, inclusive em atividade concluída. A alteração fica no registro de alterações da atividade, sem evento próprio.
+- As atividades que existiam antes do campo receberam complexidade 1.
 
 ### Entidades internas
 
@@ -389,6 +398,18 @@ Um responsável de Produção vê os nomes dos demais responsáveis, mas não os
 - A listagem de quem não é da Diretoria traz só as atividades em que ele é responsável, qualquer que seja o filtro pedido. A Diretoria filtra também por responsável e por revisor, inclusive inativos.
 - "Atrasada" usa a data do escritório (fuso configurado), não a data UTC.
 
+### Produtividade
+
+A Diretoria acompanha, por produtor e por mês, as atividades realizadas, separadas por complexidade.
+
+- Produtor é o usuário cujo perfil atual é de tipo `Producao`, ativo ou inativo. Um usuário de Diretoria não é produtor, mesmo sendo responsável em atividades. Vale o perfil atual: quem muda de tipo entra ou sai da lista.
+- Uma atividade é realizada por um produtor em um período quando, no momento da consulta, está em `Concluida`, não foi excluída, `ConcluidaEm` cai no período e o produtor é um dos responsáveis.
+- Uma atividade com vários responsáveis conta uma vez para cada um.
+- Os números são calculados a cada consulta, sobre o estado atual. Uma atividade reaberta deixa de contar e volta a contar no mês da nova conclusão; vale a complexidade atual. Por isso os números de um mês passado mudam quando uma atividade dele é reaberta, excluída ou tem a complexidade alterada.
+- A consulta recebe o produtor e um período em UTC de no máximo 92 dias; a tela pede um mês por vez, no fuso do escritório. Ela devolve um grupo por complexidade, sempre os três, cada um com as atividades da conclusão mais antiga para a mais recente, e a data da primeira conclusão do produtor.
+- Quem não é da Diretoria recebe `AcessoNegado`. Um identificador que não é de um produtor responde `NaoEncontrado`, sem evento de acesso negado: a Diretoria pode ver qualquer produtor.
+- A tela lista os produtores e abre a produtividade em um painel na própria página, com o seletor de mês indo do mês corrente até o da primeira conclusão do produtor.
+
 ## 9. Agenda
 
 ### Evento
@@ -465,6 +486,7 @@ Registra consultas.
 - Em documentos: listar os documentos de um cliente ou de uma atividade registra `Listou`; baixar registra `Baixou`; ver a lista de acesso de um documento registra `Visualizou`.
 - Em atividades: listar registra `Listou`; abrir uma atividade registra `Visualizou`; listar os comentários de uma atividade registra `Listou` (recurso `AtividadeComentario`).
 - Na agenda: listar eventos registra `Listou`; abrir um evento registra `Visualizou`.
+- Na produtividade: consultar a produtividade de um produtor registra `Visualizou` (recurso `Produtividade`), com o produtor em `RecursoId` e o período em `Detalhe`. A lista de produtores fica registrada pela listagem de usuários, que a tela reutiliza.
 
 ### Regras comuns
 
@@ -488,4 +510,4 @@ Registra consultas.
 
 ## 13. Fora do escopo
 
-Recursos de IA; notificações por e-mail ou mensagem; recorrência de eventos e de atividades; controle de horas e financeiro; portal do cliente; permissões granulares por ação; versionamento de documentos; múltiplos escritórios.
+Recursos de IA; notificações por e-mail ou mensagem; recorrência de eventos e de atividades; controle de horas e financeiro; portal do cliente; permissões granulares por ação; versionamento de documentos; múltiplos escritórios; pontuação ponderada, metas e fechamento mensal de produtividade; complexidade configurável.
