@@ -1,7 +1,7 @@
 # Complexidade de Atividades e Produtividade dos Produtores — Desenho
 
 Data: 2026-10-08
-Estado: aguardando revisão
+Estado: aprovada
 
 ## 1. Objetivo
 
@@ -140,7 +140,7 @@ Item "Produtores" no grupo da Diretoria, depois de "Usuários".
 - Unitários no `Domain`: complexidade 0 e 4 recusadas; 1, 2 e 3 aceitas; alteração na edição.
 - Unitários na `Application`: acesso negado para Produção; não encontrado para usuário de Diretoria e para usuário inexistente; validação do intervalo; agrupamento por complexidade, grupos vazios e totais.
 - De integração, com PostgreSQL real: a consulta traz só atividades concluídas dentro do intervalo e daquele responsável; ignora reabertas e excluídas; respeita a virada do mês no fuso do escritório; devolve a primeira conclusão; grava o `RegistroAcesso`. A migration deixa complexidade 1 nas atividades existentes.
-- De tela: a página nega acesso à Produção; o painel exibe totais e grupos; o formulário exige a complexidade.
+- De tela: a página lista os produtores e nega acesso à Produção; o painel exibe totais e grupos; o formulário traz o campo de complexidade sem escolha inicial; a lista de atividades mostra a complexidade. Cliques não têm teste automatizado e são conferidos por leitura.
 
 ## 8. Emendas na modelagem de domínio
 
@@ -148,7 +148,7 @@ Ao final da implementação, `2026-10-06-modelagem-dominio-design.md` recebe:
 
 - seção 5, matriz de acesso: linha "Produtividade — Diretoria: consulta; Produção: sem acesso";
 - seção 8: o campo `Complexidade` e as suas regras;
-- uma seção nova, "Produtividade", com a definição de atividade realizada, de produtor e as regras da consulta;
+- uma subseção "Produtividade" ao final da seção 8, com a definição de atividade realizada, de produtor e as regras da consulta. É subseção, e não seção numerada, para não renumerar as seções que os planos anteriores citam;
 - seção 10, `RegistroAcesso`: o registro da consulta de produtividade.
 
 ## 9. Fora do escopo
