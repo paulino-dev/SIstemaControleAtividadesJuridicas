@@ -424,6 +424,106 @@ public class DocumentosTests(BancoFixture banco) : TesteComBanco(banco)
         await InserirDocumentoCruAsync(CategoriaDocumento.DocumentoAtividade, clienteId: null, atividadeId: atividade);
     }
 
+    private static ArquivoDoDocumento ArquivoNovo(string nome) =>
+        new(nome, "application/pdf", 10, new string('b', 64), $"2026/10/{Guid.NewGuid():N}");
+
+    private Task GravarAsync(params Documento[] documentos) => EmEscopoAsync(null, async sp =>
+    {
+        var db = sp.GetRequiredService<AppDbContext>();
+        db.Documentos.AddRange(documentos);
+        await db.SaveChangesAsync();
+        return 0;
+    });
+
+    [Fact]
+    public async Task Documento_do_cliente_e_documento_comum_vao_e_voltam_do_banco()
+    {
+        var doCliente = Documento.CriarDoCliente(_maria, "Procuração assinada", ArquivoNovo("procuracao.pdf"));
+        var comum = Documento.CriarComum(null, ArquivoNovo("modelo.pdf"));
+
+        await GravarAsync(doCliente, comum);
+
+        var lidoDoCliente = await NoBancoAsync(doCliente.Id);
+        lidoDoCliente.Categoria.Should().Be(CategoriaDocumento.DocumentoDoCliente);
+        lidoDoCliente.ClienteId.Should().Be(_maria);
+        lidoDoCliente.AtividadeId.Should().BeNull();
+        lidoDoCliente.Nome.Should().Be("Procuração assinada");
+        lidoDoCliente.VisivelAoCliente.Should().BeTrue();
+        lidoDoCliente.PerfisComAcesso.Should().BeEmpty();
+        lidoDoCliente.UsuariosComAcesso.Should().BeEmpty();
+
+        var lidoComum = await NoBancoAsync(comum.Id);
+        lidoComum.Categoria.Should().Be(CategoriaDocumento.DocumentoComum);
+        lidoComum.ClienteId.Should().BeNull();
+        lidoComum.AtividadeId.Should().BeNull();
+        lidoComum.Nome.Should().Be("modelo.pdf");
+        lidoComum.VisivelAoCliente.Should().BeTrue();
+        lidoComum.PerfisComAcesso.Should().BeEmpty();
+        lidoComum.UsuariosComAcesso.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Banco_recusa_documento_comum_com_cliente_e_documento_do_cliente_sem_cliente()
+    {
+        var doCliente = Documento.CriarDoCliente(_maria, null, ArquivoNovo("a.pdf"));
+        var comum = Documento.CriarComum(null, ArquivoNovo("b.pdf"));
+        await GravarAsync(doCliente, comum);
+
+        var comumComCliente = () => EmEscopoAsync(null, sp => sp.GetRequiredService<AppDbContext>().Database
+            .ExecuteSqlAsync($"UPDATE documentos SET cliente_id = {_maria} WHERE id = {comum.Id}"));
+        var doClienteSemCliente = () => EmEscopoAsync(null, sp => sp.GetRequiredService<AppDbContext>().Database
+            .ExecuteSqlAsync($"UPDATE documentos SET cliente_id = NULL WHERE id = {doCliente.Id}"));
+
+        var primeiro = (await comumComCliente.Should().ThrowAsync<Exception>()).Which;
+        var segundo = (await doClienteSemCliente.Should().ThrowAsync<Exception>()).Which;
+        PostgresDe(primeiro).SqlState.Should().Be(PostgresErrorCodes.CheckViolation);
+        PostgresDe(primeiro).ConstraintName.Should().Be("ck_documentos_cliente_conforme_a_categoria");
+        PostgresDe(segundo).SqlState.Should().Be(PostgresErrorCodes.CheckViolation);
+        PostgresDe(segundo).ConstraintName.Should().Be("ck_documentos_cliente_conforme_a_categoria");
+        (await NoBancoAsync(comum.Id)).ClienteId.Should().BeNull();
+        (await NoBancoAsync(doCliente.Id)).ClienteId.Should().Be(_maria);
+    }
+
+    [Fact]
+    public async Task Documentos_das_categorias_antigas_continuam_validos()
+    {
+        var geral = Documento.CriarGeral(_maria, null, ArquivoNovo("g.pdf"), []);
+        var contrato = Documento.CriarContratoDeHonorarios(_maria, null, ArquivoNovo("c.pdf"));
+        var atividade = (await ExecutarAsync(_admin, new SalvarAtividade(
+            null, "Elaborar contestação", "Prazo de 15 dias.", null, null, null, null, 1))).Valor;
+        var daAtividade = Documento.CriarDeAtividade(atividade, null, null, ArquivoNovo("a.pdf"));
+
+        await GravarAsync(geral, contrato, daAtividade);
+
+        (await NoBancoAsync(geral.Id)).Should().BeEquivalentTo(new { Categoria = CategoriaDocumento.DocumentoGeral, ClienteId = (Guid?)_maria });
+        (await NoBancoAsync(contrato.Id)).Should().BeEquivalentTo(new { Categoria = CategoriaDocumento.ContratoHonorarios, ClienteId = (Guid?)_maria });
+        (await NoBancoAsync(daAtividade.Id)).Should().BeEquivalentTo(
+            new { Categoria = CategoriaDocumento.DocumentoAtividade, ClienteId = (Guid?)null, AtividadeId = (Guid?)atividade });
+    }
+
+    [Fact]
+    public async Task Listagem_com_filtro_de_acesso_nunca_traz_documento_do_cliente_mesmo_com_o_perfil_na_lista()
+    {
+        var doCliente = Documento.CriarDoCliente(_maria, null, ArquivoNovo("a.pdf"));
+        await GravarAsync(doCliente);
+
+        // O domínio não deixa pôr lista num documento do cliente; por SQL, a entrada da Produção existe e mesmo
+        // assim a consulta com filtro não o devolve.
+        var entrada = Guid.CreateVersion7();
+        var agora = DateTime.UtcNow;
+        await EmEscopoAsync(null, sp => sp.GetRequiredService<AppDbContext>().Database.ExecuteSqlAsync(
+            $"INSERT INTO documentos_perfis_acesso (id, documento_id, perfil_id, criado_em) VALUES ({entrada}, {doCliente.Id}, {_perfilProducao}, {agora})"));
+
+        var pagina = await EmEscopoAsync(null, sp => sp.GetRequiredService<IDocumentoRepositorio>().ListarDoClienteAsync(
+            _maria, CategoriaDocumento.DocumentoDoCliente, new FiltroDeAcesso(_pedro, _perfilProducao), 1, 20, default));
+        var daDiretoria = await EmEscopoAsync(null, sp => sp.GetRequiredService<IDocumentoRepositorio>().ListarDoClienteAsync(
+            _maria, CategoriaDocumento.DocumentoDoCliente, null, 1, 20, default));
+
+        pagina.Itens.Should().BeEmpty();
+        pagina.Total.Should().Be(0);
+        daDiretoria.Itens.Select(d => d.Id).Should().Equal(doCliente.Id);
+    }
+
     private Task<int> InserirDocumentoCruAsync(CategoriaDocumento categoria, Guid? clienteId, Guid? atividadeId = null)
     {
         var id = Guid.CreateVersion7();

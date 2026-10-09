@@ -8,6 +8,8 @@ public enum CategoriaDocumento
     DocumentoGeral = 1,
     ContratoHonorarios = 2,
     DocumentoAtividade = 3,
+    DocumentoDoCliente = 4,
+    DocumentoComum = 5,
 }
 
 /// <summary>O arquivo já gravado no armazenamento: nome enviado, tipo, tamanho, hash e onde ficou.</summary>
@@ -39,6 +41,8 @@ public sealed class Documento : Entidade
     public const string ClienteForaDasListas =
         "Usuário ou perfil de cliente não entra em lista de acesso de documento.";
 
+    public const string SemListaDeAcesso = "Documento visível ao cliente não tem lista de acesso.";
+
     private const string ClienteObrigatorio = "O cliente do documento é obrigatório.";
     private const string PerfilInativo = "Perfil inativo não pode receber acesso a documento.";
     private const string UsuarioInativo = "Usuário inativo não pode receber acesso a documento.";
@@ -56,11 +60,18 @@ public sealed class Documento : Entidade
     public string ChaveArmazenamento { get; private set; } = null!;
     public CategoriaDocumento Categoria { get; private set; }
 
-    /// <summary>Obrigatório em documento geral e em contrato de honorários; em documento de atividade é o da atividade (nulo se avulsa).</summary>
+    /// <summary>
+    /// Obrigatório em documento geral, em contrato de honorários e em documento do cliente; em documento de
+    /// atividade é o da atividade (nulo se avulsa); no documento comum não existe.
+    /// </summary>
     public Guid? ClienteId { get; private set; }
 
     /// <summary>Obrigatório no documento de atividade e só nele.</summary>
     public Guid? AtividadeId { get; private set; }
+
+    /// <summary>Verdadeiro nas categorias postas para o cliente: documento do cliente e documento comum.</summary>
+    public bool VisivelAoCliente =>
+        Categoria is CategoriaDocumento.DocumentoDoCliente or CategoriaDocumento.DocumentoComum;
 
     public IReadOnlyCollection<DocumentoPerfilAcesso> PerfisComAcesso => _perfisComAcesso;
     public IReadOnlyCollection<DocumentoUsuarioAcesso> UsuariosComAcesso => _usuariosComAcesso;
@@ -86,6 +97,14 @@ public sealed class Documento : Entidade
     /// <summary>Contrato de honorários: nasce com a lista de acesso vazia; só a Diretoria o alcança.</summary>
     public static Documento CriarContratoDeHonorarios(Guid clienteId, string? nome, ArquivoDoDocumento arquivo) =>
         Criar(CategoriaDocumento.ContratoHonorarios, clienteId, nome, arquivo);
+
+    /// <summary>Documento do cliente, visível a ele no portal: nasce com as listas de acesso vazias.</summary>
+    public static Documento CriarDoCliente(Guid clienteId, string? nome, ArquivoDoDocumento arquivo) =>
+        Criar(CategoriaDocumento.DocumentoDoCliente, clienteId, nome, arquivo);
+
+    /// <summary>Documento comum, visível a todos os clientes: não tem cliente e nasce com as listas vazias.</summary>
+    public static Documento CriarComum(string? nome, ArquivoDoDocumento arquivo) =>
+        Criar(CategoriaDocumento.DocumentoComum, null, nome, arquivo);
 
     /// <summary>
     /// Documento de atividade: nasce com as listas de acesso vazias, porque o acesso é o dos responsáveis atuais
@@ -125,14 +144,26 @@ public sealed class Documento : Entidade
 
     /// <summary>
     /// A única regra de acesso a documentos. <paramref name="ehResponsavelDaAtividade"/> só conta no documento de
-    /// atividade, e quem a responde é quem consulta a atividade: o usuário é responsável atual de uma atividade viva.
+    /// atividade, e quem a responde é quem consulta a atividade. <paramref name="clienteDoUsuario"/> é o cliente
+    /// de um usuário de perfil Cliente (nulo para a equipe).
     /// </summary>
-    public bool PodeSerAcessadoPor(Guid usuarioId, Guid perfilId, TipoPerfil tipoPerfil, bool ehResponsavelDaAtividade = false)
+    public bool PodeSerAcessadoPor(
+        Guid usuarioId, Guid perfilId, TipoPerfil tipoPerfil, bool ehResponsavelDaAtividade = false,
+        Guid? clienteDoUsuario = null)
     {
         if (tipoPerfil == TipoPerfil.Diretoria) return true;
 
-        // Nenhuma das categorias de hoje é do cliente, ainda que ele conste em alguma lista.
-        if (tipoPerfil == TipoPerfil.Cliente) return false;
+        // O cliente alcança só o que foi posto para ele: os documentos do próprio cliente e os comuns. Nenhuma
+        // outra categoria, ainda que ele conste em alguma lista.
+        if (tipoPerfil == TipoPerfil.Cliente)
+            return Categoria == CategoriaDocumento.DocumentoComum ||
+                   (Categoria == CategoriaDocumento.DocumentoDoCliente && clienteDoUsuario is { } cliente && ClienteId == cliente);
+
+        // Daqui em diante só a Produção: um tipo de perfil desconhecido não acessa nada.
+        if (tipoPerfil != TipoPerfil.Producao) return false;
+
+        // O que é visível ao cliente não é da Produção.
+        if (VisivelAoCliente) return false;
 
         // Sem exceção: nem quem consta na lista (por ter sido da Diretoria) alcança um contrato.
         if (Categoria == CategoriaDocumento.ContratoHonorarios) return false;
@@ -153,6 +184,8 @@ public sealed class Documento : Entidade
     {
         if (Categoria == CategoriaDocumento.DocumentoAtividade)
             throw new ExcecaoDeDominio("O acesso a um documento de atividade é o dos responsáveis da atividade.");
+        if (VisivelAoCliente)
+            throw new ExcecaoDeDominio(SemListaDeAcesso);
 
         ArgumentNullException.ThrowIfNull(perfis);
         ArgumentNullException.ThrowIfNull(usuarios);
@@ -199,7 +232,8 @@ public sealed class Documento : Entidade
     private static Documento Criar(CategoriaDocumento categoria, Guid? clienteId, string? nome, ArquivoDoDocumento arquivo)
     {
         ArgumentNullException.ThrowIfNull(arquivo);
-        if (clienteId == Guid.Empty || (clienteId is null && categoria != CategoriaDocumento.DocumentoAtividade))
+        if (clienteId == Guid.Empty || (clienteId is null && categoria is CategoriaDocumento.DocumentoGeral or CategoriaDocumento.ContratoHonorarios
+                or CategoriaDocumento.DocumentoDoCliente))
             throw new ExcecaoDeDominio(ClienteObrigatorio);
         if (string.IsNullOrWhiteSpace(arquivo.NomeOriginal))
             throw new ExcecaoDeDominio("O nome do arquivo é obrigatório.");

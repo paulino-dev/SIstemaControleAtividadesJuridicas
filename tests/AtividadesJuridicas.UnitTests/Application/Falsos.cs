@@ -611,7 +611,7 @@ public sealed class DocumentoRepositorioFalso(AtividadeRepositorioFalso? ativida
     public Task<Pagina<DocumentoResumo>> ListarDoClienteAsync(
         Guid clienteId, CategoriaDocumento categoria, FiltroDeAcesso? acesso, int pagina, int tamanho, CancellationToken ct)
     {
-        // Mesma regra da consulta real: sem filtro (Diretoria) vê tudo; com filtro, nunca contrato, e o
+        // Mesma regra da consulta real: sem filtro (Diretoria) vê tudo; com filtro, nunca contrato nem as categorias do cliente, e o
         // documento de atividade só para quem é responsável hoje de uma atividade viva.
         // O fake não tem relógio: a ordem de inserção faz as vezes da data, do mais recente para o mais antigo.
         var todos = Enumerable.Reverse(Itens)
@@ -637,7 +637,8 @@ public sealed class DocumentoRepositorioFalso(AtividadeRepositorioFalso? ativida
 
     private bool PodeVer(Documento d, FiltroDeAcesso acesso)
     {
-        if (d.Categoria == CategoriaDocumento.ContratoHonorarios) return false;
+        if (d.Categoria is CategoriaDocumento.ContratoHonorarios or CategoriaDocumento.DocumentoDoCliente
+            or CategoriaDocumento.DocumentoComum) return false;
         if (d.Categoria == CategoriaDocumento.DocumentoAtividade)
             return atividades?.Itens.Any(a => a.Id == d.AtividadeId && a.EhResponsavel(acesso.UsuarioId)) ?? false;
         return d.PerfisComAcesso.Any(a => a.PerfilId == acesso.PerfilId) ||

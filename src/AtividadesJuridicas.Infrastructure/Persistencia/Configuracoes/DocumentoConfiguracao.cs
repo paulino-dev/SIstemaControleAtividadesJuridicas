@@ -11,10 +11,12 @@ public sealed class DocumentoConfiguracao : IEntityTypeConfiguration<Documento>
 {
     public void Configure(EntityTypeBuilder<Documento> b)
     {
-        // Só o documento de atividade (categoria 3) pode existir sem cliente, e só ele tem atividade.
+        // O cliente é obrigatório no documento geral (1), no contrato (2) e no documento do cliente (4); opcional
+        // no documento de atividade (3); e não existe no documento comum (5). Só o de atividade tem atividade.
         b.ToTable("documentos", t =>
         {
-            t.HasCheckConstraint("ck_documentos_cliente_obrigatorio", "categoria = 3 OR cliente_id IS NOT NULL");
+            t.HasCheckConstraint("ck_documentos_cliente_conforme_a_categoria",
+                "(categoria IN (1, 2, 4) AND cliente_id IS NOT NULL) OR categoria = 3 OR (categoria = 5 AND cliente_id IS NULL)");
             t.HasCheckConstraint("ck_documentos_atividade_so_na_categoria_3", "(categoria = 3) = (atividade_id IS NOT NULL)");
         });
 

@@ -1039,7 +1039,7 @@ namespace AtividadesJuridicas.Infrastructure.Persistencia.Migrations
                         {
                             t.HasCheckConstraint("ck_documentos_atividade_so_na_categoria_3", "(categoria = 3) = (atividade_id IS NOT NULL)");
 
-                            t.HasCheckConstraint("ck_documentos_cliente_obrigatorio", "categoria = 3 OR cliente_id IS NOT NULL");
+                            t.HasCheckConstraint("ck_documentos_cliente_conforme_a_categoria", "(categoria IN (1, 2, 4) AND cliente_id IS NOT NULL) OR categoria = 3 OR (categoria = 5 AND cliente_id IS NULL)");
                         });
                 });
 

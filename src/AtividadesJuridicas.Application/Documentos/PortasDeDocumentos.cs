@@ -20,7 +20,8 @@ public interface IDocumentoRepositorio
 
     /// <summary>
     /// Do mais recente para o mais antigo. Sem <paramref name="acesso"/>, todos os documentos; com ele,
-    /// só os que o perfil ou o usuário alcançam pela lista de acesso, e nunca um contrato de honorários. Para a
+    /// só os que o perfil ou o usuário alcançam pela lista de acesso, e nunca um contrato de honorários, um documento do cliente nem um documento comum (estes são do
+    /// portal do cliente). Para a
     /// categoria dos documentos de atividade o filtro não é a lista de acesso: é ser responsável atual de uma
     /// atividade viva (não excluída) à qual o documento pertence.
     /// </summary>

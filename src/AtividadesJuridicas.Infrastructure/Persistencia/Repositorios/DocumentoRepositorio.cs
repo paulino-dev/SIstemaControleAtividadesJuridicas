@@ -28,6 +28,8 @@ public sealed class DocumentoRepositorio(AppDbContext db) : IDocumentoRepositori
             var usuarioId = acesso.UsuarioId;
             consulta = consulta.Where(d =>
                 d.Categoria != CategoriaDocumento.ContratoHonorarios &&
+                d.Categoria != CategoriaDocumento.DocumentoDoCliente &&
+                d.Categoria != CategoriaDocumento.DocumentoComum &&
                 ((d.Categoria != CategoriaDocumento.DocumentoAtividade &&
                   (d.PerfisComAcesso.Any(a => a.PerfilId == perfilId) ||
                    d.UsuariosComAcesso.Any(a => a.UsuarioId == usuarioId))) ||

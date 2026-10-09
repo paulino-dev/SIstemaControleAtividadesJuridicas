@@ -643,4 +643,149 @@ public class DocumentoTests
         documento.PodeSerAcessadoPor(carla.Id, _perfilCliente.Id, TipoPerfil.Cliente, ehResponsavelDaAtividade: true)
             .Should().BeFalse();
     }
+
+    // ---- Documentos visíveis ao cliente ----
+
+    private static ArquivoDoDocumento OutroArquivo() => Arquivo("comum.pdf");
+
+    [Fact]
+    public void Documento_do_cliente_exige_cliente_e_nasce_sem_listas()
+    {
+        var semCliente = () => Documento.CriarDoCliente(Guid.Empty, null, Arquivo());
+        semCliente.Should().Throw<ExcecaoDeDominio>().WithMessage("O cliente do documento é obrigatório.");
+
+        var documento = Documento.CriarDoCliente(Cliente, null, Arquivo());
+
+        documento.Categoria.Should().Be(CategoriaDocumento.DocumentoDoCliente);
+        documento.ClienteId.Should().Be(Cliente);
+        documento.AtividadeId.Should().BeNull();
+        documento.PerfisComAcesso.Should().BeEmpty();
+        documento.UsuariosComAcesso.Should().BeEmpty();
+        documento.VisivelAoCliente.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Documento_comum_nasce_sem_cliente_e_sem_listas()
+    {
+        var documento = Documento.CriarComum("  Modelo de procuração ", OutroArquivo());
+
+        documento.Categoria.Should().Be(CategoriaDocumento.DocumentoComum);
+        documento.Nome.Should().Be("Modelo de procuração");
+        documento.ClienteId.Should().BeNull();
+        documento.AtividadeId.Should().BeNull();
+        documento.PerfisComAcesso.Should().BeEmpty();
+        documento.UsuariosComAcesso.Should().BeEmpty();
+        documento.VisivelAoCliente.Should().BeTrue();
+
+        Geral(_producao).VisivelAoCliente.Should().BeFalse();
+        Contrato().VisivelAoCliente.Should().BeFalse();
+        Documento.CriarDeAtividade(Guid.CreateVersion7(), null, null, Arquivo()).VisivelAoCliente.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Documento_comum_e_do_cliente_validam_nome_e_arquivo_como_os_demais()
+    {
+        var semNomeDeArquivo = () => Documento.CriarComum(null, Arquivo(" "));
+        var vazio = () => Documento.CriarDoCliente(Cliente, null, Arquivo(tamanho: 0));
+
+        semNomeDeArquivo.Should().Throw<ExcecaoDeDominio>().WithMessage("O nome do arquivo é obrigatório.");
+        vazio.Should().Throw<ExcecaoDeDominio>().WithMessage("O arquivo está vazio.");
+    }
+
+    /// <summary>Quem consulta, na matriz da regra de acesso.</summary>
+    public enum Consulente
+    {
+        Diretoria, ProducaoNaLista, ProducaoFora, ClienteDono, OutroCliente, ClienteSemCliente, TipoDesconhecido,
+    }
+
+    public static TheoryData<CategoriaDocumento, Consulente, bool> MatrizDeAcesso()
+    {
+        // Linhas: categoria. Colunas, na ordem do enum Consulente.
+        var tabela = new Dictionary<CategoriaDocumento, bool[]>
+        {
+            [CategoriaDocumento.DocumentoGeral] = [true, true, false, false, false, false, false],
+            [CategoriaDocumento.ContratoHonorarios] = [true, false, false, false, false, false, false],
+            [CategoriaDocumento.DocumentoAtividade] = [true, true, false, false, false, false, false],
+            [CategoriaDocumento.DocumentoDoCliente] = [true, false, false, true, false, false, false],
+            [CategoriaDocumento.DocumentoComum] = [true, false, false, true, true, true, false],
+        };
+
+        var dados = new TheoryData<CategoriaDocumento, Consulente, bool>();
+        foreach (var (categoria, esperados) in tabela)
+            foreach (var consulente in Enum.GetValues<Consulente>())
+                dados.Add(categoria, consulente, esperados[(int)consulente]);
+        return dados;
+    }
+
+    private Documento DaCategoria(CategoriaDocumento categoria, Usuario naLista)
+    {
+        switch (categoria)
+        {
+            case CategoriaDocumento.DocumentoGeral:
+                var geral = Geral(_producao);
+                geral.DefinirAcesso([_producao], [new UsuarioComPerfil(naLista, _producao)]);
+                return geral;
+            case CategoriaDocumento.ContratoHonorarios: return Contrato();
+            case CategoriaDocumento.DocumentoAtividade: return Documento.CriarDeAtividade(Guid.CreateVersion7(), Cliente, null, Arquivo());
+            case CategoriaDocumento.DocumentoDoCliente: return Documento.CriarDoCliente(Cliente, null, Arquivo());
+            default: return Documento.CriarComum(null, OutroArquivo());
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(MatrizDeAcesso))]
+    public void Regra_de_acesso_por_tipo_de_perfil_e_categoria(CategoriaDocumento categoria, Consulente consulente, bool esperado)
+    {
+        var pedro = NovoUsuario("Pedro", _producao);
+        var documento = DaCategoria(categoria, pedro);
+        var diana = NovoUsuario("Diana", _diretor);
+        var ester = NovoUsuario("Ester", _estagio);
+
+        // Cliente e tipo desconhecido vão com tudo o que abriria o acesso de outro: responsável da atividade e o
+        // perfil e o usuário que constam na lista do Documento Geral. Nada disso pode abrir.
+        var resultado = consulente switch
+        {
+            Consulente.Diretoria => documento.PodeSerAcessadoPor(diana.Id, _diretor.Id, TipoPerfil.Diretoria),
+            Consulente.ProducaoNaLista => documento.PodeSerAcessadoPor(
+                pedro.Id, _producao.Id, TipoPerfil.Producao, ehResponsavelDaAtividade: true),
+            Consulente.ProducaoFora => documento.PodeSerAcessadoPor(ester.Id, _estagio.Id, TipoPerfil.Producao),
+            Consulente.ClienteDono => documento.PodeSerAcessadoPor(
+                pedro.Id, _producao.Id, TipoPerfil.Cliente, ehResponsavelDaAtividade: true, clienteDoUsuario: Cliente),
+            Consulente.OutroCliente => documento.PodeSerAcessadoPor(
+                pedro.Id, _producao.Id, TipoPerfil.Cliente, ehResponsavelDaAtividade: true, clienteDoUsuario: Guid.CreateVersion7()),
+            Consulente.ClienteSemCliente => documento.PodeSerAcessadoPor(
+                pedro.Id, _producao.Id, TipoPerfil.Cliente, ehResponsavelDaAtividade: true),
+            _ => documento.PodeSerAcessadoPor(
+                pedro.Id, _producao.Id, (TipoPerfil)99, ehResponsavelDaAtividade: true, clienteDoUsuario: Cliente),
+        };
+
+        resultado.Should().Be(esperado);
+    }
+
+    [Fact]
+    public void Documento_de_atividade_so_abre_a_producao_quando_ela_e_responsavel()
+    {
+        var pedro = NovoUsuario("Pedro", _producao);
+        var deAtividade = DaCategoria(CategoriaDocumento.DocumentoAtividade, pedro);
+
+        deAtividade.PodeSerAcessadoPor(pedro.Id, _producao.Id, TipoPerfil.Producao).Should().BeFalse();
+        deAtividade.PodeSerAcessadoPor(pedro.Id, _producao.Id, TipoPerfil.Producao, ehResponsavelDaAtividade: true)
+            .Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData(CategoriaDocumento.DocumentoDoCliente)]
+    [InlineData(CategoriaDocumento.DocumentoComum)]
+    public void Categorias_visiveis_ao_cliente_nao_tem_lista_de_acesso(CategoriaDocumento categoria)
+    {
+        var pedro = NovoUsuario("Pedro", _producao);
+        var documento = DaCategoria(categoria, pedro);
+
+        var acao = () => documento.DefinirAcesso([_producao], [new UsuarioComPerfil(pedro, _producao)]);
+
+        acao.Should().Throw<ExcecaoDeDominio>().WithMessage(Documento.SemListaDeAcesso);
+        Documento.SemListaDeAcesso.Should().Be("Documento visível ao cliente não tem lista de acesso.");
+        documento.PerfisComAcesso.Should().BeEmpty();
+        documento.UsuariosComAcesso.Should().BeEmpty();
+    }
 }
