@@ -137,6 +137,7 @@ public partial class PaginasProtegidasTests(BancoFixture banco) : IAsyncLifetime
         // Opções do formulário: só os perfis ativos, e o selecionado de início é de Produção.
         var select = Regex.Match(html, "<select[^>]*>.*?</select>", RegexOptions.Singleline).Value;
         select.Should().Contain(">Diretor (Diretoria)</option>").And.Contain(">Produção (Produção)</option>");
+        select.Should().Contain(">Cliente (Cliente)</option>");
         select.Should().NotContain("Temporário");
         Regex.Matches(select, "<option[^>]*selected[^>]*>[^<]*</option>").Select(m => m.Value).Should()
             .ContainSingle().Which.Should().Contain("Produção (Produção)").And.NotContain("Diretoria");

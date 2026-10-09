@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 using AtividadesJuridicas.Application.Auditoria;
 using AtividadesJuridicas.Application.Cadastros;
 using AtividadesJuridicas.Application.Documentos;
@@ -104,5 +105,113 @@ public class PortalDoClienteWebTests(BancoFixture banco) : IAsyncLifetime
         var negado = (await _app.EventosAsync(EventosDeSeguranca.AcessoNegado)).Should().ContainSingle().Subject;
         negado.UsuarioId.Should().Be(_carla);
         ((string?)JsonNode.Parse(negado.Dados!)!["requisicao"]).Should().Be("BaixarDocumento");
+    }
+
+    private static string Decodificado(string html) => WebUtility.HtmlDecode(html);
+
+    private Task<int> RegistrosDeConsultaDaCarlaAsync() => _app.EmEscopoAsync(null, sp =>
+        sp.GetRequiredService<AppDbContext>().RegistrosAcesso.AsNoTracking().CountAsync(r => r.UsuarioId == _carla));
+
+    [Fact]
+    public async Task Cliente_ve_o_inicio_com_o_menu_do_portal()
+    {
+        var cliente = await DaCarlaAsync();
+
+        var html = Decodificado(await cliente.GetStringAsync("/"));
+
+        html.Should().Contain("Carla Cliente").And.Contain("href=\"/minha-senha\"").And.Contain("Sair");
+        html.Should().NotContain("href=\"/atividades\"").And.NotContain("href=\"/agenda\"")
+            .And.NotContain("href=\"/clientes\"").And.NotContain("href=\"/processos\"")
+            .And.NotContain("href=\"/areas\"").And.NotContain("href=\"/usuarios\"")
+            .And.NotContain("href=\"/perfis\"").And.NotContain("href=\"/auditoria\"")
+            .And.NotContain("Carregando");
+        html.Should().NotContain("Seu perfil é de");
+    }
+
+    [Theory]
+    [InlineData("/clientes")]
+    [InlineData("/processos")]
+    [InlineData("/atividades")]
+    [InlineData("/agenda")]
+    [InlineData("/areas")]
+    [InlineData("/usuarios")]
+    [InlineData("/perfis")]
+    [InlineData("/auditoria")]
+    public async Task Cliente_em_pagina_interna_ve_nao_encontrada_e_nenhum_dado(string endereco)
+    {
+        var cliente = await DaCarlaAsync();
+        var negadosAntes = (await _app.EventosAsync(EventosDeSeguranca.AcessoNegado)).Count;
+        var consultasAntes = await RegistrosDeConsultaDaCarlaAsync();
+
+        var html = Decodificado(await cliente.GetStringAsync(endereco));
+
+        html.Should().Contain("Página não encontrada");
+        html.Should().NotContain("Maria Silva").And.NotContain("diana@x.com").And.NotContain("Acesso negado")
+            .And.NotContain("Carregando");
+        (await _app.EventosAsync(EventosDeSeguranca.AcessoNegado)).Should().HaveCount(negadosAntes);
+        (await RegistrosDeConsultaDaCarlaAsync()).Should().Be(consultasAntes);
+    }
+
+    [Fact]
+    public async Task Cliente_em_rota_inexistente_ve_nao_encontrada()
+    {
+        var cliente = await DaCarlaAsync();
+
+        var resposta = await cliente.GetAsync("/rota-que-nao-existe");
+
+        resposta.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        var html = Decodificado(await resposta.Content.ReadAsStringAsync());
+        html.Should().Contain("Página não encontrada").And.NotContain("Carregando").And.NotContain("href=\"/clientes\"");
+    }
+
+    [Fact]
+    public async Task Cliente_abre_a_troca_de_senha()
+    {
+        var cliente = await DaCarlaAsync();
+
+        var html = Decodificado(await cliente.GetStringAsync("/minha-senha"));
+
+        html.Should().Contain("Senha atual").And.NotContain("Página não encontrada");
+    }
+
+    [Fact]
+    public async Task Diretoria_e_producao_continuam_abrindo_as_paginas_internas()
+    {
+        await _app.CriarPedroAsync();
+        var admin = await _app.ClienteAutenticadoAsync();
+        var pedro = await _app.ClienteAutenticadoAsync(AplicacaoDeTeste.EmailDoPedro, AplicacaoDeTeste.SenhaDoPedro);
+
+        var clientes = Decodificado(await admin.GetStringAsync("/clientes"));
+        var atividades = Decodificado(await pedro.GetStringAsync("/atividades"));
+
+        clientes.Should().NotContain("Página não encontrada").And.NotContain("Carregando").And.Contain("Maria Silva");
+        atividades.Should().NotContain("Página não encontrada").And.NotContain("Carregando");
+    }
+
+    [Fact]
+    public async Task Cadastro_de_usuarios_mostra_o_cliente_e_o_tipo_cliente()
+    {
+        var admin = await _app.ClienteAutenticadoAsync();
+
+        var html = Decodificado(await admin.GetStringAsync("/usuarios"));
+
+        html.Should().Contain("Cliente (Cliente)").And.Contain("<th>Cliente</th>");
+        var linha = Regex.Matches(html, "<tr[^>]*>.*?</tr>", RegexOptions.Singleline)
+            .Select(m => m.Value).Single(l => l.Contains("Carla Cliente"));
+        linha.Should().Contain("Maria Silva");
+    }
+
+    [Fact]
+    public async Task Tela_de_perfis_mostra_o_perfil_cliente_e_nao_o_oferece_ao_criar()
+    {
+        var admin = await _app.ClienteAutenticadoAsync();
+
+        var html = Decodificado(await admin.GetStringAsync("/perfis"));
+
+        var linha = Regex.Matches(html, "<tr[^>]*>.*?</tr>", RegexOptions.Singleline)
+            .Select(m => m.Value).Single(l => Regex.IsMatch(l, "<td>Cliente</td>.*<td>Cliente</td>", RegexOptions.Singleline));
+        linha.Should().Contain("Renomear");
+        var select = Regex.Match(html, "<select[^>]*>.*?</select>", RegexOptions.Singleline).Value;
+        select.Should().Contain(">Produção</option>").And.Contain(">Diretoria</option>").And.NotContain("Cliente");
     }
 }

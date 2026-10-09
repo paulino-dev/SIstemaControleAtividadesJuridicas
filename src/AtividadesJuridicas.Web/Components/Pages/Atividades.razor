@@ -165,6 +165,7 @@ else
         if (AcessoEncerrado(resultado)) return;
 
         _usuarios = [.. (resultado.Valor ?? [])
+            .Where(u => u.TipoPerfil != TipoPerfil.Cliente)
             .OrderBy(u => u.Nome, StringComparer.CurrentCultureIgnoreCase)];
         if (!resultado.Sucesso) Avisar(resultado.Mensagem, falhou: true);
     }

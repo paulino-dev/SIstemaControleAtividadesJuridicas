@@ -68,13 +68,16 @@
             return;
         }
 
-        // O cookie guarda só a identidade. Perfil e estado ativo são lidos do banco a cada requisição.
-        var identidade = new ClaimsIdentity(
-        [
-            new Claim(ClaimTypes.NameIdentifier, resultado.Valor!.UsuarioId.ToString()),
-            new Claim(ClaimTypes.Name, resultado.Valor.Nome),
-            new Claim(IdentidadeHttp.ClaimDaVersao, resultado.Valor.VersaoDeSessao.ToString()),
-        ], CookieAuthenticationDefaults.AuthenticationScheme);
+        // O cookie guarda a identidade e, para o usuário de cliente, a marca do portal, que não autoriza nada.
+        // Perfil e estado ativo são lidos do banco a cada requisição.
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, resultado.Valor!.UsuarioId.ToString()),
+            new(ClaimTypes.Name, resultado.Valor.Nome),
+            new(IdentidadeHttp.ClaimDaVersao, resultado.Valor.VersaoDeSessao.ToString()),
+        };
+        if (resultado.Valor.TipoPerfil == TipoPerfil.Cliente) claims.Add(new Claim(IdentidadeHttp.ClaimDoPortal, "1"));
+        var identidade = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
 
         await HttpContext.SignInAsync(
             CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identidade));

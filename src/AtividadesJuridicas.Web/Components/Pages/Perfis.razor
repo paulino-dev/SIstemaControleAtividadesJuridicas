@@ -30,7 +30,7 @@ else
             {
                 <tr class="@(perfil.Ativo ? null : "inativo")" @key="perfil.Id">
                     <td>@perfil.Nome</td>
-                    <td>@NomeDoTipo(perfil.Tipo)</td>
+                    <td>@RotulosDePerfil.DoTipo(perfil.Tipo)</td>
                     <td>@perfil.UsuariosAtivos</td>
                     <td>@(perfil.Ativo ? "Ativo" : "Inativo")</td>
                     <td class="acoes">
@@ -58,6 +58,11 @@ else
             <InputSelect @bind-Value="_form.Tipo" disabled="@(_form.Id is not null)">
                 <option value="@TipoPerfil.Producao">Produção</option>
                 <option value="@TipoPerfil.Diretoria">Diretoria</option>
+                @if (_form.Tipo == TipoPerfil.Cliente)
+                {
+                    @* Só ao renomear o perfil de cliente, para o campo (desabilitado) mostrar o tipo dele. *@
+                    <option value="@TipoPerfil.Cliente">Cliente</option>
+                }
             </InputSelect>
         </label>
         @if (_form.Id is null)
@@ -86,8 +91,6 @@ else
         if (_autorizado) await RecarregarAsync();
         _carregado = true;
     }
-
-    private static string NomeDoTipo(TipoPerfil tipo) => tipo == TipoPerfil.Diretoria ? "Diretoria" : "Produção";
 
     // Falso quando a recarga falhou; a mensagem do motivo já ficou na tela.
     private async Task<bool> RecarregarAsync()

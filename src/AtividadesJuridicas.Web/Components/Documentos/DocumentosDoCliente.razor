@@ -373,7 +373,7 @@
         // aparece é enviado ao salvar. Perfis ativos e usuários ativos de Produção são as opções para incluir;
         // um perfil inativo só aparece se já consta na lista (o domínio recusaria incluí-lo), identificado como tal.
         var naLista = acesso.Valor.Perfis.ToHashSet();
-        var perfisDaTela = new List<OpcaoDeAcesso>(perfis.Valor.Where(p => p.Ativo || naLista.Contains(p.Id))
+        var perfisDaTela = new List<OpcaoDeAcesso>(perfis.Valor.Where(p => p.Tipo != TipoPerfil.Cliente && (p.Ativo || naLista.Contains(p.Id)))
             .Select(p => new OpcaoDeAcesso(p.Id, RotuloDoPerfil(p))));
         perfisDaTela.AddRange(naLista.Where(perfilId => perfisDaTela.All(o => o.Id != perfilId))
             .Select(perfilId => new OpcaoDeAcesso(perfilId, "Perfil não identificado")));
