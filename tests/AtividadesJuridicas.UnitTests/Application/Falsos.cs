@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using AtividadesJuridicas.Application.Agenda;
@@ -396,10 +396,14 @@ public sealed class AtividadeRepositorioFalso(
             .Where(a => a.Status == StatusAtividade.Concluida && a.EhResponsavel(responsavelId))
             .Min(a => a.ConcluidaEm));
 
+    /// <summary>Quantas vezes o andamento foi consultado.</summary>
+    public int ConsultasDeAndamento { get; private set; }
+
     // Mesma regra da consulta real. Sem relógio de criação, a ordem de inserção faz o papel da criação.
     public Task<AndamentoDoCliente> ListarAndamentoAsync(
         Guid clienteId, SituacaoDoAndamento? situacao, int pagina, int tamanho, CancellationToken ct)
     {
+        ConsultasDeAndamento++;
         var doCliente = Itens.Where(a => a.ClienteId == clienteId).ToList();
         var concluidas = doCliente.Count(a => a.Status == StatusAtividade.Concluida);
         var emAndamento = doCliente.Count - concluidas;

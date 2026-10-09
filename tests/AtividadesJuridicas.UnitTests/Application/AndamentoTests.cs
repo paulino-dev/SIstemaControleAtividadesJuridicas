@@ -1,6 +1,7 @@
 ﻿using AtividadesJuridicas.Application.Atividades;
 using AtividadesJuridicas.Application.Auditoria;
 using AtividadesJuridicas.Application.Comum;
+using AtividadesJuridicas.Application.Identidade;
 using AtividadesJuridicas.Domain.Atividades;
 using AtividadesJuridicas.Domain.Auditoria;
 using AtividadesJuridicas.Domain.Cadastros;
@@ -104,6 +105,20 @@ public class AndamentoTests
 
         foreach (var ator in new Usuario?[] { _c.Diretor, _pedro, null })
             (await Consultar(ator)).Erro.Should().Be(TipoErro.AcessoNegado);
+    }
+
+    [Fact]
+    public async Task Cliente_sem_cliente_nao_ve_andamento()
+    {
+        await MontarAsync();
+        var semCliente = new ContextoDeAcessoFixo(new UsuarioAutenticado(
+            Guid.CreateVersion7(), "Cliente sem cliente", TipoPerfil.Cliente, _c.PerfilCliente.Id));
+
+        var resultado = await new ListarMeuAndamentoManipulador(semCliente, _c.Atividades)
+            .ManipularAsync(new ListarMeuAndamento(), default);
+
+        resultado.Erro.Should().Be(TipoErro.AcessoNegado);
+        _c.Atividades.ConsultasDeAndamento.Should().Be(0);
     }
 
     [Fact]

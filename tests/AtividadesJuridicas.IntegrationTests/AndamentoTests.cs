@@ -229,6 +229,53 @@ public class AndamentoTests(BancoFixture banco) : TesteComBanco(banco)
     }
 
     [Fact]
+    public async Task Filtro_por_situacao_traz_so_a_situacao_pedida_e_nao_muda_os_totais()
+    {
+        await CriarAsync("Criada da Maria", _maria);
+        await DirecionarAsync(await CriarAsync("Direcionada da Maria", _maria));
+        await ConcluirAsync(await CriarAsync("Concluída da Maria", _maria));
+
+        var concluidas = await AndamentoAsync(_carla, new ListarMeuAndamento(SituacaoDoAndamento.Concluida));
+        var emAndamento = await AndamentoAsync(_carla, new ListarMeuAndamento(SituacaoDoAndamento.EmAndamento));
+        var todas = await AndamentoAsync(_carla);
+
+        Titulos(concluidas).Should().Equal("Concluída da Maria");
+        concluidas.Atividades.Total.Should().Be(1);
+        Titulos(emAndamento).Should().Equal("Direcionada da Maria", "Criada da Maria");
+        emAndamento.Atividades.Total.Should().Be(2);
+        Titulos(todas).Should().Equal("Direcionada da Maria", "Criada da Maria", "Concluída da Maria");
+        todas.Atividades.Total.Should().Be(3);
+        foreach (var andamento in new[] { concluidas, emAndamento, todas })
+        {
+            andamento.EmAndamento.Should().Be(2);
+            andamento.Concluidas.Should().Be(1);
+        }
+    }
+
+    [Fact]
+    public async Task Andamento_e_paginado()
+    {
+        var tamanho = AtividadesOpcoes.TamanhoDaPagina;
+        for (var i = 1; i <= tamanho + 1; i++) await CriarAsync($"Atividade {i:00}", _maria);
+
+        var primeira = await AndamentoAsync(_carla);
+        var segunda = await AndamentoAsync(_carla, new ListarMeuAndamento(Pagina: 2));
+        var foraDaFaixa = await AndamentoAsync(_carla, new ListarMeuAndamento(Pagina: 0));
+
+        primeira.Atividades.Itens.Should().HaveCount(tamanho);
+        primeira.Atividades.Itens[0].Titulo.Should().Be($"Atividade {tamanho + 1:00}");
+        Titulos(segunda).Should().Equal("Atividade 01");
+        primeira.Atividades.Total.Should().Be(tamanho + 1);
+        segunda.Atividades.Total.Should().Be(tamanho + 1);
+        primeira.Atividades.Numero.Should().Be(1);
+        segunda.Atividades.Numero.Should().Be(2);
+        // Paginacao.Normalizar leva a página 0 para a 1.
+        foraDaFaixa.Atividades.Numero.Should().Be(1);
+        Titulos(foraDaFaixa).Should().Equal(Titulos(primeira));
+        segunda.EmAndamento.Should().Be(tamanho + 1);
+    }
+
+    [Fact]
     public async Task Consulta_fica_no_registro_de_consultas()
     {
         await CriarAsync("Da Maria", _maria);
