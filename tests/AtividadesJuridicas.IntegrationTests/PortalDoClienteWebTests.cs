@@ -4,7 +4,12 @@ using System.Text.Json.Nodes;
 using AtividadesJuridicas.Application.Auditoria;
 using AtividadesJuridicas.Application.Cadastros;
 using AtividadesJuridicas.Application.Documentos;
+using AtividadesJuridicas.Application.Identidade;
 using AtividadesJuridicas.Domain.Documentos;
+using AtividadesJuridicas.Domain.Identidade;
+using AtividadesJuridicas.Infrastructure.Persistencia;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace AtividadesJuridicas.IntegrationTests;
 
@@ -17,9 +22,7 @@ public class PortalDoClienteWebTests(BancoFixture banco) : IAsyncLifetime
     public async Task InitializeAsync()
     {
         _admin = await _app.IdDoUsuarioAsync(AplicacaoDeTeste.EmailDoAdmin);
-        _maria = (await _app.ExecutarAsync(_admin, new SalvarClientePessoaFisica(
-            null, new DadosDoClienteEntrada("Maria Silva", null, null, new EnderecoEntrada(), null), "529.982.247-25", null, null))).Valor;
-        _carla = await _app.EmEscopoAsync(_admin, sp => UsuariosDeClienteDeTeste.GravarAsync(sp, _maria));
+        (_carla, _maria) = await _app.CriarCarlaAsync();
     }
 
     public async Task DisposeAsync() => await _app.DisposeAsync();
@@ -65,6 +68,25 @@ public class PortalDoClienteWebTests(BancoFixture banco) : IAsyncLifetime
             _app.NovoCliente(), UsuariosDeClienteDeTeste.EmailDaCarla, UsuariosDeClienteDeTeste.SenhaDaCarla);
         novo.StatusCode.Should().Be(HttpStatusCode.OK);
         WebUtility.HtmlDecode(await novo.Content.ReadAsStringAsync()).Should().Contain("E-mail ou senha inválidos.");
+    }
+
+    [Fact]
+    public async Task Trocar_o_cliente_derruba_a_sessao_web()
+    {
+        var jose = (await _app.ExecutarAsync(_admin, new SalvarClientePessoaFisica(
+            null, new DadosDoClienteEntrada("José Souza", null, null, new EnderecoEntrada(), null), "111.444.777-35", null, null))).Valor;
+        var perfilCliente = await _app.EmEscopoAsync(null, async sp =>
+            (await sp.GetRequiredService<AppDbContext>().Perfis.AsNoTracking().SingleAsync(p => p.Tipo == TipoPerfil.Cliente)).Id);
+        var cliente = await DaCarlaAsync();
+        (await cliente.GetAsync("/")).StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var troca = await _app.ExecutarAsync(_admin, new EditarUsuario(
+            _carla, "Carla Cliente", UsuariosDeClienteDeTeste.EmailDaCarla, perfilCliente, null, jose));
+        troca.Sucesso.Should().BeTrue(troca.Mensagem);
+
+        var depois = await cliente.GetAsync("/");
+        depois.StatusCode.Should().Be(HttpStatusCode.Redirect);
+        depois.Headers.Location!.AbsolutePath.Should().Be("/conta/entrar");
     }
 
     [Fact]

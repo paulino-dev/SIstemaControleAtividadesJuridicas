@@ -66,7 +66,7 @@ public sealed class PerfilRepositorioFalso : IPerfilRepositorio
     public void Adicionar(Perfil perfil) => Itens.Add(perfil);
 }
 
-public sealed class UsuarioRepositorioFalso(PerfilRepositorioFalso perfis) : IUsuarioRepositorio
+public sealed class UsuarioRepositorioFalso(PerfilRepositorioFalso perfis, ClienteRepositorioFalso clientes) : IUsuarioRepositorio
 {
     public List<Usuario> Itens { get; } = [];
 
@@ -92,9 +92,17 @@ public sealed class UsuarioRepositorioFalso(PerfilRepositorioFalso perfis) : IUs
             [.. Itens.OrderBy(u => u.Nome).Select(u =>
             {
                 var perfil = perfis.Itens.First(p => p.Id == u.PerfilId);
+                var clienteNome = u.ClienteId is { } clienteId
+                    ? clientes.Itens.FirstOrDefault(c => c.Id == clienteId)?.Nome
+                    : null;
                 return new UsuarioResumo(u.Id, u.Nome, u.Email.Valor, perfil.Id, perfil.Nome,
-                    perfil.Tipo, u.NumeroOab, u.Ativo, u.UltimoAcessoEm);
+                    perfil.Tipo, u.NumeroOab, u.Ativo, u.UltimoAcessoEm, u.ClienteId, clienteNome);
             })]);
+
+    public Task<IReadOnlyList<UsuarioDoCliente>> ListarDoClienteAsync(Guid clienteId, CancellationToken ct) =>
+        Task.FromResult<IReadOnlyList<UsuarioDoCliente>>(
+            [.. Itens.Where(u => u.ClienteId == clienteId).OrderBy(u => u.Nome)
+                .Select(u => new UsuarioDoCliente(u.Id, u.Nome, u.Email.Valor, u.Ativo, u.UltimoAcessoEm))]);
 
     public void Adicionar(Usuario usuario) => Itens.Add(usuario);
 
@@ -103,7 +111,7 @@ public sealed class UsuarioRepositorioFalso(PerfilRepositorioFalso perfis) : IUs
 
     public Task<IReadOnlyList<(Guid Id, string Nome)>> ListarNomesDosAtivosAsync(CancellationToken ct) =>
         Task.FromResult<IReadOnlyList<(Guid Id, string Nome)>>(
-            [.. Itens.Where(u => u.Ativo).OrderBy(u => u.Nome).Select(u => (u.Id, u.Nome))]);
+            [.. Itens.Where(u => u.Ativo && !u.EhDeCliente).OrderBy(u => u.Nome).Select(u => (u.Id, u.Nome))]);
 
     public int Reservas { get; private set; }
 
@@ -495,7 +503,7 @@ public sealed class Cenario
     public Cenario()
     {
         AcessoInicial = new AcessoInicialDePerfilFalso(Unidade);
-        Usuarios = new UsuarioRepositorioFalso(Perfis);
+        Usuarios = new UsuarioRepositorioFalso(Perfis, Clientes);
         Perfis.UsuariosAtivosDoPerfil = id => Usuarios.Itens.Count(u => u.Ativo && u.PerfilId == id);
         ClientesDaIdentidade = new ClientesDaIdentidadeFalso(Clientes);
         Processos = new ProcessoRepositorioFalso(Areas, Clientes);

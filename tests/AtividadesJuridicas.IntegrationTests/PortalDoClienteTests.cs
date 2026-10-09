@@ -232,4 +232,81 @@ public class PortalDoClienteTests(BancoFixture banco) : TesteComBanco(banco)
         depois.PerfisComAcesso.Select(a => a.PerfilId).Should().BeEquivalentTo(antes);
         depois.UsuariosComAcesso.Should().BeEmpty();
     }
+
+    private Task<Guid> VersaoDeSessaoAsync(Guid usuario) => EmEscopoAsync(null, async sp =>
+        (await sp.GetRequiredService<AppDbContext>().Usuarios.AsNoTracking().SingleAsync(u => u.Id == usuario)).VersaoDeSessao);
+
+    [Fact]
+    public async Task Usuario_de_cliente_e_criado_pelo_caso_de_uso_e_aparece_na_lista_do_cliente()
+    {
+        var lista = (await ExecutarAsync(_admin, new ListarUsuarios())).Valor!;
+        var daCarla = lista.Single(u => u.Id == _carla);
+        daCarla.ClienteId.Should().Be(_maria);
+        daCarla.ClienteNome.Should().Be("Maria Silva");
+        daCarla.TipoPerfil.Should().Be(TipoPerfil.Cliente);
+        lista.Where(u => u.Id != _carla).Should().OnlyContain(u => u.ClienteId == null && u.ClienteNome == null);
+
+        var doCliente = (await ExecutarAsync(_admin, new ListarUsuariosDoCliente(_maria))).Valor!;
+        doCliente.Should().ContainSingle().Which.Should().BeEquivalentTo(new
+        {
+            Id = _carla, Nome = "Carla Cliente", Email = UsuariosDeClienteDeTeste.EmailDaCarla, Ativo = true,
+        });
+        (await ExecutarAsync(_admin, new ListarUsuariosDoCliente(_jose))).Valor.Should().BeEmpty();
+
+        var acessos = await EmEscopoAsync(null, sp => sp.GetRequiredService<AppDbContext>().RegistrosAcesso.AsNoTracking()
+            .Where(r => r.UsuarioId == _admin && r.TipoRecurso == "Usuario" && r.Detalhe != null && r.Detalhe.Contains(_maria.ToString()))
+            .ToListAsync());
+        acessos.Should().ContainSingle().Which.Acao.Should().Be(AcaoDeAcesso.Listou);
+    }
+
+    [Fact]
+    public async Task Trocar_o_cliente_derruba_a_sessao_e_fica_auditado()
+    {
+        var sessaoAntes = await VersaoDeSessaoAsync(_carla);
+        var perfilCliente = await IdDoPerfilAsync(TipoPerfil.Cliente);
+
+        var troca = await ExecutarAsync(_admin, new EditarUsuario(
+            _carla, "Carla Cliente", UsuariosDeClienteDeTeste.EmailDaCarla, perfilCliente, null, _jose));
+
+        troca.Sucesso.Should().BeTrue(troca.Mensagem);
+        (await VersaoDeSessaoAsync(_carla)).Should().NotBe(sessaoAntes);
+        var evento = (await EventosAsync(EventosDeSeguranca.UsuarioClienteAlterado)).Should().ContainSingle().Subject;
+        evento.Entidade.Should().Be("Usuario");
+        evento.EntidadeId.Should().Be(_carla);
+        evento.UsuarioId.Should().Be(_admin);
+        var dados = JsonNode.Parse(evento.Dados!)!;
+        ((Guid)dados["de"]!).Should().Be(_maria);
+        ((Guid)dados["para"]!).Should().Be(_jose);
+        var alteracao = (await AuditoriaAsync()).Should().ContainSingle(r =>
+            r.Entidade == "Usuario" && r.EntidadeId == _carla && r.Operacao == OperacaoAuditada.Alteracao).Subject;
+        evento.IdCorrelacao.Should().NotBeNull().And.Be(alteracao.IdCorrelacao);
+
+        var acesso = await ExecutarAsync(_carla, new ObterMeuAcesso());
+        acesso!.ClienteId.Should().Be(_jose);
+    }
+
+    [Fact]
+    public async Task Usuario_de_cliente_nao_conta_como_diretor_nem_aparece_para_a_agenda()
+    {
+        var inativar = await ExecutarAsync(_admin, new DefinirAtivoUsuario(_admin, false));
+
+        inativar.Erro.Should().Be(TipoErro.Conflito);
+        inativar.Mensagem.Should().Be("O sistema precisa de ao menos um usuário ativo de Diretoria.");
+        var agenda = (await ExecutarAsync(_admin, new ListarUsuariosParaAgenda())).Valor!;
+        agenda.Select(u => u.Id).Should().NotContain(_carla);
+        agenda.Select(u => u.Id).Should().BeEquivalentTo([_admin, _pedro]);
+    }
+
+    [Fact]
+    public async Task Criar_perfil_de_tipo_cliente_e_recusado_no_banco()
+    {
+        var resultado = await ExecutarAsync(_admin, new SalvarPerfil(null, "Portal", TipoPerfil.Cliente));
+
+        resultado.Erro.Should().Be(TipoErro.Validacao);
+        resultado.Mensagem.Should().Be("O perfil de cliente é único e já existe.");
+        var perfis = await EmEscopoAsync(null, sp =>
+            sp.GetRequiredService<AppDbContext>().Perfis.IgnoreQueryFilters().AsNoTracking().ToListAsync());
+        perfis.Should().ContainSingle(p => p.Tipo == TipoPerfil.Cliente);
+        perfis.Should().NotContain(p => p.Nome == "Portal");
+    }
 }

@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.RegularExpressions;
+using AtividadesJuridicas.Application.Cadastros;
 using AtividadesJuridicas.Application.Comum;
 using AtividadesJuridicas.Application.Identidade;
 using AtividadesJuridicas.Domain.Auditoria;
@@ -126,6 +127,18 @@ public sealed partial class AplicacaoDeTeste(BancoFixture banco) : WebApplicatio
             new CriarUsuario("Pedro Produção", EmailDoPedro, SenhaDoPedro, producao, null));
         criado.Sucesso.Should().BeTrue(criado.Mensagem);
         return criado.Valor;
+    }
+
+    /// <summary>A cliente "Maria Silva" e a usuária de cliente "Carla Cliente", ambas pelos casos de uso, como a Diretoria.</summary>
+    public async Task<(Guid UsuarioId, Guid ClienteId)> CriarCarlaAsync()
+    {
+        var adminId = await IdDoUsuarioAsync(EmailDoAdmin);
+        var maria = await ExecutarAsync(adminId, new SalvarClientePessoaFisica(
+            null, new DadosDoClienteEntrada("Maria Silva", null, null, new EnderecoEntrada(), null), "529.982.247-25", null, null));
+        maria.Sucesso.Should().BeTrue(maria.Mensagem);
+
+        var carla = await EmEscopoAsync(adminId, sp => UsuariosDeClienteDeTeste.GravarAsync(sp, maria.Valor));
+        return (carla, maria.Valor);
     }
 
     public Task<List<RegistroAuditoria>> EventosAsync(string evento) => EmEscopoAsync(null, sp =>

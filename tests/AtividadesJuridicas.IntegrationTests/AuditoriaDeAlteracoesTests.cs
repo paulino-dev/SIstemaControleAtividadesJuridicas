@@ -127,7 +127,8 @@ public class AuditoriaDeAlteracoesTests(BancoFixture banco) : TesteComBanco(banc
         var acao = () => EmEscopoAsync(adminId, async sp =>
         {
             var db = sp.GetRequiredService<AppDbContext>();
-            db.Usuarios.Add(Usuario.Criar("Outro Pedro", Email.Criar("pedro@x.com"), "hash", await db.Perfis.FirstAsync()));
+            db.Usuarios.Add(Usuario.Criar("Outro Pedro", Email.Criar("pedro@x.com"), "hash",
+                await db.Perfis.FirstAsync(p => p.Tipo == TipoPerfil.Producao)));
             await sp.GetRequiredService<IUnidadeDeTrabalho>().SalvarAsync(default);
             return 0;
         });

@@ -32,6 +32,11 @@ public sealed class SalvarPerfilManipulador(
             if (existente is null) return Falha(TipoErro.NaoEncontrado, "Perfil não encontrado.");
         }
 
+        // O perfil Cliente nasce no semeador e é único. Recusar aqui também impede que ele entre, pela
+        // inclusão inicial, na lista de acesso dos Documentos Gerais.
+        if (existente is null && requisicao.Tipo == TipoPerfil.Cliente)
+            return Falha(TipoErro.Validacao, "O perfil de cliente é único e já existe.");
+
         try
         {
             if (!string.IsNullOrWhiteSpace(requisicao.Nome) &&

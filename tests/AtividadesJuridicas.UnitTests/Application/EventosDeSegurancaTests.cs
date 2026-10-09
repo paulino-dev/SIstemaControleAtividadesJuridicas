@@ -15,7 +15,7 @@ public class EventosDeSegurancaTests
     {
         var pedro = _c.NovoUsuario("Pedro", "pedro@x.com", _c.PerfilProducao);
 
-        await new EditarUsuarioManipulador(_c.Como(_c.Diretor), _c.Usuarios, _c.Perfis, _c.Unidade, _c.Auditoria)
+        await new EditarUsuarioManipulador(_c.Como(_c.Diretor), _c.Usuarios, _c.Perfis, _c.Unidade, _c.Auditoria, _c.ClientesDaIdentidade)
             .ManipularAsync(new EditarUsuario(pedro.Id, "Pedro", "pedro@x.com", _c.PerfilDiretor.Id, null), default);
 
         var evento = Unico();
@@ -31,7 +31,7 @@ public class EventosDeSegurancaTests
     {
         var pedro = _c.NovoUsuario("Pedro", "pedro@x.com", _c.PerfilProducao);
 
-        await new EditarUsuarioManipulador(_c.Como(_c.Diretor), _c.Usuarios, _c.Perfis, _c.Unidade, _c.Auditoria)
+        await new EditarUsuarioManipulador(_c.Como(_c.Diretor), _c.Usuarios, _c.Perfis, _c.Unidade, _c.Auditoria, _c.ClientesDaIdentidade)
             .ManipularAsync(new EditarUsuario(pedro.Id, "Pedro Silva", "pedro@x.com", _c.PerfilProducao.Id, null), default);
 
         _c.Auditoria.Eventos.Should().BeEmpty();

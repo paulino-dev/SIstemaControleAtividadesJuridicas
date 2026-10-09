@@ -1,5 +1,7 @@
+using AtividadesJuridicas.Application.Auditoria;
 using AtividadesJuridicas.Application.Comum;
 using AtividadesJuridicas.Application.Identidade;
+using AtividadesJuridicas.Domain.Auditoria;
 using AtividadesJuridicas.Domain.Identidade;
 
 namespace AtividadesJuridicas.UnitTests.Application;
@@ -9,11 +11,11 @@ public class GestaoDeUsuariosTests
     private readonly Cenario _c = new();
 
     private Task<Resultado<Guid>> Criar(Usuario? ator, CriarUsuario requisicao) =>
-        new CriarUsuarioManipulador(_c.Como(ator), _c.Usuarios, _c.Perfis, _c.Hasher, _c.Unidade)
+        new CriarUsuarioManipulador(_c.Como(ator), _c.Usuarios, _c.Perfis, _c.Hasher, _c.Unidade, _c.ClientesDaIdentidade)
             .ManipularAsync(requisicao, default);
 
     private Task<Resultado> Editar(Usuario? ator, EditarUsuario requisicao) =>
-        new EditarUsuarioManipulador(_c.Como(ator), _c.Usuarios, _c.Perfis, _c.Unidade, _c.Auditoria)
+        new EditarUsuarioManipulador(_c.Como(ator), _c.Usuarios, _c.Perfis, _c.Unidade, _c.Auditoria, _c.ClientesDaIdentidade)
             .ManipularAsync(requisicao, default);
 
     private Task<Resultado> DefinirAtivo(Usuario? ator, Guid id, bool ativo) =>
@@ -264,5 +266,247 @@ public class GestaoDeUsuariosTests
 
         resultado.Erro.Should().Be(TipoErro.AcessoNegado);
         resultado.Valor.Should().BeNull();
+    }
+
+    // ---- Usuários de cliente ----
+
+    private const string InformeOCliente = "Informe o cliente do usuário.";
+    private const string ClienteNaoEncontrado = "Cliente não encontrado.";
+    private const string ClienteInativo = "O cliente está inativo.";
+
+    private Perfil PerfilClienteNoCenario()
+    {
+        if (!_c.Perfis.Itens.Contains(_c.PerfilCliente)) _c.Perfis.Itens.Add(_c.PerfilCliente);
+        return _c.PerfilCliente;
+    }
+
+    private CriarUsuario PedidoDeCliente(Guid? clienteId, string email = "carla@x.com", string? oab = null) =>
+        new("Carla Cliente", email, "senha-da-carla", PerfilClienteNoCenario().Id, oab, clienteId);
+
+    [Fact]
+    public async Task Diretor_cria_usuario_de_cliente_vinculado_ao_cliente_e_sem_oab()
+    {
+        var maria = _c.NovoCliente();
+
+        var resultado = await Criar(_c.Diretor, PedidoDeCliente(maria.Id, oab: "AL 99"));
+
+        resultado.Sucesso.Should().BeTrue(resultado.Mensagem);
+        var criado = _c.Usuarios.Itens.Single(u => u.Id == resultado.Valor);
+        criado.ClienteId.Should().Be(maria.Id);
+        criado.EhDeCliente.Should().BeTrue();
+        criado.PerfilId.Should().Be(_c.PerfilCliente.Id);
+        criado.NumeroOab.Should().BeNull("a OAB informada para um usuário de cliente é ignorada");
+        criado.SenhaHash.Should().Be("hash:senha-da-carla");
+        _c.Unidade.Salvamentos.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Perfil_de_cliente_sem_cliente_com_cliente_inexistente_ou_inativo_e_recusado()
+    {
+        var inativa = _c.NovoCliente("José Souza", "111.444.777-35");
+        inativa.Inativar();
+
+        var sem = await Criar(_c.Diretor, PedidoDeCliente(null));
+        var inexistente = await Criar(_c.Diretor, PedidoDeCliente(Guid.CreateVersion7()));
+        var inativo = await Criar(_c.Diretor, PedidoDeCliente(inativa.Id));
+
+        sem.Erro.Should().Be(TipoErro.Validacao);
+        sem.Mensagem.Should().Be(InformeOCliente);
+        inexistente.Erro.Should().Be(TipoErro.Validacao);
+        inexistente.Mensagem.Should().Be(ClienteNaoEncontrado);
+        inativo.Erro.Should().Be(TipoErro.Validacao);
+        inativo.Mensagem.Should().Be(ClienteInativo);
+        _c.Usuarios.Itens.Should().ContainSingle("só a Diretora existe");
+        _c.Unidade.Salvamentos.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Perfil_interno_com_cliente_e_recusado()
+    {
+        var maria = _c.NovoCliente();
+
+        var resultado = await Criar(_c.Diretor, NovoPedido() with { ClienteId = maria.Id });
+
+        resultado.Erro.Should().Be(TipoErro.Validacao);
+        resultado.Mensagem.Should().Be(Usuario.SoDeCliente);
+        _c.Usuarios.Itens.Should().ContainSingle();
+        _c.Unidade.Salvamentos.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Editar_nao_troca_entre_perfil_de_cliente_e_perfil_interno()
+    {
+        var maria = _c.NovoCliente();
+        var pedro = _c.NovoUsuario("Pedro", "pedro@x.com", _c.PerfilProducao);
+        var carla = _c.NovoUsuarioDeCliente("Carla", "carla@x.com", maria);
+        var sessaoPedro = pedro.VersaoDeSessao;
+        var sessaoCarla = carla.VersaoDeSessao;
+
+        var internoParaCliente = await Editar(_c.Diretor,
+            new EditarUsuario(pedro.Id, "Pedro", "pedro@x.com", _c.PerfilCliente.Id, null, maria.Id));
+        var clienteParaInterno = await Editar(_c.Diretor,
+            new EditarUsuario(carla.Id, "Carla", "carla@x.com", _c.PerfilProducao.Id, null));
+
+        internoParaCliente.Erro.Should().Be(TipoErro.Validacao);
+        internoParaCliente.Mensagem.Should().Be(Usuario.TrocaEntreTipos);
+        clienteParaInterno.Erro.Should().Be(TipoErro.Validacao);
+        clienteParaInterno.Mensagem.Should().Be(Usuario.TrocaEntreTipos);
+        pedro.PerfilId.Should().Be(_c.PerfilProducao.Id);
+        pedro.ClienteId.Should().BeNull();
+        pedro.VersaoDeSessao.Should().Be(sessaoPedro);
+        carla.PerfilId.Should().Be(_c.PerfilCliente.Id);
+        carla.ClienteId.Should().Be(maria.Id);
+        carla.VersaoDeSessao.Should().Be(sessaoCarla);
+        _c.Auditoria.Eventos.Should().BeEmpty();
+        _c.Unidade.Salvamentos.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Trocar_o_cliente_do_usuario_gera_evento_e_renova_a_sessao()
+    {
+        var maria = _c.NovoCliente();
+        var jose = _c.NovoCliente("José Souza", "111.444.777-35");
+        var carla = _c.NovoUsuarioDeCliente("Carla", "carla@x.com", maria);
+        var sessao = carla.VersaoDeSessao;
+
+        var resultado = await Editar(_c.Diretor,
+            new EditarUsuario(carla.Id, "Carla", "carla@x.com", _c.PerfilCliente.Id, null, jose.Id));
+
+        resultado.Sucesso.Should().BeTrue(resultado.Mensagem);
+        carla.ClienteId.Should().Be(jose.Id);
+        carla.VersaoDeSessao.Should().NotBe(sessao);
+        var evento = _c.Auditoria.Eventos.Should().ContainSingle().Subject;
+        evento.Evento.Should().Be(EventosDeSeguranca.UsuarioClienteAlterado);
+        evento.Evento.Should().Be("usuario_cliente_alterado");
+        evento.Imediato.Should().BeFalse("o evento é gravado na mesma transação");
+        evento.Entidade.Should().Be("Usuario");
+        evento.EntidadeId.Should().Be(carla.Id);
+        evento.Dados.Should().BeEquivalentTo(new { de = maria.Id, para = jose.Id });
+        _c.Unidade.Salvamentos.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Manter_o_cliente_nao_gera_evento_nem_renova_a_sessao_mesmo_com_o_cliente_inativo()
+    {
+        var maria = _c.NovoCliente();
+        var carla = _c.NovoUsuarioDeCliente("Carla", "carla@x.com", maria);
+        maria.Inativar();
+        var sessao = carla.VersaoDeSessao;
+
+        var resultado = await Editar(_c.Diretor,
+            new EditarUsuario(carla.Id, "Carla Cliente", "carla.cliente@x.com", _c.PerfilCliente.Id, null, maria.Id));
+
+        resultado.Sucesso.Should().BeTrue(resultado.Mensagem);
+        carla.Nome.Should().Be("Carla Cliente");
+        carla.Email.Valor.Should().Be("carla.cliente@x.com");
+        carla.ClienteId.Should().Be(maria.Id);
+        carla.VersaoDeSessao.Should().Be(sessao);
+        _c.Auditoria.Eventos.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Trocar_para_cliente_inexistente_ou_inativo_e_recusado()
+    {
+        var maria = _c.NovoCliente();
+        var inativa = _c.NovoCliente("José Souza", "111.444.777-35");
+        inativa.Inativar();
+        var carla = _c.NovoUsuarioDeCliente("Carla", "carla@x.com", maria);
+        var sessao = carla.VersaoDeSessao;
+
+        var inexistente = await Editar(_c.Diretor,
+            new EditarUsuario(carla.Id, "Carla", "carla@x.com", _c.PerfilCliente.Id, null, Guid.CreateVersion7()));
+        var inativo = await Editar(_c.Diretor,
+            new EditarUsuario(carla.Id, "Carla", "carla@x.com", _c.PerfilCliente.Id, null, inativa.Id));
+
+        inexistente.Erro.Should().Be(TipoErro.Validacao);
+        inexistente.Mensagem.Should().Be(ClienteNaoEncontrado);
+        inativo.Erro.Should().Be(TipoErro.Validacao);
+        inativo.Mensagem.Should().Be(ClienteInativo);
+        carla.ClienteId.Should().Be(maria.Id);
+        carla.VersaoDeSessao.Should().Be(sessao);
+        _c.Auditoria.Eventos.Should().BeEmpty();
+        _c.Unidade.Salvamentos.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Editar_usuario_de_cliente_sem_cliente_e_recusado()
+    {
+        var maria = _c.NovoCliente();
+        var carla = _c.NovoUsuarioDeCliente("Carla", "carla@x.com", maria);
+
+        var resultado = await Editar(_c.Diretor,
+            new EditarUsuario(carla.Id, "Carla", "carla@x.com", _c.PerfilCliente.Id, null));
+
+        resultado.Erro.Should().Be(TipoErro.Validacao);
+        resultado.Mensagem.Should().Be(InformeOCliente);
+        carla.ClienteId.Should().Be(maria.Id);
+        _c.Unidade.Salvamentos.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Editar_usuario_interno_com_cliente_e_recusado()
+    {
+        var maria = _c.NovoCliente();
+        var pedro = _c.NovoUsuario("Pedro", "pedro@x.com", _c.PerfilProducao);
+
+        var resultado = await Editar(_c.Diretor,
+            new EditarUsuario(pedro.Id, "Pedro", "pedro@x.com", _c.PerfilProducao.Id, null, maria.Id));
+
+        resultado.Erro.Should().Be(TipoErro.Validacao);
+        resultado.Mensagem.Should().Be(Usuario.SoDeCliente);
+        pedro.ClienteId.Should().BeNull();
+        _c.Unidade.Salvamentos.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Lista_de_usuarios_traz_o_cliente_de_quem_e_de_cliente()
+    {
+        var maria = _c.NovoCliente();
+        var carla = _c.NovoUsuarioDeCliente("Carla", "carla@x.com", maria);
+        maria.Inativar();
+
+        var lista = (await new ListarUsuariosManipulador(_c.Como(_c.Diretor), _c.Usuarios)
+            .ManipularAsync(new ListarUsuarios(), default)).Valor!;
+
+        var daCarla = lista.Single(u => u.Id == carla.Id);
+        daCarla.ClienteId.Should().Be(maria.Id);
+        daCarla.ClienteNome.Should().Be("Maria Silva", "o nome vem mesmo com o cliente inativo");
+        var diana = lista.Single(u => u.Id == _c.Diretor.Id);
+        diana.ClienteId.Should().BeNull();
+        diana.ClienteNome.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Usuarios_do_cliente_so_para_a_diretoria_e_so_os_daquele_cliente()
+    {
+        var maria = _c.NovoCliente();
+        var jose = _c.NovoCliente("José Souza", "111.444.777-35");
+        var zilda = _c.NovoUsuarioDeCliente("Zilda", "zilda@x.com", maria);
+        var carla = _c.NovoUsuarioDeCliente("Carla", "carla@x.com", maria);
+        carla.Inativar();
+        _c.NovoUsuarioDeCliente("Jorge", "jorge@x.com", jose);
+        var pedro = _c.NovoUsuario("Pedro", "pedro@x.com", _c.PerfilProducao);
+
+        Task<Resultado<IReadOnlyList<UsuarioDoCliente>>> Listar(Usuario? ator, Guid clienteId) =>
+            new ListarUsuariosDoClienteManipulador(_c.Como(ator), _c.Usuarios, _c.ClientesDaIdentidade)
+                .ManipularAsync(new ListarUsuariosDoCliente(clienteId), default);
+
+        (await Listar(pedro, maria.Id)).Erro.Should().Be(TipoErro.AcessoNegado);
+        (await Listar(null, maria.Id)).Erro.Should().Be(TipoErro.AcessoNegado);
+
+        var inexistente = await Listar(_c.Diretor, Guid.CreateVersion7());
+        inexistente.Erro.Should().Be(TipoErro.NaoEncontrado);
+        inexistente.Mensagem.Should().Be(ClienteNaoEncontrado);
+
+        var lista = (await Listar(_c.Diretor, maria.Id)).Valor!;
+        lista.Select(u => u.Nome).Should().Equal("Carla", "Zilda");
+        lista.Select(u => u.Ativo).Should().Equal(false, true);
+        lista[1].Should().Be(new UsuarioDoCliente(zilda.Id, "Zilda", "zilda@x.com", true, null));
+
+        var consulta = new ListarUsuariosDoCliente(maria.Id);
+        consulta.Should().BeAssignableTo<IConsultaAuditavel>();
+        consulta.TipoRecurso.Should().Be("Usuario");
+        consulta.Acao.Should().Be(AcaoDeAcesso.Listou);
+        consulta.Detalhe.Should().NotBeNull().And.Contain(maria.Id.ToString());
     }
 }

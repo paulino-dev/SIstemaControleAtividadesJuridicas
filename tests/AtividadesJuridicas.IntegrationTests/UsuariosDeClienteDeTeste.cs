@@ -1,3 +1,4 @@
+using AtividadesJuridicas.Application.Comum;
 using AtividadesJuridicas.Application.Identidade;
 using AtividadesJuridicas.Domain.Identidade;
 using AtividadesJuridicas.Infrastructure.Persistencia;
@@ -6,7 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace AtividadesJuridicas.IntegrationTests;
 
-/// <summary>Até a Tarefa 3 não há caso de uso que crie usuário de cliente: grava direto, reaproveitando o perfil se ele já existir.</summary>
+/// <summary>Cria o usuário de cliente pelo caso de uso, com o perfil Cliente que o semeador criou. O escopo de <c>sp</c> precisa ser o da Diretoria.</summary>
 public static class UsuariosDeClienteDeTeste
 {
     public const string EmailDaCarla = "carla@x.com";
@@ -15,14 +16,12 @@ public static class UsuariosDeClienteDeTeste
     public static async Task<Guid> GravarAsync(
         IServiceProvider sp, Guid clienteId, string nome = "Carla Cliente", string email = EmailDaCarla)
     {
-        var db = sp.GetRequiredService<AppDbContext>();
-        var perfil = await db.Perfis.FirstOrDefaultAsync(p => p.Tipo == TipoPerfil.Cliente);
-        if (perfil is null) db.Perfis.Add(perfil = Perfil.Criar("Cliente", TipoPerfil.Cliente));
+        var perfil = await sp.GetRequiredService<AppDbContext>().Perfis.AsNoTracking()
+            .SingleAsync(p => p.Tipo == TipoPerfil.Cliente);
 
-        var usuario = Usuario.Criar(nome, Email.Criar(email),
-            sp.GetRequiredService<IHasherDeSenha>().Gerar(SenhaDaCarla), perfil, null, clienteId);
-        db.Usuarios.Add(usuario);
-        await db.SaveChangesAsync();
-        return usuario.Id;
+        var criado = await sp.GetRequiredService<ExecutorDeRequisicoes>().ExecutarAsync(
+            new CriarUsuario(nome, email, SenhaDaCarla, perfil.Id, null, clienteId), default);
+        criado.Sucesso.Should().BeTrue(criado.Mensagem);
+        return criado.Valor;
     }
 }
