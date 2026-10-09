@@ -1,0 +1,148 @@
+/* Araújo Advocacia — tokens do design system, compilados de tokens.json (https://claude.ai/artifact/G8rFozAhnH4eMqctLNTvbS).
+   Não edite à mão: altere no design system e gere de novo. */
+
+/* Cores e sombras */
+:root {
+  --fundo: #F6F3EE;
+  --superficie: #FFFFFF;
+  --superficie-suave: #FAF8F4;
+  --superficie-campo: #FBFAF7;
+  --superficie-hover: #FBF9F5;
+  --superficie-recuada: #EFEBE3;
+  --verde: #233026;
+  --verde-hover: #2F4034;
+  --verde-escuro: #1F2B22;
+  --sobre-verde: #FFFFFF;
+  --dourado: #C9A96E;
+  --dourado-claro: #D9BE8A;
+  --menu-fundo: #1F2B22;
+  --menu-bloco: #273429;
+  --menu-ativo: #34463A;
+  --menu-hover: #2B3A2F;
+  --menu-texto: #C9D0C5;
+  --menu-texto-suave: #AEB8AA;
+  --menu-rotulo: #8E9A8B;
+  --menu-link: #DCE2D8;
+  --tinta: #16201A;
+  --tinta-corpo: #2E332C;
+  --tinta-rotulo: #3D4239;
+  --tinta-secundaria: #4A4E46;
+  --tinta-suave: #5B5F57;
+  --tinta-apagada: #6B6F66;
+  --tinta-icone: #8A8D84;
+  --borda: #ECE6DA;
+  --borda-suave: #F1ECE3;
+  --borda-campo: #DCD5C7;
+  --borda-campo-suave: #E3DDD0;
+  --borda-opcao: #E8E2D6;
+  --borda-hover: #CBC2B0;
+  --erro: #A3321F;
+  --erro-texto: #7A2414;
+  --erro-fundo: #FBE9E3;
+  --erro-borda: #F0C9BC;
+  --erro-campo: #FFFAF8;
+  --erro-borda-chip: #E9B8AC;
+  --aviso: #7A4E00;
+  --aviso-texto: #5A3B00;
+  --aviso-fundo: #FBF1DC;
+  --aviso-borda: #F0DDB2;
+  --sucesso: #2C5232;
+  --sucesso-texto: #24442A;
+  --sucesso-fundo: #EAF2E7;
+  --sucesso-borda: #D3E2D0;
+  --selecao-fundo: #EAF0E8;
+  --selecao-borda: #B7CBB2;
+  --situacao-criada-fundo: #EFECE5;
+  --situacao-criada-texto: #4A4A42;
+  --situacao-direcionada-fundo: #E3ECF2;
+  --situacao-direcionada-texto: #1F4A66;
+  --situacao-feita-fundo: #E4EDE3;
+  --situacao-feita-texto: var(--sucesso);
+  --situacao-correcao-fundo: #FBEFD7;
+  --situacao-correcao-texto: var(--aviso);
+  --situacao-corrigida-fundo: #E8E6F3;
+  --situacao-corrigida-texto: #43397A;
+  --situacao-concluida-fundo: var(--verde);
+  --situacao-reaberta-fundo: #FBE6DE;
+  --situacao-reaberta-texto: #8A3517;
+  --situacao-atrasada-fundo: var(--erro);
+  --evento-reuniao-fundo: var(--selecao-fundo);
+  --evento-reuniao-rotulo: var(--sucesso);
+  --evento-audiencia-fundo: var(--verde);
+  --evento-audiencia-rotulo: var(--dourado-claro);
+  --evento-audiencia-suave: #C3CCBF;
+  --evento-prazo-fundo: var(--aviso-fundo);
+  --evento-prazo-rotulo: var(--aviso);
+  --evento-outro-fundo: var(--superficie);
+  --evento-outro-rotulo: #5B5E56;
+
+  --sombra-1: 0 1px 2px rgba(31,43,34,.04);
+  --sombra-painel: 0 1px 2px rgba(31,43,34,.04), 0 12px 32px -20px rgba(31,43,34,.18);
+  --sombra-botao: 0 1px 2px rgba(31,43,34,.2);
+  --sombra-segmento: 0 1px 3px rgba(31,43,34,.12);
+  --sombra-cartao-hover: 0 8px 20px -12px rgba(31,43,34,.35);
+  --sombra-flutuante: 0 12px 28px -16px rgba(31,43,34,.30);
+  --sombra-login: 0 1px 2px rgba(31,43,34,.04), 0 24px 48px -24px rgba(31,43,34,.18);
+  --sombra-fab: 0 12px 24px -8px rgba(31,43,34,.55);
+  --sombra-foco: 0 0 0 3px rgba(35,48,38,.14);
+  --sombra-foco-erro: 0 0 0 3px rgba(163,50,31,.10);
+}
+
+/* Espaços, raios, medidas da estrutura e famílias tipográficas */
+:root {
+  --espaco-2: 2px;
+  --espaco-4: 4px;
+  --espaco-6: 6px;
+  --espaco-8: 8px;
+  --espaco-10: 10px;
+  --espaco-12: 12px;
+  --espaco-14: 14px;
+  --espaco-16: 16px;
+  --espaco-18: 18px;
+  --espaco-24: 24px;
+  --espaco-28: 28px;
+  --espaco-40: 40px;
+
+  --raio-10: 10px;
+  --raio-12: 12px;
+  --raio-14: 14px;
+  --raio-16: 16px;
+  --raio-18: 18px;
+  --raio-20: 20px;
+  --raio-pilula: 999px;
+
+  --bp-tablet: 761px;
+  --bp-desktop: 1200px;
+
+  --menu-largura: 256px;
+  --trilho-largura: 88px;
+  --nav-inferior-item: 54px;
+  --controle-desktop: 38px;
+  --campo-desktop: 40px;
+  --campo-filtro: 42px;
+  --alvo-toque: 44px;
+  --controle-toque: 46px;
+  --campo-toque: 50px;
+  --fab: 58px;
+
+  --font-sans: "Hanken Grotesk", "Segoe UI", system-ui, sans-serif;
+  --font-serif: "Newsreader", Georgia, serif;
+}
+
+/* Estilos de texto */
+.titulo-marca { font-family: var(--font-serif); font-size: 38px; line-height: 1.1; font-weight: 500; letter-spacing: -0.01em }
+.titulo-entrar { font-family: var(--font-serif); font-size: 36px; line-height: 1.1; font-weight: 500; letter-spacing: -0.01em }
+.titulo-pagina-tablet { font-family: var(--font-serif); font-size: 32px; line-height: 1.1; font-weight: 500 }
+.titulo-pagina { font-family: var(--font-serif); font-size: 28px; line-height: 1.1; font-weight: 500; letter-spacing: -0.01em }
+.titulo-pagina-mobile { font-family: var(--font-serif); font-size: 26px; line-height: 1.1; font-weight: 500 }
+.titulo-secao { font-family: var(--font-sans); font-size: 16px; line-height: 1.4; font-weight: 700 }
+.titulo-cartao { font-family: var(--font-sans); font-size: 16px; line-height: 1.3; font-weight: 600 }
+.corpo { font-family: var(--font-sans); font-size: 15px; line-height: 1.5; font-weight: 400 }
+.controle { font-family: var(--font-sans); font-size: 14.5px; line-height: 1.3; font-weight: 600 }
+.rotulo { font-family: var(--font-sans); font-size: 13.5px; line-height: 1.4; font-weight: 600 }
+.texto-secundario { font-family: var(--font-sans); font-size: 13.5px; line-height: 1.45; font-weight: 400 }
+.apoio { font-family: var(--font-sans); font-size: 13px; line-height: 1.4; font-weight: 400 }
+.etiqueta { font-family: var(--font-sans); font-size: 12.5px; line-height: 1.5; font-weight: 600 }
+.rotulo-interno { font-family: var(--font-sans); font-size: 11.5px; line-height: 1.2; font-weight: 600 }
+.sobretitulo { font-family: var(--font-sans); font-size: 11px; line-height: 1.5; font-weight: 600; letter-spacing: 0.12em }
+.numero-dia { font-family: var(--font-sans); font-size: 20px; line-height: 1; font-weight: 600 }

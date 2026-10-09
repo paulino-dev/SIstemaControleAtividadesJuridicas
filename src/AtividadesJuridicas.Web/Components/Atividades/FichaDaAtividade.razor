@@ -30,13 +30,7 @@
         <h2>@a.Titulo</h2>
         <dl>
             <dt>Situação</dt>
-            <dd>
-                @RotulosDeAtividade.Status(a.Status)
-                @if (a.Atrasada)
-                {
-                    <strong class="erro">Atrasada</strong>
-                }
-            </dd>
+            <dd><EtiquetaDeSituacao Status="a.Status" Atrasada="a.Atrasada" /></dd>
             <dt>Descrição</dt><dd class="texto-livre">@a.Descricao</dd>
             <dt>Entrega</dt><dd>@RotulosDeAtividade.Data(a.DataEntrega)</dd>
             <dt>Complexidade</dt><dd>@a.Complexidade</dd>
