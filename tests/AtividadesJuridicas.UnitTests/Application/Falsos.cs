@@ -396,6 +396,34 @@ public sealed class AtividadeRepositorioFalso(
             .Where(a => a.Status == StatusAtividade.Concluida && a.EhResponsavel(responsavelId))
             .Min(a => a.ConcluidaEm));
 
+    // Mesma regra da consulta real. Sem relógio de criação, a ordem de inserção faz o papel da criação.
+    public Task<AndamentoDoCliente> ListarAndamentoAsync(
+        Guid clienteId, SituacaoDoAndamento? situacao, int pagina, int tamanho, CancellationToken ct)
+    {
+        var doCliente = Itens.Where(a => a.ClienteId == clienteId).ToList();
+        var concluidas = doCliente.Count(a => a.Status == StatusAtividade.Concluida);
+        var emAndamento = doCliente.Count - concluidas;
+
+        var filtradas = doCliente.Where(a => situacao is null || Andamento.SituacaoDe(a.Status) == situacao).ToList();
+        var ordenadas = Enumerable.Reverse(filtradas).Where(a => a.Status != StatusAtividade.Concluida)
+            .Concat(Enumerable.Reverse(filtradas).Where(a => a.Status == StatusAtividade.Concluida)
+                .OrderByDescending(a => a.ConcluidaEm))
+            .ToList();
+
+        var linhas = ordenadas.Skip((pagina - 1) * tamanho).Take(tamanho).Select(a =>
+        {
+            var processo = processos.Itens.FirstOrDefault(p => p.Id == a.ProcessoId);
+            var situacaoDaLinha = Andamento.SituacaoDe(a.Status);
+            return new AtividadeDoAndamento(
+                a.Titulo, areas.Itens.FirstOrDefault(x => x.Id == a.AreaAtuacaoId)?.Nome,
+                processo is null ? null : processo.NumeroCnj?.Formatado ?? processo.Titulo,
+                situacaoDaLinha, situacaoDaLinha == SituacaoDoAndamento.Concluida ? a.ConcluidaEm : null);
+        }).ToList();
+
+        return Task.FromResult(new AndamentoDoCliente(
+            new Pagina<AtividadeDoAndamento>(linhas, filtradas.Count, pagina, tamanho), emAndamento, concluidas));
+    }
+
     public void Adicionar(Atividade atividade) => Itens.Add(atividade);
 
     public void Remover(Atividade atividade) => Itens.Remove(atividade);

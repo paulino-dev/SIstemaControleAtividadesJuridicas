@@ -102,6 +102,56 @@ public sealed class AtividadeRepositorio(AppDbContext db) : IAtividadeRepositori
             .Where(a => a.Status == StatusAtividade.Concluida && a.Responsaveis.Any(r => r.UsuarioId == responsavelId))
             .MinAsync(a => a.ConcluidaEm, ct);
 
+    public async Task<AndamentoDoCliente> ListarAndamentoAsync(
+        Guid clienteId, SituacaoDoAndamento? situacao, int pagina, int tamanho, CancellationToken ct)
+    {
+        // Só as atividades vivas do cliente: a avulsa não tem cliente, e a excluída sai pelo filtro de exclusão lógica.
+        var doCliente = db.Atividades.AsNoTracking().Where(a => a.ClienteId == clienteId);
+
+        // Os totais são do cliente, não do filtro.
+        var concluidas = await doCliente.CountAsync(a => a.Status == StatusAtividade.Concluida, ct);
+        var emAndamento = await doCliente.CountAsync(a => a.Status != StatusAtividade.Concluida, ct);
+
+        var (consulta, total) = situacao switch
+        {
+            SituacaoDoAndamento.Concluida => (doCliente.Where(a => a.Status == StatusAtividade.Concluida), concluidas),
+            SituacaoDoAndamento.EmAndamento => (doCliente.Where(a => a.Status != StatusAtividade.Concluida), emAndamento),
+            _ => (doCliente, concluidas + emAndamento),
+        };
+
+        var linhas = await consulta
+            .OrderBy(a => a.Status == StatusAtividade.Concluida)
+            .ThenByDescending(a => a.Status == StatusAtividade.Concluida ? a.ConcluidaEm : (DateTime?)a.CriadoEm)
+            .ThenByDescending(a => a.Id)
+            .Skip((pagina - 1) * tamanho).Take(tamanho)
+            .Select(a => new { a.Titulo, a.Status, a.ConcluidaEm, a.ProcessoId, a.AreaAtuacaoId })
+            .ToListAsync(ct);
+
+        // Área e processo excluídos logicamente continuam identificados, como nas outras listagens.
+        var idsDeProcessos = linhas.Where(a => a.ProcessoId != null).Select(a => a.ProcessoId!.Value).Distinct().ToList();
+        var idsDeAreas = linhas.Where(a => a.AreaAtuacaoId != null).Select(a => a.AreaAtuacaoId!.Value).Distinct().ToList();
+
+        var areas = await db.AreasAtuacao.IgnoreQueryFilters().AsNoTracking()
+            .Where(x => idsDeAreas.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Nome, ct);
+        // O número CNJ é objeto de valor: o formato vem depois de materializar.
+        var processos = (await db.Processos.IgnoreQueryFilters().AsNoTracking()
+            .Where(p => idsDeProcessos.Contains(p.Id)).Select(p => new { p.Id, p.NumeroCnj, p.Titulo }).ToListAsync(ct))
+            .ToDictionary(p => p.Id, p => p.NumeroCnj?.Formatado ?? p.Titulo);
+
+        static string? Nome(Dictionary<Guid, string> nomes, Guid? id) =>
+            id is { } x && nomes.TryGetValue(x, out var nome) ? nome : null;
+
+        var itens = linhas.Select(a =>
+        {
+            var situacaoDaLinha = Andamento.SituacaoDe(a.Status);
+            return new AtividadeDoAndamento(
+                a.Titulo, Nome(areas, a.AreaAtuacaoId), Nome(processos, a.ProcessoId), situacaoDaLinha,
+                situacaoDaLinha == SituacaoDoAndamento.Concluida ? a.ConcluidaEm : null);
+        }).ToList();
+
+        return new AndamentoDoCliente(new Pagina<AtividadeDoAndamento>(itens, total, pagina, tamanho), emAndamento, concluidas);
+    }
+
     public void Adicionar(Atividade atividade) => db.Atividades.Add(atividade);
 
     public void Remover(Atividade atividade) => db.Atividades.Remove(atividade);

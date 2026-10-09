@@ -67,6 +67,26 @@ public sealed record ProdutividadeDoProdutor(
     public int Total => Grupos.Sum(g => g.Total);
 }
 
+/// <summary>A situação que o cliente enxerga: os sete status internos se resumem a duas.</summary>
+public enum SituacaoDoAndamento { EmAndamento = 1, Concluida = 2 }
+
+public static class Andamento
+{
+    public static SituacaoDoAndamento SituacaoDe(StatusAtividade status) =>
+        status == StatusAtividade.Concluida ? SituacaoDoAndamento.Concluida : SituacaoDoAndamento.EmAndamento;
+}
+
+/// <summary>
+/// O que o cliente lê de uma atividade sua. Sem Id, descrição, responsáveis, direcionamentos nem status interno.
+/// <paramref name="Processo"/>: o número CNJ formatado ou, na falta dele, o título do processo.
+/// <paramref name="ConcluidaEm"/>: só quando a situação é <see cref="SituacaoDoAndamento.Concluida"/>.
+/// </summary>
+public sealed record AtividadeDoAndamento(
+    string Titulo, string? AreaNome, string? Processo, SituacaoDoAndamento Situacao, DateTime? ConcluidaEm);
+
+/// <summary><paramref name="EmAndamento"/> e <paramref name="Concluidas"/>: todas as atividades do cliente, qualquer que seja o filtro.</summary>
+public sealed record AndamentoDoCliente(Pagina<AtividadeDoAndamento> Atividades, int EmAndamento, int Concluidas);
+
 public interface IAtividadeRepositorio
 {
     /// <summary>A atividade com todos os responsáveis e todo o histórico.</summary>
@@ -101,4 +121,11 @@ public interface IAtividadeRepositorio
     /// nenhuma.
     /// </summary>
     Task<DateTime?> ObterPrimeiraConclusaoAsync(Guid responsavelId, CancellationToken ct);
+
+    /// <summary>
+    /// As atividades vivas do cliente, em andamento primeiro (as mais recentes) e depois as concluídas (da conclusão mais
+    /// recente para a mais antiga), com os totais do cliente, que não dependem de <paramref name="situacao"/>.
+    /// </summary>
+    Task<AndamentoDoCliente> ListarAndamentoAsync(
+        Guid clienteId, SituacaoDoAndamento? situacao, int pagina, int tamanho, CancellationToken ct);
 }
