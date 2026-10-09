@@ -2,6 +2,7 @@ using AtividadesJuridicas.Application.Cadastros;
 using AtividadesJuridicas.Application.Comum;
 using AtividadesJuridicas.Application.Identidade;
 using AtividadesJuridicas.Domain.Documentos;
+using AtividadesJuridicas.Domain.Identidade;
 
 namespace AtividadesJuridicas.Application.Documentos;
 
@@ -37,8 +38,10 @@ public sealed class EnviarDocumentoManipulador(
 
         return await ArquivoEnviado.GravarAsync(
             armazenamento, documentos, unidade, nomeDoArquivo, requisicao.TipoConteudo, requisicao.Conteudo,
+            // O Documento Geral nasce com os perfis internos: o perfil Cliente nunca entra na lista de acesso.
             async arquivo => requisicao.Categoria == CategoriaDocumento.DocumentoGeral
-                ? Documento.CriarGeral(requisicao.ClienteId, requisicao.Nome, arquivo, await perfis.ObterAtivosAsync(ct))
+                ? Documento.CriarGeral(requisicao.ClienteId, requisicao.Nome, arquivo,
+                    [.. (await perfis.ObterAtivosAsync(ct)).Where(p => p.Tipo != TipoPerfil.Cliente)])
                 : Documento.CriarContratoDeHonorarios(requisicao.ClienteId, requisicao.Nome, arquivo),
             ct);
     }

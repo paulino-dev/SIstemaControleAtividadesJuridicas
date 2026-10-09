@@ -2,9 +2,10 @@ using AtividadesJuridicas.Domain.Identidade;
 
 namespace AtividadesJuridicas.Application.Identidade;
 
-public sealed record UsuarioAutenticado(Guid Id, string Nome, TipoPerfil TipoPerfil, Guid PerfilId)
+public sealed record UsuarioAutenticado(Guid Id, string Nome, TipoPerfil TipoPerfil, Guid PerfilId, Guid? ClienteId = null)
 {
     public bool EhDiretoria => TipoPerfil == TipoPerfil.Diretoria;
+    public bool EhCliente => TipoPerfil == TipoPerfil.Cliente;
 }
 
 public interface IContextoDeAcesso
@@ -19,7 +20,8 @@ public interface IContextoDeAcesso
 public sealed class ContextoDeAcesso(
     IIdentidadeAtual identidade,
     IUsuarioRepositorio usuarios,
-    IPerfilRepositorio perfis) : IContextoDeAcesso
+    IPerfilRepositorio perfis,
+    IClientesDaIdentidade clientes) : IContextoDeAcesso
 {
     public async Task<UsuarioAutenticado?> ObterAsync(CancellationToken ct)
     {
@@ -36,6 +38,11 @@ public sealed class ContextoDeAcesso(
         var perfil = await perfis.ObterPorIdAsync(usuario.PerfilId, ct);
         if (perfil is null) return null;
 
-        return new UsuarioAutenticado(usuario.Id, usuario.Nome, perfil.Tipo, perfil.Id);
+        if (!AcessoPeloCliente.ParCoerente(usuario, perfil)) return null;
+
+        // Usuário de cliente só tem acesso enquanto o cliente dele existe e está ativo.
+        if (!await AcessoPeloCliente.ClienteAtivoAsync(usuario, clientes, ct)) return null;
+
+        return new UsuarioAutenticado(usuario.Id, usuario.Nome, perfil.Tipo, perfil.Id, usuario.ClienteId);
     }
 }

@@ -238,6 +238,18 @@ public sealed class ClienteRepositorioFalso : IClienteRepositorio
             .Where(ch => CharUnicodeInfo.GetUnicodeCategory(ch) != UnicodeCategory.NonSpacingMark)]);
 }
 
+public sealed class ClientesDaIdentidadeFalso(ClienteRepositorioFalso clientes) : IClientesDaIdentidade
+{
+    public int Consultas { get; private set; }
+
+    public Task<ClienteDoUsuario?> ObterAsync(Guid clienteId, CancellationToken ct)
+    {
+        Consultas++;
+        var cliente = clientes.Itens.FirstOrDefault(c => c.Id == clienteId);
+        return Task.FromResult(cliente is null ? null : new ClienteDoUsuario(cliente.Id, cliente.Nome, cliente.Ativo));
+    }
+}
+
 public sealed class ProcessoRepositorioFalso(AreaAtuacaoRepositorioFalso areas, ClienteRepositorioFalso clientes)
     : IProcessoRepositorio
 {
@@ -474,6 +486,9 @@ public sealed class Cenario
     public ArmazenamentoFalso Armazenamento { get; } = new();
     public Perfil PerfilDiretor { get; } = Perfil.Criar("Diretor", TipoPerfil.Diretoria);
     public Perfil PerfilProducao { get; } = Perfil.Criar("Produção", TipoPerfil.Producao);
+    /// <summary>Não entra em <see cref="Perfis"/> sozinho: os testes anteriores ao portal contam dois perfis.</summary>
+    public Perfil PerfilCliente { get; } = Perfil.Criar("Cliente", TipoPerfil.Cliente);
+    public ClientesDaIdentidadeFalso ClientesDaIdentidade { get; }
     public Usuario Diretor { get; }
     public AcessoInicialDePerfilFalso AcessoInicial { get; }
 
@@ -482,6 +497,7 @@ public sealed class Cenario
         AcessoInicial = new AcessoInicialDePerfilFalso(Unidade);
         Usuarios = new UsuarioRepositorioFalso(Perfis);
         Perfis.UsuariosAtivosDoPerfil = id => Usuarios.Itens.Count(u => u.Ativo && u.PerfilId == id);
+        ClientesDaIdentidade = new ClientesDaIdentidadeFalso(Clientes);
         Processos = new ProcessoRepositorioFalso(Areas, Clientes);
         Atividades = new AtividadeRepositorioFalso(Usuarios, Clientes, Processos, Areas);
         Eventos = new EventoRepositorioFalso(Usuarios, Clientes, Processos);
@@ -500,11 +516,27 @@ public sealed class Cenario
         return usuario;
     }
 
+    public Cliente NovoCliente(string nome = "Maria Silva", string cpf = "529.982.247-25")
+    {
+        var cliente = ClientePessoaFisica.Criar(new DadosDoCliente(nome, null, null, Endereco.Vazio, null), Cpf.Criar(cpf), null, null);
+        Clientes.Itens.Add(cliente);
+        return cliente;
+    }
+
+    /// <summary>Usuário de perfil Cliente; o perfil entra no cenário na primeira vez em que é usado.</summary>
+    public Usuario NovoUsuarioDeCliente(string nome, string email, Cliente cliente, string senha = "senha-segura")
+    {
+        if (!Perfis.Itens.Contains(PerfilCliente)) Perfis.Itens.Add(PerfilCliente);
+        var usuario = Usuario.Criar(nome, Email.Criar(email), Hasher.Gerar(senha), PerfilCliente, null, cliente.Id);
+        Usuarios.Itens.Add(usuario);
+        return usuario;
+    }
+
     public IContextoDeAcesso Como(Usuario? usuario)
     {
         if (usuario is null) return new ContextoDeAcessoFixo(null);
         var perfil = Perfis.Itens.First(p => p.Id == usuario.PerfilId);
-        return new ContextoDeAcessoFixo(new UsuarioAutenticado(usuario.Id, usuario.Nome, perfil.Tipo, perfil.Id));
+        return new ContextoDeAcessoFixo(new UsuarioAutenticado(usuario.Id, usuario.Nome, perfil.Tipo, perfil.Id, usuario.ClienteId));
     }
 }
 

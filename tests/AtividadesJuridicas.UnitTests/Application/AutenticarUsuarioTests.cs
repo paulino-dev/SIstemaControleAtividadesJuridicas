@@ -13,7 +13,8 @@ public class AutenticarUsuarioTests
     private readonly Cenario _c = new();
 
     private Task<Resultado<SessaoIniciada>> Autenticar(string email, string senha) =>
-        new AutenticarUsuarioManipulador(_c.Usuarios, _c.Perfis, _c.Hasher, _c.Relogio, _c.Auditoria)
+        new AutenticarUsuarioManipulador(_c.Usuarios, _c.Perfis, _c.Hasher, _c.Relogio, _c.Auditoria,
+            _c.ClientesDaIdentidade)
             .ManipularAsync(new AutenticarUsuario(email, senha), default);
 
     private string UltimoEvento() => _c.Auditoria.Eventos.Last().Evento;
@@ -184,6 +185,40 @@ public class AutenticarUsuarioTests
 
         await Autenticar("diana@x.com", "senha-segura");
         _c.Auditoria.Eventos.Last().Ator.Should().Be(_c.Diretor.Id);
+    }
+
+    [Fact]
+    public async Task Usuario_de_cliente_ativo_autentica()
+    {
+        var cliente = _c.NovoCliente();
+        var carla = _c.NovoUsuarioDeCliente("Carla Cliente", "carla@x.com", cliente);
+
+        var resultado = await Autenticar("carla@x.com", "senha-segura");
+
+        resultado.Sucesso.Should().BeTrue();
+        resultado.Valor.Should().Be(new SessaoIniciada(
+            carla.Id, "Carla Cliente", TipoPerfil.Cliente, carla.VersaoDeSessao));
+    }
+
+    [Fact]
+    public async Task Usuario_de_cliente_inativo_recebe_credenciais_invalidas_mesmo_com_a_senha_certa()
+    {
+        var cliente = _c.NovoCliente();
+        var carla = _c.NovoUsuarioDeCliente("Carla Cliente", "carla@x.com", cliente);
+        cliente.Inativar();
+
+        var resultado = await Autenticar("carla@x.com", "senha-segura");
+
+        resultado.Erro.Should().Be(TipoErro.AcessoNegado);
+        resultado.Mensagem.Should().Be(Invalido);
+        _c.Usuarios.LoginsRegistrados.Should().Be(0);
+        _c.Usuarios.Reservas.Should().Be(1, "a tentativa continua contada");
+        var evento = _c.Auditoria.Eventos.Last();
+        evento.Should().BeEquivalentTo(new
+        {
+            Evento = EventosDeSeguranca.LoginFalha, Entidade = "Usuario", EntidadeId = carla.Id, Imediato = true,
+        });
+        evento.Dados.Should().BeEquivalentTo(new { motivo = "cliente_inativo" });
     }
 
     [Fact]

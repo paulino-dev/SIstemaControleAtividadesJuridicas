@@ -3,7 +3,7 @@ using AtividadesJuridicas.Application.Comum;
 
 namespace AtividadesJuridicas.Application.Identidade;
 
-public sealed record AlterarMinhaSenha(string SenhaAtual, string NovaSenha) : IRequisicao<Resultado>;
+public sealed record AlterarMinhaSenha(string SenhaAtual, string NovaSenha) : IRequisicao<Resultado>, IRequisicaoAbertaAoCliente;
 
 public sealed class AlterarMinhaSenhaManipulador(
     IContextoDeAcesso contexto,

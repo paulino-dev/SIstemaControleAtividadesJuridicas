@@ -103,6 +103,16 @@ public interface IPendenciasDoUsuario
     Task<PendenciasDoUsuario> ContarAsync(Guid usuarioId, DateTime agoraUtc, CancellationToken ct);
 }
 
+/// <summary>O cliente de um usuário, como a identidade precisa conhecê-lo.</summary>
+public sealed record ClienteDoUsuario(Guid Id, string Nome, bool Ativo);
+
+/// <summary>O que a identidade pede ao cadastro de clientes. Implementada na infraestrutura: Identidade não usa tipos de Cadastros.</summary>
+public interface IClientesDaIdentidade
+{
+    /// <summary>Nulo quando o cliente não existe.</summary>
+    Task<ClienteDoUsuario?> ObterAsync(Guid clienteId, CancellationToken ct);
+}
+
 public interface IHasherDeSenha
 {
     string Gerar(string senha);
