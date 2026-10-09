@@ -75,7 +75,7 @@ else
     {
         <table>
             <thead>
-                <tr><th>Título</th><th>Situação</th><th>Entrega</th><th>Cliente</th><th>Processo</th><th>Responsáveis</th><th>Revisor</th><th></th></tr>
+                <tr><th>Título</th><th>Situação</th><th>Entrega</th><th>Complexidade</th><th>Cliente</th><th>Processo</th><th>Responsáveis</th><th>Revisor</th><th></th></tr>
             </thead>
             <tbody>
                 @foreach (var atividade in _pagina.Itens)
@@ -90,6 +90,7 @@ else
                             }
                         </td>
                         <td>@RotulosDeAtividade.Data(atividade.DataEntrega)</td>
+                        <td>@atividade.Complexidade</td>
                         <td>@atividade.ClienteNome</td>
                         <td>@atividade.ProcessoTitulo</td>
                         <td>@string.Join(", ", atividade.Responsaveis)</td>

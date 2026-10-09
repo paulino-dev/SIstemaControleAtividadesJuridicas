@@ -1,5 +1,7 @@
 using System.Net;
+using System.Text.RegularExpressions;
 using AtividadesJuridicas.Application.Atividades;
+using AtividadesJuridicas.Web.Components.Atividades;
 using AtividadesJuridicas.Domain.Auditoria;
 using AtividadesJuridicas.Infrastructure.Persistencia;
 using Microsoft.EntityFrameworkCore;
@@ -13,6 +15,7 @@ public class AtividadesWebTests(BancoFixture banco) : IAsyncLifetime
     private readonly AplicacaoDeTeste _app = new(banco);
     private Guid _admin;
     private Guid _pedro;
+    private Guid _contestacao;
 
     public async Task InitializeAsync()
     {
@@ -20,14 +23,15 @@ public class AtividadesWebTests(BancoFixture banco) : IAsyncLifetime
         _pedro = await _app.CriarPedroAsync();
 
         var contestacao = await _app.ExecutarAsync(_admin, new SalvarAtividade(
-            null, "Elaborar contestação", "Prazo de 15 dias.", new DateOnly(2020, 1, 15), null, null, null, 1));
+            null, "Elaborar contestação", "Prazo de 15 dias.", new DateOnly(2020, 1, 15), null, null, null, 2));
         contestacao.Sucesso.Should().BeTrue(contestacao.Mensagem);
+        _contestacao = contestacao.Valor;
         var direcionada = await _app.ExecutarAsync(_admin, new DefinirResponsaveisDaAtividade(
             contestacao.Valor, [new ResponsavelEntrada(_pedro, "Redigir a peça")], _admin));
         direcionada.Sucesso.Should().BeTrue(direcionada.Mensagem);
 
         var interno = await _app.ExecutarAsync(_admin, new SalvarAtividade(
-            null, "Recurso interno", "Sem responsáveis.", null, null, null, null, 1));
+            null, "Recurso interno", "Sem responsáveis.", null, null, null, null, 3));
         interno.Sucesso.Should().BeTrue(interno.Mensagem);
     }
 
@@ -95,5 +99,57 @@ public class AtividadesWebTests(BancoFixture banco) : IAsyncLifetime
             sp.GetRequiredService<AppDbContext>().RegistrosAcesso.AsNoTracking().ToListAsync());
         acessos.Should().Contain(a =>
             a.TipoRecurso == "Atividade" && a.Acao == AcaoDeAcesso.Listou && a.UsuarioId == _pedro);
+    }
+
+    // ---- Complexidade ----
+
+    /// <summary>O seletor de complexidade do formulário: do rótulo até o fim do primeiro select depois dele.</summary>
+    private static string SeletorDeComplexidade(string html)
+    {
+        var inicio = Regex.Match(html, @"Complexidade\s*<select");
+        inicio.Success.Should().BeTrue("o formulário deve ter o campo Complexidade");
+        return html[inicio.Index..html.IndexOf("</select>", inicio.Index, StringComparison.Ordinal)];
+    }
+
+    private static List<string> Opcoes(string select, bool soASelecionada = false) =>
+        [.. Regex.Matches(select, soASelecionada
+                ? @"<option[^>]*selected[^>]*>\s*([^<]*?)\s*</option>"
+                : @"<option[^>]*>\s*([^<]*?)\s*</option>")
+            .Select(m => m.Groups[1].Value)];
+
+    [Fact]
+    public async Task Lista_mostra_a_complexidade_de_cada_atividade()
+    {
+        var cliente = await _app.ClienteAutenticadoAsync();
+
+        var html = WebUtility.HtmlDecode(await cliente.GetStringAsync("/atividades"));
+
+        html.Should().MatchRegex(@"<th>\s*Complexidade\s*</th>");
+        html.Should().MatchRegex(@"<td>\s*2\s*</td>").And.MatchRegex(@"<td>\s*3\s*</td>");
+    }
+
+    [Fact]
+    public async Task Formulario_de_atividade_nova_pede_a_complexidade_e_comeca_sem_escolha()
+    {
+        var html = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarAsync<FormularioDeAtividade>(
+            _app, _admin, new() { [nameof(FormularioDeAtividade.AtividadeId)] = null }));
+
+        var select = SeletorDeComplexidade(html);
+        Opcoes(select).Should().Equal("Selecione…", "1", "2", "3");
+        Opcoes(select, soASelecionada: true).Should().Equal("Selecione…");
+    }
+
+    [Fact]
+    public async Task Formulario_de_edicao_abre_com_a_complexidade_da_atividade()
+    {
+        var atual = (await _app.ExecutarAsync(_admin, new ObterAtividade(_contestacao))).Valor!;
+
+        var html = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarAsync<FormularioDeAtividade>(_app, _admin, new()
+        {
+            [nameof(FormularioDeAtividade.AtividadeId)] = _contestacao,
+            [nameof(FormularioDeAtividade.Atual)] = atual,
+        }));
+
+        Opcoes(SeletorDeComplexidade(html), soASelecionada: true).Should().Equal("2");
     }
 }
