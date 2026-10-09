@@ -1,0 +1,91 @@
+@page "/produtores"
+@inject IDespachante Despachante
+
+<PageTitle>Produtores</PageTitle>
+
+<h1>Produtores</h1>
+
+@if (!_carregado)
+{
+    <p>Carregando…</p>
+}
+else if (!_autorizado)
+{
+    <p class="erro">Acesso negado.</p>
+}
+else
+{
+    @if (_produtores.Count == 0)
+    {
+        <p>Nenhum produtor.</p>
+    }
+    else
+    {
+        <table>
+            <thead>
+                <tr><th>Nome</th><th>Perfil</th><th>OAB</th><th>Situação</th><th></th></tr>
+            </thead>
+            <tbody>
+                @foreach (var produtor in _produtores)
+                {
+                    <tr class="@(produtor.Ativo ? null : "inativo")" @key="produtor.Id">
+                        <td>@produtor.Nome</td>
+                        <td>@produtor.PerfilNome</td>
+                        <td>@produtor.NumeroOab</td>
+                        <td>@(produtor.Ativo ? "Ativo" : "Inativo")</td>
+                        <td class="acoes">
+                            <button type="button" class="secundario" @onclick="() => Abrir(produtor)">Acompanhar produtividade</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+
+    @if (_aberto is { } aberto)
+    {
+        @* O aviso de fechar leva o id do painel que o enviou: o de um painel que já não é o aberto é ignorado. *@
+        <PainelDeProdutividade @key="aberto.Id" ProdutorId="aberto.Id" ProdutorNome="@aberto.Nome"
+                               OnAcessoEncerrado="EncerrarAcesso" OnFechar="() => Fechar(aberto.Id)" />
+    }
+}
+
+@code {
+    private bool _carregado;
+    private bool _autorizado;
+    private IReadOnlyList<UsuarioResumo> _produtores = [];
+    private UsuarioResumo? _aberto;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Quem não é da Diretoria nem chega a pedir a lista de usuários: abrir a página não vira acesso negado na auditoria.
+        _autorizado = await Despachante.EnviarAsync(new ObterMeuAcesso()) is { EhDiretoria: true };
+        if (_autorizado)
+        {
+            var resultado = await Despachante.EnviarAsync(new ListarUsuarios());
+            _autorizado = resultado.Sucesso;
+
+            // Produtor é quem tem hoje um perfil de Produção. Os inativos ficam, para a consulta de meses passados.
+            _produtores = [.. (resultado.Valor ?? [])
+                .Where(u => u.TipoPerfil == TipoPerfil.Producao)
+                .OrderBy(u => u.Nome, StringComparer.CurrentCultureIgnoreCase)];
+        }
+
+        _carregado = true;
+    }
+
+    private void Abrir(UsuarioResumo produtor) => _aberto = produtor;
+
+    private void Fechar(Guid idDoPainel)
+    {
+        if (_aberto?.Id == idDoPainel) _aberto = null;
+    }
+
+    /// <summary>Uma resposta de acesso negado encerra a tela: nada do que estava aberto continua visível.</summary>
+    private void EncerrarAcesso()
+    {
+        _autorizado = false;
+        _produtores = [];
+        _aberto = null;
+    }
+}

@@ -1,0 +1,194 @@
+@inject IDespachante Despachante
+@inject FusoDoEscritorio Fuso
+
+@* Todo texto que os testes procuram sai de uma única expressão: texto fixo junto de expressão pode vir separado. *@
+<section class="ficha">
+    <h2>@RotulosDeProdutividade.Titulo(ProdutorNome)</h2>
+
+    <div class="acoes">
+        <label>
+            Mês
+            <select value="@RotulosDeProdutividade.Chave(_mes)" disabled="@_carregando" @onchange="MudarMesAsync">
+                @foreach (var mes in _meses)
+                {
+                    <option value="@RotulosDeProdutividade.Chave(mes)">@RotulosDeProdutividade.Mes(mes)</option>
+                }
+            </select>
+        </label>
+        <button type="button" class="secundario" @onclick="FecharAsync">Fechar</button>
+    </div>
+
+    @if (_erro is not null)
+    {
+        @* Falha na consulta não é "nenhuma atividade": mostra o erro no lugar dos números. *@
+        <p class="erro">@_erro</p>
+        <div class="acoes">
+            <button type="button" class="secundario" disabled="@_carregando" @onclick="TentarDeNovoAsync">Tentar de novo</button>
+        </div>
+    }
+    else if (_produtividade is not { } p)
+    {
+        <p>Carregando…</p>
+    }
+    else
+    {
+        <table>
+            <thead>
+                <tr>
+                    @foreach (var grupo in p.Grupos)
+                    {
+                        <th>@RotulosDeProdutividade.Coluna(grupo.Complexidade)</th>
+                    }
+                    <th>Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    @foreach (var grupo in p.Grupos)
+                    {
+                        <td>@grupo.Total</td>
+                    }
+                    <td>@p.Total</td>
+                </tr>
+            </tbody>
+        </table>
+
+        @foreach (var grupo in p.Grupos)
+        {
+            <h3>@RotulosDeProdutividade.Grupo(grupo)</h3>
+            @if (grupo.Total == 0)
+            {
+                <p>Nenhuma atividade.</p>
+            }
+            else
+            {
+                <table>
+                    <thead><tr><th>Título</th><th>Cliente</th><th>Concluída em</th><th></th></tr></thead>
+                    <tbody>
+                        @foreach (var atividade in grupo.Atividades)
+                        {
+                            <tr @key="atividade.Id">
+                                <td>@atividade.Titulo</td>
+                                <td>@atividade.ClienteNome</td>
+                                <td>@Fuso.Formatar(atividade.ConcluidaEm)</td>
+                                <td class="acoes">
+                                    <button type="button" class="secundario" @onclick="() => Abrir(atividade.Id)">Abrir</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        }
+    }
+</section>
+
+@if (_atividadeAberta is { } id)
+{
+    @* A mesma ficha da tela de atividades. O que mudar nela (uma reabertura, a complexidade) muda os números. *@
+    <FichaDaAtividade @key="id" AtividadeId="id" OnMudou="RecarregarAsync" OnAcessoEncerrado="EncerrarAcessoAsync"
+                      OnFechar="() => FecharFicha(id)" />
+}
+
+@code {
+    [Parameter, EditorRequired] public Guid ProdutorId { get; set; }
+
+    [Parameter, EditorRequired] public string ProdutorNome { get; set; } = string.Empty;
+
+    /// <summary>Avisado quando a consulta responde acesso negado: a página decide o que mostrar.</summary>
+    [Parameter] public EventCallback OnAcessoEncerrado { get; set; }
+
+    [Parameter] public EventCallback OnFechar { get; set; }
+
+    private bool _carregando;
+    private int _geracao;
+    private string? _erro;
+    private DateOnly _mes;
+    private IReadOnlyList<DateOnly> _meses = [];
+    private ProdutividadeDoProdutor? _produtividade;
+    private Guid? _atividadeAberta;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Abre no mês corrente. Os meses anteriores entram no seletor quando a consulta diz desde quando há histórico.
+        _mes = RotulosDeProdutividade.MesDe(Hoje());
+        _meses = [_mes];
+        await CarregarAsync();
+    }
+
+    /// <summary>O dia de hoje no fuso do escritório.</summary>
+    private DateOnly Hoje() => DateOnly.FromDateTime(Fuso.ParaLocal(DateTime.UtcNow));
+
+    private async Task MudarMesAsync(ChangeEventArgs e)
+    {
+        // Só vale um mês que o seletor ofereceu.
+        if (_carregando || !RotulosDeProdutividade.TentarLer(e.Value as string, out var mes) || !_meses.Contains(mes)) return;
+
+        _mes = mes;
+        _atividadeAberta = null;   // a ficha aberta era de uma atividade do mês que saiu da tela
+        await CarregarAsync();
+    }
+
+    private Task TentarDeNovoAsync() => _carregando ? Task.CompletedTask : CarregarAsync();
+
+    /// <summary>A ficha avisou que algo mudou na atividade: os números do mês são consultados de novo.</summary>
+    private Task RecarregarAsync() => CarregarAsync();
+
+    private async Task CarregarAsync()
+    {
+        // Uma resposta que chega depois de outra consulta mais nova é descartada.
+        var geracao = ++_geracao;
+        var mes = _mes;
+        _carregando = true;
+        try
+        {
+            var (deUtc, ateUtc) = RotulosDeProdutividade.Intervalo(Fuso, mes);
+            var resultado = await Despachante.EnviarAsync(new ObterProdutividadeDoProdutor(ProdutorId, deUtc, ateUtc));
+            if (geracao != _geracao) return;
+
+            if (resultado.Erro == TipoErro.AcessoNegado)
+            {
+                await EncerrarAcessoAsync();
+                return;
+            }
+
+            if (resultado.Valor is not { } produtividade)
+            {
+                // Números antigos não ficam na tela depois de uma falha.
+                _produtividade = null;
+                _erro = resultado.Mensagem ?? "Não foi possível consultar a produtividade.";
+                return;
+            }
+
+            _erro = null;
+            _produtividade = produtividade;
+
+            // O seletor vai do mês corrente até o da primeira conclusão; o mês em exibição nunca sai dele.
+            var maisAntigo = produtividade.PrimeiraConclusaoEm is { } primeira
+                ? RotulosDeProdutividade.MesDe(Fuso, primeira)
+                : mes;
+            _meses = RotulosDeProdutividade.Lista(Hoje(), maisAntigo < mes ? maisAntigo : mes);
+        }
+        finally
+        {
+            if (geracao == _geracao) _carregando = false;
+        }
+    }
+
+    private void Abrir(Guid atividadeId) => _atividadeAberta = atividadeId;
+
+    private void FecharFicha(Guid idDaFicha)
+    {
+        if (_atividadeAberta == idDaFicha) _atividadeAberta = null;
+    }
+
+    private async Task EncerrarAcessoAsync()
+    {
+        _produtividade = null;
+        _atividadeAberta = null;
+        _erro = null;
+        await OnAcessoEncerrado.InvokeAsync();
+    }
+
+    private async Task FecharAsync() => await OnFechar.InvokeAsync();
+}
