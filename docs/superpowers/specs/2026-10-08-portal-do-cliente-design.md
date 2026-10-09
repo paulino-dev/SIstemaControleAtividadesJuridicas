@@ -298,7 +298,7 @@ A modelagem de domínio é emendada ao fim de cada fase com as regras fixadas, c
 - Um teste de arquitetura: a camada Web só chega aos casos de uso pelo despachante ou pelo executor. O portão só protege o que passa por ele.
 - A porta que inclui um perfil novo em todos os Documentos Gerais por SQL não confere o tipo do perfil. Hoje o único chamador recusa o tipo Cliente antes; a porta ganha a guarda própria.
 - O aviso de inativação do cliente passa a dizer quantos usuários do portal ficam sem acesso.
-- O cliente que abre uma página interna recebe "não encontrada" com status 200; passa a receber 404.
+- O cliente que abre uma página interna recebe "não encontrada" com status 200. A revisão sugeriu 404; o plano da 8B decidiu manter o 200: ele só revela que a rota existe, e trocar o status depende de como o Blazor trata a resposta no meio da renderização.
 - Se o início do cliente fizer várias consultas, medir o custo do contexto de acesso, que o portão lê uma vez a mais por requisição interna.
 - Limpezas menores apontadas nas revisões de tarefa: asserções mais estritas em dois testes do portal, guarda contra dois envios seguidos na busca de cliente da tela de usuários, e a redação de três trechos da modelagem ("Bloqueio de login", "reativar o cliente devolve o acesso" e o termo "sem ator").
 
