@@ -40,7 +40,7 @@ public class DocumentosDeAtividadeTests(BancoFixture banco) : TesteComBanco(banc
     private async Task<Guid> AtividadeAsync(string titulo, Guid? cliente, params Guid[] responsaveis)
     {
         var criada = await ExecutarAsync(_diana, new SalvarAtividade(
-            null, titulo, "Prazo de 15 dias.", new DateOnly(2090, 6, 15), cliente, null, null));
+            null, titulo, "Prazo de 15 dias.", new DateOnly(2090, 6, 15), cliente, null, null, 1));
         criada.Sucesso.Should().BeTrue(criada.Mensagem);
         if (responsaveis.Length > 0) await DirecionarAsync(criada.Valor, responsaveis);
         return criada.Valor;
@@ -188,7 +188,7 @@ public class DocumentosDeAtividadeTests(BancoFixture banco) : TesteComBanco(banc
         var deOutra = await AnexadoAsync(outraAtividade, "outra.pdf");
 
         var salvo = await ExecutarAsync(_diana, new SalvarAtividade(
-            atividade, "Contestação", "Prazo de 15 dias.", new DateOnly(2090, 6, 15), _jose, null, null));
+            atividade, "Contestação", "Prazo de 15 dias.", new DateOnly(2090, 6, 15), _jose, null, null, 1));
 
         salvo.Sucesso.Should().BeTrue(salvo.Mensagem);
         (await NoBancoAsync(documento)).ClienteId.Should().Be(_jose);
@@ -226,10 +226,10 @@ public class DocumentosDeAtividadeTests(BancoFixture banco) : TesteComBanco(banc
 
         // Ganhar um cliente leva o documento para a ficha dele; perdê-lo, de volta.
         (await ExecutarAsync(_diana, new SalvarAtividade(
-            avulsa, "Avulsa", "Prazo de 15 dias.", new DateOnly(2090, 6, 15), _maria, null, null))).Sucesso.Should().BeTrue();
+            avulsa, "Avulsa", "Prazo de 15 dias.", new DateOnly(2090, 6, 15), _maria, null, null, 1))).Sucesso.Should().BeTrue();
         (await DoClienteAsync(_diana, _maria)).Valor!.Itens.Select(d => d.Id).Should().Equal(anexado.Valor);
         (await ExecutarAsync(_diana, new SalvarAtividade(
-            avulsa, "Avulsa", "Prazo de 15 dias.", new DateOnly(2090, 6, 15), null, null, null))).Sucesso.Should().BeTrue();
+            avulsa, "Avulsa", "Prazo de 15 dias.", new DateOnly(2090, 6, 15), null, null, null, 1))).Sucesso.Should().BeTrue();
         (await NoBancoAsync(anexado.Valor)).ClienteId.Should().BeNull();
     }
 
@@ -317,7 +317,7 @@ public class DocumentosDeAtividadeTests(BancoFixture banco) : TesteComBanco(banc
 
             // Outro escopo troca o cliente enquanto este ainda segura a instância carregada.
             (await ExecutarAsync(_diana, new SalvarAtividade(
-                atividade, "Contestação", "Prazo de 15 dias.", new DateOnly(2090, 6, 15), _jose, null, null)))
+                atividade, "Contestação", "Prazo de 15 dias.", new DateOnly(2090, 6, 15), _jose, null, null, 1)))
                 .Sucesso.Should().BeTrue();
 
             rastreada.ClienteId.Should().Be(_maria, "a instância rastreada continua com o cliente antigo");
@@ -344,7 +344,7 @@ public class DocumentosDeAtividadeTests(BancoFixture banco) : TesteComBanco(banc
         (await NoBancoAsync(fora)).ClienteId.Should().Be(_jose);
 
         var salvo = await ExecutarAsync(_diana, new SalvarAtividade(
-            atividade, "Contestação revisada", "Prazo de 15 dias.", new DateOnly(2090, 6, 15), _maria, null, null));
+            atividade, "Contestação revisada", "Prazo de 15 dias.", new DateOnly(2090, 6, 15), _maria, null, null, 1));
 
         salvo.Sucesso.Should().BeTrue(salvo.Mensagem);
         (await NoBancoAsync(fora)).ClienteId.Should().Be(_maria);
@@ -436,7 +436,7 @@ public class DocumentosDeAtividadeTests(BancoFixture banco) : TesteComBanco(banc
         depois.Versao.Should().Be(antes.Versao);
         depois.Status.Should().Be(antes.Status);
         var salvo = await ExecutarAsync(_diana, new SalvarAtividade(
-            atividade, "Contestação", "Prazo de 15 dias.", new DateOnly(2090, 6, 15), _maria, null, null, antes.Versao));
+            atividade, "Contestação", "Prazo de 15 dias.", new DateOnly(2090, 6, 15), _maria, null, null, 1, antes.Versao));
         salvo.Sucesso.Should().BeTrue(salvo.Mensagem);
     }
 

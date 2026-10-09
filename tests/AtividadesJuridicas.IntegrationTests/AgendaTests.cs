@@ -42,7 +42,7 @@ public class AgendaTests(BancoFixture banco) : TesteComBanco(banco)
             new DadosDoProcessoEntrada(null, "Reclamação trabalhista", _trabalhista, null, null, null, null, null, null),
             [new ClienteDoProcessoEntrada(_maria, PoloProcessual.Ativo)]))).Valor;
         var atividade = await ExecutarAsync(_diana, new SalvarAtividade(
-            null, "Elaborar contestação", "Prazo de 15 dias.", new DateOnly(2090, 6, 20), null, null, null));
+            null, "Elaborar contestação", "Prazo de 15 dias.", new DateOnly(2090, 6, 20), null, null, null, 1));
         atividade.Sucesso.Should().BeTrue(atividade.Mensagem);
         _atividade = atividade.Valor;
         (await ExecutarAsync(_diana, new DefinirResponsaveisDaAtividade(

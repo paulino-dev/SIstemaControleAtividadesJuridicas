@@ -15,7 +15,7 @@ public sealed record FiltroDeAtividades(
 
 public sealed record AtividadeResumo(
     Guid Id, string Titulo, StatusAtividade Status, DateOnly? DataEntrega, bool Atrasada, string? ClienteNome,
-    string? ProcessoTitulo, string? AreaNome, IReadOnlyList<string> Responsaveis, string? RevisorNome);
+    string? ProcessoTitulo, string? AreaNome, IReadOnlyList<string> Responsaveis, string? RevisorNome, int Complexidade);
 
 /// <summary><paramref name="Direcionamento"/> só vem para a Diretoria e para o próprio responsável.</summary>
 public sealed record ResponsavelDetalhe(
@@ -35,7 +35,7 @@ public sealed record AtividadeDetalhe(
     DateTime? ConcluidaEm, Guid? ClienteId, string? ClienteNome, Guid? ProcessoId, string? ProcessoTitulo,
     Guid? AreaAtuacaoId, string? AreaNome, TipoAutor TipoAutor, string? AutorNome, Guid? RevisorId, string? RevisorNome,
     IReadOnlyList<ResponsavelDetalhe> Responsaveis, IReadOnlyList<HistoricoDetalhe> Historico, AcoesDaAtividade Acoes,
-    uint Versao);
+    uint Versao, int Complexidade);
 
 /// <summary>O cliente que a atividade tem agora, lido do banco sem rastreamento.</summary>
 public sealed record ClienteAtualDaAtividade(Guid? ClienteId);

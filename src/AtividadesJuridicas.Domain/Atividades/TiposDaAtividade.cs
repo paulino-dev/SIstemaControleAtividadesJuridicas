@@ -39,7 +39,7 @@ public sealed record PessoaDaAtividade(Guid UsuarioId, TipoPerfil Tipo, bool Ati
 
 public sealed record ResponsavelInformado(PessoaDaAtividade Pessoa, string? Direcionamento);
 
-public sealed record DadosDaAtividade(string Titulo, string Descricao, DateOnly? DataEntrega);
+public sealed record DadosDaAtividade(string Titulo, string Descricao, DateOnly? DataEntrega, int Complexidade);
 
 /// <summary>Cliente, processo e área de uma atividade, já coerentes entre si.</summary>
 public sealed record VinculoDaAtividade

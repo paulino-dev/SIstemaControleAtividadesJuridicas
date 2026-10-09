@@ -419,7 +419,7 @@ public class DocumentosTests(BancoFixture banco) : TesteComBanco(banco)
     public async Task Banco_aceita_documento_de_atividade_sem_cliente()
     {
         var atividade = (await ExecutarAsync(_admin, new SalvarAtividade(
-            null, "Elaborar contestação", "Prazo de 15 dias.", null, null, null, null))).Valor;
+            null, "Elaborar contestação", "Prazo de 15 dias.", null, null, null, null, 1))).Valor;
 
         await InserirDocumentoCruAsync(CategoriaDocumento.DocumentoAtividade, clienteId: null, atividadeId: atividade);
     }

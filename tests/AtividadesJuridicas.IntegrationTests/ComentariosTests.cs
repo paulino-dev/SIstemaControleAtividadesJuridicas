@@ -39,7 +39,7 @@ public class ComentariosTests(BancoFixture banco) : TesteComBanco(banco)
     private async Task<Guid> DirecionadaAsync()
     {
         var criada = await ExecutarAsync(_diana, new SalvarAtividade(
-            null, "Elaborar contestação", "Prazo de 15 dias.", Entrega, null, null, null));
+            null, "Elaborar contestação", "Prazo de 15 dias.", Entrega, null, null, null, 1));
         criada.Sucesso.Should().BeTrue(criada.Mensagem);
         await DirecionarAsync(criada.Valor, (_pedro, "Redigir"), (_paula, "Juntar documentos"));
         return criada.Valor;
@@ -107,7 +107,7 @@ public class ComentariosTests(BancoFixture banco) : TesteComBanco(banco)
 
         (await VersaoAsync(id)).Should().Be(antes);
         var editada = await ExecutarAsync(_diana, new SalvarAtividade(
-            id, "Contestação revisada", "Prazo de 15 dias.", Entrega, null, null, null, antes));
+            id, "Contestação revisada", "Prazo de 15 dias.", Entrega, null, null, null, 1, antes));
         editada.Sucesso.Should().BeTrue(editada.Mensagem);
     }
 

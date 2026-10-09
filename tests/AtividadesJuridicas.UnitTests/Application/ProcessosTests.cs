@@ -297,7 +297,7 @@ public class ProcessosTests
     private Atividade AtividadeDe(Cliente cliente, Processo? processo)
     {
         var atividade = Atividade.Criar(
-            new DadosDaAtividade("Elaborar contestação", "Prazo de 15 dias.", new DateOnly(2026, 10, 20)),
+            new DadosDaAtividade("Elaborar contestação", "Prazo de 15 dias.", new DateOnly(2026, 10, 20), 1),
             VinculoDaAtividade.Criar(cliente.Id, processo, null), TipoAutor.Usuario, _c.Diretor.Id,
             new DateTime(2026, 10, 9, 12, 0, 0, DateTimeKind.Utc));
         _c.Atividades.Itens.Add(atividade);

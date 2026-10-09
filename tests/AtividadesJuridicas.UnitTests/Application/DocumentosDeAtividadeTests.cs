@@ -38,7 +38,7 @@ public class DocumentosDeAtividadeTests
     {
         var criada = await new SalvarAtividadeManipulador(
                 _c.Como(Diana), _c.Atividades, _c.Clientes, _c.Processos, _c.Areas, _c.Relogio, _c.Unidade, _c.Documentos)
-            .ManipularAsync(new SalvarAtividade(null, titulo, "Prazo de 15 dias.", new DateOnly(2026, 10, 20), cliente, null, null), default);
+            .ManipularAsync(new SalvarAtividade(null, titulo, "Prazo de 15 dias.", new DateOnly(2026, 10, 20), cliente, null, null, 1), default);
         criada.Sucesso.Should().BeTrue(criada.Mensagem);
         if (responsaveis.Length > 0) await DirecionarAsync(criada.Valor, responsaveis);
         return criada.Valor;
@@ -75,7 +75,7 @@ public class DocumentosDeAtividadeTests
     private Task<Resultado<Guid>> Salvar(Guid atividade, Guid? cliente) =>
         new SalvarAtividadeManipulador(
                 _c.Como(Diana), _c.Atividades, _c.Clientes, _c.Processos, _c.Areas, _c.Relogio, _c.Unidade, _c.Documentos)
-            .ManipularAsync(new SalvarAtividade(atividade, "Elaborar contestação", "Prazo de 15 dias.", new DateOnly(2026, 10, 20), cliente, null, null), default);
+            .ManipularAsync(new SalvarAtividade(atividade, "Elaborar contestação", "Prazo de 15 dias.", new DateOnly(2026, 10, 20), cliente, null, null, 1), default);
 
     private async Task<Guid> EnviadoAsync(Guid atividade, string arquivo = "peticao.pdf")
     {

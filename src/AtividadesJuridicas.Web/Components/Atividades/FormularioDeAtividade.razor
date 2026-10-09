@@ -27,6 +27,16 @@
             <div class="grade">
                 <label>Título <input type="text" maxlength="@Atividade.TamanhoMaximoTitulo" @bind="_titulo" /></label>
                 <label>Data de entrega <input type="date" @bind="_dataEntrega" /></label>
+                <label>
+                    Complexidade
+                    <select @bind="_complexidade">
+                        <option value="0">Selecione…</option>
+                        @for (var nivel = Atividade.ComplexidadeMinima; nivel <= Atividade.ComplexidadeMaxima; nivel++)
+                        {
+                            <option value="@nivel">@nivel</option>
+                        }
+                    </select>
+                </label>
             </div>
             <label>Descrição <textarea rows="3" maxlength="@Atividade.TamanhoMaximoDescricao" @bind="_descricao"></textarea></label>
 
@@ -158,6 +168,9 @@
     private string _titulo = string.Empty;
     private string _descricao = string.Empty;
     private DateOnly? _dataEntrega;
+
+    // 0 é "ainda não escolhida": o caso de uso recusa e a mensagem dele aparece no formulário.
+    private int _complexidade;
     private Guid _clienteId;
     private string? _clienteNome;
     private Guid _areaId;
@@ -193,6 +206,7 @@
             _titulo = atual.Titulo;
             _descricao = atual.Descricao;
             _dataEntrega = atual.DataEntrega;
+            _complexidade = atual.Complexidade;
             _clienteId = atual.ClienteId ?? Guid.Empty;
             _clienteNome = atual.ClienteNome;
             _areaId = atual.AreaAtuacaoId ?? Guid.Empty;
@@ -327,6 +341,7 @@
                 _processo?.Id,
                 // Com processo, a área é a do processo (o caso de uso a ignora); sem processo, a escolhida.
                 _processo is not null || _areaId == Guid.Empty ? null : _areaId,
+                _complexidade,
                 // Na edição, a versão com que o formulário foi aberto; atividade nova não tem.
                 AtividadeId is null ? null : Atual?.Versao));
             if (await EncerradoAsync(resultado)) return;

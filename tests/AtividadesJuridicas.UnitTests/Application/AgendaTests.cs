@@ -86,7 +86,7 @@ public class AgendaTests
     {
         var criada = await new SalvarAtividadeManipulador(
                 _c.Como(Diana), _c.Atividades, _c.Clientes, _c.Processos, _c.Areas, _c.Relogio, _c.Unidade, _c.Documentos)
-            .ManipularAsync(new SalvarAtividade(null, "Contestação sigilosa", "Texto.", new DateOnly(2026, 10, 30), null, null, null), default);
+            .ManipularAsync(new SalvarAtividade(null, "Contestação sigilosa", "Texto.", new DateOnly(2026, 10, 30), null, null, null, 1), default);
         criada.Sucesso.Should().BeTrue(criada.Mensagem);
         var definido = await new DefinirResponsaveisDaAtividadeManipulador(
                 _c.Como(Diana), _c.Atividades, _c.Usuarios, _c.Perfis, _c.Relogio, _c.Unidade, _c.Auditoria)
@@ -319,7 +319,7 @@ public class AgendaTests
     {
         var daoutra = await new SalvarAtividadeManipulador(
                 _c.Como(Diana), _c.Atividades, _c.Clientes, _c.Processos, _c.Areas, _c.Relogio, _c.Unidade, _c.Documentos)
-            .ManipularAsync(new SalvarAtividade(null, "Da Diana", "Texto.", null, null, null, null), default);
+            .ManipularAsync(new SalvarAtividade(null, "Da Diana", "Texto.", null, null, null, null, 1), default);
         var doPedro = await AtividadeDoPedroAsync();
 
         static Task Recusa(Resultado<EventoSalvo> resultado, string mensagem)
@@ -666,7 +666,7 @@ public class AgendaTests
         var doPedro = await AtividadeDoPedroAsync();
         var daDiana = (await new SalvarAtividadeManipulador(
                 _c.Como(Diana), _c.Atividades, _c.Clientes, _c.Processos, _c.Areas, _c.Relogio, _c.Unidade, _c.Documentos)
-            .ManipularAsync(new SalvarAtividade(null, "Só da Diana", "Texto.", null, null, null, null), default)).Valor;
+            .ManipularAsync(new SalvarAtividade(null, "Só da Diana", "Texto.", null, null, null, null, 1), default)).Valor;
         var id = (await Salvar(_pedro, atividade: doPedro, participantes: [_pedro])).Valor!.Id;
         (await new DefinirResponsaveisDaAtividadeManipulador(
                 _c.Como(Diana), _c.Atividades, _c.Usuarios, _c.Perfis, _c.Relogio, _c.Unidade, _c.Auditoria)
@@ -779,7 +779,7 @@ public class AgendaTests
         var doPedro = await AtividadeDoPedroAsync();
         var daDiana = (await new SalvarAtividadeManipulador(
                 _c.Como(Diana), _c.Atividades, _c.Clientes, _c.Processos, _c.Areas, _c.Relogio, _c.Unidade, _c.Documentos)
-            .ManipularAsync(new SalvarAtividade(null, "Só da Diana", "Texto.", null, null, null, null), default)).Valor;
+            .ManipularAsync(new SalvarAtividade(null, "Só da Diana", "Texto.", null, null, null, null, 1), default)).Valor;
         var comExcluida = (await Salvar(Diana, atividade: doPedro, participantes: [_pedro])).Valor!.Id;
         var comOculta = (await Salvar(Diana, atividade: daDiana, participantes: [_pedro])).Valor!.Id;
         (await Obter(Diana, comExcluida)).Valor!.AtividadeExcluida.Should().BeFalse();

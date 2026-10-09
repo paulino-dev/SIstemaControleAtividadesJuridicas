@@ -20,8 +20,8 @@ public class PropriedadesAuditadasTests
             ["AreaAtuacao"] = ["Ativo", "Nome"],
             ["Atividade"] =
             [
-                "AreaAtuacaoId", "AutorId", "ClienteId", "ConcluidaEm", "DataEntrega", "Descricao", "ProcessoId",
-                "RevisorId", "Status", "TipoAutor", "Titulo",
+                "AreaAtuacaoId", "AutorId", "ClienteId", "Complexidade", "ConcluidaEm", "DataEntrega", "Descricao",
+                "ProcessoId", "RevisorId", "Status", "TipoAutor", "Titulo",
             ],
             ["AtividadeComentario"] = ["AtividadeId", "DataHora", "Texto", "UsuarioId"],
             ["AtividadeHistoricoStatus"] = ["AtividadeId", "DataHora", "Motivo", "Ordem", "StatusAnterior", "StatusNovo", "UsuarioId"],

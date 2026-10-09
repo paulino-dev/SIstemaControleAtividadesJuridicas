@@ -14,7 +14,7 @@ namespace AtividadesJuridicas.Application.Atividades;
 /// </summary>
 public sealed record SalvarAtividade(
     Guid? Id, string Titulo, string Descricao, DateOnly? DataEntrega, Guid? ClienteId, Guid? ProcessoId, Guid? AreaAtuacaoId,
-    uint? VersaoEsperada = null)
+    int Complexidade, uint? VersaoEsperada = null)
     : IRequisicao<Resultado<Guid>>;
 
 public sealed class SalvarAtividadeManipulador(
@@ -66,7 +66,8 @@ public sealed class SalvarAtividadeManipulador(
 
         try
         {
-            var dados = new DadosDaAtividade(requisicao.Titulo, requisicao.Descricao, requisicao.DataEntrega);
+            var dados = new DadosDaAtividade(
+                requisicao.Titulo, requisicao.Descricao, requisicao.DataEntrega, requisicao.Complexidade);
             var vinculo = VinculoDaAtividade.Criar(requisicao.ClienteId, processo, requisicao.AreaAtuacaoId);
 
             if (existente is null)

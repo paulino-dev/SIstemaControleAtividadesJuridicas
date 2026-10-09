@@ -39,9 +39,11 @@ public class AtividadesTests
     private Usuario Diana => _c.Diretor;
 
     private Task<Resultado<Guid>> Salvar(Usuario? ator, Guid? id = null, string titulo = "Elaborar contestação",
-        DateOnly? entrega = null, bool semEntrega = false, Guid? cliente = null, Guid? processo = null, Guid? area = null) =>
+        DateOnly? entrega = null, bool semEntrega = false, Guid? cliente = null, Guid? processo = null, Guid? area = null,
+        int complexidade = 1) =>
         new SalvarAtividadeManipulador(_c.Como(ator), _c.Atividades, _c.Clientes, _c.Processos, _c.Areas, _c.Relogio, _c.Unidade, _c.Documentos)
-            .ManipularAsync(new SalvarAtividade(id, titulo, "Prazo de 15 dias.", semEntrega ? null : entrega ?? Entrega, cliente, processo, area), default);
+            .ManipularAsync(new SalvarAtividade(
+                id, titulo, "Prazo de 15 dias.", semEntrega ? null : entrega ?? Entrega, cliente, processo, area, complexidade), default);
 
     private Task<Resultado> Definir(Usuario? ator, Guid id, Guid? revisor, params (Usuario Usuario, string? Direcionamento)[] responsaveis) =>
         new DefinirResponsaveisDaAtividadeManipulador(_c.Como(ator), _c.Atividades, _c.Usuarios, _c.Perfis, _c.Relogio, _c.Unidade, _c.Auditoria)
@@ -353,9 +355,9 @@ public class AtividadesTests
         var manipulador = new SalvarAtividadeManipulador(_c.Como(Diana), _c.Atividades, _c.Clientes, _c.Processos, _c.Areas, _c.Relogio, _c.Unidade, _c.Documentos);
 
         var velha = await manipulador.ManipularAsync(
-            new SalvarAtividade(id, "Outro título", "Outra descrição", Entrega, null, null, null, VersaoEsperada: 1u), default);
+            new SalvarAtividade(id, "Outro título", "Outra descrição", Entrega, null, null, null, 1, VersaoEsperada: 1u), default);
         var atual = await manipulador.ManipularAsync(
-            new SalvarAtividade(id, "Outro título", "Outra descrição", Entrega, null, null, null, VersaoEsperada: 0u), default);
+            new SalvarAtividade(id, "Outro título", "Outra descrição", Entrega, null, null, null, 1, VersaoEsperada: 0u), default);
 
         velha.Erro.Should().Be(TipoErro.Conflito);
         velha.Mensagem.Should().Be(Alterada);
@@ -370,7 +372,7 @@ public class AtividadesTests
         var id = await CriadaAsync();
 
         var resultado = await new SalvarAtividadeManipulador(_c.Como(Diana), _c.Atividades, _c.Clientes, _c.Processos, _c.Areas, _c.Relogio, _c.Unidade, _c.Documentos)
-            .ManipularAsync(new SalvarAtividade(id, "", "x", null, null, null, null, VersaoEsperada: 1u), default);
+            .ManipularAsync(new SalvarAtividade(id, "", "x", null, null, null, null, 1, VersaoEsperada: 1u), default);
 
         resultado.Erro.Should().Be(TipoErro.Conflito);
     }
@@ -654,5 +656,43 @@ public class AtividadesTests
         consulta.Acao.Should().Be(AcaoDeAcesso.Listou);
         consulta.RecursoId.Should().BeNull();
         consulta.Detalhe.Should().Contain("contestação").And.Contain("\"Pagina\":2");
+    }
+
+    // ---- Complexidade ----
+
+    [Fact]
+    public async Task Salvar_grava_a_complexidade_e_obter_e_listar_a_trazem()
+    {
+        var id = (await Salvar(Diana, complexidade: 3)).Valor;
+
+        NoRepositorio(id).Complexidade.Should().Be(3);
+        (await Obter(Diana, id)).Valor!.Complexidade.Should().Be(3);
+        (await Listar(Diana)).Valor!.Itens.Single().Complexidade.Should().Be(3);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(4)]
+    public async Task Salvar_sem_complexidade_valida_e_recusado_e_nada_e_gravado(int complexidade)
+    {
+        var resultado = await Salvar(Diana, complexidade: complexidade);
+
+        resultado.Erro.Should().Be(TipoErro.Validacao);
+        resultado.Mensagem.Should().Be("A complexidade deve ser 1, 2 ou 3.");
+        _c.Atividades.Itens.Should().BeEmpty();
+        _c.Unidade.Salvamentos.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Editar_troca_a_complexidade_inclusive_de_atividade_concluida()
+    {
+        var id = await FeitaAsync();
+        (await Aprovar(Diana, id)).Sucesso.Should().BeTrue();
+
+        var editada = await Salvar(Diana, id: id, complexidade: 2);
+
+        editada.Sucesso.Should().BeTrue(editada.Mensagem);
+        NoRepositorio(id).Complexidade.Should().Be(2);
+        NoRepositorio(id).Status.Should().Be(StatusAtividade.Concluida);
     }
 }

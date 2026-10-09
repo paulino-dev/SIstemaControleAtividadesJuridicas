@@ -51,7 +51,7 @@ public class ProcessosEAtividadesTests(BancoFixture banco) : TesteComBanco(banco
     private async Task<Guid> AtividadeAsync(Guid cliente, Guid processo)
     {
         var criada = await ExecutarAsync(_diana, new SalvarAtividade(
-            null, "Elaborar contestação", "Prazo de 15 dias.", Entrega, cliente, processo, null));
+            null, "Elaborar contestação", "Prazo de 15 dias.", Entrega, cliente, processo, null, 1));
         criada.Sucesso.Should().BeTrue(criada.Mensagem);
         return criada.Valor;
     }

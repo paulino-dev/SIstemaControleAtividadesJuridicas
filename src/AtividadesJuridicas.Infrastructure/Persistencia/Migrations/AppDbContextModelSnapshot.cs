@@ -208,6 +208,10 @@ namespace AtividadesJuridicas.Infrastructure.Persistencia.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("cliente_id");
 
+                    b.Property<int>("Complexidade")
+                        .HasColumnType("integer")
+                        .HasColumnName("complexidade");
+
                     b.Property<DateTime?>("ConcluidaEm")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("concluida_em");

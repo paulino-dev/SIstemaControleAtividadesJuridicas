@@ -180,7 +180,7 @@ public class DocumentosWebTests(BancoFixture banco) : IAsyncLifetime
         var paula = paulaCriada.Valor;
 
         var atividade = await _app.ExecutarAsync(_admin, new SalvarAtividade(
-            null, "Contestação", "Prazo de 15 dias.", new DateOnly(2090, 6, 15), _maria, null, null));
+            null, "Contestação", "Prazo de 15 dias.", new DateOnly(2090, 6, 15), _maria, null, null, 1));
         atividade.Sucesso.Should().BeTrue(atividade.Mensagem);
         (await _app.ExecutarAsync(_admin, new DefinirResponsaveisDaAtividade(
             atividade.Valor, [new ResponsavelEntrada(_pedro, "Redigir")], _admin))).Sucesso.Should().BeTrue();

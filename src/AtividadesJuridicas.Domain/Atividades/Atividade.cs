@@ -6,6 +6,9 @@ public sealed class Atividade : Entidade
 {
     public const int TamanhoMaximoTitulo = 200;
     public const int TamanhoMaximoDescricao = 10000;
+    public const int ComplexidadeMinima = 1;
+    public const int ComplexidadeMaxima = 3;
+    public const string ComplexidadeInvalida = "A complexidade deve ser 1, 2 ou 3.";
 
     public const string SoORevisor = "Somente o revisor da atividade pode aprová-la ou devolvê-la.";
     public const string RevisorTravado =
@@ -31,6 +34,9 @@ public sealed class Atividade : Entidade
 
     /// <summary>Obrigatória a partir de Direcionada.</summary>
     public DateOnly? DataEntrega { get; private set; }
+
+    /// <summary>Nível de dificuldade: de <see cref="ComplexidadeMinima"/> a <see cref="ComplexidadeMaxima"/>.</summary>
+    public int Complexidade { get; private set; }
 
     public StatusAtividade Status { get; private set; }
 
@@ -333,6 +339,7 @@ public sealed class Atividade : Entidade
         Titulo = dados.Titulo.Trim();
         Descricao = dados.Descricao.Trim();
         DataEntrega = dados.DataEntrega;
+        Complexidade = dados.Complexidade;
         ClienteId = vinculo.ClienteId;
         ProcessoId = vinculo.ProcessoId;
         AreaAtuacaoId = vinculo.AreaAtuacaoId;
@@ -349,6 +356,8 @@ public sealed class Atividade : Entidade
             throw new ExcecaoDeDominio("A descrição da atividade é obrigatória.");
         if (dados.Descricao.Trim().Length > TamanhoMaximoDescricao)
             throw new ExcecaoDeDominio($"A descrição da atividade deve ter até {TamanhoMaximoDescricao} caracteres.");
+        if (dados.Complexidade is < ComplexidadeMinima or > ComplexidadeMaxima)
+            throw new ExcecaoDeDominio(ComplexidadeInvalida);
         if (status != StatusAtividade.Criada && dados.DataEntrega is null)
             throw new ExcecaoDeDominio("A data de entrega é obrigatória depois que a atividade é direcionada.");
     }

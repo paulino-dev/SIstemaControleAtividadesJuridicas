@@ -17,8 +17,9 @@ public class AtividadeTests
     private readonly PessoaDaAtividade _paula = new(Guid.CreateVersion7(), TipoPerfil.Producao, true);
     private readonly PessoaDaAtividade _ester = new(Guid.CreateVersion7(), TipoPerfil.Producao, true);
 
-    private static DadosDaAtividade Dados(string titulo = "Elaborar contestação", DateOnly? entrega = null, bool semEntrega = false) =>
-        new(titulo, "Prazo de 15 dias.", semEntrega ? null : entrega ?? Entrega);
+    private static DadosDaAtividade Dados(
+        string titulo = "Elaborar contestação", DateOnly? entrega = null, bool semEntrega = false, int complexidade = 1) =>
+        new(titulo, "Prazo de 15 dias.", semEntrega ? null : entrega ?? Entrega, complexidade);
 
     private Atividade Nova(bool semEntrega = false) =>
         Atividade.Criar(Dados(semEntrega: semEntrega), VinculoDaAtividade.Avulsa, TipoAutor.Usuario, _diana.UsuarioId, T0);
@@ -105,7 +106,7 @@ public class AtividadeTests
     [InlineData("Título", "  ", "A descrição da atividade é obrigatória.")]
     public void Titulo_e_descricao_sao_obrigatorios(string titulo, string descricao, string mensagem)
     {
-        var acao = () => Atividade.Criar(new DadosDaAtividade(titulo, descricao, null), VinculoDaAtividade.Avulsa, TipoAutor.Usuario, _diana.UsuarioId, T0);
+        var acao = () => Atividade.Criar(new DadosDaAtividade(titulo, descricao, null, 1), VinculoDaAtividade.Avulsa, TipoAutor.Usuario, _diana.UsuarioId, T0);
 
         acao.Should().Throw<ExcecaoDeDominio>().WithMessage(mensagem);
     }
@@ -113,9 +114,9 @@ public class AtividadeTests
     [Fact]
     public void Titulo_e_descricao_tem_limite_e_sao_aparados()
     {
-        var longoDemais = () => Atividade.Criar(new DadosDaAtividade(new string('a', 201), "d", null), VinculoDaAtividade.Avulsa, TipoAutor.Usuario, _diana.UsuarioId, T0);
-        var descricaoLonga = () => Atividade.Criar(new DadosDaAtividade("t", new string('a', 10001), null), VinculoDaAtividade.Avulsa, TipoAutor.Usuario, _diana.UsuarioId, T0);
-        var aparada = Atividade.Criar(new DadosDaAtividade("  Petição  ", "  Texto  ", null), VinculoDaAtividade.Avulsa, TipoAutor.Usuario, _diana.UsuarioId, T0);
+        var longoDemais = () => Atividade.Criar(new DadosDaAtividade(new string('a', 201), "d", null, 1), VinculoDaAtividade.Avulsa, TipoAutor.Usuario, _diana.UsuarioId, T0);
+        var descricaoLonga = () => Atividade.Criar(new DadosDaAtividade("t", new string('a', 10001), null, 1), VinculoDaAtividade.Avulsa, TipoAutor.Usuario, _diana.UsuarioId, T0);
+        var aparada = Atividade.Criar(new DadosDaAtividade("  Petição  ", "  Texto  ", null, 1), VinculoDaAtividade.Avulsa, TipoAutor.Usuario, _diana.UsuarioId, T0);
 
         longoDemais.Should().Throw<ExcecaoDeDominio>().WithMessage("O título da atividade deve ter até 200 caracteres.");
         descricaoLonga.Should().Throw<ExcecaoDeDominio>().WithMessage("A descrição da atividade deve ter até 10000 caracteres.");
@@ -1264,5 +1265,48 @@ public class AtividadeTests
         atividade.Status.Should().Be(StatusAtividade.Concluida);
         atividade.ConcluidaEm.Should().Be(concluidaEm);
         atividade.Historico.Should().HaveCount(4);
+    }
+
+    // ---- Complexidade ----
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    public void Complexidade_de_1_a_3_e_aceita_na_criacao(int complexidade)
+    {
+        var atividade = Atividade.Criar(
+            Dados(complexidade: complexidade), VinculoDaAtividade.Avulsa, TipoAutor.Usuario, _diana.UsuarioId, T0);
+
+        atividade.Complexidade.Should().Be(complexidade);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(4)]
+    [InlineData(-1)]
+    public void Complexidade_fora_de_1_a_3_e_recusada_na_criacao_e_na_edicao(int complexidade)
+    {
+        var criar = () => Atividade.Criar(
+            Dados(complexidade: complexidade), VinculoDaAtividade.Avulsa, TipoAutor.Usuario, _diana.UsuarioId, T0);
+        var existente = Nova();
+        var alterar = () => existente.Alterar(Dados(complexidade: complexidade), VinculoDaAtividade.Avulsa);
+
+        criar.Should().Throw<ExcecaoDeDominio>().WithMessage("A complexidade deve ser 1, 2 ou 3.");
+        alterar.Should().Throw<ExcecaoDeDominio>().WithMessage("A complexidade deve ser 1, 2 ou 3.");
+        existente.Complexidade.Should().Be(1);
+    }
+
+    [Fact]
+    public void Complexidade_pode_ser_alterada_depois_de_concluida_sem_mexer_no_status()
+    {
+        var atividade = Concluida();
+        var concluidaEm = atividade.ConcluidaEm;
+
+        atividade.Alterar(Dados(complexidade: 3), VinculoDaAtividade.Avulsa);
+
+        atividade.Complexidade.Should().Be(3);
+        atividade.Status.Should().Be(StatusAtividade.Concluida);
+        atividade.ConcluidaEm.Should().Be(concluidaEm);
     }
 }

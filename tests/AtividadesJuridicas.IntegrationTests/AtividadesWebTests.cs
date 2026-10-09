@@ -20,14 +20,14 @@ public class AtividadesWebTests(BancoFixture banco) : IAsyncLifetime
         _pedro = await _app.CriarPedroAsync();
 
         var contestacao = await _app.ExecutarAsync(_admin, new SalvarAtividade(
-            null, "Elaborar contestação", "Prazo de 15 dias.", new DateOnly(2020, 1, 15), null, null, null));
+            null, "Elaborar contestação", "Prazo de 15 dias.", new DateOnly(2020, 1, 15), null, null, null, 1));
         contestacao.Sucesso.Should().BeTrue(contestacao.Mensagem);
         var direcionada = await _app.ExecutarAsync(_admin, new DefinirResponsaveisDaAtividade(
             contestacao.Valor, [new ResponsavelEntrada(_pedro, "Redigir a peça")], _admin));
         direcionada.Sucesso.Should().BeTrue(direcionada.Mensagem);
 
         var interno = await _app.ExecutarAsync(_admin, new SalvarAtividade(
-            null, "Recurso interno", "Sem responsáveis.", null, null, null, null));
+            null, "Recurso interno", "Sem responsáveis.", null, null, null, null, 1));
         interno.Sucesso.Should().BeTrue(interno.Mensagem);
     }
 

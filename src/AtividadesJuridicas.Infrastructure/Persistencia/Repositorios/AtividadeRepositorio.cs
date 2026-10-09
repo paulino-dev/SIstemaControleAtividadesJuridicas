@@ -71,7 +71,7 @@ public sealed class AtividadeRepositorio(AppDbContext db) : IAtividadeRepositori
             Nome(clientes, a.ClienteId), Nome(processos, a.ProcessoId), Nome(areas, a.AreaAtuacaoId),
             [.. a.Responsaveis.Select(r => Nome(usuarios, r.UsuarioId) ?? string.Empty)
                 .Order(StringComparer.CurrentCultureIgnoreCase)],
-            Nome(usuarios, a.RevisorId))).ToList();
+            Nome(usuarios, a.RevisorId), a.Complexidade)).ToList();
 
         return new Pagina<AtividadeResumo>(itens, total, pagina, tamanho);
     }

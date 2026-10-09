@@ -34,7 +34,7 @@ public class PendenciasEAuditoriaPorRegistroTests(BancoFixture banco) : TesteCom
 
     private async Task<Guid> CriarAtividadeAsync(string titulo)
     {
-        var criada = await ExecutarAsync(_diana, new SalvarAtividade(null, titulo, "Descrição.", Entrega, null, null, null));
+        var criada = await ExecutarAsync(_diana, new SalvarAtividade(null, titulo, "Descrição.", Entrega, null, null, null, 1));
         criada.Sucesso.Should().BeTrue(criada.Mensagem);
         return criada.Valor;
     }

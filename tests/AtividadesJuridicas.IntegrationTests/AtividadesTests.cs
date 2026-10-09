@@ -49,10 +49,11 @@ public class AtividadesTests(BancoFixture banco) : TesteComBanco(banco)
     }
 
     private async Task<Guid> CriarAsync(
-        string titulo = "Elaborar contestação", DateOnly? entrega = null, Guid? cliente = null, Guid? processo = null)
+        string titulo = "Elaborar contestação", DateOnly? entrega = null, Guid? cliente = null, Guid? processo = null,
+        int complexidade = 1)
     {
         var criada = await ExecutarAsync(_diana, new SalvarAtividade(
-            null, titulo, "Prazo de 15 dias.", entrega ?? Entrega, cliente, processo, null));
+            null, titulo, "Prazo de 15 dias.", entrega ?? Entrega, cliente, processo, null, complexidade));
         criada.Sucesso.Should().BeTrue(criada.Mensagem);
         return criada.Valor;
     }
@@ -261,7 +262,7 @@ public class AtividadesTests(BancoFixture banco) : TesteComBanco(banco)
         for (var i = 1; i <= 20; i++)
             datadas.Add(await CriarAsync($"Tarefa {i:00}", new DateOnly(2090, 1, 1).AddDays(i),
                 cliente: i == 1 ? _maria : null, processo: i == 1 ? _processo : null));
-        var semData = (await ExecutarAsync(_diana, new SalvarAtividade(null, "Sem data", "Sem prazo.", null, null, null, null))).Valor;
+        var semData = (await ExecutarAsync(_diana, new SalvarAtividade(null, "Sem data", "Sem prazo.", null, null, null, null, 1))).Valor;
         await DirecionarAsync(datadas[1], _diana, (_pedro, null));
 
         var primeira = (await ExecutarAsync(_diana, new ListarAtividades())).Valor!;
@@ -403,7 +404,7 @@ public class AtividadesTests(BancoFixture banco) : TesteComBanco(banco)
     {
         var id = await DirecionadaAsync();
 
-        var criar = await ExecutarAsync(_pedro, new SalvarAtividade(null, "Minha", "Texto.", Entrega, null, null, null));
+        var criar = await ExecutarAsync(_pedro, new SalvarAtividade(null, "Minha", "Texto.", Entrega, null, null, null, 1));
         var direcionar = await ExecutarAsync(_pedro, new DefinirResponsaveisDaAtividade(
             id, [new ResponsavelEntrada(_pedro, "tudo comigo")], _diana));
 
@@ -435,9 +436,10 @@ public class AtividadesTests(BancoFixture banco) : TesteComBanco(banco)
 
     private static JsonElement DadosDe(RegistroAuditoria registro) => JsonDocument.Parse(registro.Dados!).RootElement;
 
-    private Task<Resultado<Guid>> EditarAsync(Guid id, string titulo, DateOnly? entrega = null, uint? versao = null) =>
+    private Task<Resultado<Guid>> EditarAsync(
+        Guid id, string titulo, DateOnly? entrega = null, uint? versao = null, int complexidade = 1) =>
         ExecutarAsync(_diana, new SalvarAtividade(
-            id, titulo, "Prazo de 15 dias.", entrega ?? Entrega, null, null, null, versao));
+            id, titulo, "Prazo de 15 dias.", entrega ?? Entrega, null, null, null, complexidade, versao));
 
     [Fact]
     public async Task Editar_grava_no_banco_e_audita_so_o_que_mudou()
@@ -690,6 +692,28 @@ public class AtividadesTests(BancoFixture banco) : TesteComBanco(banco)
         (await IdsAsync(_diana, new ListarAtividades(RevisorId: _davi, ResponsavelId: _ester))).Should().Equal(deOutro);
         (await IdsAsync(_pedro, new ListarAtividades(RevisorId: _davi))).Should().Equal(doDavi);
         (await IdsAsync(_pedro, new ListarAtividades(RevisorId: _diana, ResponsavelId: _ester))).Should().Equal(daDiana);
+    }
+
+    [Fact]
+    public async Task Complexidade_vai_e_volta_do_banco_e_a_alteracao_fica_na_auditoria()
+    {
+        var id = await CriarAsync(complexidade: 2);
+
+        (await ExecutarAsync(_diana, new ObterAtividade(id))).Valor!.Complexidade.Should().Be(2);
+        (await ExecutarAsync(_diana, new ListarAtividades())).Valor!.Itens.Single().Complexidade.Should().Be(2);
+
+        var editada = await EditarAsync(id, "Elaborar contestação", complexidade: 3);
+
+        editada.Sucesso.Should().BeTrue(editada.Mensagem);
+        (await AtividadeNoBancoAsync(id)).Complexidade.Should().Be(3);
+        var auditoria = await AuditoriaAsync();
+        var criacao = auditoria.Single(r => r.Entidade == "Atividade" && r.EntidadeId == id
+            && r.Operacao == OperacaoAuditada.Criacao);
+        DadosDe(criacao).GetProperty("Complexidade").GetInt32().Should().Be(2);
+        var alteracao = auditoria.Single(r => r.Entidade == "Atividade" && r.EntidadeId == id
+            && r.Operacao == OperacaoAuditada.Alteracao);
+        DadosDe(alteracao).GetProperty("Complexidade").GetProperty("de").GetInt32().Should().Be(2);
+        DadosDe(alteracao).GetProperty("Complexidade").GetProperty("para").GetInt32().Should().Be(3);
     }
 
     private sealed class RelogioDeTeste(DateTime agora) : IRelogio

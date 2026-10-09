@@ -356,7 +356,7 @@ public sealed class AtividadeRepositorioFalso(
                 processos.Itens.FirstOrDefault(p => p.Id == a.ProcessoId)?.Titulo,
                 areas.Itens.FirstOrDefault(x => x.Id == a.AreaAtuacaoId)?.Nome,
                 [.. a.Responsaveis.Select(r => Nome(r.UsuarioId) ?? string.Empty).Order()],
-                Nome(a.RevisorId)))],
+                Nome(a.RevisorId), a.Complexidade))],
             todos.Count, pagina, tamanho));
     }
 
