@@ -38,6 +38,10 @@
                     </select>
                 </label>
             </div>
+            @if (_clienteId != Guid.Empty)
+            {
+                <p class="aviso">O título aparece para o cliente no portal.</p>
+            }
             <label>Descrição <textarea rows="3" maxlength="@Atividade.TamanhoMaximoDescricao" @bind="_descricao"></textarea></label>
 
             @if (_processo is { } processo)

@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using AtividadesJuridicas.Application.Atividades;
 using AtividadesJuridicas.Application.Identidade;
 using AtividadesJuridicas.Domain.Auditoria;
 using AtividadesJuridicas.Domain.Identidade;
@@ -86,6 +87,7 @@ public class RotasDoClienteTests
     [InlineData("nao-encontrada")]
     [InlineData("meus-documentos")]
     [InlineData("documentos-comuns")]
+    [InlineData("andamento")]
     public void Rotas_do_portal_sao_permitidas(string caminho) =>
         RotasDoCliente.Permite(caminho).Should().BeTrue();
 
@@ -95,7 +97,13 @@ public class RotasDoClienteTests
     [InlineData("meus-documentos?x=1")]
     [InlineData("meus-documentos#topo")]
     [InlineData("meus%2Ddocumentos")]
-    public void Variantes_do_endereco_de_meus_documentos_valem_nas_duas_funcoes(string caminho)
+    [InlineData("andamento")]
+    [InlineData("andamento/")]
+    [InlineData("Andamento")]
+    [InlineData("andamento?situacao=1")]
+    [InlineData("andamento#topo")]
+    [InlineData("andamen%74o")]
+    public void Variantes_do_endereco_das_paginas_so_do_portal_valem_nas_duas_funcoes(string caminho)
     {
         RotasDoCliente.Exclusiva(caminho).Should().BeTrue();
         RotasDoCliente.Permite(caminho).Should().BeTrue();
@@ -109,9 +117,10 @@ public class RotasDoClienteTests
     }
 
     [Fact]
-    public void So_meus_documentos_e_exclusiva_do_portal()
+    public void So_meus_documentos_e_andamento_sao_exclusivas_do_portal()
     {
         RotasDoCliente.Exclusiva("meus-documentos").Should().BeTrue();
+        RotasDoCliente.Exclusiva("andamento").Should().BeTrue();
         RotasDoCliente.Exclusiva("").Should().BeFalse();
         RotasDoCliente.Exclusiva("minha-senha").Should().BeFalse();
         RotasDoCliente.Exclusiva("documentos-comuns").Should().BeFalse();
@@ -237,6 +246,27 @@ public class RotulosDePerfilTests
         RotulosDePerfil.DoTipo(TipoPerfil.Diretoria).Should().Be("Diretoria");
         RotulosDePerfil.DoTipo(TipoPerfil.Producao).Should().Be("Produção");
         RotulosDePerfil.DoTipo(TipoPerfil.Cliente).Should().Be("Cliente");
+    }
+}
+
+public class RotulosDoAndamentoTests
+{
+    [Fact]
+    public void Cada_situacao_tem_o_seu_rotulo()
+    {
+        RotulosDoAndamento.Da(SituacaoDoAndamento.EmAndamento).Should().Be("Em andamento");
+        RotulosDoAndamento.Da(SituacaoDoAndamento.Concluida).Should().Be("Concluída");
+    }
+}
+
+public class TextosDoClienteTests
+{
+    [Fact]
+    public void Aviso_de_inativacao_conta_os_usuarios_do_portal()
+    {
+        TextosDoCliente.Inativado(0).Should().Be("Cliente inativado.");
+        TextosDoCliente.Inativado(1).Should().Be("Cliente inativado. 1 usuário do portal ficou sem acesso.");
+        TextosDoCliente.Inativado(3).Should().Be("Cliente inativado. 3 usuários do portal ficaram sem acesso.");
     }
 }
 

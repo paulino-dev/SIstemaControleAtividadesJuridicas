@@ -285,20 +285,30 @@ else
 
     private async Task BuscarClientesAsync()
     {
-        _erroDoCliente = null;
-        var resultado = await Despachante.EnviarAsync(new ListarClientes(_buscaDeCliente));
-        if (resultado.Erro == TipoErro.AcessoNegado)
+        // Dois Enter seguidos não disparam duas consultas.
+        if (_emAndamento) return;
+        _emAndamento = true;
+        try
         {
-            _autorizado = false;
-            return;
-        }
+            _erroDoCliente = null;
+            var resultado = await Despachante.EnviarAsync(new ListarClientes(_buscaDeCliente));
+            if (resultado.Erro == TipoErro.AcessoNegado)
+            {
+                _autorizado = false;
+                return;
+            }
 
-        var itens = resultado.Valor?.Itens ?? [];
-        _clientesEncontrados = itens;
-        // Os avisos valem só para uma busca que deu certo; uma falha mostra o erro no lugar deles.
-        _nenhumCliente = resultado.Sucesso && itens.Count == 0;
-        _clientesTruncados = resultado.Sucesso && resultado.Valor!.Total > itens.Count;
-        if (!resultado.Sucesso) _erroDoCliente = resultado.Mensagem ?? "Não foi possível consultar os clientes.";
+            var itens = resultado.Valor?.Itens ?? [];
+            _clientesEncontrados = itens;
+            // Os avisos valem só para uma busca que deu certo; uma falha mostra o erro no lugar deles.
+            _nenhumCliente = resultado.Sucesso && itens.Count == 0;
+            _clientesTruncados = resultado.Sucesso && resultado.Valor!.Total > itens.Count;
+            if (!resultado.Sucesso) _erroDoCliente = resultado.Mensagem ?? "Não foi possível consultar os clientes.";
+        }
+        finally
+        {
+            _emAndamento = false;
+        }
     }
 
     private void EscolherCliente(ClienteResumo cliente)

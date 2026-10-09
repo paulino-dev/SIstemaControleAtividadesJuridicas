@@ -3,13 +3,12 @@ namespace AtividadesJuridicas.Web.Infra;
 /// <summary>As páginas que um usuário de perfil Cliente pode abrir. Fechado por padrão: página nova é interna.</summary>
 public static class RotasDoCliente
 {
-    // A Tarefa 5 acrescenta "andamento" às duas listas.
     private static readonly HashSet<string> Abertas =
-        new(StringComparer.OrdinalIgnoreCase) { "", "minha-senha", "nao-encontrada", "meus-documentos", "documentos-comuns" };
+        new(StringComparer.OrdinalIgnoreCase) { "", "minha-senha", "nao-encontrada", "andamento", "meus-documentos", "documentos-comuns" };
 
     // Só do portal: não são montadas para quem não é cliente. Documentos comuns fica de fora, porque a Diretoria usa.
     private static readonly HashSet<string> SoDoPortal =
-        new(StringComparer.OrdinalIgnoreCase) { "meus-documentos" };
+        new(StringComparer.OrdinalIgnoreCase) { "andamento", "meus-documentos" };
 
     /// <summary><paramref name="caminhoRelativo"/>: o endereço sem a base, como em <c>NavigationManager.ToBaseRelativePath</c>.</summary>
     public static bool Permite(string caminhoRelativo) => Abertas.Contains(Normalizar(caminhoRelativo));

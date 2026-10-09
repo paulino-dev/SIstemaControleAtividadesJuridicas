@@ -7,6 +7,7 @@ using AtividadesJuridicas.Application.Auditoria;
 using AtividadesJuridicas.Application.Cadastros;
 using AtividadesJuridicas.Application.Documentos;
 using AtividadesJuridicas.Application.Identidade;
+using AtividadesJuridicas.Domain.Cadastros;
 using AtividadesJuridicas.Domain.Documentos;
 using AtividadesJuridicas.Domain.Identidade;
 using AtividadesJuridicas.Infrastructure.Persistencia;
@@ -159,8 +160,124 @@ public class PortalDoClienteWebTests(BancoFixture banco) : IAsyncLifetime
         // Lista exata: um item de menu novo fora do bloco da equipe apareceria aqui e quebraria o teste.
         var menu = Regex.Match(html, "<nav[^>]*>.*?</nav>", RegexOptions.Singleline).Value;
         Regex.Matches(menu, "href=\"([^\"]*)\"").Select(m => m.Groups[1].Value)
-            .Should().Equal("/", "/meus-documentos", "/documentos-comuns", "/minha-senha");
+            .Should().Equal("/", "/andamento", "/meus-documentos", "/documentos-comuns", "/minha-senha");
         html.Should().NotContain("Seu perfil é de");
+    }
+
+    private const string Cnj = "1234567-85.2024.8.02.0001";
+    private const string Direcionamento = "Direcionamento reservado da equipe";
+
+    /// <summary>
+    /// O andamento da Maria, pelos casos de uso: uma atividade em andamento com processo, uma em andamento sem
+    /// processo (direcionada ao Pedro) e uma concluída pelo fluxo real.
+    /// </summary>
+    private async Task<Guid> CriarAndamentoDaMariaAsync()
+    {
+        var pedro = await _app.CriarPedroAsync();
+        var area = await _app.ExecutarAsync(_admin, new SalvarAreaAtuacao(null, "Trabalhista"));
+        area.Sucesso.Should().BeTrue(area.Mensagem);
+        var processo = await _app.ExecutarAsync(_admin, new SalvarProcesso(
+            null, new DadosDoProcessoEntrada(Cnj, "Reclamação trabalhista", area.Valor, null, null, null, null, null, null),
+            [new ClienteDoProcessoEntrada(_maria, PoloProcessual.Ativo)]));
+        processo.Sucesso.Should().BeTrue(processo.Mensagem);
+
+        await CriarAtividadeAsync("Contestação trabalhista", "Descrição da contestação.", processo.Valor);
+        var semProcesso = await CriarAtividadeAsync("Parecer sem processo", "Descrição do parecer.", null);
+        var concluida = await CriarAtividadeAsync("Recurso protocolado", "Descrição do recurso.", null);
+
+        foreach (var id in new[] { semProcesso, concluida })
+        {
+            var definido = await _app.ExecutarAsync(_admin, new DefinirResponsaveisDaAtividade(
+                id, [new ResponsavelEntrada(pedro, Direcionamento)], _admin));
+            definido.Sucesso.Should().BeTrue(definido.Mensagem);
+        }
+
+        (await _app.ExecutarAsync(pedro, new ConcluirMinhaParte(concluida))).Sucesso.Should().BeTrue();
+        var aprovada = await _app.ExecutarAsync(_admin, new AprovarAtividade(concluida));
+        aprovada.Sucesso.Should().BeTrue(aprovada.Mensagem);
+        return pedro;
+    }
+
+    private async Task<Guid> CriarAtividadeAsync(string titulo, string descricao, Guid? processo)
+    {
+        var criada = await _app.ExecutarAsync(_admin, new SalvarAtividade(
+            null, titulo, descricao, new DateOnly(2090, 6, 15), _maria, processo, null, 1));
+        criada.Sucesso.Should().BeTrue(criada.Mensagem);
+        return criada.Valor;
+    }
+
+    [Fact]
+    public async Task Cliente_ve_o_andamento_com_os_totais_e_a_situacao()
+    {
+        await CriarAndamentoDaMariaAsync();
+        var cliente = await DaCarlaAsync();
+
+        var html = Decodificado(await cliente.GetStringAsync("/andamento"));
+
+        html.Should().Contain("Contestação trabalhista").And.Contain("Parecer sem processo").And.Contain("Recurso protocolado")
+            .And.Contain("Trabalhista").And.Contain(Cnj)
+            .And.Contain("<td>Em andamento</td>").And.Contain("<td>Concluída</td>")
+            .And.Contain("<dt>Em andamento</dt><dd>2</dd>").And.Contain("<dt>Concluídas</dt><dd>1</dd>");
+        html.Should().NotContain("Descrição da contestação.").And.NotContain("Descrição do parecer.")
+            .And.NotContain("Descrição do recurso.").And.NotContain("Pedro").And.NotContain(Direcionamento)
+            .And.NotContain("Carregando").And.NotContain("Página não encontrada").And.NotContain("Nenhuma atividade.");
+    }
+
+    [Fact]
+    public async Task Cliente_sem_atividades_ve_zeros_e_nenhuma_atividade()
+    {
+        await CriarAndamentoDaMariaAsync();
+        var jose = (await _app.ExecutarAsync(_admin, new SalvarClientePessoaFisica(
+            null, new DadosDoClienteEntrada("José Souza", null, null, new EnderecoEntrada(), null), "111.444.777-35", null, null))).Valor;
+        await _app.EmEscopoAsync(_admin, sp =>
+            UsuariosDeClienteDeTeste.GravarAsync(sp, jose, "José Usuário", "jose@x.com"));
+        var cliente = await _app.ClienteAutenticadoAsync("jose@x.com", UsuariosDeClienteDeTeste.SenhaDaCarla);
+
+        var html = Decodificado(await cliente.GetStringAsync("/andamento"));
+
+        Regex.Matches(html, "<dd>0</dd>").Should().HaveCount(2);
+        html.Should().Contain("<dt>Em andamento</dt><dd>0</dd>").And.Contain("<dt>Concluídas</dt><dd>0</dd>")
+            .And.Contain("Nenhuma atividade.");
+        html.Should().NotContain("Contestação trabalhista").And.NotContain("Carregando");
+    }
+
+    [Fact]
+    public async Task Inicio_do_cliente_mostra_os_totais_e_os_atalhos()
+    {
+        await CriarAndamentoDaMariaAsync();
+        var cliente = await DaCarlaAsync();
+
+        var html = Decodificado(await cliente.GetStringAsync("/"));
+
+        var corpo = Regex.Match(html, "<main[^>]*>.*?</main>", RegexOptions.Singleline).Value;
+        corpo.Should().Contain("<dt>Em andamento</dt><dd>2</dd>").And.Contain("<dt>Concluídas</dt><dd>1</dd>");
+        Regex.Matches(corpo, "href=\"([^\"]*)\"").Select(m => m.Groups[1].Value)
+            .Should().Equal("/andamento", "/meus-documentos", "/documentos-comuns", "/minha-senha");
+        corpo.Should().Contain("Carla Cliente").And.NotContain("Carregando").And.NotContain("Contestação trabalhista");
+    }
+
+    [Fact]
+    public async Task Equipe_em_andamento_ve_nao_encontrada_sem_consultar()
+    {
+        await CriarAndamentoDaMariaAsync();
+        var admin = await _app.ClienteAutenticadoAsync();
+        var pedro = await _app.ClienteAutenticadoAsync(AplicacaoDeTeste.EmailDoPedro, AplicacaoDeTeste.SenhaDoPedro);
+        var negadosAntes = (await _app.EventosAsync(EventosDeSeguranca.AcessoNegado)).Count;
+        var consultasAntes = await _app.EmEscopoAsync(null, sp =>
+            sp.GetRequiredService<AppDbContext>().RegistrosAcesso.AsNoTracking().CountAsync(r => r.TipoRecurso == "Atividade"));
+
+        foreach (var equipe in new[] { admin, pedro })
+        {
+            var html = Decodificado(await equipe.GetStringAsync("/andamento"));
+
+            html.Should().Contain("Página não encontrada").And.NotContain("Contestação trabalhista")
+                .And.NotContain("<dt>Em andamento</dt>").And.NotContain("Carregando");
+        }
+
+        (await _app.EventosAsync(EventosDeSeguranca.AcessoNegado)).Should().HaveCount(negadosAntes);
+        (await _app.EmEscopoAsync(null, sp =>
+            sp.GetRequiredService<AppDbContext>().RegistrosAcesso.AsNoTracking().CountAsync(r => r.TipoRecurso == "Atividade")))
+            .Should().Be(consultasAntes);
     }
 
     [Theory]

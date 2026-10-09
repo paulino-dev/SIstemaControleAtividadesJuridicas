@@ -467,8 +467,29 @@ else
         await CarregarAsync(_pagina.Numero);
         if (_ator is null || (_falhou && resultado.Sucesso)) return;
 
-        Avisar(resultado.Sucesso ? (cliente.Ativo ? "Cliente inativado." : "Cliente ativado.") : resultado.Mensagem,
-            falhou: !resultado.Sucesso);
+        var mensagem = resultado.Mensagem;
+        if (resultado.Sucesso)
+        {
+            mensagem = "Cliente ativado.";
+            if (cliente.Ativo)
+            {
+                mensagem = await AvisoDeInativacaoAsync(cliente.Id);
+                if (_ator is null) return;
+            }
+        }
+
+        Avisar(mensagem, falhou: !resultado.Sucesso);
+    }
+
+    // Inativar o cliente tira o acesso dos usuários dele: o aviso diz quantos usuários ativos ficaram sem o portal.
+    // Se a contagem não puder ser consultada, o aviso é o de sempre; a inativação já deu certo.
+    private async Task<string?> AvisoDeInativacaoAsync(Guid clienteId)
+    {
+        var usuarios = await Despachante.EnviarAsync(new ListarUsuariosDoCliente(clienteId));
+        if (AcessoEncerrado(usuarios)) return null;
+
+        var ativos = usuarios.Sucesso && usuarios.Valor is { } lista ? lista.Count(u => u.Ativo) : 0;
+        return TextosDoCliente.Inativado(ativos);
     }
 
     private void Avisar(string? mensagem, bool falhou)

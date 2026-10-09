@@ -1,0 +1,159 @@
+@page "/andamento"
+@inject IDespachante Despachante
+@inject FusoDoEscritorio Fuso
+
+<PageTitle>Andamento</PageTitle>
+
+<h1>Andamento</h1>
+
+@if (_encerrado)
+{
+    <p class="erro">Seu acesso foi encerrado. Entre novamente.</p>
+}
+else
+{
+    @if (_totais is { } totais)
+    {
+        <TotaisDoAndamento EmAndamento="totais.EmAndamento" Concluidas="totais.Concluidas" />
+    }
+
+    <div class="filtros formulario">
+        <label>
+            Situação
+            <select value="@ValorDaSituacao" @onchange="MudarSituacaoAsync">
+                <option value="">Todas</option>
+                <option value="@((int)SituacaoDoAndamento.EmAndamento)">Em andamento</option>
+                <option value="@((int)SituacaoDoAndamento.Concluida)">Concluídas</option>
+            </select>
+        </label>
+    </div>
+
+    @if (_erro is not null)
+    {
+        <p class="erro">@_erro</p>
+        <div class="acoes">
+            <button type="button" class="secundario" @onclick="TentarDeNovoAsync">Tentar de novo</button>
+        </div>
+    }
+    else if (_pagina is not { } pagina)
+    {
+        <p>Carregando…</p>
+    }
+    else if (pagina.Itens.Count == 0)
+    {
+        <p>Nenhuma atividade.</p>
+    }
+    else
+    {
+        <table>
+            <thead>
+                <tr><th>Título</th><th>Área</th><th>Processo</th><th>Situação</th><th>Concluída em</th></tr>
+            </thead>
+            <tbody>
+                @* A linha do andamento não tem Id (o cliente não precisa dele): o índice na página é a chave. *@
+                @for (var indice = 0; indice < pagina.Itens.Count; indice++)
+                {
+                    var atividade = pagina.Itens[indice];
+                    <tr @key="indice">
+                        <td>@atividade.Titulo</td>
+                        <td>@atividade.AreaNome</td>
+                        <td>@atividade.Processo</td>
+                        <td>@RotulosDoAndamento.Da(atividade.Situacao)</td>
+                        <td>@(atividade.ConcluidaEm is { } concluidaEm ? Fuso.Formatar(concluidaEm) : "")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+
+        @if (pagina.TotalDePaginas > 1)
+        {
+            <div class="acoes">
+                <button type="button" class="secundario" disabled="@(pagina.Numero <= 1)" @onclick="() => IrParaAsync(pagina.Numero - 1)">Anterior</button>
+                <span>Página @pagina.Numero de @pagina.TotalDePaginas</span>
+                <button type="button" class="secundario" disabled="@(pagina.Numero >= pagina.TotalDePaginas)" @onclick="() => IrParaAsync(pagina.Numero + 1)">Próxima</button>
+            </div>
+        }
+    }
+}
+
+@code {
+    private readonly record struct Totais(int EmAndamento, int Concluidas);
+
+    private bool _encerrado;
+    private bool _carregando;
+    private int _geracao;
+    private int _paginaPedida = 1;
+    private SituacaoDoAndamento? _situacao;
+    private string? _erro;
+    private Totais? _totais;
+    private Pagina<AtividadeDoAndamento>? _pagina;
+
+    private string ValorDaSituacao => _situacao is { } situacao ? ((int)situacao).ToString() : "";
+
+    protected override Task OnInitializedAsync() => CarregarAsync(1);
+
+    private Task MudarSituacaoAsync(ChangeEventArgs e)
+    {
+        // Só vale uma situação que o seletor ofereceu.
+        SituacaoDoAndamento? situacao = (e.Value as string) switch
+        {
+            "" => null,
+            var valor when int.TryParse(valor, out var numero) && Enum.IsDefined((SituacaoDoAndamento)numero)
+                => (SituacaoDoAndamento)numero,
+            _ => _situacao,
+        };
+
+        _situacao = situacao;
+        return CarregarAsync(1);
+    }
+
+    private Task TentarDeNovoAsync() => _carregando ? Task.CompletedTask : CarregarAsync(_paginaPedida);
+
+    private Task IrParaAsync(int pagina) => _carregando ? Task.CompletedTask : CarregarAsync(pagina);
+
+    private async Task CarregarAsync(int pagina)
+    {
+        // Uma resposta que chega depois de outra consulta mais nova é descartada: a lista na tela
+        // nunca é a de uma situação que já não está escolhida.
+        var geracao = ++_geracao;
+        _carregando = true;
+        _paginaPedida = pagina;
+        _erro = null;
+        _pagina = null;
+        try
+        {
+            var resultado = await Despachante.EnviarAsync(new ListarMeuAndamento(_situacao, pagina));
+            if (geracao != _geracao) return;
+
+            if (resultado.Erro == TipoErro.AcessoNegado)
+            {
+                _totais = null;
+                _encerrado = true;
+                return;
+            }
+
+            if (!resultado.Sucesso || resultado.Valor is not { } andamento)
+            {
+                // Falha na consulta não é "nenhuma atividade": mostra o erro no lugar da lista.
+                _erro = resultado.Mensagem ?? "Não foi possível consultar o andamento.";
+                return;
+            }
+
+            _totais = new Totais(andamento.EmAndamento, andamento.Concluidas);
+            var lista = andamento.Atividades;
+
+            // A página ficou além do fim (atividades mudaram enquanto o cliente paginava): volta à última.
+            if (lista.Itens.Count == 0 && lista.Total > 0 && lista.Numero > lista.TotalDePaginas)
+            {
+                await CarregarAsync(lista.TotalDePaginas);
+                return;
+            }
+
+            _pagina = lista;
+        }
+        finally
+        {
+            if (geracao == _geracao) _carregando = false;
+        }
+    }
+}

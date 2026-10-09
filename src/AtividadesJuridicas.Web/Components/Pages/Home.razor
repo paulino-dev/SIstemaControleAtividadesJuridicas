@@ -18,6 +18,17 @@ else
     @if (_ator.EhCliente)
     {
         <p>Olá, <strong>@_ator.Nome</strong>.</p>
+        @if (_erroDosTotais is not null)
+        {
+            <p class="erro">@_erroDosTotais</p>
+        }
+        else if (_totais is { } totais)
+        {
+            <TotaisDoAndamento EmAndamento="totais.EmAndamento" Concluidas="totais.Concluidas" />
+        }
+        <p><a href="/andamento">Andamento</a></p>
+        <p><a href="/meus-documentos">Meus documentos</a></p>
+        <p><a href="/documentos-comuns">Documentos comuns</a></p>
         <p><a href="/minha-senha">Minha senha</a></p>
     }
     else
@@ -31,10 +42,33 @@ else
 @code {
     private UsuarioAutenticado? _ator;
     private bool _carregado;
+    private (int EmAndamento, int Concluidas)? _totais;
+    private string? _erroDosTotais;
 
     protected override async Task OnInitializedAsync()
     {
         _ator = await Despachante.EnviarAsync(new ObterMeuAcesso());
+        if (_ator is { EhCliente: true }) await CarregarTotaisAsync();
         _carregado = true;
+    }
+
+    // Só os totais interessam aqui; a lista de atividades é da página de andamento.
+    private async Task CarregarTotaisAsync()
+    {
+        var resultado = await Despachante.EnviarAsync(new ListarMeuAndamento());
+        if (resultado.Erro == TipoErro.AcessoNegado)
+        {
+            _ator = null;
+            return;
+        }
+
+        if (!resultado.Sucesso || resultado.Valor is not { } andamento)
+        {
+            // Falha na consulta não é "zero atividades": os atalhos continuam, e o erro ocupa o lugar dos totais.
+            _erroDosTotais = resultado.Mensagem ?? "Não foi possível consultar o andamento.";
+            return;
+        }
+
+        _totais = (andamento.EmAndamento, andamento.Concluidas);
     }
 }

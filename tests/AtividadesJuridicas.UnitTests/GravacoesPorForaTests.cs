@@ -42,7 +42,7 @@ public partial class GravacoesPorForaTests
             "evento de auditoria; caso contrário, grave pelo DbContext");
     }
 
-    private static string RaizDoRepositorio()
+    internal static string RaizDoRepositorio()
     {
         var pasta = new DirectoryInfo(AppContext.BaseDirectory);
         while (pasta is not null && !File.Exists(Path.Combine(pasta.FullName, "Directory.Build.props")))

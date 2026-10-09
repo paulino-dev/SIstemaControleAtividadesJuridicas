@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.RegularExpressions;
 using AtividadesJuridicas.Application.Atividades;
+using AtividadesJuridicas.Application.Cadastros;
 using AtividadesJuridicas.Web.Components.Atividades;
 using AtividadesJuridicas.Domain.Auditoria;
 using AtividadesJuridicas.Infrastructure.Persistencia;
@@ -151,5 +152,36 @@ public class AtividadesWebTests(BancoFixture banco) : IAsyncLifetime
         }));
 
         Opcoes(SeletorDeComplexidade(html), soASelecionada: true).Should().Equal("2");
+    }
+
+    [Fact]
+    public async Task Formulario_de_atividade_lembra_que_o_titulo_aparece_para_o_cliente()
+    {
+        const string lembrete = "O título aparece para o cliente no portal.";
+        var cliente = await _app.ExecutarAsync(_admin, new SalvarClientePessoaFisica(
+            null, new DadosDoClienteEntrada("Maria Silva", null, null, new EnderecoEntrada(), null), "529.982.247-25", null, null));
+        cliente.Sucesso.Should().BeTrue(cliente.Mensagem);
+        var comCliente = await _app.ExecutarAsync(_admin, new SalvarAtividade(
+            null, "Petição da Maria", "Texto.", null, cliente.Valor, null, null, 1));
+        comCliente.Sucesso.Should().BeTrue(comCliente.Mensagem);
+        var atual = (await _app.ExecutarAsync(_admin, new ObterAtividade(comCliente.Valor))).Valor!;
+
+        var daAtividadeComCliente = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarAsync<FormularioDeAtividade>(_app, _admin, new()
+        {
+            [nameof(FormularioDeAtividade.AtividadeId)] = comCliente.Valor,
+            [nameof(FormularioDeAtividade.Atual)] = atual,
+        }));
+        var daAtividadeNova = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarAsync<FormularioDeAtividade>(
+            _app, _admin, new() { [nameof(FormularioDeAtividade.AtividadeId)] = null }));
+        var semCliente = (await _app.ExecutarAsync(_admin, new ObterAtividade(_contestacao))).Valor!;
+        var daAtividadeSemCliente = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarAsync<FormularioDeAtividade>(_app, _admin, new()
+        {
+            [nameof(FormularioDeAtividade.AtividadeId)] = _contestacao,
+            [nameof(FormularioDeAtividade.Atual)] = semCliente,
+        }));
+
+        daAtividadeComCliente.Should().Contain(lembrete);
+        daAtividadeNova.Should().NotContain(lembrete);
+        daAtividadeSemCliente.Should().NotContain(lembrete);
     }
 }
