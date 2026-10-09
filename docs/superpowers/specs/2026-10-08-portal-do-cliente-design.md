@@ -320,7 +320,7 @@ A fase 8B está concluída, e a modelagem de domínio foi emendada com as regras
 - Decisão: o cliente que abre uma página interna recebe "não encontrada" com status 200. A revisão sugeriu 404; o plano da 8B decidiu manter o 200: ele só revela que a rota existe, e trocar o status depende de como o Blazor trata a resposta no meio da renderização.
 - Decisão: o custo do contexto de acesso não foi medido, porque o início do cliente faz uma consulta só (a do andamento).
 - Feito na 8B: a guarda contra dois envios seguidos na busca de cliente da tela de usuários e a redação dos três trechos da modelagem ("Bloqueio de login", "reativar o cliente devolve o acesso" e o termo "sem ator").
-- Feito em parte: as asserções mais estritas nos testes do portal. Num teste de integração (`PortalDoClienteTests`, o que percorre os casos de uso internos como cliente), a consulta do processo passou a usar o processo real da própria cliente, e a conferência de "sem valor" passou a aceitar só nulo ou o padrão de um tipo de valor. O item original falava em dois testes; não há um segundo teste endurecido que se possa apontar, e esse ponto fica registrado como não concluído.
+- Feito na 8B: as asserções mais estritas em dois testes do portal. O teste dos casos de uso internos passou a consultar o processo real da própria cliente e a conferir "sem valor" de forma estrita; o teste de download negado passou a conferir também o contrato da cliente, ao lado do Documento Geral.
 
 ## 12. Fora do escopo
 
