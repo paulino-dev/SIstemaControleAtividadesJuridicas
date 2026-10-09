@@ -128,6 +128,8 @@ Regras:
 - Usuário inativo não faz login e não pode ser incluído como responsável, revisor ou participante. Continua visível no histórico.
 - O sistema sempre mantém ao menos um usuário ativo com perfil de tipo `Diretoria`. Inativar, excluir ou trocar o perfil do último é recusado.
 - Não há cadastro público. Somente a Diretoria cria, edita, inativa usuários e troca perfis.
+- Antes de inativar um usuário, a tela mostra à Diretoria o que ficará parado com ele: partes de atividade pendentes, atividades não concluídas em que ele é o revisor e eventos ainda não terminados em que participa. É um aviso, não um bloqueio: a inativação segue com uma segunda confirmação.
+- O nome dos usuários ativos é visível a qualquer usuário autenticado, para a escolha de participantes de evento. Os demais dados de usuário são da Diretoria.
 
 ### Autenticação e autorização
 
@@ -163,7 +165,7 @@ Regras:
 | Documentos Gerais | Tudo | Leitura conforme lista de acesso |
 | Contratos de Honorários | Tudo | Sem acesso |
 | Atividades | Tudo | Somente as em que é responsável |
-| Agenda | Todos os eventos | Eventos em que participa; cria os seus |
+| Agenda | Todos os eventos | Eventos em que participa ou que criou; cria os seus |
 | Auditoria | Consulta | Sem acesso |
 
 ## 6. Cadastros
@@ -396,8 +398,8 @@ Um responsável de Produção vê os nomes dos demais responsáveis, mas não os
 | `Titulo` | Obrigatório |
 | `Descricao`, `Local` | Opcionais |
 | `Tipo` | Enum: `Audiencia`, `Reuniao`, `Prazo`, `Outro` |
-| `InicioEm` | Obrigatório |
-| `DuracaoEstimadaMinutos` | Obrigatório, maior que zero |
+| `InicioEm` | Obrigatório, entre os anos 2000 e 2100 |
+| `DuracaoEstimadaMinutos` | Obrigatório, de 1 minuto a 7 dias |
 | `ClienteId`, `ProcessoId`, `AtividadeId` | Opcionais e independentes |
 
 `EventoParticipante` (dentro do agregado): `UsuarioId`.
@@ -406,10 +408,14 @@ Regras:
 
 - Um evento tem ao menos um participante; um usuário não se repete no mesmo evento.
 - Com cliente e processo informados, o cliente deve ser um dos clientes do processo.
-- Qualquer usuário cria eventos e é incluído como participante.
-- Produção vê os eventos em que participa. Diretoria vê todos.
-- Editam e excluem o evento quem o criou e a Diretoria.
-- Sobreposição de horário entre eventos de um mesmo participante gera aviso e não impede a gravação.
+- Qualquer usuário cria eventos e é incluído como participante na criação. Depois, pode ser retirado da lista como qualquer outro.
+- Qualquer usuário inclui outros usuários ativos como participantes. Usuário inativo não entra em evento novo, mas permanece no evento em que já estava.
+- Produção vê os eventos em que participa e os que criou. Diretoria vê todos. Para quem não pode ver, o evento responde como inexistente, e a tentativa fica registrada.
+- Editam e excluem o evento quem o criou e a Diretoria. Edição e exclusão enviam a versão vista na tela; se o evento mudou nesse intervalo, a operação é recusada com aviso.
+- O vínculo (cliente, processo, atividade) só é validado quando muda. Um evento cujo cliente saiu do processo ou foi inativado continua editável com o vínculo que tinha.
+- Uma atividade só é vinculada a um evento por quem pode vê-la. Na ficha do evento, o título da atividade aparece só para quem pode vê-la.
+- Sobreposição de horário entre eventos de um mesmo participante gera aviso e não impede a gravação. O aviso traz, por participante, o trecho ocupado dentro do intervalo do evento salvo, sem o título nem os demais participantes do outro evento.
+- A listagem é por período de até 92 dias. A tela mostra uma semana por vez, de segunda a domingo, no fuso do escritório. A Diretoria filtra por participante, inclusive inativos.
 
 ## 10. Auditoria
 
@@ -436,6 +442,7 @@ Registra criação, alteração e exclusão de dados e eventos de segurança.
 - `perfil_incluido_nos_documentos_gerais` registra, no perfil recém-criado, em quantos Documentos Gerais ele foi incluído. Criar, renomear, inativar e reativar um perfil aparecem pelos registros de alteração do próprio perfil, sem evento.
 - `documento_arquivo_ausente` registra a tentativa de baixar um documento cujo arquivo não está no armazenamento.
 - A tentativa de acesso negada, quando vem de uma consulta, leva o recurso ou os filtros pedidos.
+- `evento_participantes_alterados` é anotado no evento da agenda quando os seus participantes mudam numa edição, com os usuários incluídos e removidos, na mesma transação.
 - Eventos de negócio usam a mesma operação `Evento`: `processo_clientes_alterados`, anotado no processo quando seus clientes ou polos mudam, com os vínculos incluídos, removidos e alterados em `Dados`. Os clientes informados na criação do processo aparecem nos registros de criação dos vínculos, não nesse evento.
 - Gravações que não são alteração de negócio (último acesso, contagem de falhas e bloqueio de login) não geram registro de alteração; os eventos de segurança correspondentes cobrem esses fatos.
 - `SenhaHash` e `VersaoDeSessao` nunca aparecem em `Dados`.
@@ -457,13 +464,14 @@ Registra consultas.
 - A consulta interna que a interface faz para saber quem é o usuário atual não gera registro.
 - Em documentos: listar os documentos de um cliente ou de uma atividade registra `Listou`; baixar registra `Baixou`; ver a lista de acesso de um documento registra `Visualizou`.
 - Em atividades: listar registra `Listou`; abrir uma atividade registra `Visualizou`; listar os comentários de uma atividade registra `Listou` (recurso `AtividadeComentario`).
+- Na agenda: listar eventos registra `Listou`; abrir um evento registra `Visualizou`.
 
 ### Regras comuns
 
 - As duas tabelas são somente-inserção: não há edição, exclusão nem exclusão lógica.
-- A consulta é exclusiva da Diretoria, com filtros por período, usuário, entidade ou recurso e operação.
+- A consulta é exclusiva da Diretoria, com filtros por período, usuário, entidade ou recurso e operação. A consulta de alterações filtra também por registro (tudo o que aconteceu com um identificador) e por gravação (tudo o que foi gravado junto, pelo identificador de correlação).
 - Consultar a auditoria gera um `RegistroAcesso`.
-- Os registros são mantidos por tempo indeterminado. As duas tabelas têm índice por data. O particionamento de `RegistroAcesso` por mês fica adiado até que o volume o justifique; a conversão é uma migration, sem impacto no domínio.
+- Os registros são mantidos por tempo indeterminado. As duas tabelas têm índice por data; `RegistroAuditoria` tem também índice por registro e por correlação. O particionamento de `RegistroAcesso` por mês fica adiado até que o volume o justifique; a conversão é uma migration, sem impacto no domínio.
 - `AtividadeHistoricoStatus` não é substituído pela auditoria: ele é dado de negócio, exibido na tela da atividade.
 
 ## 11. Tratamento de erros
