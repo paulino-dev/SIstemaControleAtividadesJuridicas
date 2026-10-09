@@ -1,0 +1,149 @@
+using System.Net;
+using System.Text;
+using System.Text.RegularExpressions;
+using AtividadesJuridicas.Application.Auditoria;
+using AtividadesJuridicas.Application.Cadastros;
+using AtividadesJuridicas.Application.Documentos;
+using AtividadesJuridicas.Infrastructure.Persistencia;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace AtividadesJuridicas.IntegrationTests;
+
+/// <summary>As telas de documentos do portal, no HTML pré-renderizado.</summary>
+[Collection(ColecaoBanco.Nome)]
+public class DocumentosDoPortalWebTests(BancoFixture banco) : IAsyncLifetime
+{
+    private readonly AplicacaoDeTeste _app = new(banco);
+    private Guid _admin, _maria, _carla, _doCliente, _comum;
+
+    public async Task InitializeAsync()
+    {
+        _admin = await _app.IdDoUsuarioAsync(AplicacaoDeTeste.EmailDoAdmin);
+        (_carla, _maria) = await _app.CriarCarlaAsync();
+        await _app.CriarPedroAsync();
+
+        var doCliente = await _app.ExecutarAsync(_admin, new EnviarDocumento(
+            Domain.Documentos.CategoriaDocumento.DocumentoDoCliente, _maria, null, "do-cliente.pdf", "application/pdf", Conteudo()));
+        doCliente.Sucesso.Should().BeTrue(doCliente.Mensagem);
+        _doCliente = doCliente.Valor;
+
+        var comum = await _app.ExecutarAsync(_admin, new EnviarDocumentoComum(
+            null, "comum.pdf", "application/pdf", Conteudo(), true));
+        comum.Sucesso.Should().BeTrue(comum.Mensagem);
+        _comum = comum.Valor;
+    }
+
+    public async Task DisposeAsync() => await _app.DisposeAsync();
+
+    private static MemoryStream Conteudo() => new(Encoding.UTF8.GetBytes("conteúdo"));
+
+    private static string Decodificado(string html) => WebUtility.HtmlDecode(html);
+
+    private Task<HttpClient> DaCarlaAsync() =>
+        _app.ClienteAutenticadoAsync(UsuariosDeClienteDeTeste.EmailDaCarla, UsuariosDeClienteDeTeste.SenhaDaCarla);
+
+    private Task<HttpClient> DoPedroAsync() =>
+        _app.ClienteAutenticadoAsync(AplicacaoDeTeste.EmailDoPedro, AplicacaoDeTeste.SenhaDoPedro);
+
+    private Task<int> RegistrosDeConsultaAsync() => _app.EmEscopoAsync(null, sp =>
+        sp.GetRequiredService<AppDbContext>().RegistrosAcesso.AsNoTracking().CountAsync());
+
+    [Fact]
+    public async Task Diretor_ve_documentos_comuns_com_o_envio_e_sem_o_aviso_aberto()
+    {
+        var admin = await _app.ClienteAutenticadoAsync();
+
+        var html = Decodificado(await admin.GetStringAsync("/documentos-comuns"));
+
+        html.Should().Contain("Documentos comuns").And.Contain("comum.pdf").And.Contain("Enviar documento")
+            .And.Contain("Renomear").And.Contain("Excluir");
+        html.Should().NotContain("Confirmar envio").And.NotContain("Página não encontrada").And.NotContain("Carregando");
+        html.Should().NotContain("do-cliente.pdf");
+    }
+
+    [Fact]
+    public async Task Cliente_ve_documentos_comuns_e_meus_documentos_so_com_download()
+    {
+        var cliente = await DaCarlaAsync();
+
+        foreach (var (endereco, nome, id) in new[]
+                 {
+                     ("/documentos-comuns", "comum.pdf", _comum),
+                     ("/meus-documentos", "do-cliente.pdf", _doCliente),
+                 })
+        {
+            var html = Decodificado(await cliente.GetStringAsync(endereco));
+
+            html.Should().Contain(nome, endereco).And.Contain($"/documentos/{id}/baixar", endereco);
+            html.Should().NotContain("Enviar documento").And.NotContain("Renomear").And.NotContain("Excluir")
+                .And.NotContain("<th>Por</th>").And.NotContain("Diana Diretora").And.NotContain("Carregando")
+                .And.NotContain("Página não encontrada");
+        }
+    }
+
+    [Fact]
+    public async Task Cliente_sem_documentos_ve_nenhum_documento()
+    {
+        var jose = (await _app.ExecutarAsync(_admin, new SalvarClientePessoaFisica(
+            null, new DadosDoClienteEntrada("José Souza", null, null, new EnderecoEntrada(), null), "111.444.777-35", null, null))).Valor;
+        await _app.EmEscopoAsync(_admin, sp =>
+            UsuariosDeClienteDeTeste.GravarAsync(sp, jose, "José Usuário", "jose@x.com"));
+        var cliente = await _app.ClienteAutenticadoAsync("jose@x.com", UsuariosDeClienteDeTeste.SenhaDaCarla);
+
+        var html = Decodificado(await cliente.GetStringAsync("/meus-documentos"));
+
+        html.Should().Contain("Nenhum documento.").And.NotContain("do-cliente.pdf").And.NotContain("Carregando");
+    }
+
+    [Fact]
+    public async Task Producao_em_documentos_comuns_ve_nao_encontrada()
+    {
+        var pedro = await DoPedroAsync();
+        var negadosAntes = (await _app.EventosAsync(EventosDeSeguranca.AcessoNegado)).Count;
+
+        var html = Decodificado(await pedro.GetStringAsync("/documentos-comuns"));
+
+        html.Should().Contain("Página não encontrada").And.NotContain("comum.pdf").And.NotContain("Carregando");
+        (await _app.EventosAsync(EventosDeSeguranca.AcessoNegado)).Should().HaveCount(negadosAntes);
+    }
+
+    [Fact]
+    public async Task Equipe_em_meus_documentos_ve_nao_encontrada_sem_consultar()
+    {
+        var admin = await _app.ClienteAutenticadoAsync();
+        var pedro = await DoPedroAsync();
+        var negadosAntes = (await _app.EventosAsync(EventosDeSeguranca.AcessoNegado)).Count;
+        var consultasAntes = await RegistrosDeConsultaAsync();
+
+        foreach (var equipe in new[] { admin, pedro })
+        {
+            var html = Decodificado(await equipe.GetStringAsync("/meus-documentos"));
+
+            html.Should().Contain("Página não encontrada").And.NotContain("do-cliente.pdf").And.NotContain("Carregando");
+        }
+
+        (await _app.EventosAsync(EventosDeSeguranca.AcessoNegado)).Should().HaveCount(negadosAntes);
+        (await RegistrosDeConsultaAsync()).Should().Be(consultasAntes);
+    }
+
+    [Fact]
+    public async Task Menu_da_diretoria_tem_documentos_comuns_e_o_da_producao_nao()
+    {
+        var admin = await _app.ClienteAutenticadoAsync();
+        var pedro = await DoPedroAsync();
+
+        var daDiretoria = Hrefs(Decodificado(await admin.GetStringAsync("/")));
+        var daProducao = Hrefs(Decodificado(await pedro.GetStringAsync("/")));
+
+        daDiretoria.Should().Contain("/documentos-comuns").And.NotContain("/meus-documentos");
+        daDiretoria.Should().ContainInOrder("/documentos-comuns", "/areas");
+        daProducao.Should().NotContain("/documentos-comuns").And.NotContain("/meus-documentos");
+    }
+
+    private static List<string> Hrefs(string html)
+    {
+        var menu = Regex.Match(html, "<nav[^>]*>.*?</nav>", RegexOptions.Singleline).Value;
+        return Regex.Matches(menu, "href=\"([^\"]*)\"").Select(m => m.Groups[1].Value).ToList();
+    }
+}

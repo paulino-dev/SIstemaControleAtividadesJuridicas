@@ -1,0 +1,47 @@
+@page "/documentos-comuns"
+@inject IDespachante Despachante
+
+<PageTitle>Documentos comuns</PageTitle>
+
+@if (!_carregado)
+{
+    <h1>Documentos comuns</h1>
+    <p>Carregando…</p>
+}
+else if (_ator is null)
+{
+    <h1>Documentos comuns</h1>
+    <p class="erro">Seu acesso foi encerrado. Entre novamente.</p>
+}
+else if (_ator.EhDiretoria)
+{
+    <h1>Documentos comuns</h1>
+    <p>Os arquivos desta área ficam visíveis para todos os clientes do escritório.</p>
+    <DocumentosDoCliente Categoria="CategoriaDocumento.DocumentoComum" Titulo="Documentos comuns"
+                         PodeGerenciar="true" OnAcessoEncerrado="Encerrar" />
+}
+else if (_ator.EhCliente)
+{
+    <h1>Documentos comuns</h1>
+    <DocumentosParaBaixar Titulo="Documentos comuns" Listar="ListarAsync" OnAcessoEncerrado="Encerrar" />
+}
+else
+{
+    <NaoEncontrada />
+}
+
+@code {
+    private bool _carregado;
+    private UsuarioAutenticado? _ator;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _ator = await Despachante.EnviarAsync(new ObterMeuAcesso());
+        _carregado = true;
+    }
+
+    private Task<Resultado<Pagina<DocumentoDoPortal>>> ListarAsync(int pagina) =>
+        Despachante.EnviarAsync(new ListarDocumentosComuns(pagina));
+
+    private void Encerrar() => _ator = null;
+}

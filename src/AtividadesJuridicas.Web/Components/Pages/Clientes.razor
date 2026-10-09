@@ -137,6 +137,9 @@ else
                 <DocumentosDoCliente @key="@($"atividades-{_form.Id}")" ClienteId="_form.Id.Value"
                                      Categoria="CategoriaDocumento.DocumentoAtividade" Titulo="Documentos de Atividades"
                                      PodeGerenciar="true" OnAcessoEncerrado="EncerrarAcesso" />
+                <DocumentosDoCliente @key="@($"do-cliente-{_form.Id}")" ClienteId="_form.Id.Value"
+                                     Categoria="CategoriaDocumento.DocumentoDoCliente" Titulo="Documentos do cliente (visíveis ao cliente)"
+                                     PodeGerenciar="true" OnAcessoEncerrado="EncerrarAcesso" />
             }
         }
     }

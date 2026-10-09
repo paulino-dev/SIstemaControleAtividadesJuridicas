@@ -1,0 +1,24 @@
+@page "/meus-documentos"
+@inject IDespachante Despachante
+
+<PageTitle>Meus documentos</PageTitle>
+
+<h1>Meus documentos</h1>
+
+@if (_encerrado)
+{
+    <p class="erro">Seu acesso foi encerrado. Entre novamente.</p>
+}
+else
+{
+    <DocumentosParaBaixar Titulo="Meus documentos" Listar="ListarAsync" OnAcessoEncerrado="Encerrar" />
+}
+
+@code {
+    private bool _encerrado;
+
+    private Task<Resultado<Pagina<DocumentoDoPortal>>> ListarAsync(int pagina) =>
+        Despachante.EnviarAsync(new ListarMeusDocumentos(pagina));
+
+    private void Encerrar() => _encerrado = true;
+}

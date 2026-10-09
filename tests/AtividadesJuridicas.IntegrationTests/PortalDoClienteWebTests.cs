@@ -159,7 +159,7 @@ public class PortalDoClienteWebTests(BancoFixture banco) : IAsyncLifetime
         // Lista exata: um item de menu novo fora do bloco da equipe apareceria aqui e quebraria o teste.
         var menu = Regex.Match(html, "<nav[^>]*>.*?</nav>", RegexOptions.Singleline).Value;
         Regex.Matches(menu, "href=\"([^\"]*)\"").Select(m => m.Groups[1].Value)
-            .Should().BeEquivalentTo(["/", "/minha-senha"]);
+            .Should().BeEquivalentTo(["/", "/meus-documentos", "/documentos-comuns", "/minha-senha"]);
         html.Should().NotContain("Seu perfil é de");
     }
 

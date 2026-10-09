@@ -1,0 +1,93 @@
+@inject FusoDoEscritorio Fuso
+
+<section class="ficha">
+    <h3>@Titulo</h3>
+
+    @if (!_carregado)
+    {
+        <p>Carregando…</p>
+    }
+    else if (_erroDaLista is not null)
+    {
+        <p class="erro">@_erroDaLista</p>
+        <div class="acoes">
+            <button type="button" class="secundario" @onclick="() => IrParaAsync(_paginaPedida)">Tentar de novo</button>
+        </div>
+    }
+    else if (_pagina.Itens.Count == 0)
+    {
+        <p>Nenhum documento.</p>
+    }
+    else
+    {
+        <table>
+            <thead>
+                <tr><th>Nome</th><th>Tamanho</th><th>Enviado em</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var documento in _pagina.Itens)
+                {
+                    <tr @key="documento.Id">
+                        <td>
+                            @* Link fora da navegação do Blazor: é um download, não uma página. O atributo "download"
+                               é o que impede o roteador do Blazor de interceptar o clique; não o remova. *@
+                            <a href="@($"/documentos/{documento.Id}/baixar")" download data-enhance-nav="false">@documento.Nome</a>
+                        </td>
+                        <td>@TamanhoDeArquivo.Formatar(documento.TamanhoBytes)</td>
+                        <td>@Fuso.Formatar(documento.EnviadoEm)</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+
+        @if (_pagina.TotalDePaginas > 1)
+        {
+            <div class="acoes">
+                <button type="button" class="secundario" disabled="@(_pagina.Numero <= 1)" @onclick="() => IrParaAsync(_pagina.Numero - 1)">Anterior</button>
+                <span>Página @_pagina.Numero de @_pagina.TotalDePaginas</span>
+                <button type="button" class="secundario" disabled="@(_pagina.Numero >= _pagina.TotalDePaginas)" @onclick="() => IrParaAsync(_pagina.Numero + 1)">Próxima</button>
+            </div>
+        }
+    }
+</section>
+
+@code {
+    private static readonly Pagina<DocumentoDoPortal> Vazia = new([], 0, 1, DocumentosOpcoes.TamanhoDaPagina);
+
+    [Parameter, EditorRequired] public string Titulo { get; set; } = string.Empty;
+
+    /// <summary>A consulta de uma página da lista; o componente não sabe de onde vêm os documentos.</summary>
+    [Parameter, EditorRequired] public Func<int, Task<Resultado<Pagina<DocumentoDoPortal>>>> Listar { get; set; } = default!;
+
+    /// <summary>Avisado quando a consulta responde acesso negado: a página decide o que mostrar.</summary>
+    [Parameter] public EventCallback OnAcessoEncerrado { get; set; }
+
+    private bool _carregado;
+    private int _paginaPedida = 1;
+    private string? _erroDaLista;
+    private Pagina<DocumentoDoPortal> _pagina = Vazia;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CarregarAsync(1);
+        _carregado = true;
+    }
+
+    private Task IrParaAsync(int pagina) => CarregarAsync(pagina);
+
+    private async Task CarregarAsync(int pagina)
+    {
+        _paginaPedida = pagina;
+        var resultado = await Listar(pagina);
+        if (resultado.Erro == TipoErro.AcessoNegado)
+        {
+            _pagina = Vazia;
+            await OnAcessoEncerrado.InvokeAsync();
+            return;
+        }
+
+        _pagina = resultado.Valor ?? Vazia;
+        // Falha na consulta não é "nenhum documento": mostra o erro no lugar da lista.
+        _erroDaLista = resultado.Sucesso ? null : resultado.Mensagem ?? "Não foi possível consultar os documentos.";
+    }
+}

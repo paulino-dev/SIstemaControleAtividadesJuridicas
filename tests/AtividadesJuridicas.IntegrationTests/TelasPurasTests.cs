@@ -84,8 +84,20 @@ public class RotasDoClienteTests
     [InlineData("minha-senha?x=1")]
     [InlineData("minha-senha#topo")]
     [InlineData("nao-encontrada")]
+    [InlineData("meus-documentos")]
+    [InlineData("documentos-comuns")]
     public void Rotas_do_portal_sao_permitidas(string caminho) =>
         RotasDoCliente.Permite(caminho).Should().BeTrue();
+
+    [Fact]
+    public void So_meus_documentos_e_exclusiva_do_portal()
+    {
+        RotasDoCliente.Exclusiva("meus-documentos").Should().BeTrue();
+        RotasDoCliente.Exclusiva("").Should().BeFalse();
+        RotasDoCliente.Exclusiva("minha-senha").Should().BeFalse();
+        RotasDoCliente.Exclusiva("documentos-comuns").Should().BeFalse();
+        RotasDoCliente.Exclusiva("clientes").Should().BeFalse();
+    }
 
     [Theory]
     [InlineData("clientes")]
@@ -101,6 +113,69 @@ public class RotasDoClienteTests
     [InlineData("qualquer-coisa")]
     public void Paginas_internas_e_desconhecidas_nao_sao_permitidas(string caminho) =>
         RotasDoCliente.Permite(caminho).Should().BeFalse();
+}
+
+public class EnvioComConfirmacaoTests
+{
+    [Fact]
+    public void Sem_exigencia_o_pedido_ja_envia()
+    {
+        var envio = new EnvioComConfirmacao(exigeConfirmacao: false);
+
+        envio.Pedir().Should().BeTrue();
+        envio.AguardandoConfirmacao.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Com_exigencia_o_pedido_so_mostra_o_aviso_e_a_confirmacao_envia_uma_vez()
+    {
+        var envio = new EnvioComConfirmacao(exigeConfirmacao: true);
+
+        envio.Pedir().Should().BeFalse();
+        envio.AguardandoConfirmacao.Should().BeTrue();
+        envio.Confirmar().Should().BeTrue();
+        envio.AguardandoConfirmacao.Should().BeFalse();
+        envio.Confirmar().Should().BeFalse();
+    }
+
+    [Fact]
+    public void Cancelar_fecha_o_aviso_e_o_proximo_pedido_avisa_de_novo()
+    {
+        var envio = new EnvioComConfirmacao(exigeConfirmacao: true);
+        envio.Pedir();
+
+        envio.Cancelar();
+
+        envio.AguardandoConfirmacao.Should().BeFalse();
+        envio.Confirmar().Should().BeFalse();
+        envio.Pedir().Should().BeFalse();
+        envio.AguardandoConfirmacao.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Confirmar_sem_aviso_na_tela_nao_envia()
+    {
+        var envio = new EnvioComConfirmacao(exigeConfirmacao: true);
+
+        envio.Confirmar().Should().BeFalse();
+    }
+}
+
+public class TamanhoDeArquivoTests
+{
+    [Fact]
+    public void Formata_bytes_quilobytes_e_megabytes()
+    {
+        TamanhoDeArquivo.Formatar(0).Should().Be("0 B");
+        TamanhoDeArquivo.Formatar(1023).Should().Be("1023 B");
+        TamanhoDeArquivo.Formatar(1024).Should().Be("1 KB");
+        TamanhoDeArquivo.Formatar(1536).Should().Be($"1{Decimal}5 KB");
+        TamanhoDeArquivo.Formatar(1024 * 1024).Should().Be("1 MB");
+        TamanhoDeArquivo.Formatar(5 * 1024 * 1024 + 512 * 1024).Should().Be($"5{Decimal}5 MB");
+    }
+
+    // A formatação segue a cultura da tela, como a função que ela substituiu.
+    private static string Decimal => System.Globalization.CultureInfo.CurrentCulture.NumberFormat.NumberDecimalSeparator;
 }
 
 public class IdentidadeHttpTests

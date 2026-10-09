@@ -42,7 +42,7 @@
                                é o que impede o roteador do Blazor de interceptar o clique; não o remova. *@
                             <a href="@($"/documentos/{documento.Id}/baixar")" download data-enhance-nav="false">@documento.Nome</a>
                         </td>
-                        <td>@Tamanho(documento.TamanhoBytes)</td>
+                        <td>@TamanhoDeArquivo.Formatar(documento.TamanhoBytes)</td>
                         <td>@Fuso.Formatar(documento.EnviadoEm)</td>
                         <td>@documento.EnviadoPor</td>
                         @if (DeAtividades)
@@ -136,6 +136,16 @@
                 <strong>Enviar documento</strong>
                 <label>Arquivo (até @(DocumentosOpcoes.TamanhoMaximoBytes / UmMegabyte) MB) <InputFile @key="_versaoDoCampo" OnChange="Escolher" /></label>
                 <label>Nome (opcional) <input type="text" @bind="_nomeDoEnvio" /></label>
+                @if (_confirmacao.AguardandoConfirmacao)
+                {
+                    <div class="confirmacao" role="alertdialog" aria-label="Confirmar envio">
+                        <p>Documentos desta área ficam visíveis para todos os clientes do escritório. Não envie aqui arquivos de um cliente específico.</p>
+                        <div class="acoes">
+                            <button type="button" disabled="@_enviando" @onclick="ConfirmarEnvioAsync">Confirmar envio</button>
+                            <button type="button" class="secundario" disabled="@_enviando" @onclick="CancelarEnvio">Cancelar</button>
+                        </div>
+                    </div>
+                }
                 <div class="acoes">
                     <button type="button" disabled="@(_arquivo is null || _enviando)" @onclick="EnviarAsync">
                         @(_enviando ? "Enviando…" : "Enviar")
@@ -149,9 +159,10 @@
 @code {
     private const long UmMegabyte = 1024 * 1024;
 
-    private static readonly Pagina<DocumentoResumo> Vazia = new([], 0, 1, DocumentosOpcoes.TamanhoDaPagina);
+    private static readonly Pagina<Linha> Vazia = new([], 0, 1, DocumentosOpcoes.TamanhoDaPagina);
 
-    [Parameter, EditorRequired] public Guid ClienteId { get; set; }
+    /// <summary>Nulo só na categoria Documento comum, que não é de cliente nenhum.</summary>
+    [Parameter] public Guid? ClienteId { get; set; }
     [Parameter, EditorRequired] public CategoriaDocumento Categoria { get; set; }
     [Parameter, EditorRequired] public string Titulo { get; set; } = string.Empty;
     [Parameter] public bool PodeGerenciar { get; set; }
@@ -169,14 +180,18 @@
     private int _paginaPedida = 1;
     private string? _mensagem;
     private string? _erroDaLista;
-    private Pagina<DocumentoResumo> _pagina = Vazia;
+    private Pagina<Linha> _pagina = Vazia;
+
+    // Documento comum fica visível a todos os clientes: o envio pede confirmação. Criado em OnInitializedAsync,
+    // quando a categoria já chegou.
+    private EnvioComConfirmacao _confirmacao = new(exigeConfirmacao: false);
 
     private IBrowserFile? _arquivo;
     private string? _nomeDoEnvio;
     private int _versaoDoCampo;
 
     private Guid? _excluindo;
-    private DocumentoResumo? _renomeando;
+    private Linha? _renomeando;
     private string _novoNome = string.Empty;
 
     private AcessoDoDocumento? _acesso;
@@ -188,8 +203,13 @@
     /// <summary>Uma linha do editor de acesso: tudo o que consta na lista aparece aqui, com caixa de seleção.</summary>
     private sealed record OpcaoDeAcesso(Guid Id, string Rotulo);
 
+    /// <summary>Uma linha da tabela, venha a lista de documentos do cliente ou de documentos comuns.</summary>
+    private sealed record Linha(
+        Guid Id, string Nome, long TamanhoBytes, DateTime EnviadoEm, string? EnviadoPor, string? AtividadeTitulo);
+
     protected override async Task OnInitializedAsync()
     {
+        _confirmacao = new EnvioComConfirmacao(exigeConfirmacao: Categoria == CategoriaDocumento.DocumentoComum);
         await CarregarAsync(1);
         _carregado = true;
     }
@@ -205,10 +225,31 @@
     {
         _paginaPedida = pagina;
         _excluindo = null;
-        var resultado = await Despachante.EnviarAsync(new ListarDocumentosDoCliente(ClienteId, Categoria, pagina));
+        Resultado resultado;
+        Pagina<Linha>? lida;
+        if (Categoria == CategoriaDocumento.DocumentoComum)
+        {
+            var comuns = await Despachante.EnviarAsync(new ListarDocumentosComuns(pagina));
+            resultado = comuns;
+            // Documento comum não tem atividade: o título fica nulo. O autor vem preenchido para a Diretoria.
+            lida = comuns.Valor is { } p
+                ? new Pagina<Linha>([.. p.Itens.Select(d => new Linha(d.Id, d.Nome, d.TamanhoBytes, d.EnviadoEm, d.EnviadoPor, null))],
+                    p.Total, p.Numero, p.Tamanho)
+                : null;
+        }
+        else
+        {
+            var doCliente = await Despachante.EnviarAsync(new ListarDocumentosDoCliente(ClienteId!.Value, Categoria, pagina));
+            resultado = doCliente;
+            lida = doCliente.Valor is { } p
+                ? new Pagina<Linha>([.. p.Itens.Select(d => new Linha(d.Id, d.Nome, d.TamanhoBytes, d.EnviadoEm, d.EnviadoPor, d.AtividadeTitulo))],
+                    p.Total, p.Numero, p.Tamanho)
+                : null;
+        }
+
         if (await EncerradoAsync(resultado)) return;
 
-        _pagina = resultado.Valor ?? Vazia;
+        _pagina = lida ?? Vazia;
         // Falha na consulta não é "nenhum documento": mostra o erro no lugar da lista.
         _erroDaLista = resultado.Sucesso ? null : resultado.Mensagem ?? "Não foi possível consultar os documentos.";
 
@@ -224,6 +265,7 @@
         _pagina = Vazia;
         _acesso = null;
         _renomeando = null;
+        _confirmacao.Cancelar();
         await OnAcessoEncerrado.InvokeAsync();
         return true;
     }
@@ -233,9 +275,34 @@
         // Cancelar o diálogo de arquivos dispara a troca com zero arquivos.
         _arquivo = e.FileCount > 0 ? e.File : null;
         _mensagem = null;
+        // O aviso era sobre o arquivo anterior.
+        _confirmacao.Cancelar();
     }
 
+    /// <summary>Clique em "Enviar": nos Documentos comuns só abre o aviso; nas demais categorias envia direto.</summary>
     private async Task EnviarAsync()
+    {
+        if (_arquivo is null || _enviando) return;
+
+        _mensagem = null;
+        if (!_confirmacao.Pedir()) return;
+
+        await EnviarArquivoAsync(confirmou: false);
+    }
+
+    private async Task ConfirmarEnvioAsync()
+    {
+        if (_arquivo is null || _enviando) return;
+
+        if (!_confirmacao.Confirmar()) return;
+
+        await EnviarArquivoAsync(confirmou: true);
+    }
+
+    // O arquivo e o nome escolhidos ficam: o usuário pode enviar depois.
+    private void CancelarEnvio() => _confirmacao.Cancelar();
+
+    private async Task EnviarArquivoAsync(bool confirmou)
     {
         if (_arquivo is not { } arquivo || _enviando) return;
 
@@ -250,8 +317,11 @@
         try
         {
             await using var conteudo = arquivo.OpenReadStream(DocumentosOpcoes.TamanhoMaximoBytes);
-            var resultado = await Despachante.EnviarAsync(new EnviarDocumento(
-                Categoria, ClienteId, _nomeDoEnvio, arquivo.Name, arquivo.ContentType, conteudo));
+            Resultado<Guid> resultado = Categoria == CategoriaDocumento.DocumentoComum
+                ? await Despachante.EnviarAsync(new EnviarDocumentoComum(
+                    _nomeDoEnvio, arquivo.Name, arquivo.ContentType, conteudo, ConfirmouVisibilidade: confirmou))
+                : await Despachante.EnviarAsync(new EnviarDocumento(
+                    Categoria, ClienteId!.Value, _nomeDoEnvio, arquivo.Name, arquivo.ContentType, conteudo));
             if (await EncerradoAsync(resultado)) return;
 
             if (!resultado.Sucesso)
@@ -283,7 +353,7 @@
         }
     }
 
-    private void AbrirRenomear(DocumentoResumo documento)
+    private void AbrirRenomear(Linha documento)
     {
         _mensagem = null;
         _acesso = null;
@@ -430,11 +500,4 @@
         _mensagem = mensagem;
         _falhou = falhou;
     }
-
-    private static string Tamanho(long bytes) => bytes switch
-    {
-        >= UmMegabyte => $"{bytes / (double)UmMegabyte:0.#} MB",
-        >= 1024 => $"{bytes / 1024d:0.#} KB",
-        _ => $"{bytes} B",
-    };
 }
