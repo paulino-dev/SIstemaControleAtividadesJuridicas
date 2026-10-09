@@ -41,7 +41,7 @@ Alternativas descartadas: negar o perfil Cliente caso de uso por caso de uso (a 
 
 `TipoPerfil` ganha o valor `Cliente`.
 
-- Existe um único perfil desse tipo, "Cliente", criado por migration nos bancos que já existem e pelo semeador em banco vazio.
+- Existe um único perfil desse tipo, "Cliente", criado pelo semeador: junto dos outros dois em banco vazio e, num banco que já existe, na primeira inicialização depois da atualização. A gravação passa pelos interceptores, como qualquer outra. Se já houver um perfil com o nome "Cliente", o novo nasce como "Cliente (portal)".
 - A criação de perfil continua aceitando só `Diretoria` e `Producao`. Dois perfis de cliente não teriam diferença entre si, porque o perfil Cliente não participa de listas de acesso.
 - O perfil "Cliente" pode ser renomeado. Inativá-lo segue a regra de hoje: só sem usuário ativo.
 - Criar o perfil "Cliente" não o inclui em Documento Geral nenhum.
@@ -64,7 +64,7 @@ Regras:
 
 ### Cliente inativo
 
-- O usuário de um cliente inativo não tem acesso. O login responde com a mesma mensagem de credenciais inválidas, e uma sessão aberta é recusada na operação seguinte.
+- O usuário de um cliente inativo não tem acesso. O login responde com a mesma mensagem de credenciais inválidas, e uma sessão aberta é recusada na operação seguinte: o cookie é rejeitado na próxima requisição HTTP, e uma tela já aberta recebe acesso negado.
 - Reativar o cliente devolve o acesso, sem mexer nos usuários.
 - O estado do cliente é lido do banco a cada operação, como já se faz com o perfil e o estado do usuário.
 
@@ -82,6 +82,7 @@ Requisições abertas ao cliente:
 
 | Requisição | Para quê |
 |---|---|
+| `AutenticarUsuario` | Entrar. Não usa o ator; sem a marca, quem tem uma sessão de cliente aberta no navegador não conseguiria entrar de novo |
 | `ObterMeuAcesso` | A interface saber quem é o usuário |
 | `AlterarMinhaSenha` | Trocar a própria senha |
 | `BaixarDocumento` | Baixar; quem decide é a regra de acesso do documento |
@@ -241,7 +242,7 @@ Não há tabela nova.
 - `usuarios.cliente_id`: nulo, chave estrangeira para `clientes` sem cascata, com índice.
 - O banco não garante sozinho o par perfil–cliente, porque o tipo fica na tabela de perfis; quem garante é o domínio, com teste de integração.
 - Restrições de `documentos` reescritas: `cliente_id` é obrigatório nas categorias Documento Geral, Contrato de Honorários e Documento do cliente, e nulo no Documento comum; `atividade_id` continua existindo só no Documento de Atividade.
-- Migration de dados: insere o perfil "Cliente" quando não existe perfil de tipo `Cliente`.
+- Não há migration de dados: o perfil "Cliente" é garantido pelo semeador (seção 3).
 
 ## 10. Testes
 
@@ -277,10 +278,12 @@ De interface:
 
 ## 11. Fases
 
-Dois planos de implementação:
+A fase 7 é a de complexidade e produtividade (`2026-10-08-complexidade-e-produtividade-design.md`). O portal é a fase 8, em dois planos de implementação:
 
-- **7A — Perfil Cliente e portão.** Tipo de perfil, vínculo do usuário com o cliente, cliente inativo, portão no executor, recusas do domínio, mudança dos Documentos Gerais, tela de Usuários e a lista "Usuários do cliente". Ao fim, um cliente faz login, vê um início vazio, troca a senha e não alcança nada interno.
-- **7B — Documentos e andamento.** As duas categorias, os casos de uso e as consultas do portal, a quarta área na ficha do cliente, a página de Documentos comuns com a confirmação, Meus documentos, Andamento e o início do cliente.
+- **8A — Perfil Cliente e portão.** Tipo de perfil, vínculo do usuário com o cliente, cliente inativo, portão no executor, recusas do domínio, mudança dos Documentos Gerais, tela de Usuários e a lista "Usuários do cliente". Ao fim, um cliente faz login, vê um início vazio, troca a senha e não alcança nada interno. Nesta fase o portão abre só `AutenticarUsuario`, `ObterMeuAcesso` e `AlterarMinhaSenha`.
+- **8B — Documentos e andamento.** As duas categorias, os casos de uso e as consultas do portal, a quarta área na ficha do cliente, a página de Documentos comuns com a confirmação, Meus documentos, Andamento e o início do cliente. O portão passa a abrir também `BaixarDocumento` e as três consultas do portal.
+
+As duas fases 7 e 8 mexem no menu, no formulário de atividade, na modelagem de domínio e criam migration. A que for integrada por último refaz a sua migration sobre a outra e resolve o menu.
 
 A modelagem de domínio é emendada ao fim de cada fase com as regras fixadas, como nas fases anteriores.
 
