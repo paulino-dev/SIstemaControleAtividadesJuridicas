@@ -58,7 +58,7 @@ Regras:
 - Um usuário não troca entre o tipo `Cliente` e os tipos internos. A edição que tentar é recusada como validação.
 - A Diretoria pode trocar o cliente vinculado, para corrigir um engano. A troca renova a `VersaoDeSessao` do usuário e gera o evento `usuario_cliente_alterado`.
 - `NumeroOab` não se aplica a usuário-cliente e fica nulo.
-- Usuário-cliente não é responsável nem revisor de atividade, não participa de evento e não entra em lista de acesso de documento. As consultas que alimentam essas escolhas deixam de trazê-lo, e o domínio recusa a inclusão.
+- Usuário-cliente não é responsável nem revisor de atividade, não participa de evento e não entra em lista de acesso de documento. A lista de nomes usada para escolher participantes de evento traz só a equipe; as telas que escolhem responsáveis e filtram por pessoa deixam os usuários de cliente de fora; a lista de usuários da Diretoria (`ListarUsuarios`) continua completa, porque a auditoria filtra por qualquer usuário; e o domínio recusa a inclusão em qualquer caso.
 - A regra do último diretor não muda: usuário-cliente não conta como diretor.
 - A ficha do cliente mostra à Diretoria, só para leitura, os usuários vinculados a ele, com nome, e-mail e se estão ativos.
 
@@ -287,6 +287,8 @@ A fase 7 é a de complexidade e produtividade (`2026-10-08-complexidade-e-produt
 As duas fases 7 e 8 mexem no menu, no formulário de atividade, na modelagem de domínio e criam migration. A que for integrada por último refaz a sua migration sobre a outra e resolve o menu.
 
 A modelagem de domínio é emendada ao fim de cada fase com as regras fixadas, como nas fases anteriores.
+
+**Implantação.** Na primeira subida da versão nova o semeador cria o perfil "Cliente", que passa a aparecer em Perfis e no seletor de Usuários. Depois de existir usuário de cliente, **voltar para uma versão anterior ao portão não é seguro**: a versão antiga trata o tipo Cliente como Produção, e o cliente leria clientes e processos. Antes de reverter, inativar todos os usuários vinculados a cliente.
 
 ## 12. Fora do escopo
 

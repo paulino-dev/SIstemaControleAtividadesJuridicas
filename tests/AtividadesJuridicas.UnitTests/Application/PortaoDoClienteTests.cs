@@ -152,6 +152,26 @@ public class PortaoDoClienteTests
     }
 
     [Fact]
+    public async Task Tipo_de_perfil_desconhecido_nasce_fechado_como_o_cliente()
+    {
+        var desconhecido = new UsuarioAutenticado(
+            Guid.CreateVersion7(), "Futuro", (TipoPerfil)99, Guid.CreateVersion7());
+        var manipulador = new ListarClientesFalso();
+        var executor = new ExecutorDeRequisicoes(
+            new ProvedorFalso()
+                .Com<IManipulador<ListarClientes, Resultado<Pagina<ClienteResumo>>>>(manipulador)
+                .Com<IManipulador<ObterMeuAcesso, UsuarioAutenticado?>>(new ObterMeuAcessoFalso(desconhecido)),
+            new AuditoriaFalsa(), new ContextoDeAcessoFixo(desconhecido));
+
+        var fechada = await executor.ExecutarAsync(new ListarClientes(), default);
+        var aberta = await executor.ExecutarAsync(new ObterMeuAcesso(), default);
+
+        fechada.Erro.Should().Be(TipoErro.AcessoNegado);
+        manipulador.Chamadas.Should().Be(0, "o portão fecha para todo perfil que não seja da equipe");
+        aberta.Should().Be(desconhecido);
+    }
+
+    [Fact]
     public async Task A_recusa_do_portao_fica_registrada_com_a_requisicao_e_o_alvo()
     {
         var auditoria = new AuditoriaFalsa();

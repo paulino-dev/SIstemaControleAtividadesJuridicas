@@ -57,7 +57,7 @@ else
                     <td>@usuario.Nome</td>
                     <td>@usuario.Email</td>
                     <td>@RotuloDoPerfilDe(usuario)</td>
-                    <td>@usuario.ClienteNome</td>
+                    <td>@(usuario.ClienteAtivo == false ? $"{usuario.ClienteNome} (inativo — sem acesso ao portal)" : usuario.ClienteNome)</td>
                     <td>@usuario.NumeroOab</td>
                     <td>@Fuso.Formatar(usuario.UltimoAcessoEm)</td>
                     <td>@(usuario.Ativo ? "Ativo" : "Inativo")</td>

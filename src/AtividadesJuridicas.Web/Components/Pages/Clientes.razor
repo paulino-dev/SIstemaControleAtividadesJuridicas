@@ -269,7 +269,7 @@ else
         _mensagem = null;
         _form = new Formulario
         {
-            Id = c.Id, Tipo = c.Tipo, Nome = c.Nome, Email = c.Email, Telefone = c.Telefone,
+            Id = c.Id, Ativo = c.Ativo, Tipo = c.Tipo, Nome = c.Nome, Email = c.Email, Telefone = c.Telefone,
             Documento = c.Cpf ?? c.Cnpj ?? string.Empty, Rg = c.Rg, DataNascimento = c.DataNascimento,
             NomeFantasia = c.NomeFantasia, NomeResponsavel = c.NomeResponsavel,
             InscricaoEstadual = c.InscricaoEstadual, InscricaoMunicipal = c.InscricaoMunicipal,
@@ -357,6 +357,10 @@ else
         }
         else
         {
+            if (_form is { Ativo: false })
+            {
+                <p>Cliente inativo: estes usuários estão sem acesso ao portal até o cliente ser reativado.</p>
+            }
             <table>
                 <thead>
                     <tr><th>Nome</th><th>E-mail</th><th>Situação</th><th>Último acesso</th></tr>
@@ -479,6 +483,7 @@ else
     private sealed class Formulario
     {
         public Guid? Id { get; set; }
+        public bool Ativo { get; set; } = true;
         public TipoCliente Tipo { get; set; }
 
         [Required(ErrorMessage = "Informe o nome.")]

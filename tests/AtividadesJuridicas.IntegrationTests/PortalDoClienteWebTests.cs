@@ -119,12 +119,11 @@ public class PortalDoClienteWebTests(BancoFixture banco) : IAsyncLifetime
 
         var html = Decodificado(await cliente.GetStringAsync("/"));
 
-        html.Should().Contain("Carla Cliente").And.Contain("href=\"/minha-senha\"").And.Contain("Sair");
-        html.Should().NotContain("href=\"/atividades\"").And.NotContain("href=\"/agenda\"")
-            .And.NotContain("href=\"/clientes\"").And.NotContain("href=\"/processos\"")
-            .And.NotContain("href=\"/areas\"").And.NotContain("href=\"/usuarios\"")
-            .And.NotContain("href=\"/perfis\"").And.NotContain("href=\"/auditoria\"")
-            .And.NotContain("Carregando");
+        html.Should().Contain("Carla Cliente").And.Contain("Sair").And.NotContain("Carregando");
+        // Lista exata: um item de menu novo fora do bloco da equipe apareceria aqui e quebraria o teste.
+        var menu = Regex.Match(html, "<nav[^>]*>.*?</nav>", RegexOptions.Singleline).Value;
+        Regex.Matches(menu, "href=\"([^\"]*)\"").Select(m => m.Groups[1].Value)
+            .Should().BeEquivalentTo(["/", "/minha-senha"]);
         html.Should().NotContain("Seu perfil é de");
     }
 
@@ -199,6 +198,19 @@ public class PortalDoClienteWebTests(BancoFixture banco) : IAsyncLifetime
         var linha = Regex.Matches(html, "<tr[^>]*>.*?</tr>", RegexOptions.Singleline)
             .Select(m => m.Value).Single(l => l.Contains("Carla Cliente"));
         linha.Should().Contain("Maria Silva");
+    }
+
+    [Fact]
+    public async Task Cadastro_de_usuarios_avisa_que_o_cliente_inativo_esta_sem_acesso()
+    {
+        var admin = await _app.ClienteAutenticadoAsync();
+
+        Decodificado(await admin.GetStringAsync("/usuarios")).Should().NotContain("sem acesso ao portal");
+
+        (await _app.ExecutarAsync(_admin, new DefinirAtivoCliente(_maria, false))).Sucesso.Should().BeTrue();
+
+        var html = Decodificado(await admin.GetStringAsync("/usuarios"));
+        html.Should().Contain("Maria Silva (inativo — sem acesso ao portal)");
     }
 
     [Fact]

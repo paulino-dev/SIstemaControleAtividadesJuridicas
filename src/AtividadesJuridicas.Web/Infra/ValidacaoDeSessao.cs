@@ -6,7 +6,10 @@ namespace AtividadesJuridicas.Web.Infra;
 
 public static class ValidacaoDeSessao
 {
-    /// <summary>A cada requisição HTTP, derruba o cookie de quem foi inativado, não existe mais ou teve as sessões renovadas.</summary>
+    /// <summary>
+    /// A cada requisição HTTP, derruba o cookie de quem foi inativado, não existe mais ou teve as sessões renovadas,
+    /// e do usuário de cliente cujo cliente está inativo ou não existe.
+    /// </summary>
     public static async Task ValidarAsync(CookieValidatePrincipalContext contexto)
     {
         var servicos = contexto.HttpContext.RequestServices;

@@ -477,6 +477,25 @@ public class GestaoDeUsuariosTests
     }
 
     [Fact]
+    public async Task Lista_de_usuarios_diz_se_o_cliente_do_usuario_esta_ativo()
+    {
+        var maria = _c.NovoCliente();
+        var carla = _c.NovoUsuarioDeCliente("Carla", "carla@x.com", maria);
+
+        async Task<IReadOnlyList<UsuarioResumo>> Listar() =>
+            (await new ListarUsuariosManipulador(_c.Como(_c.Diretor), _c.Usuarios)
+                .ManipularAsync(new ListarUsuarios(), default)).Valor!;
+
+        (await Listar()).Single(u => u.Id == carla.Id).ClienteAtivo.Should().BeTrue();
+
+        maria.Inativar();
+
+        var lista = await Listar();
+        lista.Single(u => u.Id == carla.Id).ClienteAtivo.Should().BeFalse();
+        lista.Single(u => u.Id == _c.Diretor.Id).ClienteAtivo.Should().BeNull("a equipe não tem cliente");
+    }
+
+    [Fact]
     public async Task Usuarios_do_cliente_so_para_a_diretoria_e_so_os_daquele_cliente()
     {
         var maria = _c.NovoCliente();

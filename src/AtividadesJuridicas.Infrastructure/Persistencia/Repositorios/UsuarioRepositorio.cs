@@ -45,13 +45,14 @@ public sealed class UsuarioRepositorio(AppDbContext db) : IUsuarioRepositorio
             {
                 x.u.Id, x.u.Nome, x.u.Email, PerfilId = x.p.Id, PerfilNome = x.p.Nome, x.p.Tipo,
                 x.u.NumeroOab, x.u.Ativo, x.u.UltimoAcessoEm, x.u.ClienteId, ClienteNome = c == null ? null : c.Nome,
+                ClienteAtivo = c == null ? (bool?)null : c.Ativo,
             })
             .OrderBy(x => x.Nome)
             .ToListAsync(ct);
 
         return [.. linhas.Select(x => new UsuarioResumo(
             x.Id, x.Nome, x.Email.Valor, x.PerfilId, x.PerfilNome, x.Tipo, x.NumeroOab, x.Ativo, x.UltimoAcessoEm,
-            x.ClienteId, x.ClienteNome))];
+            x.ClienteId, x.ClienteNome, x.ClienteAtivo))];
     }
 
     public async Task<IReadOnlyList<UsuarioDoCliente>> ListarDoClienteAsync(Guid clienteId, CancellationToken ct)

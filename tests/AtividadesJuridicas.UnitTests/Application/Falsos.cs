@@ -92,11 +92,11 @@ public sealed class UsuarioRepositorioFalso(PerfilRepositorioFalso perfis, Clien
             [.. Itens.OrderBy(u => u.Nome).Select(u =>
             {
                 var perfil = perfis.Itens.First(p => p.Id == u.PerfilId);
-                var clienteNome = u.ClienteId is { } clienteId
-                    ? clientes.Itens.FirstOrDefault(c => c.Id == clienteId)?.Nome
+                var cliente = u.ClienteId is { } clienteId
+                    ? clientes.Itens.FirstOrDefault(c => c.Id == clienteId)
                     : null;
                 return new UsuarioResumo(u.Id, u.Nome, u.Email.Valor, perfil.Id, perfil.Nome,
-                    perfil.Tipo, u.NumeroOab, u.Ativo, u.UltimoAcessoEm, u.ClienteId, clienteNome);
+                    perfil.Tipo, u.NumeroOab, u.Ativo, u.UltimoAcessoEm, u.ClienteId, cliente?.Nome, cliente?.Ativo);
             })]);
 
     public Task<IReadOnlyList<UsuarioDoCliente>> ListarDoClienteAsync(Guid clienteId, CancellationToken ct) =>

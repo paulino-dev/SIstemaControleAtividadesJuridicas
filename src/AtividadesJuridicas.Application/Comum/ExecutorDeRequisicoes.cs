@@ -14,10 +14,11 @@ public sealed class ExecutorDeRequisicoes(IServiceProvider servicos, IAuditoria 
 {
     public async Task<TResposta> ExecutarAsync<TResposta>(IRequisicao<TResposta> requisicao, CancellationToken ct)
     {
-        // Portão do cliente: fechado por padrão. Um ator de perfil Cliente só roda o que foi marcado como aberto
-        // a ele; para o resto, o caso de uso nem é procurado. Requisição aberta não consulta o ator aqui.
+        // Portão do cliente: fechado por padrão. Um ator que não seja da equipe (hoje, o perfil Cliente) só roda o
+        // que foi marcado como aberto a ele; para o resto, o caso de uso nem é procurado. Requisição aberta não
+        // consulta o ator aqui.
         var barrada = requisicao is not IRequisicaoAbertaAoCliente
-                      && await contexto.ObterAsync(ct) is { EhCliente: true };
+                      && await contexto.ObterAsync(ct) is { EhInterno: false };
 
         try
         {

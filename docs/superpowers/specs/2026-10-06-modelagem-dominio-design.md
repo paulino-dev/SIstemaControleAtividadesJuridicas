@@ -150,7 +150,7 @@ Regras:
 
 Perfil Cliente e portão:
 
-- O executor de requisições tem um portão: um ator de perfil `Cliente` só executa requisições marcadas como abertas ao cliente. As demais respondem `AcessoNegado` sem chegar ao caso de uso, e a tentativa gera `acesso_negado` com o nome da requisição. Um caso de uso novo nasce fechado ao cliente.
+- O executor de requisições tem um portão: um ator de perfil `Cliente` só executa requisições marcadas como abertas ao cliente. As demais respondem `AcessoNegado` sem chegar ao caso de uso, e a tentativa gera `acesso_negado` com o nome da requisição. Um caso de uso novo nasce fechado ao cliente, e um tipo de perfil que não seja interno (hoje, só o Cliente) também nasce fechado.
 - Estão abertas `AutenticarUsuario`, `ObterMeuAcesso` e `AlterarMinhaSenha`.
 - Usuário de cliente só tem acesso com o cliente existente e ativo: o login é recusado, o cookie é rejeitado na requisição HTTP seguinte e o contexto de acesso devolve "sem ator". Reativar o cliente devolve o acesso, sem mexer no usuário.
 - O par perfil–cliente incoerente (perfil `Cliente` sem cliente, ou perfil interno com cliente; só possível por edição direta no banco) não tem acesso.
@@ -161,7 +161,7 @@ Perfil Cliente e portão:
 ### Sessões
 
 - Cada usuário tem uma `VersaoDeSessao`. O cookie de autenticação carrega a versão vigente no momento do login.
-- A versão é renovada quando a senha do usuário é alterada ou redefinida e quando o usuário é inativado.
+- A versão é renovada quando a senha do usuário é alterada ou redefinida e quando o usuário é inativado. Também é renovada quando um usuário de cliente passa a outro cliente.
 - Uma sessão cuja versão difere da vigente é recusada na operação seguinte, tanto em requisições novas quanto em telas já abertas. Reativar um usuário não revive sessões antigas.
 - Quem altera a própria senha é levado de volta à tela de login.
 

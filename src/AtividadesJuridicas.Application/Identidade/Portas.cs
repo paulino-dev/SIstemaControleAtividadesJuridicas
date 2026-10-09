@@ -13,7 +13,8 @@ public sealed record UsuarioResumo(
     bool Ativo,
     DateTime? UltimoAcessoEm,
     Guid? ClienteId = null,
-    string? ClienteNome = null);
+    string? ClienteNome = null,
+    bool? ClienteAtivo = null);
 
 /// <summary>Um usuário do portal, como a ficha do cliente o lista.</summary>
 public sealed record UsuarioDoCliente(Guid Id, string Nome, string Email, bool Ativo, DateTime? UltimoAcessoEm);

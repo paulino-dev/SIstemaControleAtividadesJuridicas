@@ -260,6 +260,58 @@ public class PortalDoClienteTests(BancoFixture banco) : TesteComBanco(banco)
     }
 
     [Fact]
+    public async Task Lista_de_usuarios_mostra_o_cliente_inativo_no_banco()
+    {
+        (await ExecutarAsync(_admin, new ListarUsuarios())).Valor!.Single(u => u.Id == _carla)
+            .ClienteAtivo.Should().BeTrue();
+        (await ExecutarAsync(_admin, new DefinirAtivoCliente(_maria, false))).Sucesso.Should().BeTrue();
+
+        var lista = (await ExecutarAsync(_admin, new ListarUsuarios())).Valor!;
+
+        var daCarla = lista.Single(u => u.Id == _carla);
+        daCarla.ClienteAtivo.Should().BeFalse();
+        daCarla.ClienteNome.Should().Be("Maria Silva");
+        lista.Where(u => u.Id != _carla).Should().OnlyContain(u => u.ClienteAtivo == null);
+    }
+
+    [Fact]
+    public async Task Par_perfil_cliente_e_recusado_pelos_casos_de_uso_no_banco()
+    {
+        var perfilCliente = await IdDoPerfilAsync(TipoPerfil.Cliente);
+        var perfilProducao = await IdDoPerfilAsync(TipoPerfil.Producao);
+        var usuariosAntes = (await ExecutarAsync(_admin, new ListarUsuarios())).Valor!;
+
+        var semCliente = await ExecutarAsync(_admin, new CriarUsuario(
+            "Ana Cliente", "ana@x.com", "senha-da-ana", perfilCliente, null));
+        var internoComCliente = await ExecutarAsync(_admin, new CriarUsuario(
+            "Beto", "beto@x.com", "senha-do-beto", perfilProducao, null, _maria));
+        var pedroParaCliente = await ExecutarAsync(_admin, new EditarUsuario(
+            _pedro, "Pedro", "pedro@x.com", perfilCliente, null, null));
+        var carlaParaProducao = await ExecutarAsync(_admin, new EditarUsuario(
+            _carla, "Carla Cliente", UsuariosDeClienteDeTeste.EmailDaCarla, perfilProducao, null, null));
+
+        semCliente.Erro.Should().Be(TipoErro.Validacao);
+        semCliente.Mensagem.Should().Be("Informe o cliente do usuário.");
+        internoComCliente.Erro.Should().Be(TipoErro.Validacao);
+        internoComCliente.Mensagem.Should().Be("Só um usuário de perfil Cliente é vinculado a um cliente.");
+        const string troca = "Um usuário de cliente não pode receber um perfil interno, nem um usuário interno o perfil de cliente.";
+        pedroParaCliente.Erro.Should().Be(TipoErro.Validacao);
+        pedroParaCliente.Mensagem.Should().Be(troca);
+        carlaParaProducao.Erro.Should().Be(TipoErro.Validacao);
+        carlaParaProducao.Mensagem.Should().Be(troca);
+
+        var usuarios = await EmEscopoAsync(null, sp =>
+            sp.GetRequiredService<AppDbContext>().Usuarios.AsNoTracking().ToListAsync());
+        usuarios.Select(u => u.Id).Should().BeEquivalentTo(usuariosAntes.Select(u => u.Id), "nenhum usuário novo");
+        var pedro = usuarios.Single(u => u.Id == _pedro);
+        pedro.PerfilId.Should().Be(perfilProducao);
+        pedro.ClienteId.Should().BeNull();
+        var carla = usuarios.Single(u => u.Id == _carla);
+        carla.PerfilId.Should().Be(perfilCliente);
+        carla.ClienteId.Should().Be(_maria);
+    }
+
+    [Fact]
     public async Task Trocar_o_cliente_derruba_a_sessao_e_fica_auditado()
     {
         var sessaoAntes = await VersaoDeSessaoAsync(_carla);

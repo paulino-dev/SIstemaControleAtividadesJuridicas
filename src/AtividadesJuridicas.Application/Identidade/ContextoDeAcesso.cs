@@ -6,13 +6,17 @@ public sealed record UsuarioAutenticado(Guid Id, string Nome, TipoPerfil TipoPer
 {
     public bool EhDiretoria => TipoPerfil == TipoPerfil.Diretoria;
     public bool EhCliente => TipoPerfil == TipoPerfil.Cliente;
+    /// <summary>Da equipe do escritório. Um tipo de perfil novo não entra aqui sem decisão explícita: nasce fechado.</summary>
+    public bool EhInterno => TipoPerfil is TipoPerfil.Diretoria or TipoPerfil.Producao;
 }
 
 public interface IContextoDeAcesso
 {
     /// <summary>
     /// Usuário da requisição, com o perfil lido do banco agora. Nulo quando não há
-    /// usuário autenticado, quando ele não existe mais ou quando está inativo.
+    /// usuário autenticado, quando ele não existe mais ou quando está inativo, quando o par perfil–cliente
+    /// dele é incoerente e quando é usuário de cliente cujo cliente está inativo ou não existe. O portão do
+    /// executor e os casos de uso tratam nulo como sem acesso.
     /// </summary>
     Task<UsuarioAutenticado?> ObterAsync(CancellationToken ct);
 }
