@@ -126,6 +126,9 @@
 
         _mes = mes;
         _atividadeAberta = null;   // a ficha aberta era de uma atividade do mês que saiu da tela
+        // Os números na tela não têm outro rótulo de mês além do seletor: os do mês anterior saem antes da consulta.
+        _produtividade = null;
+        _erro = null;
         await CarregarAsync();
     }
 

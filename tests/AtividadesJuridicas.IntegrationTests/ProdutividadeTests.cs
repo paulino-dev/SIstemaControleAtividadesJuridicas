@@ -56,26 +56,26 @@ public class ProdutividadeTests(BancoFixture banco) : TesteComBanco(banco)
         return criada.Valor;
     }
 
-    /// <summary>
-    /// Conclui pelos casos de uso (o relógio da infraestrutura é o real) e depois acerta <c>ConcluidaEm</c> para o
-    /// instante do cenário, pelo contexto e com os interceptores.
-    /// </summary>
+    /// <summary>Conclui pelos casos de uso (o relógio da infraestrutura é o real) e acerta a conclusão para o instante do cenário.</summary>
     private async Task<Guid> ConcluidaAsync(string titulo, int complexidade, DateTime concluidaEm, Guid? cliente, params Guid[] responsaveis)
     {
         var id = await DirecionadaAsync(titulo, complexidade, cliente, responsaveis);
         foreach (var responsavel in responsaveis)
             (await ExecutarAsync(responsavel, new ConcluirMinhaParte(id))).Sucesso.Should().BeTrue();
         (await ExecutarAsync(_diana, new AprovarAtividade(id))).Sucesso.Should().BeTrue();
+        await AcertarConclusaoAsync(id, concluidaEm);
+        return id;
+    }
 
-        await EmEscopoAsync(null, async sp =>
+    /// <summary>Acerta <c>ConcluidaEm</c> para o instante do cenário, pelo contexto e com os interceptores.</summary>
+    private Task AcertarConclusaoAsync(Guid id, DateTime concluidaEm) =>
+        EmEscopoAsync(null, async sp =>
         {
             var db = sp.GetRequiredService<AppDbContext>();
             var atividade = await db.Atividades.SingleAsync(a => a.Id == id);
             db.Entry(atividade).Property(a => a.ConcluidaEm).CurrentValue = concluidaEm;
             return await db.SaveChangesAsync();
         });
-        return id;
-    }
 
     private async Task<ProdutividadeDoProdutor> ProdutividadeAsync(Guid produtor, DateTime? de = null, DateTime? ate = null)
     {
@@ -146,6 +146,29 @@ public class ProdutividadeTests(BancoFixture banco) : TesteComBanco(banco)
     }
 
     [Fact]
+    public async Task Responsavel_retirado_depois_da_reabertura_nao_conta_na_nova_conclusao()
+    {
+        var id = await ConcluidaAsync("Parecer", 2, Em(10, 5), null, _pedro, _paula);
+        (await ExecutarAsync(_diana, new ReabrirAtividade(id, "Cliente pediu ajuste", [_pedro, _paula]))).Sucesso.Should().BeTrue();
+
+        // A Paula sai da atividade; só o Pedro conclui de novo.
+        var semPaula = await ExecutarAsync(_diana, new DefinirResponsaveisDaAtividade(
+            id, [new ResponsavelEntrada(_pedro, null)], _diana));
+        semPaula.Sucesso.Should().BeTrue(semPaula.Mensagem);
+        (await ExecutarAsync(_pedro, new ConcluirMinhaParte(id))).Sucesso.Should().BeTrue();
+        (await ExecutarAsync(_diana, new AprovarAtividade(id))).Sucesso.Should().BeTrue();
+        await AcertarConclusaoAsync(id, Em(10, 20));
+
+        var dePedro = await ProdutividadeAsync(_pedro);
+        var dePaula = await ProdutividadeAsync(_paula);
+
+        dePedro.Grupos[1].Atividades.Select(a => a.Id).Should().Equal(id);
+        dePedro.PrimeiraConclusaoEm.Should().Be(Em(10, 20));
+        dePaula.Total.Should().Be(0);
+        dePaula.PrimeiraConclusaoEm.Should().BeNull();
+    }
+
+    [Fact]
     public async Task Sem_nada_concluido_vem_os_tres_grupos_vazios_e_nenhuma_primeira_conclusao()
     {
         await DirecionadaAsync("Em andamento", 1, null, _pedro);
@@ -161,11 +184,11 @@ public class ProdutividadeTests(BancoFixture banco) : TesteComBanco(banco)
     {
         await ConcluidaAsync("Parecer", 1, Em(10, 5), null, _pedro);
 
-        var dePedro = await ExecutarAsync(_pedro, new ObterProdutividadeDoProdutor(_pedro, Outubro, Novembro));
+        var pedroPedindoPaula = await ExecutarAsync(_pedro, new ObterProdutividadeDoProdutor(_paula, Outubro, Novembro));
         var doDiretor = await ExecutarAsync(_diana, new ObterProdutividadeDoProdutor(_davi, Outubro, Novembro));
         var deNinguem = await ExecutarAsync(_diana, new ObterProdutividadeDoProdutor(Guid.CreateVersion7(), Outubro, Novembro));
 
-        dePedro.Erro.Should().Be(TipoErro.AcessoNegado);
+        pedroPedindoPaula.Erro.Should().Be(TipoErro.AcessoNegado);
         doDiretor.Erro.Should().Be(TipoErro.NaoEncontrado);
         doDiretor.Mensagem.Should().Be("Produtor não encontrado.");
         deNinguem.Erro.Should().Be(TipoErro.NaoEncontrado);
@@ -174,7 +197,7 @@ public class ProdutividadeTests(BancoFixture banco) : TesteComBanco(banco)
         var negado = (await AuditoriaAsync()).Where(r => r.Evento == EventosDeSeguranca.AcessoNegado)
             .Should().ContainSingle().Subject;
         negado.UsuarioId.Should().Be(_pedro);
-        negado.Dados.Should().Contain(_pedro.ToString());
+        negado.Dados.Should().Contain(_paula.ToString());   // o produtor pedido, não quem pediu
     }
 
     [Fact]
