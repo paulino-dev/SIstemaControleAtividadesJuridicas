@@ -76,6 +76,32 @@ public sealed class AtividadeRepositorio(AppDbContext db) : IAtividadeRepositori
         return new Pagina<AtividadeResumo>(itens, total, pagina, tamanho);
     }
 
+    public async Task<IReadOnlyList<AtividadeRealizada>> ListarRealizadasAsync(
+        Guid responsavelId, DateTime deUtc, DateTime ateUtc, CancellationToken ct)
+    {
+        // Pelas entidades mapeadas: o filtro de exclusão lógica vale para a atividade e para a entrada do responsável.
+        var atividades = await db.Atividades.AsNoTracking()
+            .Where(a => a.Status == StatusAtividade.Concluida && a.ConcluidaEm >= deUtc && a.ConcluidaEm < ateUtc
+                        && a.Responsaveis.Any(r => r.UsuarioId == responsavelId))
+            .OrderBy(a => a.ConcluidaEm).ThenBy(a => a.Id)
+            .Select(a => new { a.Id, a.Titulo, a.Complexidade, a.ConcluidaEm, a.ClienteId })
+            .ToListAsync(ct);
+
+        // O cliente excluído logicamente continua identificado pelo nome.
+        var idsDeClientes = atividades.Where(a => a.ClienteId != null).Select(a => a.ClienteId!.Value).Distinct().ToList();
+        var clientes = await db.Clientes.IgnoreQueryFilters().AsNoTracking()
+            .Where(c => idsDeClientes.Contains(c.Id)).ToDictionaryAsync(c => c.Id, c => c.Nome, ct);
+
+        return [.. atividades.Select(a => new AtividadeRealizada(
+            a.Id, a.Titulo, a.Complexidade, a.ConcluidaEm!.Value,
+            a.ClienteId is { } clienteId && clientes.TryGetValue(clienteId, out var nome) ? nome : null))];
+    }
+
+    public Task<DateTime?> ObterPrimeiraConclusaoAsync(Guid responsavelId, CancellationToken ct) =>
+        db.Atividades.AsNoTracking()
+            .Where(a => a.Status == StatusAtividade.Concluida && a.Responsaveis.Any(r => r.UsuarioId == responsavelId))
+            .MinAsync(a => a.ConcluidaEm, ct);
+
     public void Adicionar(Atividade atividade) => db.Atividades.Add(atividade);
 
     public void Remover(Atividade atividade) => db.Atividades.Remove(atividade);

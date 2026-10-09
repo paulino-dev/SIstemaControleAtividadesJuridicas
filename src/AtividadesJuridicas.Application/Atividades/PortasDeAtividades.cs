@@ -40,6 +40,33 @@ public sealed record AtividadeDetalhe(
 /// <summary>O cliente que a atividade tem agora, lido do banco sem rastreamento.</summary>
 public sealed record ClienteAtualDaAtividade(Guid? ClienteId);
 
+public static class ProdutividadeOpcoes
+{
+    /// <summary>O mesmo limite da agenda. A tela pede um mês por vez.</summary>
+    public const int PeriodoMaximoEmDias = 92;
+
+    public const string ProdutorNaoEncontrado = "Produtor não encontrado.";
+}
+
+/// <summary>Uma atividade concluída em que o usuário é responsável.</summary>
+public sealed record AtividadeRealizada(Guid Id, string Titulo, int Complexidade, DateTime ConcluidaEm, string? ClienteNome);
+
+/// <summary>As atividades realizadas de uma complexidade, da conclusão mais antiga para a mais recente.</summary>
+public sealed record GrupoDeComplexidade(int Complexidade, IReadOnlyList<AtividadeRealizada> Atividades)
+{
+    public int Total => Atividades.Count;
+}
+
+/// <summary>
+/// <paramref name="Grupos"/>: um por complexidade, em ordem, sempre presentes mesmo vazios.
+/// <paramref name="PrimeiraConclusaoEm"/>: a conclusão mais antiga entre as atividades hoje concluídas do produtor.
+/// </summary>
+public sealed record ProdutividadeDoProdutor(
+    Guid ProdutorId, string ProdutorNome, IReadOnlyList<GrupoDeComplexidade> Grupos, DateTime? PrimeiraConclusaoEm)
+{
+    public int Total => Grupos.Sum(g => g.Total);
+}
+
 public interface IAtividadeRepositorio
 {
     /// <summary>A atividade com todos os responsáveis e todo o histórico.</summary>
@@ -61,4 +88,17 @@ public interface IAtividadeRepositorio
 
     /// <summary>Exclusão lógica da atividade e das suas filhas.</summary>
     void Remover(Atividade atividade);
+
+    /// <summary>
+    /// As atividades concluídas em <c>[deUtc, ateUtc)</c> em que o usuário é responsável, da conclusão mais antiga
+    /// para a mais recente. O cliente excluído logicamente continua identificado pelo nome.
+    /// </summary>
+    Task<IReadOnlyList<AtividadeRealizada>> ListarRealizadasAsync(
+        Guid responsavelId, DateTime deUtc, DateTime ateUtc, CancellationToken ct);
+
+    /// <summary>
+    /// A conclusão mais antiga entre as atividades hoje concluídas em que o usuário é responsável; nulo se não há
+    /// nenhuma.
+    /// </summary>
+    Task<DateTime?> ObterPrimeiraConclusaoAsync(Guid responsavelId, CancellationToken ct);
 }

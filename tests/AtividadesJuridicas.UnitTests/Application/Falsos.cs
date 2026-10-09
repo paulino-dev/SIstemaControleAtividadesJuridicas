@@ -360,6 +360,22 @@ public sealed class AtividadeRepositorioFalso(
             todos.Count, pagina, tamanho));
     }
 
+    // Mesma regra da consulta real: concluída, no intervalo semiaberto, com o usuário entre os responsáveis.
+    public Task<IReadOnlyList<AtividadeRealizada>> ListarRealizadasAsync(
+        Guid responsavelId, DateTime deUtc, DateTime ateUtc, CancellationToken ct) =>
+        Task.FromResult<IReadOnlyList<AtividadeRealizada>>([.. Itens
+            .Where(a => a.Status == StatusAtividade.Concluida && a.ConcluidaEm >= deUtc && a.ConcluidaEm < ateUtc
+                        && a.EhResponsavel(responsavelId))
+            .OrderBy(a => a.ConcluidaEm).ThenBy(a => a.Id)
+            .Select(a => new AtividadeRealizada(
+                a.Id, a.Titulo, a.Complexidade, a.ConcluidaEm!.Value,
+                clientes.Itens.FirstOrDefault(c => c.Id == a.ClienteId)?.Nome))]);
+
+    public Task<DateTime?> ObterPrimeiraConclusaoAsync(Guid responsavelId, CancellationToken ct) =>
+        Task.FromResult(Itens
+            .Where(a => a.Status == StatusAtividade.Concluida && a.EhResponsavel(responsavelId))
+            .Min(a => a.ConcluidaEm));
+
     public void Adicionar(Atividade atividade) => Itens.Add(atividade);
 
     public void Remover(Atividade atividade) => Itens.Remove(atividade);
