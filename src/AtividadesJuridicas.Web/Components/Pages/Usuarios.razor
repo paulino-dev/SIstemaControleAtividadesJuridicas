@@ -24,9 +24,12 @@ else
 
     @if (_inativando is { } alvo)
     {
-        <div class="confirmacao" role="alertdialog" aria-label="Confirmar inativação">
-            <p><strong>@alvo.Nome</strong></p>
-            <p>@_textoDasPendencias</p>
+        <div class="confirmacao" role="alertdialog" aria-label="Confirmar inativação" tabindex="-1" @ref="_confirmacao">
+            <p><strong>@TextosDaInativacao.Pergunta(alvo.Nome)</strong></p>
+            @if (_textoDasPendencias is not null)
+            {
+                <p>@_textoDasPendencias</p>
+            }
             <div class="acoes">
                 <button type="button" disabled="@_emAndamento" @onclick="ConfirmarInativacaoAsync">Confirmar inativação</button>
                 <button type="button" class="secundario" disabled="@_emAndamento" @onclick="CancelarInativacao">Cancelar</button>
@@ -132,7 +135,9 @@ else
     private string? _mensagem;
     private bool _emAndamento;
     private UsuarioResumo? _inativando;
-    private string _textoDasPendencias = string.Empty;
+    private string? _textoDasPendencias;
+    private ElementReference _confirmacao;
+    private bool _focarConfirmacao;
     private IReadOnlyList<UsuarioResumo> _usuarios = [];
     private IReadOnlyList<PerfilDetalhe> _perfis = [];
     private PerfilDetalhe? _perfilInativoAtual;
@@ -148,6 +153,21 @@ else
             Limpar();
         }
         _carregado = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_focarConfirmacao) return;
+
+        _focarConfirmacao = false;
+        try
+        {
+            await _confirmacao.FocusAsync();
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or JSException or JSDisconnectedException)
+        {
+            // Sem foco (circuito caindo, por exemplo) a confirmação continua visível e funcional.
+        }
     }
 
     private async Task RecarregarAsync()
@@ -177,6 +197,7 @@ else
     private void Editar(UsuarioResumo usuario)
     {
         _mensagem = null;
+        _inativando = null;   // uma confirmação pendente não sobrevive a outra ação da linha
         _perfilInativoAtual = _perfis.FirstOrDefault(p => p.Id == usuario.PerfilId && !p.Ativo);
         _form = new Formulario
         {
@@ -235,7 +256,7 @@ else
             // Se a contagem falhar, o motivo aparece e a confirmação continua disponível.
             if (pendencias.Sucesso)
             {
-                _textoDasPendencias = TextoDasPendencias(pendencias.Valor!);
+                _textoDasPendencias = TextosDaInativacao.Pendencias(usuario.Nome, pendencias.Valor!);
             }
             else
             {
@@ -244,6 +265,7 @@ else
                 _textoDasPendencias = "Não foi possível verificar as pendências deste usuário.";
             }
             _inativando = usuario;
+            _focarConfirmacao = true;
         }
         finally
         {
@@ -274,18 +296,6 @@ else
         _inativando = null;
         _mensagem = null;
         _falhou = false;
-    }
-
-    private static string TextoDasPendencias(PendenciasDoUsuario p)
-    {
-        var partes = new List<string>();
-        if (p.PartesPendentes > 0) partes.Add($"{p.PartesPendentes} {(p.PartesPendentes == 1 ? "parte pendente" : "partes pendentes")}");
-        if (p.RevisoesEmAberto > 0) partes.Add($"{p.RevisoesEmAberto} {(p.RevisoesEmAberto == 1 ? "revisão em aberto" : "revisões em aberto")}");
-        if (p.EventosFuturos > 0) partes.Add($"{p.EventosFuturos} {(p.EventosFuturos == 1 ? "evento futuro" : "eventos futuros")}");
-        if (partes.Count == 0) return "Este usuário não tem pendências.";
-
-        var lista = partes.Count == 1 ? partes[0] : string.Join(", ", partes[..^1]) + " e " + partes[^1];
-        return $"Este usuário tem {lista}. Elas continuam com ele até serem redistribuídas.";
     }
 
     private async Task ConcluirAsync(Resultado resultado, string mensagemDeSucesso)

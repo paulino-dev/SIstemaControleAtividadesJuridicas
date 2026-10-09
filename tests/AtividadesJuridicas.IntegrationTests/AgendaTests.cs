@@ -393,4 +393,77 @@ public class AgendaTests(BancoFixture banco) : TesteComBanco(banco)
         acessos.Should().Contain(a => a.Acao == AcaoDeAcesso.Listou && a.RecursoId == null && a.Detalhe!.Contains("Tipo"));
         acessos.Should().Contain(a => a.Acao == AcaoDeAcesso.Visualizou && a.RecursoId == id);
     }
+
+    // ---- Onda final ----
+
+    [Fact]
+    public async Task Troca_so_dos_participantes_deixa_registro_no_proprio_evento_na_auditoria()
+    {
+        var id = await CriarAsync(_pedro, "Só participantes", Inicio, 60, _paula);
+
+        var edicao = await SalvarAsync(_pedro, "Só participantes", Inicio, 60, id, participantes: [_pedro, _ester]);
+        edicao.Sucesso.Should().BeTrue(edicao.Mensagem);
+
+        var consulta = await ExecutarAsync(_diana, new ConsultarAuditoria(new FiltroDeAuditoria(EntidadeId: id)));
+        consulta.Sucesso.Should().BeTrue(consulta.Mensagem);
+        var anotado = consulta.Valor!.Itens.Single(r => r.Evento == "evento_participantes_alterados");
+        anotado.Entidade.Should().Be("Evento");
+        anotado.EntidadeId.Should().Be(id);
+        anotado.Operacao.Should().Be(OperacaoAuditada.Evento);
+        using var dados = System.Text.Json.JsonDocument.Parse(anotado.Dados!);
+        dados.RootElement.GetProperty("adicionados").EnumerateArray().Select(x => x.GetGuid()).Should().Equal(_ester);
+        dados.RootElement.GetProperty("removidos").EnumerateArray().Select(x => x.GetGuid()).Should().Equal(_paula);
+
+        // Sem mudança nos participantes, nenhuma marca nova.
+        (await SalvarAsync(_pedro, "Só participantes", Inicio, 60, id, participantes: [_pedro, _ester])).Sucesso.Should().BeTrue();
+        var depois = await ExecutarAsync(_diana, new ConsultarAuditoria(new FiltroDeAuditoria(EntidadeId: id)));
+        depois.Valor!.Itens.Count(r => r.Evento == "evento_participantes_alterados").Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Visibilidade_na_listagem_criador_retirado_ainda_ve_participante_retirado_nao_e_estranho_nunca()
+    {
+        // (a) Quem criou continua vendo mesmo retirado dos participantes.
+        var criadoPorPedro = await CriarAsync(_pedro, "Criado pelo Pedro", Inicio, 60, _paula);
+        (await SalvarAsync(_diana, "Criado pelo Pedro", Inicio, 60, criadoPorPedro, participantes: [_paula])).Sucesso.Should().BeTrue();
+
+        // (b) Participante retirado deixa de ver.
+        var daDiana = await CriarAsync(_diana, "Da Diana", Inicio.AddHours(2), 60, _paula);
+        (await ExecutarAsync(_paula, new ListarEventos(DiaInicio, DiaInicio.AddDays(1)))).Valor!.Select(e => e.Id)
+            .Should().Contain(daDiana);
+        (await SalvarAsync(_diana, "Da Diana", Inicio.AddHours(2), 60, daDiana, participantes: [_diana])).Sucesso.Should().BeTrue();
+
+        var doPedro = (await ExecutarAsync(_pedro, new ListarEventos(DiaInicio, DiaInicio.AddDays(1)))).Valor!.Select(e => e.Id).ToList();
+        var daPaula = (await ExecutarAsync(_paula, new ListarEventos(DiaInicio, DiaInicio.AddDays(1)))).Valor!.Select(e => e.Id).ToList();
+        var daEster = (await ExecutarAsync(_ester, new ListarEventos(DiaInicio, DiaInicio.AddDays(1)))).Valor!.Select(e => e.Id).ToList();
+
+        doPedro.Should().Contain(criadoPorPedro);
+        daPaula.Should().Contain(criadoPorPedro).And.NotContain(daDiana);
+        // (c) Quem nem criou nem participa não lista nenhum dos dois.
+        daEster.Should().NotContain([criadoPorPedro, daDiana]);
+    }
+
+    [Fact]
+    public async Task Evento_longo_que_contem_o_horario_do_novo_evento_gera_aviso()
+    {
+        // 3 dias, começando um dia antes do dia do novo evento; o novo cai bem no meio.
+        await CriarAsync(_diana, "Três dias", Inicio.AddDays(-1), 3 * 24 * 60, _paula);
+
+        var novo = await SalvarAsync(_pedro, "Uma hora no meio", Inicio, 60, participantes: [_paula]);
+
+        novo.Sucesso.Should().BeTrue(novo.Mensagem);
+        novo.Valor!.Sobreposicoes.Should().ContainSingle().Which.UsuarioId.Should().Be(_paula);
+    }
+
+    [Fact]
+    public async Task Eventos_que_comecam_juntos_saem_em_ordem_de_id_no_banco()
+    {
+        var a = await CriarAsync(_diana, "A", Inicio, 60);
+        var b = await CriarAsync(_diana, "B", Inicio, 60);
+        var c = await CriarAsync(_diana, "C", Inicio, 60);
+
+        var lista = (await ExecutarAsync(_diana, new ListarEventos(DiaInicio, DiaInicio.AddDays(1)))).Valor!;
+
+        lista.Select(e => e.Id).Should().Equal(new[] { a, b, c }.Order());
+    }
 }

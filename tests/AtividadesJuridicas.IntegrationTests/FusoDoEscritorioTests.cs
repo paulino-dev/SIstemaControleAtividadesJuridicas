@@ -125,4 +125,14 @@ public class FusoDoEscritorioTests
     {
         _fuso.Formatar(null).Should().Be("—");
     }
+
+    [Theory]
+    [InlineData(DateTimeKind.Utc)]
+    [InlineData(DateTimeKind.Local)]
+    public void ParaUtc_recusa_data_que_nao_e_do_relogio_do_escritorio(DateTimeKind tipo)
+    {
+        var recusa = () => _fuso.ParaUtc(new DateTime(2026, 10, 7, 9, 0, 0, tipo));
+
+        recusa.Should().Throw<ArgumentException>();
+    }
 }

@@ -5,6 +5,7 @@ using AtividadesJuridicas.Application.Identidade;
 using AtividadesJuridicas.Domain.Agenda;
 using AtividadesJuridicas.Domain.Auditoria;
 using AtividadesJuridicas.Domain.Identidade;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace AtividadesJuridicas.IntegrationTests;
 
@@ -158,5 +159,52 @@ public class PendenciasEAuditoriaPorRegistroTests(BancoFixture banco) : TesteCom
         var resultado = await ExecutarAsync(_diana, new ConsultarAuditoria(filtro));
         resultado.Sucesso.Should().BeTrue(resultado.Mensagem);
         return resultado.Valor!;
+    }
+
+    // ---- Onda final: casos de borda da contagem ----
+
+    private Task<PendenciasDoUsuario> ContarAsync(Guid usuario, DateTime agoraUtc) => EmEscopoAsync(null, sp =>
+        sp.GetRequiredService<IPendenciasDoUsuario>().ContarAsync(usuario, agoraUtc, default));
+
+    [Fact]
+    public async Task Quem_saiu_da_atividade_enquanto_pendente_nao_conta_mais_a_parte()
+    {
+        var atividade = await CriarAtividadeAsync("Trocou de responsável");
+        await DirecionarAsync(atividade, _diana, _pedro, _paula);
+        (await ContarAsync(_pedro, DateTime.UtcNow)).PartesPendentes.Should().Be(1);
+
+        // Pedro sai: a entrada dele é excluída logicamente.
+        await DirecionarAsync(atividade, _diana, _paula);
+
+        (await ContarAsync(_pedro, DateTime.UtcNow)).PartesPendentes.Should().Be(0);
+        (await ContarAsync(_paula, DateTime.UtcNow)).PartesPendentes.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Revisor_de_atividade_excluida_nao_conta_revisao()
+    {
+        var davi = await NovoUsuarioAsync("Davi Diretor", "davi@x.com", TipoPerfil.Diretoria);
+        var atividade = await CriarAtividadeAsync("Será excluída");
+        await DirecionarAsync(atividade, davi, _pedro);
+        (await ContarAsync(davi, DateTime.UtcNow)).RevisoesEmAberto.Should().Be(1);
+
+        (await ExecutarAsync(_diana, new ExcluirAtividade(atividade))).Sucesso.Should().BeTrue();
+
+        (await ContarAsync(davi, DateTime.UtcNow)).RevisoesEmAberto.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Evento_que_termina_exatamente_agora_nao_conta_e_o_que_termina_um_minuto_depois_conta()
+    {
+        // Relógio fixo, passado à porta: nada depende da hora da máquina.
+        var agora = new DateTime(2090, 6, 15, 12, 0, 0, DateTimeKind.Utc);
+        await EventoAsync("Terminou agora", agora.AddMinutes(-60), 60, _pedro);
+        (await ContarAsync(_pedro, agora)).EventosFuturos.Should().Be(0);
+
+        await EventoAsync("Termina daqui a um minuto", agora.AddMinutes(-59), 60, _pedro);
+        (await ContarAsync(_pedro, agora)).EventosFuturos.Should().Be(1);
+
+        await EventoAsync("Começa agora", agora, 30, _pedro);
+        (await ContarAsync(_pedro, agora)).EventosFuturos.Should().Be(2);
     }
 }

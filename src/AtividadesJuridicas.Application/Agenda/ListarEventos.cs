@@ -24,7 +24,8 @@ public sealed class ListarEventosManipulador(IContextoDeAcesso contexto, IEvento
             return Falha(TipoErro.AcessoNegado, "Acesso negado.");
 
         if (requisicao.DeUtc.Kind != DateTimeKind.Utc || requisicao.AteUtc.Kind != DateTimeKind.Utc
-            || requisicao.DeUtc >= requisicao.AteUtc)
+            || requisicao.DeUtc >= requisicao.AteUtc
+            || requisicao.DeUtc < AgendaOpcoes.PeriodoMinimoUtc || requisicao.AteUtc > AgendaOpcoes.PeriodoMaximoUtc)
             return Falha(TipoErro.Validacao, "Período inválido.");
         if (requisicao.AteUtc - requisicao.DeUtc > TimeSpan.FromDays(AgendaOpcoes.PeriodoMaximoEmDias))
             return Falha(TipoErro.Validacao, $"O período deve ter no máximo {AgendaOpcoes.PeriodoMaximoEmDias} dias.");

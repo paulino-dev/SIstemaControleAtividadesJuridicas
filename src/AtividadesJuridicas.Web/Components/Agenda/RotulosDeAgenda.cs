@@ -26,6 +26,17 @@ public static class RotulosDeAgenda
     };
 
     public const string AtividadeSemAcesso = "Atividade vinculada (sem acesso)";
+    public const string AtividadeExcluida = "Atividade vinculada (excluída)";
+
+    /// <summary>O texto da atividade vinculada: o título, ou o motivo de não haver título para mostrar.</summary>
+    public static string Atividade(string? titulo, bool excluida) =>
+        titulo ?? (excluida ? AtividadeExcluida : AtividadeSemAcesso);
+
+    /// <summary>A segunda-feira da semana do dia (a semana vai de segunda a domingo).</summary>
+    public static DateOnly SegundaDe(DateOnly dia) => dia.AddDays(-(((int)dia.DayOfWeek + 6) % 7));
+
+    /// <summary>"dd/MM/yyyy" com algarismos e calendário fixos, qualquer que seja a cultura da conexão.</summary>
+    public static string Data(DateOnly dia) => dia.ToString("dd/MM/yyyy", Cultura);
 
     /// <summary>"segunda-feira, 12/10/2026".</summary>
     public static string Dia(DateOnly dia) => dia.ToString("dddd, dd/MM/yyyy", Cultura);
@@ -51,17 +62,26 @@ public static class RotulosDeAgenda
         var fim = fuso.ParaLocal(evento.FimEm);
         var diaDoFim = DateOnly.FromDateTime(fuso.ParaLocal(evento.FimEm.AddTicks(-1)));
 
-        var de = DateOnly.FromDateTime(inicio) == dia ? inicio.ToString("HH:mm") : inicio.ToString("dd/MM HH:mm");
-        var ate = diaDoFim == dia ? fim.ToString("HH:mm") : fim.ToString("dd/MM HH:mm");
+        var de = DateOnly.FromDateTime(inicio) == dia ? inicio.ToString("HH:mm", Cultura) : inicio.ToString("dd/MM HH:mm", Cultura);
+        var ate = diaDoFim == dia ? fim.ToString("HH:mm", Cultura) : fim.ToString("dd/MM HH:mm", Cultura);
         return $"{de} – {ate}";
     }
 
-    /// <summary>"Fulano já tem evento das 10:00 às 11:30 (07/10)", um por pessoa e intervalo.</summary>
+    /// <summary>
+    /// "Fulano já tem evento das 10:00 às 11:30 (07/10)"; se o intervalo atravessa a meia-noite, as duas datas aparecem:
+    /// "Fulano já tem evento de 10/03 22:00 a 11/03 01:00". Quem termina à meia-noite em ponto não atravessa.
+    /// </summary>
     public static string Sobreposicao(FusoDoEscritorio fuso, SobreposicaoDeAgenda s)
     {
+        var nome = s.UsuarioNome ?? "Usuário";
         var inicio = fuso.ParaLocal(s.InicioEm);
         var fim = fuso.ParaLocal(s.FimEm);
-        return $"{s.UsuarioNome ?? "Usuário"} já tem evento das {inicio:HH:mm} às {fim:HH:mm} ({inicio:dd/MM})";
+        var diaDoFim = DateOnly.FromDateTime(fuso.ParaLocal(s.FimEm.AddTicks(-1)));
+
+        if (DateOnly.FromDateTime(inicio) != diaDoFim)
+            return $"{nome} já tem evento de {inicio.ToString("dd/MM HH:mm", Cultura)} a {fim.ToString("dd/MM HH:mm", Cultura)}";
+
+        return $"{nome} já tem evento das {inicio.ToString("HH:mm", Cultura)} às {fim.ToString("HH:mm", Cultura)} ({inicio.ToString("dd/MM", Cultura)})";
     }
 
     /// <summary>A mensagem depois de gravar: o evento foi salvo; a sobreposição é só um aviso.</summary>

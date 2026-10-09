@@ -9,6 +9,10 @@ public sealed class Evento : Entidade
     public const int TamanhoMaximoLocal = 200;
     public const int DuracaoMaximaMinutos = 10080;
 
+    /// <summary>O evento começa entre estes anos, inclusive.</summary>
+    public const int AnoMinimoDeInicio = 2000;
+    public const int AnoMaximoDeInicio = 2100;
+
     private const string Inativo = "Usuário inativo não pode ser incluído como participante.";
 
     private readonly List<EventoParticipante> _participantes = [];
@@ -43,7 +47,8 @@ public sealed class Evento : Entidade
 
     /// <summary>
     /// O criador é sempre incluído entre os participantes, esteja ou não na lista informada. Ele e os demais
-    /// participantes precisam estar ativos.
+    /// participantes precisam estar ativos. O argumento <paramref name="criador"/> prevalece sobre a lista: se o mesmo
+    /// usuário aparecer nela, vale o criador e a entrada da lista é ignorada.
     /// </summary>
     public static Evento Criar(
         DadosDoEvento dados, VinculoDoEvento vinculo, PessoaDoEvento criador,
@@ -74,6 +79,17 @@ public sealed class Evento : Entidade
         Validar(dados);
         ArgumentNullException.ThrowIfNull(vinculo);
         Aplicar(dados, vinculo);
+    }
+
+    /// <summary>
+    /// Altera só os dados e mantém o vínculo (cliente, processo e atividade) que o evento já tem, sem revalidá-lo: o
+    /// vínculo foi válido quando gravado e pode ter deixado de ser por mudanças em outros cadastros. Não há como
+    /// forjar um vínculo novo por aqui.
+    /// </summary>
+    public void Alterar(DadosDoEvento dados)
+    {
+        Validar(dados);
+        AplicarDados(dados);
     }
 
     /// <summary>
@@ -111,7 +127,14 @@ public sealed class Evento : Entidade
     public bool Participa(Guid usuarioId) => _participantes.Any(e => e.UsuarioId == usuarioId);
 
     /// <summary>Intervalos semiabertos <c>[InicioEm, FimEm)</c> e <c>[inicioUtc, fimUtc)</c>: encostados não se sobrepõem.</summary>
-    public bool Sobrepoe(DateTime inicioUtc, DateTime fimUtc) => InicioEm < fimUtc && inicioUtc < FimEm;
+    public bool Sobrepoe(DateTime inicioUtc, DateTime fimUtc)
+    {
+        if (inicioUtc.Kind != DateTimeKind.Utc || fimUtc.Kind != DateTimeKind.Utc)
+            throw new ExcecaoDeDominio("O intervalo deve estar em UTC.");
+        if (fimUtc <= inicioUtc)
+            throw new ExcecaoDeDominio("O fim do intervalo deve ser posterior ao início.");
+        return InicioEm < fimUtc && inicioUtc < FimEm;
+    }
 
     private static void ExigirSemNulos(IReadOnlyCollection<PessoaDoEvento> participantes)
     {
@@ -127,15 +150,20 @@ public sealed class Evento : Entidade
 
     private void Aplicar(DadosDoEvento dados, VinculoDoEvento vinculo)
     {
+        AplicarDados(dados);
+        ClienteId = vinculo.ClienteId;
+        ProcessoId = vinculo.ProcessoId;
+        AtividadeId = vinculo.AtividadeId;
+    }
+
+    private void AplicarDados(DadosDoEvento dados)
+    {
         Titulo = dados.Titulo.Trim();
         Descricao = Texto(dados.Descricao);
         Local = Texto(dados.Local);
         Tipo = dados.Tipo;
         InicioEm = dados.InicioEm;
         DuracaoEstimadaMinutos = dados.DuracaoEstimadaMinutos;
-        ClienteId = vinculo.ClienteId;
-        ProcessoId = vinculo.ProcessoId;
-        AtividadeId = vinculo.AtividadeId;
     }
 
     private static void Validar(DadosDoEvento dados)
@@ -153,6 +181,8 @@ public sealed class Evento : Entidade
             throw new ExcecaoDeDominio("Tipo de evento inválido.");
         if (dados.InicioEm.Kind != DateTimeKind.Utc)
             throw new ArgumentException("O início do evento deve estar em UTC.", nameof(dados));
+        if (dados.InicioEm.Year is < AnoMinimoDeInicio or > AnoMaximoDeInicio)
+            throw new ExcecaoDeDominio($"O início do evento deve ser entre os anos {AnoMinimoDeInicio} e {AnoMaximoDeInicio}.");
         if (dados.DuracaoEstimadaMinutos <= 0)
             throw new ExcecaoDeDominio("A duração deve ser maior que zero.");
         if (dados.DuracaoEstimadaMinutos > DuracaoMaximaMinutos)

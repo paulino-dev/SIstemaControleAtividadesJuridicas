@@ -20,5 +20,8 @@ public sealed class RegistroAuditoriaConfiguracao : IEntityTypeConfiguration<Reg
         b.HasIndex(r => r.DataHora);
         b.HasIndex(r => new { r.Entidade, r.EntidadeId });
         b.HasIndex(r => r.UsuarioId);
+        // Consultas por registro (só EntidadeId) e por gravação (IdCorrelacao), sem o nome da entidade.
+        b.HasIndex(r => r.EntidadeId);
+        b.HasIndex(r => r.IdCorrelacao);
     }
 }

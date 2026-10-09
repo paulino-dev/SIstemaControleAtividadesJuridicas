@@ -1,7 +1,10 @@
+using System.Globalization;
 using System.Net;
 using AtividadesJuridicas.Application.Agenda;
+using AtividadesJuridicas.Application.Identidade;
 using AtividadesJuridicas.Domain.Agenda;
 using AtividadesJuridicas.Domain.Auditoria;
+using AtividadesJuridicas.Domain.Identidade;
 using AtividadesJuridicas.Infrastructure.Persistencia;
 using AtividadesJuridicas.Web.Components.Agenda;
 using AtividadesJuridicas.Web.Infra;
@@ -66,7 +69,9 @@ public class AgendaWebTests(BancoFixture banco) : IAsyncLifetime
         html.Should().MatchRegex(@"<td>\s*Audiência\s*</td>");
         html.Should().MatchRegex(@"<td>\s*Reunião\s*</td>");
         html.Should().MatchRegex(@"<td>\s*Fórum Central\s*</td>");
-        html.Should().Contain("Pedro Produção").And.Contain("Diana Diretora");
+        // Os participantes estão na célula da linha, ordenados por nome, e não em qualquer parte da página.
+        html.Should().MatchRegex(@"<td>\s*Diana Diretora, Pedro Produção\s*</td>");
+        html.Should().MatchRegex(@"<td>\s*Diana Diretora\s*</td>");
         html.Should().Contain("Abrir");
 
         // Dia sem eventos é dito, e a semana tem sete dias.
@@ -75,7 +80,7 @@ public class AgendaWebTests(BancoFixture banco) : IAsyncLifetime
 
         // O dia de hoje é um dos cabeçalhos, escrito com dia da semana e data.
         var hoje = DateOnly.FromDateTime(_fuso.ParaLocal(DateTime.UtcNow));
-        html.Should().Contain(hoje.ToString("dd/MM/yyyy"));
+        html.Should().Contain(hoje.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture));
 
         // O filtro por participante é só da Diretoria.
         html.Should().MatchRegex(@"Participante\s*<select");
@@ -126,6 +131,34 @@ public class AgendaWebTests(BancoFixture banco) : IAsyncLifetime
             sp.GetRequiredService<AppDbContext>().RegistrosAcesso.AsNoTracking().ToListAsync());
         acessos.Should().Contain(a =>
             a.TipoRecurso == "Evento" && a.Acao == AcaoDeAcesso.Listou && a.UsuarioId == _pedro);
+    }
+
+
+    [Fact]
+    public async Task Diretor_encontra_no_filtro_o_usuario_inativo_marcado_e_em_ordem_de_nome_e_producao_nao_tem_o_filtro()
+    {
+        var producao = await _app.EmEscopoAsync(null, async sp =>
+            (await sp.GetRequiredService<AppDbContext>().Perfis.AsNoTracking()
+                .FirstAsync(p => p.Tipo == TipoPerfil.Producao && p.Ativo)).Id);
+        var iara = await _app.ExecutarAsync(_admin, new CriarUsuario("Iara Inativa", "iara@x.com", "senha-da-iara", producao, null));
+        iara.Sucesso.Should().BeTrue(iara.Mensagem);
+        (await _app.ExecutarAsync(_admin, new DefinirAtivoUsuario(iara.Valor, false))).Sucesso.Should().BeTrue();
+
+        var doDiretor = await _app.ClienteAutenticadoAsync();
+        var doPedro = await _app.ClienteAutenticadoAsync(AplicacaoDeTeste.EmailDoPedro, AplicacaoDeTeste.SenhaDoPedro);
+
+        var htmlDoDiretor = WebUtility.HtmlDecode(await doDiretor.GetStringAsync("/agenda"));
+        var htmlDoPedro = WebUtility.HtmlDecode(await doPedro.GetStringAsync("/agenda"));
+
+        var inicio = System.Text.RegularExpressions.Regex.Match(htmlDoDiretor, @"Participante\s*<select");
+        inicio.Success.Should().BeTrue();
+        var select = htmlDoDiretor[inicio.Index..htmlDoDiretor.IndexOf("</select>", inicio.Index, StringComparison.Ordinal)];
+        select.Should().MatchRegex(@">\s*Iara Inativa \(inativo\)\s*<");
+        var nomes = System.Text.RegularExpressions.Regex.Matches(select, @"<option[^>]*>\s*([^<]*?)\s*</option>")
+            .Select(m => m.Groups[1].Value).ToList();
+        nomes.Should().Equal("Todos", "Diana Diretora", "Iara Inativa (inativo)", "Pedro Produção");
+
+        htmlDoPedro.Should().NotMatchRegex(@"Participante\s*<select").And.NotContain("Iara");
     }
 }
 
@@ -194,5 +227,102 @@ public class AgendaPorDiaTests
         RotulosDeAgenda.MensagemDeSalvo(_fuso, sobreposicoes).Should()
             .Be("Evento salvo. Atenção: Pedro já tem evento das 10:00 às 11:30 (07/10).");
         RotulosDeAgenda.MensagemDeSalvo(_fuso, []).Should().Be("Evento salvo.");
+    }
+
+    // ---- Onda final ----
+
+    [Theory]
+    [InlineData(2026, 10, 11, 2026, 10, 5)]    // domingo volta para a segunda anterior
+    [InlineData(2026, 10, 5, 2026, 10, 5)]     // segunda é ela mesma
+    [InlineData(2026, 10, 8, 2026, 10, 5)]     // quinta
+    [InlineData(2026, 10, 12, 2026, 10, 12)]   // a segunda seguinte abre outra semana
+    public void Segunda_da_semana_a_partir_de_qualquer_dia(int ano, int mes, int dia, int anoEsperado, int mesEsperado, int diaEsperado)
+    {
+        RotulosDeAgenda.SegundaDe(new DateOnly(ano, mes, dia)).Should().Be(new DateOnly(anoEsperado, mesEsperado, diaEsperado));
+    }
+
+    [Fact]
+    public void Evento_que_comecou_antes_da_semana_aparece_nos_primeiros_dias_dela()
+    {
+        var evento = Evento(new DateTime(2026, 10, 3, 20, 0, 0), 3 * 24 * 60);   // sábado 20:00 a terça 20:00
+
+        RotulosDeAgenda.TocaODia(_fuso, evento, new DateOnly(2026, 10, 5)).Should().BeTrue();
+        RotulosDeAgenda.TocaODia(_fuso, evento, new DateOnly(2026, 10, 6)).Should().BeTrue();
+        RotulosDeAgenda.TocaODia(_fuso, evento, new DateOnly(2026, 10, 7)).Should().BeFalse();
+        RotulosDeAgenda.Intervalo(_fuso, evento, new DateOnly(2026, 10, 5)).Should().Be("03/10 20:00 – 06/10 20:00");
+    }
+
+    [Fact]
+    public void Evento_de_tres_dias_aparece_nos_tres()
+    {
+        var evento = Evento(new DateTime(2026, 10, 7, 22, 0, 0), 28 * 60);   // quarta 22:00 a sexta 02:00
+
+        var dias = Enumerable.Range(5, 7).Select(d => new DateOnly(2026, 10, d))
+            .Where(d => RotulosDeAgenda.TocaODia(_fuso, evento, d)).ToList();
+
+        dias.Should().Equal(new DateOnly(2026, 10, 7), new DateOnly(2026, 10, 8), new DateOnly(2026, 10, 9));
+    }
+
+    [Fact]
+    public void Dia_com_mudanca_de_horario_de_verao_em_Nova_York_agrupa_pela_data_local()
+    {
+        var novaYork = new FusoDoEscritorio("America/New_York");
+        EventoResumo Em(DateTime local, int minutos)
+        {
+            var inicio = novaYork.ParaUtc(local);
+            return new EventoResumo(Guid.NewGuid(), "E", TipoEvento.Outro, inicio, inicio.AddMinutes(minutos), null, null, null, []);
+        }
+
+        // 08/03/2026: o relógio salta de 02:00 para 03:00. Sábado 22:00 a domingo 03:00 (local) dura 4 horas.
+        var primavera = Em(new DateTime(2026, 3, 7, 22, 0, 0), 4 * 60);
+        RotulosDeAgenda.TocaODia(novaYork, primavera, new DateOnly(2026, 3, 7)).Should().BeTrue();
+        RotulosDeAgenda.TocaODia(novaYork, primavera, new DateOnly(2026, 3, 8)).Should().BeTrue();
+        RotulosDeAgenda.TocaODia(novaYork, primavera, new DateOnly(2026, 3, 9)).Should().BeFalse();
+        RotulosDeAgenda.Intervalo(novaYork, primavera, new DateOnly(2026, 3, 8)).Should().Be("07/03 22:00 – 03:00");
+
+        // 01/11/2026: o relógio volta e o dia tem 25 horas. Um evento de 25 horas desde a meia-noite termina à meia-noite
+        // seguinte e não aparece no dia 2.
+        var outono = Em(new DateTime(2026, 11, 1, 0, 0, 0), 25 * 60);
+        RotulosDeAgenda.TocaODia(novaYork, outono, new DateOnly(2026, 11, 1)).Should().BeTrue();
+        RotulosDeAgenda.TocaODia(novaYork, outono, new DateOnly(2026, 11, 2)).Should().BeFalse();
+    }
+
+    [Fact]
+    public void Aviso_de_sobreposicao_que_atravessa_a_meia_noite_mostra_a_data_do_fim()
+    {
+        var atravessa = new SobreposicaoDeAgenda(Guid.NewGuid(), "Pedro", _fuso.ParaUtc(new DateTime(2026, 3, 10, 22, 0, 0)),
+            _fuso.ParaUtc(new DateTime(2026, 3, 11, 1, 0, 0)));
+        var ateMeiaNoite = new SobreposicaoDeAgenda(Guid.NewGuid(), "Paula", _fuso.ParaUtc(new DateTime(2026, 3, 10, 22, 0, 0)),
+            _fuso.ParaUtc(new DateTime(2026, 3, 11, 0, 0, 0)));
+
+        RotulosDeAgenda.Sobreposicao(_fuso, atravessa).Should().Be("Pedro já tem evento de 10/03 22:00 a 11/03 01:00");
+        RotulosDeAgenda.Sobreposicao(_fuso, ateMeiaNoite).Should().Be("Paula já tem evento das 22:00 às 00:00 (10/03)");
+    }
+
+    [Fact]
+    public void Formatos_de_hora_e_data_nao_dependem_da_cultura_da_thread()
+    {
+        var evento = Evento(new DateTime(2026, 10, 7, 23, 30, 0), 60);
+        var antes = CultureInfo.CurrentCulture;
+        try
+        {
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("ar-SA");   // outros algarismos e outro calendário
+
+            RotulosDeAgenda.Intervalo(_fuso, evento, new DateOnly(2026, 10, 7)).Should().Be("23:30 – 08/10 00:30");
+            RotulosDeAgenda.Sobreposicao(_fuso, new SobreposicaoDeAgenda(Guid.NewGuid(), "Pedro", evento.InicioEm,
+                evento.InicioEm.AddMinutes(30))).Should().Be("Pedro já tem evento das 23:30 às 00:00 (07/10)");
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = antes;
+        }
+    }
+
+    [Fact]
+    public void Atividade_vinculada_tem_um_rotulo_para_cada_situacao()
+    {
+        RotulosDeAgenda.Atividade("Contestação", excluida: false).Should().Be("Contestação");
+        RotulosDeAgenda.Atividade(null, excluida: false).Should().Be("Atividade vinculada (sem acesso)");
+        RotulosDeAgenda.Atividade(null, excluida: true).Should().Be("Atividade vinculada (excluída)");
     }
 }

@@ -54,14 +54,23 @@ public sealed class SalvarEventoManipulador(
         if (requisicao.InicioEm.Kind != DateTimeKind.Utc)
             return Falha(TipoErro.Validacao, "O início do evento deve estar em UTC.");
 
+        if (requisicao.Participantes is null) return Falha(TipoErro.Validacao, "Informe os participantes.");
+
         // Os participantes pedidos têm de existir; quem é novo e está inativo é recusado pelo domínio.
         var idsPedidos = requisicao.Participantes.Distinct().ToList();
         var encontrados = (await usuarios.ObterVariosAsync(idsPedidos, ct)).ToDictionary(u => u.Id);
         if (encontrados.Count != idsPedidos.Count) return Falha(TipoErro.Validacao, "Usuário não encontrado.");
         var pessoas = requisicao.Participantes.Select(p => new PessoaDoEvento(p, encontrados[p].Ativo)).ToList();
 
-        // Cliente e atividade só são revalidados quando mudam; o que o evento já tinha pode ser mantido.
-        if (requisicao.ClienteId is { } clienteId && existente?.ClienteId != clienteId)
+        // O vínculo (cliente, processo e atividade) só é revalidado quando muda: se o pedido traz o mesmo que o evento já
+        // tem, ele é mantido como está, ainda que o cliente tenha saído do processo, o cliente tenha sido inativado ou o
+        // editor não veja mais a atividade. Se qualquer um dos três muda, o vínculo novo é validado por inteiro.
+        var vinculoMantido = existente is not null
+            && existente.ClienteId == requisicao.ClienteId
+            && existente.ProcessoId == requisicao.ProcessoId
+            && existente.AtividadeId == requisicao.AtividadeId;
+
+        if (!vinculoMantido && requisicao.ClienteId is { } clienteId && existente?.ClienteId != clienteId)
         {
             var cliente = await clientes.ObterPorIdAsync(clienteId, ct);
             if (cliente is null) return Falha(TipoErro.Validacao, "Cliente não encontrado.");
@@ -69,13 +78,13 @@ public sealed class SalvarEventoManipulador(
         }
 
         Processo? processo = null;
-        if (requisicao.ProcessoId is { } processoId)
+        if (!vinculoMantido && requisicao.ProcessoId is { } processoId)
         {
             processo = await processos.ObterPorIdAsync(processoId, ct);
             if (processo is null) return Falha(TipoErro.Validacao, "Processo não encontrado.");
         }
 
-        if (requisicao.AtividadeId is { } atividadeId && existente?.AtividadeId != atividadeId)
+        if (!vinculoMantido && requisicao.AtividadeId is { } atividadeId && existente?.AtividadeId != atividadeId)
         {
             // Quem não pode ver a atividade a recebe como se não existisse.
             var atividade = await atividades.ObterPorIdAsync(atividadeId, ct);
@@ -88,17 +97,27 @@ public sealed class SalvarEventoManipulador(
             var dados = new DadosDoEvento(
                 requisicao.Titulo, requisicao.Descricao, requisicao.Local, requisicao.Tipo, requisicao.InicioEm,
                 requisicao.DuracaoEstimadaMinutos);
-            var vinculo = VinculoDoEvento.Criar(requisicao.ClienteId, processo, requisicao.AtividadeId);
 
             if (existente is null)
             {
+                var vinculo = VinculoDoEvento.Criar(requisicao.ClienteId, processo, requisicao.AtividadeId);
                 existente = Evento.Criar(dados, vinculo, new PessoaDoEvento(ator.Id, true), pessoas);
                 eventos.Adicionar(existente);
             }
             else
             {
-                existente.Alterar(dados, vinculo);
-                existente.DefinirParticipantes(pessoas);
+                if (vinculoMantido) existente.Alterar(dados);
+                else existente.Alterar(dados, VinculoDoEvento.Criar(requisicao.ClienteId, processo, requisicao.AtividadeId));
+
+                // Só participantes mudaram? O evento também fica com a marca na auditoria (como as atividades fazem
+                // com os responsáveis), além das linhas de cada participante.
+                var alteracao = existente.DefinirParticipantes(pessoas);
+                if (alteracao.Houve)
+                    auditoria.Anotar(EventosDeAgenda.ParticipantesAlterados, "Evento", existente.Id, new
+                    {
+                        adicionados = alteracao.Adicionados,
+                        removidos = alteracao.Removidos,
+                    });
             }
 
             // Aviso, não impedimento: quem dos participantes finais já tem outro evento nesse horário.

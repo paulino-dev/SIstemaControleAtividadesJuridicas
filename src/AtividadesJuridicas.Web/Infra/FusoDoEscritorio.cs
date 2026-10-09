@@ -33,10 +33,15 @@ public sealed class FusoDoEscritorio(string idDoFuso)
     /// <summary>
     /// Converte uma data e hora do escritório para UTC, com a mesma política de <see cref="InicioDoDiaEmUtc"/>:
     /// horário inexistente (salto do horário de verão) vai para o primeiro instante válido; horário ambíguo (hora
-    /// repetida) vale a primeira ocorrência. Os segundos são desprezados: a tela trabalha em minutos.
+    /// repetida) vale a primeira ocorrência. Os segundos são desprezados: a tela trabalha em minutos. Recusa
+    /// <see cref="DateTime.Kind"/> diferente de <see cref="DateTimeKind.Unspecified"/>.
     /// </summary>
     public DateTime ParaUtc(DateTime local)
     {
+        // Só o relógio de parede do escritório (Unspecified) tem o que converter; UTC ou Local indicariam um engano.
+        if (local.Kind != DateTimeKind.Unspecified)
+            throw new ArgumentException("A data e hora do escritório devem ter Kind Unspecified.", nameof(local));
+
         var minuto = new DateTime(local.Year, local.Month, local.Day, local.Hour, local.Minute, 0, DateTimeKind.Unspecified);
 
         // O primeiro instante válido é o fim da lacuna (um minuto de cada vez, nunca mais de algumas horas).

@@ -21,6 +21,8 @@ th, td { padding: .5rem .75rem; border-bottom: 1px solid var(--borda); text-alig
 .erro, .validation-message { color: var(--erro); }
 .ok { color: var(--ok); }
 .aviso { color: #93370d; }
+.confirmacao { color: #93370d; background: #fff; border: 1px solid #93370d; border-radius: .5rem; padding: 1rem; margin-bottom: 1rem; }
+.confirmacao:focus { outline: 2px solid #93370d; }
 .inativo { opacity: .55; }
 
 #blazor-error-ui {

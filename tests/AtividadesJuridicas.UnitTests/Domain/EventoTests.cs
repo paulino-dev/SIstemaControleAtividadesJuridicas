@@ -439,4 +439,106 @@ public class EventoTests
 
     private static DateTime Hora(string hhmm) =>
         new(2026, 10, 12, int.Parse(hhmm[..2]), int.Parse(hhmm[3..]), 0, DateTimeKind.Utc);
+
+    // ---- Onda final ----
+
+    [Fact]
+    public void Contador_aumenta_na_remocao_e_na_troca_combinada()
+    {
+        var evento = Novo(_bia, _caio);
+
+        evento.DefinirParticipantes([_ana, _bia]);          // só remove o Caio
+        evento.VersaoDosParticipantes.Should().Be(1);
+
+        evento.DefinirParticipantes([_ana, _duda]);         // remove a Bia e inclui a Duda
+        evento.VersaoDosParticipantes.Should().Be(2);
+
+        evento.DefinirParticipantes([_duda, _ana]);         // nada muda
+        evento.VersaoDosParticipantes.Should().Be(2);
+    }
+
+    [Fact]
+    public void Alterar_aceita_processo_e_depois_o_vinculo_limpo()
+    {
+        var cliente = Guid.CreateVersion7();
+        var processo = NovoProcesso(cliente);
+        var evento = Novo();
+
+        evento.Alterar(Dados(), VinculoDoEvento.Criar(cliente, processo, null));
+        evento.ClienteId.Should().Be(cliente);
+        evento.ProcessoId.Should().Be(processo.Id);
+
+        evento.Alterar(Dados(), VinculoDoEvento.Nenhum);
+        evento.ClienteId.Should().BeNull();
+        evento.ProcessoId.Should().BeNull();
+        evento.AtividadeId.Should().BeNull();
+    }
+
+    [Fact]
+    public void Sobrepoe_recusa_argumentos_fora_de_utc_e_intervalo_vazio_ou_invertido()
+    {
+        var evento = Novo();
+        var inicio = DateTime.SpecifyKind(T0, DateTimeKind.Unspecified);
+
+        var naoUtc = () => evento.Sobrepoe(inicio, T0.AddHours(1));
+        var fimNaoUtc = () => evento.Sobrepoe(T0, DateTime.SpecifyKind(T0.AddHours(1), DateTimeKind.Local));
+        var vazio = () => evento.Sobrepoe(T0, T0);
+        var invertido = () => evento.Sobrepoe(T0, T0.AddMinutes(-1));
+
+        naoUtc.Should().Throw<ExcecaoDeDominio>();
+        fimNaoUtc.Should().Throw<ExcecaoDeDominio>();
+        vazio.Should().Throw<ExcecaoDeDominio>();
+        invertido.Should().Throw<ExcecaoDeDominio>();
+    }
+
+    [Theory]
+    [InlineData(1999, 12, 31, 23, 59)]
+    [InlineData(2101, 1, 1, 0, 0)]
+    [InlineData(1, 1, 1, 0, 0)]
+    public void Inicio_fora_dos_anos_2000_a_2100_e_recusado(int ano, int mes, int dia, int hora, int minuto)
+    {
+        var inicio = new DateTime(ano, mes, dia, hora, minuto, 0, DateTimeKind.Utc);
+
+        var criar = () => Evento.Criar(Dados(inicio: inicio), VinculoDoEvento.Nenhum, _ana, []);
+        var alterar = () => Novo().Alterar(Dados(inicio: inicio), VinculoDoEvento.Nenhum);
+
+        criar.Should().Throw<ExcecaoDeDominio>();
+        alterar.Should().Throw<ExcecaoDeDominio>();
+    }
+
+    [Fact]
+    public void Inicio_nos_extremos_do_intervalo_de_anos_e_aceito()
+    {
+        Evento.Criar(Dados(inicio: new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc)), VinculoDoEvento.Nenhum, _ana, [])
+            .InicioEm.Year.Should().Be(2000);
+        Evento.Criar(Dados(inicio: new DateTime(2100, 12, 31, 23, 59, 0, DateTimeKind.Utc)), VinculoDoEvento.Nenhum, _ana, [])
+            .InicioEm.Year.Should().Be(2100);
+    }
+    [Fact]
+    public void Alterar_sem_vinculo_mantem_o_vinculo_atual_mesmo_que_o_cliente_tenha_saido_do_processo()
+    {
+        var cliente = Guid.CreateVersion7();
+        var processo = NovoProcesso(cliente);
+        var atividade = Guid.CreateVersion7();
+        var evento = Novo();
+        evento.Alterar(Dados(), VinculoDoEvento.Criar(cliente, processo, atividade));
+        processo.DefinirClientes([new ClienteDoProcesso(Guid.CreateVersion7(), PoloProcessual.Ativo)]);
+
+        evento.Alterar(Dados("Remarcada", inicio: T0.AddHours(3)));
+
+        evento.Titulo.Should().Be("Remarcada");
+        evento.InicioEm.Should().Be(T0.AddHours(3));
+        (evento.ClienteId, evento.ProcessoId, evento.AtividadeId).Should().Be((cliente, processo.Id, atividade));
+    }
+
+    [Fact]
+    public void Alterar_sem_vinculo_recusa_dados_invalidos_sem_mudar_nada()
+    {
+        var evento = Novo();
+
+        var alterar = () => evento.Alterar(Dados("Outro", duracao: 0));
+
+        alterar.Should().Throw<ExcecaoDeDominio>();
+        evento.Titulo.Should().Be("Audiência de instrução");
+    }
 }

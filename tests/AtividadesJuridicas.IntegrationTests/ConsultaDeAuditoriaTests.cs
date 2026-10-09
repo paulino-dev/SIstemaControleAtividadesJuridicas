@@ -165,4 +165,15 @@ public class ConsultaDeAuditoriaTests(BancoFixture banco) : TesteComBanco(banco)
         pagina.Itens.Should().ContainSingle(r => r.Evento == EventosDeSeguranca.LoginSucesso)
             .Which.UsuarioNome.Should().Be("Diana Diretora");
     }
+
+    [Fact]
+    public async Task Tabela_de_auditoria_tem_indices_so_por_registro_e_so_por_correlacao()
+    {
+        var definicoes = await EmEscopoAsync(null, sp => sp.GetRequiredService<AppDbContext>().Database
+            .SqlQueryRaw<string>("select indexdef as \"Value\" from pg_indexes where tablename = 'registros_auditoria'")
+            .ToListAsync());
+
+        definicoes.Should().Contain(d => d.EndsWith("(entidade_id)"));
+        definicoes.Should().Contain(d => d.EndsWith("(id_correlacao)"));
+    }
 }

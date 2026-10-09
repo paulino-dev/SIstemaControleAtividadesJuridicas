@@ -44,11 +44,16 @@ public sealed class ObterEventoManipulador(
         var cliente = evento.ClienteId is { } c ? await clientes.ObterPorIdAsync(c, ct) : null;
         var processo = evento.ProcessoId is { } p ? await processos.ObterPorIdAsync(p, ct) : null;
 
-        // O título da atividade só aparece para quem pode ver a atividade; o Id continua.
+        // O título da atividade só aparece para quem pode ver a atividade; o Id continua. Saber que ela foi excluída
+        // também é privilégio de quem a veria (a Diretoria vê todas): para os demais, excluída e oculta são iguais.
         string? tituloDaAtividade = null;
-        if (evento.AtividadeId is { } a && await atividades.ObterPorIdAsync(a, ct) is { } atividade
-            && AcessoAAtividade.PodeVer(ator, atividade))
-            tituloDaAtividade = atividade.Titulo;
+        var atividadeExcluida = false;
+        if (evento.AtividadeId is { } a)
+        {
+            var atividade = await atividades.ObterPorIdAsync(a, ct);
+            if (atividade is null) atividadeExcluida = ator.EhDiretoria;
+            else if (AcessoAAtividade.PodeVer(ator, atividade)) tituloDaAtividade = atividade.Titulo;
+        }
 
         var participantes = evento.Participantes
             .Select(x => pessoas.TryGetValue(x.UsuarioId, out var u)
@@ -64,6 +69,6 @@ public sealed class ObterEventoManipulador(
             evento.DuracaoEstimadaMinutos, evento.FimEm, evento.ClienteId, cliente?.Nome, evento.ProcessoId,
             processo?.Titulo, evento.AtividadeId, tituloDaAtividade, evento.CriadorId,
             pessoas.TryGetValue(evento.CriadorId, out var criador) ? criador.Nome : null,
-            participantes, new AcoesDoEvento(podeGerenciar, podeGerenciar), evento.Versao));
+            participantes, new AcoesDoEvento(podeGerenciar, podeGerenciar), evento.Versao, atividadeExcluida));
     }
 }

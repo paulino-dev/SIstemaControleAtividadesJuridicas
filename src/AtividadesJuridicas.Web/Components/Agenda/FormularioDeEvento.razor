@@ -38,7 +38,7 @@
                 </label>
             </div>
             <div class="grade">
-                <label>Data (horário do escritório) <input type="date" @bind="_data" /></label>
+                <label>Data (horário do escritório) <input type="date" min="@DataMinima" max="@DataMaxima" @bind="_data" /></label>
                 <label>Hora <input type="time" @bind="_hora" /></label>
                 <label>Duração em minutos <input type="number" min="1" max="@Evento.DuracaoMaximaMinutos" @bind="_duracao" /></label>
             </div>
@@ -110,7 +110,7 @@
             @if (_atividadeId is not null)
             {
                 <div class="acoes">
-                    <span>Atividade: <strong>@(_atividadeTitulo ?? RotulosDeAgenda.AtividadeSemAcesso)</strong></span>
+                    <span>Atividade: <strong>@RotulosDeAgenda.Atividade(_atividadeTitulo, _atividadeExcluida)</strong></span>
                     <button type="button" class="secundario" disabled="@_salvando" @onclick="RemoverAtividade">Sem atividade</button>
                 </div>
             }
@@ -143,7 +143,7 @@
                 @foreach (var pessoa in _pessoas)
                 {
                     <label @key="pessoa.Id">
-                        <input type="checkbox" checked="@_marcados.Contains(pessoa.Id)" disabled="@_salvando"
+                        <input type="checkbox" checked="@_marcados.Contains(pessoa.Id)" disabled="@(_salvando || EhCriadorDeEventoNovo(pessoa.Id))"
                                @onchange="e => MarcarParticipante(pessoa.Id, e)" /> @pessoa.Nome@(pessoa.Ativo ? "" : " (inativo)")
                     </label>
                 }
@@ -195,6 +195,15 @@
     private string? _processoTitulo;
     private Guid? _atividadeId;
     private string? _atividadeTitulo;
+    private bool _atividadeExcluida;
+
+    // Quem está criando o evento; só preenchido na criação (ele sempre entra como participante).
+    private Guid? _criadorDoEventoNovo;
+
+    private static readonly string DataMinima = $"{Evento.AnoMinimoDeInicio}-01-01";
+    private static readonly string DataMaxima = $"{Evento.AnoMaximoDeInicio}-12-31";
+
+    private bool EhCriadorDeEventoNovo(Guid id) => EventoId is null && _criadorDoEventoNovo == id;
 
     private string? _buscaDeCliente;
     private IReadOnlyList<ClienteResumo> _clientesEncontrados = [];
@@ -243,7 +252,8 @@
             _processoId = atual.ProcessoId;
             _processoTitulo = atual.ProcessoTitulo ?? "Processo indisponível";
             _atividadeId = atual.AtividadeId;
-            _atividadeTitulo = atual.AtividadeTitulo;   // nulo: a atividade existe mas o usuário não a vê
+            _atividadeTitulo = atual.AtividadeTitulo;   // nulo: a atividade foi excluída ou o usuário não a vê
+            _atividadeExcluida = atual.AtividadeExcluida;
 
             // Na edição a lista enviada é a que vale: todos os participantes atuais (inclusive os inativos, que a
             // lista de ativos não traz) aparecem marcados; os demais usuários ativos, desmarcados.
@@ -271,6 +281,7 @@
 
             if (pessoas.All(x => x.Id != eu.Id)) pessoas.Add(new Pessoa(eu.Id, eu.Nome, true));
             _marcados = [eu.Id];
+            _criadorDoEventoNovo = eu.Id;   // marcado e travado: quem cria sempre participa
         }
 
         _pessoas = [.. pessoas.OrderBy(p => p.Nome, StringComparer.CurrentCultureIgnoreCase)];
@@ -386,6 +397,7 @@
     {
         _atividadeId = atividade.Id;
         _atividadeTitulo = atividade.Titulo;
+        _atividadeExcluida = false;
         _atividadesEncontradas = [];
         _nenhumaAtividade = false;
         _atividadesTruncadas = false;
@@ -396,6 +408,7 @@
     {
         _atividadeId = null;
         _atividadeTitulo = null;
+        _atividadeExcluida = false;
     }
 
     private async Task SalvarAsync()
@@ -409,6 +422,12 @@
             if (_data is not { } data || _hora is not { } hora)
             {
                 _mensagem = "Informe a data e a hora do evento.";
+                return;
+            }
+
+            if (data.Year < Evento.AnoMinimoDeInicio || data.Year > Evento.AnoMaximoDeInicio)
+            {
+                _mensagem = $"A data deve estar entre os anos {Evento.AnoMinimoDeInicio} e {Evento.AnoMaximoDeInicio}.";
                 return;
             }
 

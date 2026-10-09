@@ -125,7 +125,7 @@ else
     @if (_abertaId is { } id)
     {
         @* Os avisos levam o id da ficha que os enviou: o de uma ficha que já não é a aberta é ignorado. *@
-        <FichaDaAtividade @key="id" AtividadeId="id" OnMudou="() => AtualizarListaAsync(id)" OnAcessoEncerrado="EncerrarAcesso"
+        <FichaDaAtividade @key="id" AtividadeId="id" OnMudou="AtualizarListaAsync" OnAcessoEncerrado="EncerrarAcesso"
                           OnFechar="() => FecharFicha(id)" />
     }
 }
@@ -196,13 +196,12 @@ else
     }
 
     /// <summary>
-    /// A ficha avisou que algo mudou: a lista é recarregada na página que foi pedida por último (e não na primeira,
-    /// que é o que sobra depois de uma consulta com erro). Aviso de uma ficha que já não é a aberta é ignorado.
+    /// A ficha avisou que algo mudou: a lista é sempre recarregada, na página que foi pedida por último (e não na
+    /// primeira, que é o que sobra depois de uma consulta com erro). Só fechar o painel depende de a ficha que
+    /// avisou ainda ser a aberta (<see cref="FecharFicha"/>).
     /// </summary>
-    private async Task AtualizarListaAsync(Guid idDaFicha)
+    private async Task AtualizarListaAsync()
     {
-        if (_abertaId != idDaFicha) return;
-
         await CarregarAsync(_paginaPedida);
     }
 

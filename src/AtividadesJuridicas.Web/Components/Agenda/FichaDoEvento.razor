@@ -37,7 +37,7 @@
             <dt>Descrição</dt><dd class="texto-livre">@e.Descricao</dd>
             <dt>Cliente</dt><dd>@(e.ClienteId is null ? "—" : e.ClienteNome ?? "Cliente indisponível")</dd>
             <dt>Processo</dt><dd>@(e.ProcessoId is null ? "—" : e.ProcessoTitulo ?? "Processo indisponível")</dd>
-            <dt>Atividade</dt><dd>@(e.AtividadeId is null ? "—" : e.AtividadeTitulo ?? RotulosDeAgenda.AtividadeSemAcesso)</dd>
+            <dt>Atividade</dt><dd>@(e.AtividadeId is null ? "—" : RotulosDeAgenda.Atividade(e.AtividadeTitulo, e.AtividadeExcluida))</dd>
             <dt>Criado por</dt><dd>@(e.CriadorNome ?? "Usuário não encontrado")</dd>
         </dl>
 
@@ -87,6 +87,9 @@
 
     /// <summary>Avisado quando um caso de uso responde acesso negado: a página decide o que mostrar.</summary>
     [Parameter] public EventCallback OnAcessoEncerrado { get; set; }
+
+    /// <summary>Avisado depois que o evento foi excluído, antes de fechar: a página recarrega a semana e diz que foi excluído.</summary>
+    [Parameter] public EventCallback OnExcluido { get; set; }
 
     [Parameter] public EventCallback OnFechar { get; set; }
 
@@ -254,7 +257,7 @@
                 return;
             }
 
-            await OnMudou.InvokeAsync();
+            await OnExcluido.InvokeAsync();
             await OnFechar.InvokeAsync();
         }
         finally

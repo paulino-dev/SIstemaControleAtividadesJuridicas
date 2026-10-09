@@ -581,4 +581,225 @@ public class AgendaTests
         obter.RecursoId.Should().Be(id);
         typeof(ListarUsuariosParaAgenda).GetInterfaces().Should().NotContain(typeof(IConsultaAuditavel));
     }
+
+    // ---- Onda final: auditoria dos participantes ----
+
+    private static (Guid[] Adicionados, Guid[] Removidos) ListasAnotadas(EventoAnotado anotado)
+    {
+        var d = JsonSerializer.SerializeToElement(anotado.Dados);
+        return ([.. d.GetProperty("adicionados").EnumerateArray().Select(x => x.GetGuid())],
+            [.. d.GetProperty("removidos").EnumerateArray().Select(x => x.GetGuid())]);
+    }
+
+    [Fact]
+    public async Task Edicao_que_muda_participantes_anota_o_evento_com_adicionados_e_removidos()
+    {
+        var id = await CriadoAsync(_pedro, participantes: _paula);
+        _c.Auditoria.Eventos.Clear();
+
+        var resultado = await Salvar(_pedro, id, participantes: [_pedro, _ester]);
+
+        resultado.Sucesso.Should().BeTrue(resultado.Mensagem);
+        var anotado = _c.Auditoria.Eventos.Single(e => e.Evento == "evento_participantes_alterados");
+        anotado.Entidade.Should().Be("Evento");
+        anotado.EntidadeId.Should().Be(id);
+        anotado.Imediato.Should().BeFalse();
+        var (adicionados, removidos) = ListasAnotadas(anotado);
+        adicionados.Should().Equal(_ester.Id);
+        removidos.Should().Equal(_paula.Id);
+    }
+
+    [Fact]
+    public async Task Edicao_que_nao_muda_participantes_e_a_criacao_nao_anotam_nada()
+    {
+        _c.Auditoria.Eventos.Clear();
+        var id = await CriadoAsync(_pedro, participantes: _paula);
+        _c.Auditoria.Eventos.Should().NotContain(e => e.Evento == "evento_participantes_alterados");
+
+        var resultado = await Salvar(_pedro, id, titulo: "Remarcada", participantes: [_pedro, _paula]);
+
+        resultado.Sucesso.Should().BeTrue(resultado.Mensagem);
+        _c.Auditoria.Eventos.Should().NotContain(e => e.Evento == "evento_participantes_alterados");
+    }
+
+    // ---- Onda final: vínculo só é revalidado quando muda ----
+
+    [Fact]
+    public async Task Evento_continua_editavel_quando_o_cliente_saiu_do_processo()
+    {
+        var id = (await Salvar(_pedro, cliente: _maria.Id, processo: _processo.Id, participantes: [_pedro])).Valor!.Id;
+        _processo.DefinirClientes([new ClienteDoProcesso(_jose.Id, PoloProcessual.Ativo)]);
+
+        var remarcado = await Salvar(
+            _pedro, id, inicio: Inicio.AddHours(2), cliente: _maria.Id, processo: _processo.Id, participantes: [_pedro]);
+
+        remarcado.Sucesso.Should().BeTrue(remarcado.Mensagem);
+        var evento = NoRepositorio(id);
+        evento.InicioEm.Should().Be(Inicio.AddHours(2));
+        (evento.ClienteId, evento.ProcessoId).Should().Be((_maria.Id, _processo.Id));
+
+        // Trocar o cliente por outro que não é do processo continua recusado.
+        var outro = ClientePessoaFisica.Criar(new DadosDoCliente("Otávio Lima", null, null, Endereco.Vazio, null), Cpf.Criar("390.533.447-05"), null, null);
+        _c.Clientes.Itens.Add(outro);
+        var trocado = await Salvar(_pedro, id, cliente: outro.Id, processo: _processo.Id, participantes: [_pedro]);
+        trocado.Erro.Should().Be(TipoErro.Validacao);
+        trocado.Mensagem.Should().Be("O cliente do evento deve ser um dos clientes do processo.");
+        NoRepositorio(id).ClienteId.Should().Be(_maria.Id);
+    }
+
+    [Fact]
+    public async Task Evento_continua_editavel_quando_o_processo_deixou_de_existir()
+    {
+        var id = (await Salvar(_pedro, cliente: _maria.Id, processo: _processo.Id, participantes: [_pedro])).Valor!.Id;
+        _c.Processos.Itens.Remove(_processo);
+
+        var remarcado = await Salvar(
+            _pedro, id, inicio: Inicio.AddHours(2), cliente: _maria.Id, processo: _processo.Id, participantes: [_pedro]);
+
+        remarcado.Sucesso.Should().BeTrue(remarcado.Mensagem);
+        NoRepositorio(id).ProcessoId.Should().Be(_processo.Id);
+    }
+
+    [Fact]
+    public async Task Evento_com_atividade_que_o_editor_nao_ve_mais_so_muda_o_horario_e_nao_aponta_para_outra_invisivel()
+    {
+        var doPedro = await AtividadeDoPedroAsync();
+        var daDiana = (await new SalvarAtividadeManipulador(
+                _c.Como(Diana), _c.Atividades, _c.Clientes, _c.Processos, _c.Areas, _c.Relogio, _c.Unidade, _c.Documentos)
+            .ManipularAsync(new SalvarAtividade(null, "Só da Diana", "Texto.", null, null, null, null), default)).Valor;
+        var id = (await Salvar(_pedro, atividade: doPedro, participantes: [_pedro])).Valor!.Id;
+        (await new DefinirResponsaveisDaAtividadeManipulador(
+                _c.Como(Diana), _c.Atividades, _c.Usuarios, _c.Perfis, _c.Relogio, _c.Unidade, _c.Auditoria)
+            .ManipularAsync(new DefinirResponsaveisDaAtividade(
+                doPedro, [new ResponsavelEntrada(_paula.Id, null)], Diana.Id), default)).Sucesso.Should().BeTrue();
+
+        var horario = await Salvar(_pedro, id, inicio: Inicio.AddHours(3), atividade: doPedro, participantes: [_pedro]);
+        var outra = await Salvar(_pedro, id, atividade: daDiana, participantes: [_pedro]);
+
+        horario.Sucesso.Should().BeTrue(horario.Mensagem);
+        NoRepositorio(id).AtividadeId.Should().Be(doPedro);
+        outra.Erro.Should().Be(TipoErro.Validacao);
+        outra.Mensagem.Should().Be("Atividade não encontrada.");
+
+        // Atividade excluída depois: o horário ainda muda.
+        _c.Atividades.Itens.RemoveAll(a => a.Id == doPedro);
+        (await Salvar(_pedro, id, inicio: Inicio.AddHours(4), atividade: doPedro, participantes: [_pedro]))
+            .Sucesso.Should().BeTrue();
+    }
+
+    // ---- Onda final: versão esperada de quem não vê / não gerencia ----
+
+    [Fact]
+    public async Task Versao_esperada_velha_de_quem_nao_ve_o_evento_continua_nao_encontrado()
+    {
+        var id = await CriadoAsync(Diana, participantes: _pedro);
+        var velha = NoRepositorio(id).Versao + 7;
+
+        var editar = await Salvar(_ester, id, versao: velha);
+        var excluir = await Excluir(_ester, id, velha);
+
+        foreach (var resultado in new Resultado[] { editar, excluir })
+        {
+            resultado.Erro.Should().Be(TipoErro.NaoEncontrado);
+            resultado.Mensagem.Should().Be(NaoEncontrado);
+        }
+    }
+
+    [Fact]
+    public async Task Versao_esperada_velha_de_participante_que_nao_gerencia_continua_acesso_negado()
+    {
+        var id = await CriadoAsync(Diana, participantes: _paula);
+        var velha = NoRepositorio(id).Versao + 7;
+
+        var editar = await Salvar(_paula, id, versao: velha);
+        var excluir = await Excluir(_paula, id, velha);
+
+        editar.Erro.Should().Be(TipoErro.AcessoNegado);
+        excluir.Erro.Should().Be(TipoErro.AcessoNegado);
+    }
+
+    // ---- Onda final: ordem estável e datas extremas ----
+
+    [Fact]
+    public async Task Eventos_que_comecam_juntos_saem_em_ordem_de_id()
+    {
+        var a = await CriadoAsync(Diana, "A", Inicio, 60);
+        var b = await CriadoAsync(Diana, "B", Inicio, 60);
+        var c = await CriadoAsync(Diana, "C", Inicio, 60);
+
+        var lista = (await Listar(Diana)).Valor!.Select(e => e.Id).ToList();
+
+        lista.Should().Equal(new[] { a, b, c }.Order());
+        lista.Should().Equal((await Listar(Diana)).Valor!.Select(e => e.Id));
+    }
+
+    [Fact]
+    public async Task Datas_extremas_e_participantes_nulos_sao_validacao_nunca_excecao()
+    {
+        (await Salvar(_pedro, inicio: DateTime.SpecifyKind(DateTime.MaxValue, DateTimeKind.Utc))).Erro.Should().Be(TipoErro.Validacao);
+        (await Salvar(_pedro, inicio: new DateTime(1, 1, 1, 0, 0, 0, DateTimeKind.Utc))).Erro.Should().Be(TipoErro.Validacao);
+        (await Salvar(_pedro, inicio: new DateTime(1999, 12, 31, 23, 0, 0, DateTimeKind.Utc))).Erro.Should().Be(TipoErro.Validacao);
+        (await Salvar(_pedro, inicio: new DateTime(2101, 1, 1, 0, 0, 0, DateTimeKind.Utc))).Erro.Should().Be(TipoErro.Validacao);
+
+        var nulos = await new SalvarEventoManipulador(
+                _c.Como(_pedro), _c.Eventos, _c.Usuarios, _c.Clientes, _c.Processos, _c.Atividades, _c.Unidade, _c.Auditoria)
+            .ManipularAsync(new SalvarEvento(
+                null, "X", null, null, TipoEvento.Reuniao, Inicio, 30, null, null, null, null!), default);
+        nulos.Erro.Should().Be(TipoErro.Validacao);
+        _c.Eventos.Itens.Should().BeEmpty();
+
+        (await Salvar(_pedro, inicio: new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc))).Sucesso.Should().BeTrue();
+        (await Salvar(_pedro, inicio: new DateTime(2100, 12, 31, 23, 59, 0, DateTimeKind.Utc))).Sucesso.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Periodo_com_limites_extremos_e_validacao_nunca_excecao()
+    {
+        var minimo = new DateTime(1, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var maximo = DateTime.SpecifyKind(DateTime.MaxValue, DateTimeKind.Utc);
+        var extremos = new (DateTime De, DateTime Ate)[]
+        {
+            (minimo, minimo.AddDays(1)),
+            (maximo.AddDays(-1), maximo),
+        };
+
+        foreach (var (de, ate) in extremos)
+        {
+            var resultado = await Listar(Diana, de, ate);
+            resultado.Erro.Should().Be(TipoErro.Validacao);
+            resultado.Mensagem.Should().Be("Período inválido.");
+        }
+    }
+
+    // ---- Onda final: atividade excluída x sem acesso na ficha ----
+
+    [Fact]
+    public async Task Ficha_so_diz_que_a_atividade_foi_excluida_a_quem_poderia_te_la_visto()
+    {
+        var doPedro = await AtividadeDoPedroAsync();
+        var daDiana = (await new SalvarAtividadeManipulador(
+                _c.Como(Diana), _c.Atividades, _c.Clientes, _c.Processos, _c.Areas, _c.Relogio, _c.Unidade, _c.Documentos)
+            .ManipularAsync(new SalvarAtividade(null, "Só da Diana", "Texto.", null, null, null, null), default)).Valor;
+        var comExcluida = (await Salvar(Diana, atividade: doPedro, participantes: [_pedro])).Valor!.Id;
+        var comOculta = (await Salvar(Diana, atividade: daDiana, participantes: [_pedro])).Valor!.Id;
+        (await Obter(Diana, comExcluida)).Valor!.AtividadeExcluida.Should().BeFalse();
+
+        _c.Atividades.Itens.RemoveAll(a => a.Id == doPedro);
+
+        var excluidaParaDiana = (await Obter(Diana, comExcluida)).Valor!;
+        var excluidaParaPedro = (await Obter(_pedro, comExcluida)).Valor!;
+        var ocultaParaPedro = (await Obter(_pedro, comOculta)).Valor!;
+        var ocultaParaDiana = (await Obter(Diana, comOculta)).Valor!;
+
+        excluidaParaDiana.AtividadeExcluida.Should().BeTrue();
+        excluidaParaDiana.AtividadeTitulo.Should().BeNull();
+        // Quem não poderia ver a atividade recebe o mesmo para a excluída e para a existente que não vê.
+        excluidaParaPedro.AtividadeExcluida.Should().BeFalse();
+        excluidaParaPedro.AtividadeTitulo.Should().BeNull();
+        ocultaParaPedro.AtividadeExcluida.Should().BeFalse();
+        ocultaParaPedro.AtividadeTitulo.Should().BeNull();
+        excluidaParaPedro.AtividadeId.Should().Be(doPedro);
+        ocultaParaDiana.AtividadeExcluida.Should().BeFalse();
+        ocultaParaDiana.AtividadeTitulo.Should().Be("Só da Diana");
+    }
 }

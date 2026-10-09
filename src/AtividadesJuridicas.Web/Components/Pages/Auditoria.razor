@@ -151,7 +151,7 @@ else
     private string? _erro;
     private Aba _aba = Aba.Alteracoes;
     private int _pagina = 1;
-    private Filtro _filtro = new();
+    private FiltroDaTelaDeAuditoria _filtro = new();
     private IReadOnlyList<UsuarioResumo> _usuarios = [];
     private Pagina<RegistroAuditoriaResumo> _alteracoes = SemAlteracoes;
     private Pagina<RegistroAcessoResumo> _acessos = SemAcessos;
@@ -183,15 +183,16 @@ else
 
     private Task FiltrarAsync() => IrParaAsync(1);
 
+    // Os botões das linhas respondem "tudo sobre isto": os outros filtros saem (só o período fica).
     private Task FiltrarPorRegistroAsync(Guid entidadeId)
     {
-        _filtro.EntidadeId = entidadeId.ToString();
+        _filtro = FiltroDaTelaDeAuditoria.PorRegistro(_filtro, entidadeId);
         return IrParaAsync(1);
     }
 
     private Task FiltrarPorCorrelacaoAsync(Guid idCorrelacao)
     {
-        _filtro.IdCorrelacao = idCorrelacao.ToString();
+        _filtro = FiltroDaTelaDeAuditoria.PorCorrelacao(_filtro, idCorrelacao);
         return IrParaAsync(1);
     }
 
@@ -199,14 +200,15 @@ else
     {
         var anterior = _pagina;
         _pagina = pagina;
-        // Sem consulta, a página mostrada continua sendo a anterior.
-        if (!await CarregarAsync()) _pagina = anterior;
+        // Com outra consulta em andamento, a página mostrada continua sendo a anterior.
+        if (await CarregarAsync() == Carga.EmAndamento) _pagina = anterior;
     }
 
-    /// <summary>Falso quando a consulta não foi feita: outra em andamento ou identificador inválido.</summary>
-    private async Task<bool> CarregarAsync()
+    private enum Carga { Feita, EmAndamento, IdentificadorInvalido }
+
+    private async Task<Carga> CarregarAsync()
     {
-        if (_ocupado) return false;
+        if (_ocupado) return Carga.EmAndamento;
         _erro = null;
 
         // Um identificador que não é um Guid não consulta nada.
@@ -215,8 +217,12 @@ else
         {
             if (!TentarLerGuid(_filtro.EntidadeId, out entidadeId) || !TentarLerGuid(_filtro.IdCorrelacao, out idCorrelacao))
             {
+                // Sem consulta não há linhas para mostrar: as da consulta anterior saem e a página volta à primeira, para
+                // que o número da página nunca fique sobre linhas de outra consulta.
                 _erro = "Identificador inválido.";
-                return false;
+                _alteracoes = SemAlteracoes;
+                _pagina = 1;
+                return Carga.IdentificadorInvalido;
             }
         }
 
@@ -224,7 +230,7 @@ else
         try
         {
             await ConsultarAsync(entidadeId, idCorrelacao);
-            return true;
+            return Carga.Feita;
         }
         finally
         {
@@ -280,17 +286,4 @@ else
         OperacaoAuditada.Exclusao => "Exclusão",
         _ => "Evento",
     };
-
-    private sealed class Filtro
-    {
-        public DateOnly? De { get; set; }
-        public DateOnly? Ate { get; set; }
-        public Guid? UsuarioId { get; set; }
-        public string? Entidade { get; set; }
-        public string? EntidadeId { get; set; }
-        public string? IdCorrelacao { get; set; }
-        public OperacaoAuditada? Operacao { get; set; }
-        public string? TipoRecurso { get; set; }
-        public AcaoDeAcesso? Acao { get; set; }
-    }
 }

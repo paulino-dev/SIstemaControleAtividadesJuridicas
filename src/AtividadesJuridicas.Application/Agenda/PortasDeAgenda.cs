@@ -5,6 +5,16 @@ namespace AtividadesJuridicas.Application.Agenda;
 public static class AgendaOpcoes
 {
     public const int PeriodoMaximoEmDias = 92;
+
+    /// <summary>
+    /// Os limites do que se consulta: os anos em que um evento pode começar, com folga de uma semana para cada lado
+    /// (a semana que contém o primeiro e o último dia possíveis).
+    /// </summary>
+    public static readonly DateTime PeriodoMinimoUtc =
+        new DateTime(Evento.AnoMinimoDeInicio, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddDays(-7);
+
+    public static readonly DateTime PeriodoMaximoUtc =
+        new DateTime(Evento.AnoMaximoDeInicio + 1, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddDays(7);
 }
 
 /// <summary><paramref name="Nome"/> é nulo quando o usuário não é mais encontrado.</summary>
@@ -18,14 +28,16 @@ public sealed record EventoResumo(
 public sealed record AcoesDoEvento(bool Editar, bool Excluir);
 
 /// <summary>
-/// <paramref name="AtividadeTitulo"/> só vem quando o usuário pode ver a atividade. <paramref name="Versao"/>: a versão da
-/// linha, que os formulários devolvem como versão esperada.
+/// <paramref name="AtividadeTitulo"/> só vem quando o usuário pode ver a atividade. <paramref name="AtividadeExcluida"/>
+/// só é verdadeiro para quem poderia ver a atividade (a Diretoria); para os demais, atividade excluída e atividade
+/// que não se vê são indistinguíveis. <paramref name="Versao"/>: a versão da linha, que os formulários devolvem como
+/// versão esperada.
 /// </summary>
 public sealed record EventoDetalhe(
     Guid Id, string Titulo, string? Descricao, string? Local, TipoEvento Tipo, DateTime InicioEm,
     int DuracaoEstimadaMinutos, DateTime FimEm, Guid? ClienteId, string? ClienteNome, Guid? ProcessoId,
     string? ProcessoTitulo, Guid? AtividadeId, string? AtividadeTitulo, Guid CriadorId, string? CriadorNome,
-    IReadOnlyList<ParticipanteDetalhe> Participantes, AcoesDoEvento Acoes, uint Versao);
+    IReadOnlyList<ParticipanteDetalhe> Participantes, AcoesDoEvento Acoes, uint Versao, bool AtividadeExcluida = false);
 
 /// <summary>Um participante que já tem outro evento no mesmo horário. Propositalmente sem o título do outro evento.</summary>
 public sealed record SobreposicaoDeAgenda(Guid UsuarioId, string? UsuarioNome, DateTime InicioEm, DateTime FimEm);

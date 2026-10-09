@@ -597,6 +597,12 @@ namespace AtividadesJuridicas.Infrastructure.Persistencia.Migrations
                     b.HasIndex("DataHora")
                         .HasDatabaseName("ix_registros_auditoria_data_hora");
 
+                    b.HasIndex("EntidadeId")
+                        .HasDatabaseName("ix_registros_auditoria_entidade_id");
+
+                    b.HasIndex("IdCorrelacao")
+                        .HasDatabaseName("ix_registros_auditoria_id_correlacao");
+
                     b.HasIndex("UsuarioId")
                         .HasDatabaseName("ix_registros_auditoria_usuario_id");
 
