@@ -65,7 +65,7 @@ Regras:
 ### Cliente inativo
 
 - O usuário de um cliente inativo não tem acesso. O login recusado responde como uma senha errada: mensagem de credenciais inválidas e evento `login_falha`; na tentativa que aciona o bloqueio, mensagem de bloqueio e `login_bloqueado`. A tentativa conta para o bloqueio, e o evento leva `motivo`: `cliente_inativo` (cliente inativo ou inexistente) ou `vinculo_incoerente` (perfil `Cliente` sem cliente, ou perfil interno com cliente). Uma sessão aberta é recusada na operação seguinte: o cookie é rejeitado na próxima requisição HTTP, e uma tela já aberta recebe acesso negado.
-- Reativar o cliente devolve o acesso, sem mexer nos usuários.
+- Reativar o cliente devolve o acesso, sem mexer nos usuários. O cookie já rejeitado não revive: o acesso volta no próximo login.
 - O estado do cliente é lido do banco a cada operação, como já se faz com o perfil e o estado do usuário.
 
 ### Portão do cliente
@@ -74,7 +74,7 @@ Regras:
 
 O executor de requisições consulta o ator antes de chamar o caso de uso:
 
-- Sem ator (login, por exemplo), o portão não age; cada caso de uso mantém a verificação que já faz.
+- Sem usuário autenticado (login, por exemplo), o portão não age; cada caso de uso mantém a verificação que já faz.
 - Ator de tipo `Diretoria` ou `Producao`: nada muda.
 - Ator de tipo `Cliente`: a requisição só segue se estiver marcada com `IRequisicaoAbertaAoCliente`. Caso contrário, o executor responde `AcessoNegado` sem chamar o caso de uso, e a tentativa gera o evento `acesso_negado` com o nome da requisição.
 
@@ -161,9 +161,11 @@ Um Documento Geral nasce liberado para todos os perfis **internos** ativos (tipo
 | `ListarMeusDocumentos` | Perfil `Cliente`; os demais recebem `AcessoNegado` | Os `DocumentoDoCliente` do cliente do ator |
 | `ListarDocumentosComuns` | Diretoria e perfil `Cliente`; Produção recebe `AcessoNegado` | Todos os `DocumentoComum` |
 
-- As três são paginadas, do mais recente para o mais antigo, como as listagens atuais.
-- O cliente recebe nome, tamanho e data de envio de cada documento. O nome de quem enviou não vai para o cliente.
-- Para a Diretoria, a resposta continua trazendo quem enviou.
+- `ListarDocumentosDoCliente` com a categoria `DocumentoComum` responde `Validacao` ("Categoria inválida para esta consulta."): o documento comum não é de cliente e tem consulta própria.
+- As três são paginadas, do mais recente para o mais antigo, como as listagens atuais. As duas do portal desempatam pelo Id.
+- O cliente recebe de cada documento o Id (para o download), o nome, o tamanho e a data de envio. Não recebe o nome do arquivo enviado, a categoria nem o nome de quem enviou. O tamanho é mostrado em português do Brasil, qualquer que seja a cultura do servidor.
+- Para a Diretoria, as listagens continuam trazendo quem enviou.
+- As telas voltam à última página quando a página pedida deixou de existir.
 
 ## 5. Andamento
 
@@ -171,10 +173,11 @@ Um Documento Geral nasce liberado para todos os perfis **internos** ativos (tipo
 
 - Traz as atividades vivas cujo `ClienteId` é o do ator. Atividade avulsa não aparece; atividade excluída não aparece.
 - Aparece desde a criação, em qualquer status.
-- Campos de cada linha: título, nome da área de atuação, processo (número CNJ; na falta dele, o título do processo; vazio sem processo), situação e data de conclusão.
+- Campos de cada linha: título, nome da área de atuação, processo (número CNJ; na falta dele, o título do processo; vazio sem processo), situação e data de conclusão. A linha não leva identificador: o cliente não tem ficha da atividade nem precisa de um.
 - Situação: `Concluída` quando o status é `Concluida`; `Em andamento` em todos os demais (`Criada`, `Direcionada`, `Feita`, `ParaCorrecao`, `Corrigida`, `Reaberta`). Uma atividade reaberta volta a `Em andamento` e perde a data de conclusão.
-- A resposta traz os dois totais do cliente: em andamento e concluídas.
-- Filtro por situação. Paginada. Ordem: em andamento primeiro, pela criação mais recente; depois as concluídas, da conclusão mais recente para a mais antiga.
+- A resposta traz os dois totais do cliente: em andamento e concluídas. Eles não dependem do filtro de situação.
+- Filtro por situação; um valor fora das duas situações responde `Validacao` ("Situação inválida."). Paginada. Ordem: em andamento primeiro, pela criação mais recente; depois as concluídas, da conclusão mais recente para a mais antiga; o desempate final é pelo identificador.
+- O ator de perfil `Cliente` sem cliente vinculado recebe `AcessoNegado`.
 
 Não chegam ao cliente: descrição, data de entrega, condição de atrasada, responsáveis, revisor, direcionamentos, comentários, histórico de status, motivos de devolução e de reabertura e documentos da atividade. Não há ficha da atividade para o cliente.
 
@@ -190,21 +193,29 @@ Consequência: o título de toda atividade com cliente passa a ser lido por esse
 | `Producao` | Os atuais |
 | `Cliente` | Início, Andamento, Meus documentos, Documentos comuns, Minha senha |
 
-Uma página interna aberta por um usuário-cliente mostra "Página não encontrada" e não é montada: não chega a consultar nada. O cookie de um usuário de perfil `Cliente` leva uma marca de portal (`atividades:portal`), que serve só para o layout saber, sem esperar consulta, que não deve montar páginas internas. A marca não autoriza nada: perfil, estado ativo e cliente continuam lidos do banco a cada operação, e quem nega é o portão. Como o usuário não troca entre o tipo `Cliente` e os internos, a marca não envelhece. Uma página do portal aberta por quem não é cliente, idem, com exceção de Documentos comuns, que a Diretoria usa.
+Uma página interna aberta por um usuário-cliente mostra "Página não encontrada" e não é montada: não chega a consultar nada. O cookie de um usuário de perfil `Cliente` leva uma marca de portal (`atividades:portal`), que serve só para o layout saber, sem esperar consulta, que não deve montar páginas internas. A marca não autoriza nada: perfil, estado ativo e cliente continuam lidos do banco a cada operação, e quem nega é o portão. Como o usuário não troca entre o tipo `Cliente` e os internos, a marca não envelhece.
+
+A guarda vale nos dois sentidos e compara o endereço já decodificado:
+
+- `/andamento` e `/meus-documentos` são só do portal: abertas pela equipe, mostram "Página não encontrada" e não são montadas.
+- `/documentos-comuns` é compartilhada com a Diretoria e por isso o layout a monta para a equipe: para a Produção, a própria página mostra "Página não encontrada".
+- A resposta é sempre 200 (seção 11).
 
 ### Páginas
 
 | Rota | Quem | Conteúdo |
 |---|---|---|
-| `/` | Todos | Para o cliente: saudação, os dois totais do andamento e atalhos para as três áreas. Para os demais, o início atual |
-| `/andamento` | Cliente | A lista da seção 5, com os totais no topo e o filtro por situação |
-| `/meus-documentos` | Cliente | Documentos do cliente, com download |
+| `/` | Todos | Para o cliente: saudação, os dois totais do andamento e atalhos para as três áreas (e para a troca de senha). Para os demais, o início atual. O início faz uma consulta só, a do andamento, e usa apenas os totais; se ela falhar, os atalhos continuam e a mensagem do erro ocupa o lugar dos totais |
+| `/andamento` | Cliente | A lista da seção 5, com os totais no topo e o filtro por situação. Falha na consulta mostra o erro no lugar da lista, com "Tentar de novo"; sem atividades, "Nenhuma atividade." |
+| `/meus-documentos` | Cliente | Documentos do cliente, com download; sem documentos, "Nenhum documento." |
 | `/documentos-comuns` | Cliente e Diretoria | Documentos comuns. O cliente só baixa; a Diretoria envia, renomeia e exclui |
 
 ### Ficha do cliente (Diretoria)
 
 - Quarta área de documentos, "Documentos do cliente (visíveis ao cliente)", com envio, renomear e excluir, sem editor de acesso. Não aparece para a Produção.
 - Lista de leitura "Usuários do cliente".
+- Inativar o cliente avisa quantos usuários do portal ficaram sem acesso, contando os usuários **ativos** do cliente, consultados depois de a inativação dar certo: "Cliente inativado.", "Cliente inativado. 1 usuário do portal ficou sem acesso." ou "Cliente inativado. N usuários do portal ficaram sem acesso.". Se a consulta falhar, a mensagem é só "Cliente inativado.".
+- O formulário de atividade mostra, com cliente selecionado, o lembrete da seção 5.
 
 ### Confirmação dos Documentos comuns
 
@@ -212,7 +223,13 @@ Ao clicar em Enviar, o arquivo não sobe. A tela mostra o aviso:
 
 > Documentos desta área ficam visíveis para todos os clientes do escritório. Não envie aqui arquivos de um cliente específico.
 
-com os botões "Confirmar envio" e "Cancelar". Só a confirmação envia a requisição, com `ConfirmouVisibilidade` verdadeiro. Cancelar mantém o arquivo escolhido e não envia nada. O aviso aparece a cada envio.
+com os botões "Confirmar envio" e "Cancelar". Só a confirmação envia a requisição, com `ConfirmouVisibilidade` verdadeiro. Cancelar mantém o arquivo escolhido e não envia nada.
+
+- O aviso recebe o foco ao abrir.
+- Só abre para um envio que pode seguir: o arquivo acima do limite de tamanho é recusado antes do aviso.
+- Com o aviso aberto, o botão de enviar fica desabilitado.
+- Trocar o arquivo escolhido fecha o aviso.
+- O aviso vale para um envio só: depois de um envio, com sucesso ou com falha, o próximo avisa de novo.
 
 ### Usuários (Diretoria)
 
@@ -290,17 +307,19 @@ A modelagem de domínio é emendada ao fim de cada fase com as regras fixadas, c
 
 **Implantação.** Na primeira subida da versão nova o semeador cria o perfil "Cliente", que passa a aparecer em Perfis e no seletor de Usuários. Depois de existir usuário de cliente, **voltar para uma versão anterior ao portão não é seguro**: a versão antiga trata o tipo Cliente como Produção, e o cliente leria clientes e processos. Antes de reverter, inativar todos os usuários vinculados a cliente.
 
-**Registrado na revisão da 8A, para o plano da 8B.**
+A fase 8B está concluída, e a modelagem de domínio foi emendada com as regras dela.
 
-- Ao abrir `BaixarDocumento` ao cliente, o acesso dele sai só da regra de acesso do documento. O filtro das listagens internas, por perfil e por usuário, não conhece o tipo do perfil e não é reaproveitado para o cliente.
-- A lista das requisições abertas ao cliente está em quatro lugares, que mudam juntos: o teste que a fixa, a seção 3 desta spec e dois pontos da modelagem de domínio (seções 5 e 12).
-- `/documentos-comuns` é a primeira rota compartilhada entre cliente e Diretoria. O layout passa a precisar também da guarda inversa (página do portal fechada a quem não é cliente), com teste.
-- Um teste de arquitetura: a camada Web só chega aos casos de uso pelo despachante ou pelo executor. O portão só protege o que passa por ele.
-- A porta que inclui um perfil novo em todos os Documentos Gerais por SQL não confere o tipo do perfil. Hoje o único chamador recusa o tipo Cliente antes; a porta ganha a guarda própria.
-- O aviso de inativação do cliente passa a dizer quantos usuários do portal ficam sem acesso.
-- O cliente que abre uma página interna recebe "não encontrada" com status 200. A revisão sugeriu 404; o plano da 8B decidiu manter o 200: ele só revela que a rota existe, e trocar o status depende de como o Blazor trata a resposta no meio da renderização.
-- Se o início do cliente fizer várias consultas, medir o custo do contexto de acesso, que o portão lê uma vez a mais por requisição interna.
-- Limpezas menores apontadas nas revisões de tarefa: asserções mais estritas em dois testes do portal, guarda contra dois envios seguidos na busca de cliente da tela de usuários, e a redação de três trechos da modelagem ("Bloqueio de login", "reativar o cliente devolve o acesso" e o termo "sem ator").
+**Registrado na revisão da 8A, para o plano da 8B: o que foi feito.**
+
+- Feito na 8B: ao abrir `BaixarDocumento` ao cliente, o acesso dele sai só da regra de acesso do documento. O filtro das listagens internas, por perfil e por usuário, não conhece o tipo do perfil e não é reaproveitado: o cliente tem consultas próprias no repositório.
+- Feito na 8B: a lista das requisições abertas ao cliente, agora com sete, mudou nos quatro lugares: o teste que a fixa, a seção 3 desta spec e os dois pontos da modelagem de domínio (seções 5 e 12).
+- Feito na 8B: a guarda inversa no layout (página do portal fechada a quem não é cliente), com teste, junto com a guarda do cliente em página interna; as duas comparam o endereço decodificado. `/documentos-comuns`, a primeira rota compartilhada entre cliente e Diretoria, fica de fora da guarda inversa e é negada à Produção pela própria página.
+- Feito na 8B: o teste de arquitetura da camada Web. Ela só chega aos dados pelo despachante ou pelo executor; a única exceção declarada é a validação do cookie. O portão só protege o que passa por ele.
+- Feito na 8B: a porta que inclui um perfil novo em todos os Documentos Gerais por SQL ganhou a guarda própria e não grava nada para o perfil do tipo Cliente.
+- Feito na 8B: o aviso de inativação do cliente diz quantos usuários ativos do portal ficaram sem acesso.
+- Decisão: o cliente que abre uma página interna recebe "não encontrada" com status 200. A revisão sugeriu 404; o plano da 8B decidiu manter o 200: ele só revela que a rota existe, e trocar o status depende de como o Blazor trata a resposta no meio da renderização.
+- Decisão: o custo do contexto de acesso não foi medido, porque o início do cliente faz uma consulta só (a do andamento).
+- Feito na 8B: as limpezas menores das revisões de tarefa: asserções mais estritas em dois testes do portão, guarda contra dois envios seguidos na busca de cliente da tela de usuários e a redação dos três trechos da modelagem ("Bloqueio de login", "reativar o cliente devolve o acesso" e o termo "sem ator").
 
 ## 12. Fora do escopo
 
