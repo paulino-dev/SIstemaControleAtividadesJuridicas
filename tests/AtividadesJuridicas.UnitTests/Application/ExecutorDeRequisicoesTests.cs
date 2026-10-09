@@ -37,7 +37,8 @@ public class ExecutorDeRequisicoesTests
             throw new InvalidOperationException("falha síncrona");
     }
 
-    private static ExecutorDeRequisicoes Criar(ProvedorFalso provedor) => new(provedor, new AuditoriaFalsa());
+    private static ExecutorDeRequisicoes Criar(ProvedorFalso provedor) =>
+        new(provedor, new AuditoriaFalsa(), new ContextoDeAcessoFixo(null));
 
     [Fact]
     public async Task Executa_o_manipulador_registrado_para_a_requisicao()
@@ -86,7 +87,8 @@ public class ExecutorDeRequisicoesTests
     {
         var auditoria = new AuditoriaFalsa();
         var executor = new ExecutorDeRequisicoes(
-            new ProvedorFalso().Com<IManipulador<Negada, Resultado>>(new NegadaManipulador()), auditoria);
+            new ProvedorFalso().Com<IManipulador<Negada, Resultado>>(new NegadaManipulador()), auditoria,
+            new ContextoDeAcessoFixo(null));
 
         var resultado = await executor.ExecutarAsync(new Negada(), default);
 
@@ -102,7 +104,8 @@ public class ExecutorDeRequisicoesTests
     {
         var auditoria = new AuditoriaFalsa();
         var executor = new ExecutorDeRequisicoes(
-            new ProvedorFalso().Com<IManipulador<Invalida, Resultado<int>>>(new InvalidaManipulador()), auditoria);
+            new ProvedorFalso().Com<IManipulador<Invalida, Resultado<int>>>(new InvalidaManipulador()), auditoria,
+            new ContextoDeAcessoFixo(null));
 
         await executor.ExecutarAsync(new Invalida(), default);
 
@@ -127,7 +130,8 @@ public class ExecutorDeRequisicoesTests
     {
         var auditoria = new AuditoriaFalsa();
         var executor = new ExecutorDeRequisicoes(
-            new ProvedorFalso().Com<IManipulador<Listagem, Resultado<int>>>(new ListagemManipulador()), auditoria);
+            new ProvedorFalso().Com<IManipulador<Listagem, Resultado<int>>>(new ListagemManipulador()), auditoria,
+            new ContextoDeAcessoFixo(null));
 
         await executor.ExecutarAsync(new Listagem(Falhar: false), default);
 
@@ -143,7 +147,8 @@ public class ExecutorDeRequisicoesTests
     {
         var auditoria = new AuditoriaFalsa();
         var executor = new ExecutorDeRequisicoes(
-            new ProvedorFalso().Com<IManipulador<Listagem, Resultado<int>>>(new ListagemManipulador()), auditoria);
+            new ProvedorFalso().Com<IManipulador<Listagem, Resultado<int>>>(new ListagemManipulador()), auditoria,
+            new ContextoDeAcessoFixo(null));
 
         await executor.ExecutarAsync(new Listagem(Falhar: true), default);
 
@@ -191,7 +196,7 @@ public class ExecutorDeRequisicoesTests
         var fluxo = new FluxoRastreado();
         var executor = new ExecutorDeRequisicoes(
             new ProvedorFalso().Com<IManipulador<Baixa, Resultado<ArquivoParaBaixar>>>(new BaixaManipulador()),
-            new AuditoriaQueFalhaNoAcesso());
+            new AuditoriaQueFalhaNoAcesso(), new ContextoDeAcessoFixo(null));
 
         var acao = () => executor.ExecutarAsync(new Baixa(fluxo), default);
 
@@ -219,7 +224,8 @@ public class ExecutorDeRequisicoesTests
         var auditoria = new AuditoriaFalsa();
         var alvo = Guid.CreateVersion7();
         var executor = new ExecutorDeRequisicoes(
-            new ProvedorFalso().Com<IManipulador<ListagemComAlvo, Resultado<int>>>(new ListagemComAlvoManipulador()), auditoria);
+            new ProvedorFalso().Com<IManipulador<ListagemComAlvo, Resultado<int>>>(new ListagemComAlvoManipulador()), auditoria,
+            new ContextoDeAcessoFixo(null));
 
         await executor.ExecutarAsync(new ListagemComAlvo(alvo), default);
 

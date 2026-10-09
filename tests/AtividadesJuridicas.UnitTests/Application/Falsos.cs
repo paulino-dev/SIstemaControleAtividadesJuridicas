@@ -66,7 +66,7 @@ public sealed class PerfilRepositorioFalso : IPerfilRepositorio
     public void Adicionar(Perfil perfil) => Itens.Add(perfil);
 }
 
-public sealed class UsuarioRepositorioFalso(PerfilRepositorioFalso perfis) : IUsuarioRepositorio
+public sealed class UsuarioRepositorioFalso(PerfilRepositorioFalso perfis, ClienteRepositorioFalso clientes) : IUsuarioRepositorio
 {
     public List<Usuario> Itens { get; } = [];
 
@@ -92,9 +92,17 @@ public sealed class UsuarioRepositorioFalso(PerfilRepositorioFalso perfis) : IUs
             [.. Itens.OrderBy(u => u.Nome).Select(u =>
             {
                 var perfil = perfis.Itens.First(p => p.Id == u.PerfilId);
+                var cliente = u.ClienteId is { } clienteId
+                    ? clientes.Itens.FirstOrDefault(c => c.Id == clienteId)
+                    : null;
                 return new UsuarioResumo(u.Id, u.Nome, u.Email.Valor, perfil.Id, perfil.Nome,
-                    perfil.Tipo, u.NumeroOab, u.Ativo, u.UltimoAcessoEm);
+                    perfil.Tipo, u.NumeroOab, u.Ativo, u.UltimoAcessoEm, u.ClienteId, cliente?.Nome, cliente?.Ativo);
             })]);
+
+    public Task<IReadOnlyList<UsuarioDoCliente>> ListarDoClienteAsync(Guid clienteId, CancellationToken ct) =>
+        Task.FromResult<IReadOnlyList<UsuarioDoCliente>>(
+            [.. Itens.Where(u => u.ClienteId == clienteId).OrderBy(u => u.Nome)
+                .Select(u => new UsuarioDoCliente(u.Id, u.Nome, u.Email.Valor, u.Ativo, u.UltimoAcessoEm))]);
 
     public void Adicionar(Usuario usuario) => Itens.Add(usuario);
 
@@ -103,7 +111,7 @@ public sealed class UsuarioRepositorioFalso(PerfilRepositorioFalso perfis) : IUs
 
     public Task<IReadOnlyList<(Guid Id, string Nome)>> ListarNomesDosAtivosAsync(CancellationToken ct) =>
         Task.FromResult<IReadOnlyList<(Guid Id, string Nome)>>(
-            [.. Itens.Where(u => u.Ativo).OrderBy(u => u.Nome).Select(u => (u.Id, u.Nome))]);
+            [.. Itens.Where(u => u.Ativo && !u.EhDeCliente).OrderBy(u => u.Nome).Select(u => (u.Id, u.Nome))]);
 
     public int Reservas { get; private set; }
 
@@ -236,6 +244,18 @@ public sealed class ClienteRepositorioFalso : IClienteRepositorio
     private static string SemAcentos(string texto) => new(
         [.. texto.Normalize(NormalizationForm.FormD)
             .Where(ch => CharUnicodeInfo.GetUnicodeCategory(ch) != UnicodeCategory.NonSpacingMark)]);
+}
+
+public sealed class ClientesDaIdentidadeFalso(ClienteRepositorioFalso clientes) : IClientesDaIdentidade
+{
+    public int Consultas { get; private set; }
+
+    public Task<ClienteDoUsuario?> ObterAsync(Guid clienteId, CancellationToken ct)
+    {
+        Consultas++;
+        var cliente = clientes.Itens.FirstOrDefault(c => c.Id == clienteId);
+        return Task.FromResult(cliente is null ? null : new ClienteDoUsuario(cliente.Id, cliente.Nome, cliente.Ativo));
+    }
 }
 
 public sealed class ProcessoRepositorioFalso(AreaAtuacaoRepositorioFalso areas, ClienteRepositorioFalso clientes)
@@ -490,14 +510,18 @@ public sealed class Cenario
     public ArmazenamentoFalso Armazenamento { get; } = new();
     public Perfil PerfilDiretor { get; } = Perfil.Criar("Diretor", TipoPerfil.Diretoria);
     public Perfil PerfilProducao { get; } = Perfil.Criar("Produção", TipoPerfil.Producao);
+    /// <summary>Não entra em <see cref="Perfis"/> sozinho: os testes anteriores ao portal contam dois perfis.</summary>
+    public Perfil PerfilCliente { get; } = Perfil.Criar("Cliente", TipoPerfil.Cliente);
+    public ClientesDaIdentidadeFalso ClientesDaIdentidade { get; }
     public Usuario Diretor { get; }
     public AcessoInicialDePerfilFalso AcessoInicial { get; }
 
     public Cenario()
     {
         AcessoInicial = new AcessoInicialDePerfilFalso(Unidade);
-        Usuarios = new UsuarioRepositorioFalso(Perfis);
+        Usuarios = new UsuarioRepositorioFalso(Perfis, Clientes);
         Perfis.UsuariosAtivosDoPerfil = id => Usuarios.Itens.Count(u => u.Ativo && u.PerfilId == id);
+        ClientesDaIdentidade = new ClientesDaIdentidadeFalso(Clientes);
         Processos = new ProcessoRepositorioFalso(Areas, Clientes);
         Atividades = new AtividadeRepositorioFalso(Usuarios, Clientes, Processos, Areas);
         Eventos = new EventoRepositorioFalso(Usuarios, Clientes, Processos);
@@ -516,11 +540,27 @@ public sealed class Cenario
         return usuario;
     }
 
+    public Cliente NovoCliente(string nome = "Maria Silva", string cpf = "529.982.247-25")
+    {
+        var cliente = ClientePessoaFisica.Criar(new DadosDoCliente(nome, null, null, Endereco.Vazio, null), Cpf.Criar(cpf), null, null);
+        Clientes.Itens.Add(cliente);
+        return cliente;
+    }
+
+    /// <summary>Usuário de perfil Cliente; o perfil entra no cenário na primeira vez em que é usado.</summary>
+    public Usuario NovoUsuarioDeCliente(string nome, string email, Cliente cliente, string senha = "senha-segura")
+    {
+        if (!Perfis.Itens.Contains(PerfilCliente)) Perfis.Itens.Add(PerfilCliente);
+        var usuario = Usuario.Criar(nome, Email.Criar(email), Hasher.Gerar(senha), PerfilCliente, null, cliente.Id);
+        Usuarios.Itens.Add(usuario);
+        return usuario;
+    }
+
     public IContextoDeAcesso Como(Usuario? usuario)
     {
         if (usuario is null) return new ContextoDeAcessoFixo(null);
         var perfil = Perfis.Itens.First(p => p.Id == usuario.PerfilId);
-        return new ContextoDeAcessoFixo(new UsuarioAutenticado(usuario.Id, usuario.Nome, perfil.Tipo, perfil.Id));
+        return new ContextoDeAcessoFixo(new UsuarioAutenticado(usuario.Id, usuario.Nome, perfil.Tipo, perfil.Id, usuario.ClienteId));
     }
 }
 

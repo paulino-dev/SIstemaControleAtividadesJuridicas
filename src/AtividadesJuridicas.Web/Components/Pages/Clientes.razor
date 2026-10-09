@@ -1,6 +1,7 @@
 @page "/clientes"
 @using System.ComponentModel.DataAnnotations
 @inject IDespachante Despachante
+@inject FusoDoEscritorio Fuso
 
 <PageTitle>Clientes</PageTitle>
 
@@ -126,6 +127,7 @@ else
             @if (_form.Id is not null)
             {
                 @ProcessosDoCliente
+                @UsuariosDoClienteSecao
                 <DocumentosDoCliente @key="@($"gerais-{_form.Id}")" ClienteId="_form.Id.Value"
                                      Categoria="CategoriaDocumento.DocumentoGeral" Titulo="Documentos Gerais"
                                      PodeGerenciar="true" OnAcessoEncerrado="EncerrarAcesso" />
@@ -190,6 +192,8 @@ else
     private IReadOnlyList<ProcessoResumo> _processosDoCliente = [];
     private int _totalDeProcessosDoCliente;
     private string? _erroDosProcessosDoCliente;
+    private IReadOnlyList<UsuarioDoCliente> _usuariosDoCliente = [];
+    private string? _erroDosUsuariosDoCliente;
 
     protected override async Task OnInitializedAsync()
     {
@@ -237,12 +241,14 @@ else
         _form = null;
         _ficha = null;
         LimparProcessosDoCliente();
+        LimparUsuariosDoCliente();
     }
 
     private void Novo(TipoCliente tipo)
     {
         _mensagem = null;
         LimparProcessosDoCliente();
+        LimparUsuariosDoCliente();
         _form = new Formulario { Tipo = tipo };
     }
 
@@ -258,11 +264,12 @@ else
         }
 
         if (!await CarregarProcessosDoClienteAsync(id)) return;
+        if (!await CarregarUsuariosDoClienteAsync(id)) return;
 
         _mensagem = null;
         _form = new Formulario
         {
-            Id = c.Id, Tipo = c.Tipo, Nome = c.Nome, Email = c.Email, Telefone = c.Telefone,
+            Id = c.Id, Ativo = c.Ativo, Tipo = c.Tipo, Nome = c.Nome, Email = c.Email, Telefone = c.Telefone,
             Documento = c.Cpf ?? c.Cnpj ?? string.Empty, Rg = c.Rg, DataNascimento = c.DataNascimento,
             NomeFantasia = c.NomeFantasia, NomeResponsavel = c.NomeResponsavel,
             InscricaoEstadual = c.InscricaoEstadual, InscricaoMunicipal = c.InscricaoMunicipal,
@@ -314,6 +321,65 @@ else
         _erroDosProcessosDoCliente = null;
     }
 
+    // Usuários de acesso do cliente aberto (só a edição da Diretoria); falso quando o acesso foi encerrado.
+    private async Task<bool> CarregarUsuariosDoClienteAsync(Guid clienteId)
+    {
+        var usuarios = await Despachante.EnviarAsync(new ListarUsuariosDoCliente(clienteId));
+        if (AcessoEncerrado(usuarios)) return false;
+
+        LimparUsuariosDoCliente();
+        if (!usuarios.Sucesso || usuarios.Valor is not { } lista)
+        {
+            // Falha na consulta não é "sem usuários": mostra o erro no lugar da lista.
+            _erroDosUsuariosDoCliente = usuarios.Mensagem ?? "Não foi possível consultar os usuários do cliente.";
+            return true;
+        }
+
+        _usuariosDoCliente = lista;
+        return true;
+    }
+
+    private void LimparUsuariosDoCliente()
+    {
+        _usuariosDoCliente = [];
+        _erroDosUsuariosDoCliente = null;
+    }
+
+    private RenderFragment UsuariosDoClienteSecao => @<text>
+        <h3>Usuários do cliente</h3>
+        @if (_erroDosUsuariosDoCliente is not null)
+        {
+            <p class="erro">@_erroDosUsuariosDoCliente</p>
+        }
+        else if (_usuariosDoCliente.Count == 0)
+        {
+            <p>Nenhum usuário. Crie o acesso do cliente em Usuários.</p>
+        }
+        else
+        {
+            if (_form is { Ativo: false })
+            {
+                <p>Cliente inativo: estes usuários estão sem acesso ao portal até o cliente ser reativado.</p>
+            }
+            <table>
+                <thead>
+                    <tr><th>Nome</th><th>E-mail</th><th>Situação</th><th>Último acesso</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var usuario in _usuariosDoCliente)
+                    {
+                        <tr class="@(usuario.Ativo ? null : "inativo")" @key="usuario.Id">
+                            <td>@usuario.Nome</td>
+                            <td>@usuario.Email</td>
+                            <td>@(usuario.Ativo ? "Ativo" : "Inativo")</td>
+                            <td>@Fuso.Formatar(usuario.UltimoAcessoEm)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </text>;
+
     private RenderFragment ProcessosDoCliente => @<text>
         <h3>Processos do cliente</h3>
         @if (_erroDosProcessosDoCliente is not null)
@@ -345,6 +411,7 @@ else
         _ficha = null;
         _mensagem = null;
         LimparProcessosDoCliente();
+        LimparUsuariosDoCliente();
     }
 
     // Só as partes preenchidas, sem separadores soltos.
@@ -416,6 +483,7 @@ else
     private sealed class Formulario
     {
         public Guid? Id { get; set; }
+        public bool Ativo { get; set; } = true;
         public TipoCliente Tipo { get; set; }
 
         [Required(ErrorMessage = "Informe o nome.")]

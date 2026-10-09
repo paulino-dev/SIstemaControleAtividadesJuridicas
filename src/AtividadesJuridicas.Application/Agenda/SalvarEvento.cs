@@ -60,7 +60,7 @@ public sealed class SalvarEventoManipulador(
         var idsPedidos = requisicao.Participantes.Distinct().ToList();
         var encontrados = (await usuarios.ObterVariosAsync(idsPedidos, ct)).ToDictionary(u => u.Id);
         if (encontrados.Count != idsPedidos.Count) return Falha(TipoErro.Validacao, "Usuário não encontrado.");
-        var pessoas = requisicao.Participantes.Select(p => new PessoaDoEvento(p, encontrados[p].Ativo)).ToList();
+        var pessoas = requisicao.Participantes.Select(p => new PessoaDoEvento(p, encontrados[p].Ativo, encontrados[p].EhDeCliente)).ToList();
 
         // O vínculo (cliente, processo e atividade) só é revalidado quando muda: se o pedido traz o mesmo que o evento já
         // tem, ele é mantido como está, ainda que o cliente tenha saído do processo, o cliente tenha sido inativado ou o
@@ -101,7 +101,7 @@ public sealed class SalvarEventoManipulador(
             if (existente is null)
             {
                 var vinculo = VinculoDoEvento.Criar(requisicao.ClienteId, processo, requisicao.AtividadeId);
-                existente = Evento.Criar(dados, vinculo, new PessoaDoEvento(ator.Id, true), pessoas);
+                existente = Evento.Criar(dados, vinculo, new PessoaDoEvento(ator.Id, true, ator.EhCliente), pessoas);
                 eventos.Adicionar(existente);
             }
             else

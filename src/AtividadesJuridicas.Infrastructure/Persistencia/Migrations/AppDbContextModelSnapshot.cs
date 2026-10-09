@@ -1224,6 +1224,10 @@ namespace AtividadesJuridicas.Infrastructure.Persistencia.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("bloqueado_ate");
 
+                    b.Property<Guid?>("ClienteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("cliente_id");
+
                     b.Property<DateTime>("CriadoEm")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("criado_em");
@@ -1281,6 +1285,9 @@ namespace AtividadesJuridicas.Infrastructure.Persistencia.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_usuarios");
+
+                    b.HasIndex("ClienteId")
+                        .HasDatabaseName("ix_usuarios_cliente_id");
 
                     b.HasIndex("Email")
                         .IsUnique()
@@ -1570,6 +1577,12 @@ namespace AtividadesJuridicas.Infrastructure.Persistencia.Migrations
 
             modelBuilder.Entity("AtividadesJuridicas.Domain.Identidade.Usuario", b =>
                 {
+                    b.HasOne("AtividadesJuridicas.Domain.Cadastros.Cliente", null)
+                        .WithMany()
+                        .HasForeignKey("ClienteId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_usuarios_clientes_cliente_id");
+
                     b.HasOne("AtividadesJuridicas.Domain.Identidade.Perfil", null)
                         .WithMany()
                         .HasForeignKey("PerfilId")

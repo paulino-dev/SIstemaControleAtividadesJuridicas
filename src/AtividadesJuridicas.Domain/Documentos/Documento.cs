@@ -36,6 +36,9 @@ public sealed class Documento : Entidade
     public const string ContratoSoParaDiretoria =
         "Contrato de Honorários não pode ser liberado para perfil ou usuário de Produção.";
 
+    public const string ClienteForaDasListas =
+        "Usuário ou perfil de cliente não entra em lista de acesso de documento.";
+
     private const string ClienteObrigatorio = "O cliente do documento é obrigatório.";
     private const string PerfilInativo = "Perfil inativo não pode receber acesso a documento.";
     private const string UsuarioInativo = "Usuário inativo não pode receber acesso a documento.";
@@ -71,6 +74,8 @@ public sealed class Documento : Entidade
             throw new ArgumentException("A lista de perfis não pode conter perfil nulo.", nameof(perfisAtivos));
         if (perfisAtivos.Any(p => !p.Ativo))
             throw new ExcecaoDeDominio(PerfilInativo);
+        if (perfisAtivos.Any(p => p.Tipo == TipoPerfil.Cliente))
+            throw new ExcecaoDeDominio(ClienteForaDasListas);
 
         var documento = Criar(CategoriaDocumento.DocumentoGeral, clienteId, nome, arquivo);
         foreach (var perfil in perfisAtivos.DistinctBy(p => p.Id))
@@ -126,6 +131,9 @@ public sealed class Documento : Entidade
     {
         if (tipoPerfil == TipoPerfil.Diretoria) return true;
 
+        // Nenhuma das categorias de hoje é do cliente, ainda que ele conste em alguma lista.
+        if (tipoPerfil == TipoPerfil.Cliente) return false;
+
         // Sem exceção: nem quem consta na lista (por ter sido da Diretoria) alcança um contrato.
         if (Categoria == CategoriaDocumento.ContratoHonorarios) return false;
 
@@ -161,6 +169,9 @@ public sealed class Documento : Entidade
         var usuariosNovos = usuariosDesejados.Where(u => _usuariosComAcesso.All(a => a.UsuarioId != u.Usuario.Id)).ToList();
 
         // Tudo é verificado antes de qualquer mudança, para não deixar a lista pela metade.
+        if (perfisDesejados.Any(p => p.Tipo == TipoPerfil.Cliente) ||
+            usuariosDesejados.Any(u => u.Perfil.Tipo == TipoPerfil.Cliente))
+            throw new ExcecaoDeDominio(ClienteForaDasListas);
         if (Categoria == CategoriaDocumento.ContratoHonorarios &&
             (perfisDesejados.Any(p => p.Tipo != TipoPerfil.Diretoria) ||
              usuariosDesejados.Any(u => u.Perfil.Tipo != TipoPerfil.Diretoria)))

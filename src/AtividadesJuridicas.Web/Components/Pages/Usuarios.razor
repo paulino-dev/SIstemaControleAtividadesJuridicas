@@ -43,6 +43,7 @@ else
                 <th>Nome</th>
                 <th>E-mail</th>
                 <th>Perfil</th>
+                <th>Cliente</th>
                 <th>OAB</th>
                 <th>Último acesso</th>
                 <th>Situação</th>
@@ -56,6 +57,7 @@ else
                     <td>@usuario.Nome</td>
                     <td>@usuario.Email</td>
                     <td>@RotuloDoPerfilDe(usuario)</td>
+                    <td>@(usuario.ClienteAtivo == false ? $"{usuario.ClienteNome} (inativo — sem acesso ao portal)" : usuario.ClienteNome)</td>
                     <td>@usuario.NumeroOab</td>
                     <td>@Fuso.Formatar(usuario.UltimoAcessoEm)</td>
                     <td>@(usuario.Ativo ? "Ativo" : "Inativo")</td>
@@ -90,7 +92,7 @@ else
 
         <label>
             Perfil
-            <InputSelect @bind-Value="_form.PerfilId">
+            <InputSelect Value="_form.PerfilId" ValueExpression="() => _form.PerfilId" ValueChanged="(Guid? id) => AoMudarPerfil(id)">
                 @if (_form.PerfilId is null)
                 {
                     <option value="">Selecione…</option>
@@ -99,7 +101,7 @@ else
                 {
                     <option value="@inativo.Id">@Rotulo(inativo)</option>
                 }
-                @foreach (var perfil in _perfis.Where(p => p.Ativo))
+                @foreach (var perfil in _perfis.Where(p => p.Ativo && PodeEscolher(p)))
                 {
                     <option value="@perfil.Id">@Rotulo(perfil)</option>
                 }
@@ -111,10 +113,56 @@ else
             }
         </label>
 
-        <label>
-            Número da OAB (opcional)
-            <InputText @bind-Value="_form.NumeroOab" />
-        </label>
+        @if (PerfilEscolhidoEhDeCliente)
+        {
+            <div class="formulario">
+                <strong>Cliente</strong>
+                @if (_form.ClienteId is not null)
+                {
+                    <div class="acoes">
+                        <span>Cliente: <strong>@_form.ClienteNome</strong></span>
+                        <button type="button" class="secundario" @onclick="TrocarCliente">Trocar</button>
+                    </div>
+                }
+                else
+                {
+                    @* O Enter na busca submete o formulário "busca-de-cliente" (declarado depois do EditForm), não o do usuário. *@
+                    <div class="filtros formulario">
+                        <label>
+                            Buscar cliente (nome, CPF ou CNPJ)
+                            <input type="text" form="busca-de-cliente" @bind="_buscaDeCliente" @bind:event="oninput" />
+                        </label>
+                        <button type="submit" form="busca-de-cliente" class="secundario">Buscar</button>
+                    </div>
+                    @foreach (var candidato in _clientesEncontrados)
+                    {
+                        <div class="acoes" @key="candidato.Id">
+                            <span>@candidato.Nome — @candidato.Documento</span>
+                            <button type="button" class="secundario" @onclick="() => EscolherCliente(candidato)">Escolher</button>
+                        </div>
+                    }
+                    @if (_nenhumCliente)
+                    {
+                        <p>Nenhum cliente encontrado.</p>
+                    }
+                    @if (_clientesTruncados)
+                    {
+                        <p>Mostrando os primeiros resultados. Refine a busca para ver outros.</p>
+                    }
+                }
+                @if (_erroDoCliente is not null)
+                {
+                    <p class="erro" role="status">@_erroDoCliente</p>
+                }
+            </div>
+        }
+        else
+        {
+            <label>
+                Número da OAB (opcional)
+                <InputText @bind-Value="_form.NumeroOab" />
+            </label>
+        }
 
         <label>
             @(_form.Id is null ? "Senha" : "Nova senha (deixe em branco para manter)")
@@ -126,6 +174,8 @@ else
             <button type="button" class="secundario" @onclick="Limpar">Cancelar</button>
         </div>
     </EditForm>
+
+    <form id="busca-de-cliente" @onsubmit="BuscarClientesAsync" @onsubmit:preventDefault></form>
 }
 
 @code {
@@ -142,6 +192,14 @@ else
     private IReadOnlyList<PerfilDetalhe> _perfis = [];
     private PerfilDetalhe? _perfilInativoAtual;
     private Formulario _form = new();
+
+    // O tipo do perfil do usuário em edição: um usuário de cliente só troca entre perfis de cliente, e a equipe, entre os internos.
+    private TipoPerfil? _tipoOriginal;
+    private string? _buscaDeCliente;
+    private IReadOnlyList<ClienteResumo> _clientesEncontrados = [];
+    private bool _nenhumCliente;
+    private bool _clientesTruncados;
+    private string? _erroDoCliente;
 
     protected override async Task OnInitializedAsync()
     {
@@ -181,17 +239,73 @@ else
     private void Limpar()
     {
         _perfilInativoAtual = null;
+        _tipoOriginal = null;
+        LimparBuscaDeCliente();
         _form = new Formulario { PerfilId = _perfis.FirstOrDefault(p => p.Ativo && p.Tipo == TipoPerfil.Producao)?.Id };
     }
 
     private static string Rotulo(PerfilDetalhe perfil) =>
-        $"{perfil.Nome} ({(perfil.Tipo == TipoPerfil.Diretoria ? "Diretoria" : "Produção")}{(perfil.Ativo ? "" : " — inativo")})";
+        $"{perfil.Nome} ({RotulosDePerfil.DoTipo(perfil.Tipo)}{(perfil.Ativo ? "" : " — inativo")})";
 
     private string RotuloDoPerfilDe(UsuarioResumo usuario)
     {
-        var tipo = usuario.TipoPerfil == TipoPerfil.Diretoria ? "Diretoria" : "Produção";
         var inativo = _perfis.Any(p => p.Id == usuario.PerfilId && !p.Ativo);
-        return $"{usuario.PerfilNome} ({tipo}{(inativo ? " — inativo" : "")})";
+        return $"{usuario.PerfilNome} ({RotulosDePerfil.DoTipo(usuario.TipoPerfil)}{(inativo ? " — inativo" : "")})";
+    }
+
+    private bool PerfilEscolhidoEhDeCliente =>
+        _perfis.FirstOrDefault(p => p.Id == _form.PerfilId)?.Tipo == TipoPerfil.Cliente;
+
+    private bool PodeEscolher(PerfilDetalhe perfil) =>
+        _tipoOriginal is not { } original || (original == TipoPerfil.Cliente) == (perfil.Tipo == TipoPerfil.Cliente);
+
+    private void AoMudarPerfil(Guid? perfilId)
+    {
+        _form.PerfilId = perfilId;
+        // Fora do perfil de cliente o bloco do cliente some, e o cliente escolhido não vale mais.
+        if (!PerfilEscolhidoEhDeCliente) TrocarCliente();
+        _erroDoCliente = null;
+    }
+
+    private void TrocarCliente()
+    {
+        _form.ClienteId = null;
+        _form.ClienteNome = null;
+        LimparBuscaDeCliente();
+    }
+
+    private void LimparBuscaDeCliente()
+    {
+        _buscaDeCliente = null;
+        _clientesEncontrados = [];
+        _nenhumCliente = false;
+        _clientesTruncados = false;
+        _erroDoCliente = null;
+    }
+
+    private async Task BuscarClientesAsync()
+    {
+        _erroDoCliente = null;
+        var resultado = await Despachante.EnviarAsync(new ListarClientes(_buscaDeCliente));
+        if (resultado.Erro == TipoErro.AcessoNegado)
+        {
+            _autorizado = false;
+            return;
+        }
+
+        var itens = resultado.Valor?.Itens ?? [];
+        _clientesEncontrados = itens;
+        // Os avisos valem só para uma busca que deu certo; uma falha mostra o erro no lugar deles.
+        _nenhumCliente = resultado.Sucesso && itens.Count == 0;
+        _clientesTruncados = resultado.Sucesso && resultado.Valor!.Total > itens.Count;
+        if (!resultado.Sucesso) _erroDoCliente = resultado.Mensagem ?? "Não foi possível consultar os clientes.";
+    }
+
+    private void EscolherCliente(ClienteResumo cliente)
+    {
+        _form.ClienteId = cliente.Id;
+        _form.ClienteNome = cliente.Nome;
+        LimparBuscaDeCliente();
     }
 
     private void Editar(UsuarioResumo usuario)
@@ -199,6 +313,8 @@ else
         _mensagem = null;
         _inativando = null;   // uma confirmação pendente não sobrevive a outra ação da linha
         _perfilInativoAtual = _perfis.FirstOrDefault(p => p.Id == usuario.PerfilId && !p.Ativo);
+        _tipoOriginal = usuario.TipoPerfil;
+        LimparBuscaDeCliente();
         _form = new Formulario
         {
             Id = usuario.Id,
@@ -206,23 +322,37 @@ else
             Email = usuario.Email,
             PerfilId = usuario.PerfilId,
             NumeroOab = usuario.NumeroOab,
+            ClienteId = usuario.ClienteId,
+            ClienteNome = usuario.ClienteNome,
         };
     }
 
     private async Task SalvarAsync()
     {
+        // Só o usuário de cliente tem cliente (e não tem OAB); para a equipe, o ClienteId vai nulo.
+        var ehDeCliente = PerfilEscolhidoEhDeCliente;
+        if (ehDeCliente && _form.ClienteId is null)
+        {
+            _erroDoCliente = "Informe o cliente do usuário.";
+            return;
+        }
+
+        _erroDoCliente = null;
+        var clienteId = ehDeCliente ? _form.ClienteId : null;
+        var oab = ehDeCliente ? null : _form.NumeroOab;
+
         Resultado resultado;
         if (_form.Id is { } id)
         {
             resultado = await Despachante.EnviarAsync(
-                new EditarUsuario(id, _form.Nome, _form.Email, _form.PerfilId!.Value, _form.NumeroOab));
+                new EditarUsuario(id, _form.Nome, _form.Email, _form.PerfilId!.Value, oab, clienteId));
             if (resultado.Sucesso && !string.IsNullOrEmpty(_form.Senha))
                 resultado = await Despachante.EnviarAsync(new RedefinirSenhaUsuario(id, _form.Senha));
         }
         else
         {
             resultado = await Despachante.EnviarAsync(
-                new CriarUsuario(_form.Nome, _form.Email, _form.Senha ?? string.Empty, _form.PerfilId!.Value, _form.NumeroOab));
+                new CriarUsuario(_form.Nome, _form.Email, _form.Senha ?? string.Empty, _form.PerfilId!.Value, oab, clienteId));
         }
 
         await ConcluirAsync(resultado, "Usuário salvo.");
@@ -318,6 +448,8 @@ else
         [Required(ErrorMessage = "Selecione o perfil.")]
         public Guid? PerfilId { get; set; }
         public string? NumeroOab { get; set; }
+        public Guid? ClienteId { get; set; }
+        public string? ClienteNome { get; set; }
         public string? Senha { get; set; }
     }
 }

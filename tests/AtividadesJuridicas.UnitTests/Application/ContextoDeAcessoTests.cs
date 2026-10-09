@@ -11,7 +11,7 @@ public class ContextoDeAcessoTests
     {
         var identidade = new IdentidadeAtual();
         identidade.DefinirInterno(usuarioId);
-        return new ContextoDeAcesso(identidade, _cenario.Usuarios, _cenario.Perfis);
+        return new ContextoDeAcesso(identidade, _cenario.Usuarios, _cenario.Perfis, _cenario.ClientesDaIdentidade);
     }
 
     [Fact]
@@ -59,7 +59,7 @@ public class ContextoDeAcessoTests
     {
         var identidade = new IdentidadeAtual();
         identidade.Definir(usuarioId, null, versao);
-        return new ContextoDeAcesso(identidade, _cenario.Usuarios, _cenario.Perfis);
+        return new ContextoDeAcesso(identidade, _cenario.Usuarios, _cenario.Perfis, _cenario.ClientesDaIdentidade);
     }
 
     [Fact]
@@ -96,6 +96,70 @@ public class ContextoDeAcessoTests
     public async Task Versao_vazia_nunca_e_aceita()
     {
         (await CriarComVersao(_cenario.Diretor.Id, Guid.Empty).ObterAsync(default)).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Usuario_de_cliente_vem_com_o_cliente_e_e_reconhecido_como_cliente()
+    {
+        var cliente = _cenario.NovoCliente();
+        var carla = _cenario.NovoUsuarioDeCliente("Carla Cliente", "carla@x.com", cliente);
+
+        var ator = await Criar(carla.Id).ObterAsync(default);
+
+        ator.Should().Be(new UsuarioAutenticado(
+            carla.Id, "Carla Cliente", TipoPerfil.Cliente, _cenario.PerfilCliente.Id, cliente.Id));
+        ator!.EhCliente.Should().BeTrue();
+        ator.EhDiretoria.Should().BeFalse();
+        ator.ClienteId.Should().Be(cliente.Id);
+    }
+
+    [Fact]
+    public async Task Usuario_de_cliente_inativo_devolve_nulo_e_volta_ao_reativar()
+    {
+        var cliente = _cenario.NovoCliente();
+        var carla = _cenario.NovoUsuarioDeCliente("Carla Cliente", "carla@x.com", cliente);
+        var contexto = Criar(carla.Id);
+        (await contexto.ObterAsync(default)).Should().NotBeNull();
+
+        cliente.Inativar();
+        (await contexto.ObterAsync(default)).Should().BeNull();
+
+        cliente.Ativar();
+        (await contexto.ObterAsync(default)).Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task Usuario_de_cliente_que_nao_existe_devolve_nulo()
+    {
+        var cliente = _cenario.NovoCliente();
+        var carla = _cenario.NovoUsuarioDeCliente("Carla Cliente", "carla@x.com", cliente);
+        _cenario.Clientes.Itens.Remove(cliente);
+
+        (await Criar(carla.Id).ObterAsync(default)).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Par_perfil_cliente_incoerente_devolve_nulo()
+    {
+        var cliente = _cenario.NovoCliente();
+        var carla = _cenario.NovoUsuarioDeCliente("Carla Cliente", "carla@x.com", cliente);
+        var pedro = _cenario.NovoUsuario("Pedro", "pedro@x.com", _cenario.PerfilProducao);
+        var clienteId = typeof(Usuario).GetProperty(nameof(Usuario.ClienteId))!;
+
+        // Só possível por edição direta no banco: um usuário interno com cliente e um usuário de cliente sem ele.
+        clienteId.SetValue(pedro, cliente.Id);
+        clienteId.SetValue(carla, null);
+
+        (await Criar(pedro.Id).ObterAsync(default)).Should().BeNull();
+        (await Criar(carla.Id).ObterAsync(default)).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Usuario_interno_nao_consulta_clientes()
+    {
+        await Criar(_cenario.Diretor.Id).ObterAsync(default);
+
+        _cenario.ClientesDaIdentidade.Consultas.Should().Be(0);
     }
 
     [Fact]

@@ -1,11 +1,17 @@
+using System.Text.Json;
 using AtividadesJuridicas.Application;
 using AtividadesJuridicas.Application.Comum;
+using AtividadesJuridicas.Application.Documentos;
 using AtividadesJuridicas.Application.Identidade;
+using AtividadesJuridicas.Domain.Auditoria;
+using AtividadesJuridicas.Domain.Cadastros;
+using AtividadesJuridicas.Domain.Documentos;
 using AtividadesJuridicas.Domain.Identidade;
 using AtividadesJuridicas.Infrastructure;
 using AtividadesJuridicas.Infrastructure.Persistencia;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
 
 namespace AtividadesJuridicas.IntegrationTests;
 
@@ -48,7 +54,7 @@ public class PersistenciaTests(BancoFixture banco) : IAsyncLifetime
         (await sp.GetRequiredService<IUsuarioRepositorio>().ObterPorEmailAsync(Email.Criar(Admin.Email), default))!.Id);
 
     [Fact]
-    public async Task Semeador_cria_os_dois_perfis_e_o_administrador()
+    public async Task Semeador_cria_os_tres_perfis_e_o_administrador()
     {
         var (perfis, usuarios) = await EmEscopoAsync(null, async sp =>
         {
@@ -57,7 +63,7 @@ public class PersistenciaTests(BancoFixture banco) : IAsyncLifetime
         });
 
         perfis.Select(p => (p.Nome, p.Tipo)).Should().Equal(
-            ("Diretor", TipoPerfil.Diretoria), ("Produção", TipoPerfil.Producao));
+            ("Cliente", TipoPerfil.Cliente), ("Diretor", TipoPerfil.Diretoria), ("Produção", TipoPerfil.Producao));
         usuarios.Should().ContainSingle().Which.Email.Valor.Should().Be("diana@x.com");
         usuarios[0].SenhaHash.Should().NotContain("senha-segura");
         usuarios[0].CriadoEm.Kind.Should().Be(DateTimeKind.Utc);
@@ -78,7 +84,7 @@ public class PersistenciaTests(BancoFixture banco) : IAsyncLifetime
             return (await db.Perfis.CountAsync(), await db.Usuarios.CountAsync());
         });
 
-        total.Should().Be((2, 1));
+        total.Should().Be((3, 1));
     }
 
     [Fact]
@@ -160,7 +166,7 @@ public class PersistenciaTests(BancoFixture banco) : IAsyncLifetime
         var acao = () => EmEscopoAsync(null, async sp =>
         {
             var db = sp.GetRequiredService<AppDbContext>();
-            var perfil = await db.Perfis.FirstAsync();
+            var perfil = await db.Perfis.FirstAsync(p => p.Tipo == TipoPerfil.Producao);
             db.Usuarios.Add(Usuario.Criar("Outra Diana", Email.Criar("diana@x.com"), "hash", perfil));
             await sp.GetRequiredService<IUnidadeDeTrabalho>().SalvarAsync(default);
             return 0;
@@ -176,7 +182,8 @@ public class PersistenciaTests(BancoFixture banco) : IAsyncLifetime
         var pedroId = await EmEscopoAsync(adminId, async sp =>
         {
             var db = sp.GetRequiredService<AppDbContext>();
-            var pedro = Usuario.Criar("Pedro", Email.Criar("pedro@x.com"), "hash", await db.Perfis.FirstAsync());
+            var pedro = Usuario.Criar("Pedro", Email.Criar("pedro@x.com"), "hash",
+                await db.Perfis.FirstAsync(p => p.Tipo == TipoPerfil.Producao));
             db.Usuarios.Add(pedro);
             await sp.GetRequiredService<IUnidadeDeTrabalho>().SalvarAsync(default);
             return pedro.Id;
@@ -200,7 +207,8 @@ public class PersistenciaTests(BancoFixture banco) : IAsyncLifetime
             linha.ExcluidoEm.Should().NotBeNull();
             linha.ExcluidoPor.Should().Be(adminId);
 
-            db.Usuarios.Add(Usuario.Criar("Pedro Novo", Email.Criar("pedro@x.com"), "hash", await db.Perfis.FirstAsync()));
+            db.Usuarios.Add(Usuario.Criar("Pedro Novo", Email.Criar("pedro@x.com"), "hash",
+                await db.Perfis.FirstAsync(p => p.Tipo == TipoPerfil.Producao)));
             await sp.GetRequiredService<IUnidadeDeTrabalho>().SalvarAsync(default);
             return 0;
         });
@@ -259,7 +267,8 @@ public class PersistenciaTests(BancoFixture banco) : IAsyncLifetime
         var pedroId = await EmEscopoAsync(adminId, async sp =>
         {
             var db = sp.GetRequiredService<AppDbContext>();
-            var pedro = Usuario.Criar("Pedro", Email.Criar("pedro@x.com"), "hash", await db.Perfis.FirstAsync());
+            var pedro = Usuario.Criar("Pedro", Email.Criar("pedro@x.com"), "hash",
+                await db.Perfis.FirstAsync(p => p.Tipo == TipoPerfil.Producao));
             db.Usuarios.Add(pedro);
             await db.SaveChangesAsync();
             return pedro.Id;
@@ -290,5 +299,132 @@ public class PersistenciaTests(BancoFixture banco) : IAsyncLifetime
 
         usuario.CriadoEm.Should().NotBe(default);
         usuario.CriadoPor.Should().BeNull();
+    }
+
+    private static ClientePessoaFisica NovoCliente() => ClientePessoaFisica.Criar(
+        new DadosDoCliente("Maria Silva", null, null, Endereco.Vazio, null), Cpf.Criar("52998224725"), null, null);
+
+    [Fact]
+    public async Task Usuario_de_cliente_vai_e_volta_do_banco_com_o_cliente()
+    {
+        var adminId = await IdDoAdminAsync();
+        var cliente = NovoCliente();
+        Usuario carla = null!;
+
+        await EmEscopoAsync(adminId, async sp =>
+        {
+            var db = sp.GetRequiredService<AppDbContext>();
+            var perfil = await db.Perfis.SingleAsync(p => p.Tipo == TipoPerfil.Cliente);
+            carla = Usuario.Criar("Carla", Email.Criar("carla@x.com"), "hash", perfil, null, cliente.Id);
+            db.Clientes.Add(cliente);
+            db.Usuarios.Add(carla);
+            await sp.GetRequiredService<IUnidadeDeTrabalho>().SalvarAsync(default);
+            return 0;
+        });
+
+        var (lido, registros) = await EmEscopoAsync(null, async sp =>
+        {
+            var db = sp.GetRequiredService<AppDbContext>();
+            return (await db.Usuarios.AsNoTracking().SingleAsync(u => u.Id == carla.Id),
+                    await db.RegistrosAuditoria.AsNoTracking()
+                        .Where(r => r.Entidade == "Usuario" && r.EntidadeId == carla.Id).ToListAsync());
+        });
+
+        lido.ClienteId.Should().Be(cliente.Id);
+        lido.EhDeCliente.Should().BeTrue();
+        var criacao = registros.Single(r => r.Operacao == OperacaoAuditada.Criacao);
+        JsonDocument.Parse(criacao.Dados!).RootElement.GetProperty("ClienteId").GetGuid().Should().Be(cliente.Id);
+    }
+
+    [Fact]
+    public async Task Banco_recusa_usuario_de_cliente_inexistente()
+    {
+        var adminId = await IdDoAdminAsync();
+
+        var acao = () => EmEscopoAsync(adminId, async sp =>
+        {
+            var db = sp.GetRequiredService<AppDbContext>();
+            var perfil = await db.Perfis.SingleAsync(p => p.Tipo == TipoPerfil.Cliente);
+            db.Usuarios.Add(Usuario.Criar("Carla", Email.Criar("carla@x.com"), "hash", perfil, null, Guid.CreateVersion7()));
+            await db.SaveChangesAsync();
+            return 0;
+        });
+
+        var erro = await acao.Should().ThrowAsync<DbUpdateException>();
+        erro.Which.InnerException.Should().BeOfType<PostgresException>()
+            .Which.SqlState.Should().Be(PostgresErrorCodes.ForeignKeyViolation);
+    }
+
+    private Task SemearDeNovoAsync() => EmEscopoAsync(null, async sp =>
+    {
+        await sp.GetRequiredService<SemeadorInicial>().ExecutarAsync(Admin);
+        return 0;
+    });
+
+    /// <summary>Deixa o banco como era antes do portal: sem o perfil Cliente.</summary>
+    private Task ApagarOPerfilClienteAsync() => EmEscopoAsync(null, async sp =>
+        await sp.GetRequiredService<AppDbContext>().Perfis.IgnoreQueryFilters()
+            .Where(p => p.Tipo == TipoPerfil.Cliente).ExecuteDeleteAsync());
+
+    [Fact]
+    public async Task Banco_anterior_ao_portal_recebe_o_perfil_cliente_na_inicializacao()
+    {
+        var adminId = await IdDoAdminAsync();
+        var cliente = NovoCliente();
+        await EmEscopoAsync(adminId, async sp =>
+        {
+            sp.GetRequiredService<AppDbContext>().Clientes.Add(cliente);
+            await sp.GetRequiredService<IUnidadeDeTrabalho>().SalvarAsync(default);
+            return 0;
+        });
+        var geral = await EmEscopoAsync(adminId, sp =>
+            sp.GetRequiredService<IManipulador<EnviarDocumento, Resultado<Guid>>>().ManipularAsync(
+                new EnviarDocumento(CategoriaDocumento.DocumentoGeral, cliente.Id, null, "geral.pdf", "application/pdf",
+                    new MemoryStream("conteúdo"u8.ToArray())), default));
+        geral.Sucesso.Should().BeTrue(geral.Mensagem);
+        await ApagarOPerfilClienteAsync();
+
+        await SemearDeNovoAsync();
+        await SemearDeNovoAsync();
+
+        var (perfis, registros, entradas, admin) = await EmEscopoAsync(null, async sp =>
+        {
+            var db = sp.GetRequiredService<AppDbContext>();
+            var todos = await db.Perfis.IgnoreQueryFilters().AsNoTracking().ToListAsync();
+            var novo = todos.Single(p => p.Tipo == TipoPerfil.Cliente);
+            return (todos,
+                    await db.RegistrosAuditoria.AsNoTracking()
+                        .Where(r => r.Entidade == "Perfil" && r.EntidadeId == novo.Id).ToListAsync(),
+                    await db.Set<DocumentoPerfilAcesso>().IgnoreQueryFilters().AsNoTracking()
+                        .Where(a => a.PerfilId == novo.Id).ToListAsync(),
+                    await db.Usuarios.AsNoTracking().SingleAsync(u => u.Id == adminId));
+        });
+
+        perfis.Should().HaveCount(3);
+        perfis.Single(p => p.Tipo == TipoPerfil.Cliente).Nome.Should().Be("Cliente");
+        var criacao = registros.Should().ContainSingle(r => r.Operacao == OperacaoAuditada.Criacao).Subject;
+        criacao.UsuarioId.Should().BeNull("quem criou foi o semeador, não uma pessoa");
+        perfis.Where(p => p.Tipo != TipoPerfil.Cliente).Should().OnlyContain(p => p.AtualizadoEm == null);
+        admin.AtualizadoEm.Should().BeNull();
+        entradas.Should().BeEmpty("o semeador não passa pela inclusão inicial nos Documentos Gerais");
+    }
+
+    [Fact]
+    public async Task Nome_cliente_ja_usado_vira_cliente_portal()
+    {
+        await ApagarOPerfilClienteAsync();
+        await EmEscopoAsync(null, async sp =>
+        {
+            sp.GetRequiredService<AppDbContext>().Perfis.Add(Perfil.Criar("cliente", TipoPerfil.Producao));
+            await sp.GetRequiredService<AppDbContext>().SaveChangesAsync();
+            return 0;
+        });
+
+        await SemearDeNovoAsync();
+
+        var perfis = await EmEscopoAsync(null, sp =>
+            sp.GetRequiredService<AppDbContext>().Perfis.AsNoTracking().ToListAsync());
+        perfis.Single(p => p.Tipo == TipoPerfil.Cliente).Nome.Should().Be("Cliente (portal)");
+        perfis.Single(p => p.Tipo == TipoPerfil.Producao && p.Nome == "cliente").Should().NotBeNull();
     }
 }

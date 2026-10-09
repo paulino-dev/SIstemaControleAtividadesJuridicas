@@ -1309,4 +1309,40 @@ public class AtividadeTests
         atividade.Status.Should().Be(StatusAtividade.Concluida);
         atividade.ConcluidaEm.Should().Be(concluidaEm);
     }
+
+    // ---- Usuário de cliente ----
+
+    [Fact]
+    public void Usuario_de_cliente_nao_entra_como_responsavel()
+    {
+        var carla = new PessoaDaAtividade(Guid.CreateVersion7(), TipoPerfil.Cliente, true);
+        var criada = Nova();
+        var direcionada = Direcionada();
+        var responsaveisAntes = direcionada.Responsaveis.Select(r => r.UsuarioId).ToArray();
+        var versaoAntes = direcionada.VersaoDasPartes;
+
+        var naCriada = () => criada.DefinirResponsaveis([R(_pedro), R(carla)], _diana, T0, _diana.UsuarioId);
+        var naDirecionada = () => direcionada.DefinirResponsaveis([R(_pedro), R(_paula), R(carla)], null, T0, _diana.UsuarioId);
+
+        naCriada.Should().Throw<ExcecaoDeDominio>().WithMessage("Usuário de cliente não pode ser responsável por atividade.");
+        naDirecionada.Should().Throw<ExcecaoDeDominio>().WithMessage("Usuário de cliente não pode ser responsável por atividade.");
+        criada.Responsaveis.Should().BeEmpty();
+        criada.Status.Should().Be(StatusAtividade.Criada);
+        criada.VersaoDasPartes.Should().Be(0);
+        direcionada.Responsaveis.Select(r => r.UsuarioId).Should().BeEquivalentTo(responsaveisAntes);
+        direcionada.Status.Should().Be(StatusAtividade.Direcionada);
+        direcionada.VersaoDasPartes.Should().Be(versaoAntes);
+    }
+
+    [Fact]
+    public void Usuario_de_cliente_nao_e_aceito_como_revisor()
+    {
+        var carla = new PessoaDaAtividade(Guid.CreateVersion7(), TipoPerfil.Cliente, true);
+        var atividade = Nova();
+
+        var acao = () => atividade.DefinirResponsaveis([R(_paula)], carla, T0, _diana.UsuarioId);
+
+        acao.Should().Throw<ExcecaoDeDominio>().WithMessage("O revisor deve ser um usuário ativo de Diretoria.");
+        atividade.RevisorId.Should().BeNull();
+    }
 }

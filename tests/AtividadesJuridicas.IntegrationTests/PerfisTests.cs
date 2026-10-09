@@ -17,12 +17,13 @@ namespace AtividadesJuridicas.IntegrationTests;
 [Collection(ColecaoBanco.Nome)]
 public class PerfisTests(BancoFixture banco) : TesteComBanco(banco)
 {
-    private Guid _admin, _maria, _perfilDiretor, _perfilProducao;
+    private Guid _admin, _maria, _perfilDiretor, _perfilProducao, _perfilCliente;
 
     public override async Task InitializeAsync()
     {
         await base.InitializeAsync();
         _admin = await IdDoAdminAsync();
+        _perfilCliente = await IdDoPerfilAsync(TipoPerfil.Cliente);
         _perfilDiretor = await IdDoPerfilAsync(TipoPerfil.Diretoria);
         _perfilProducao = await IdDoPerfilAsync(TipoPerfil.Producao);
         _maria = (await ExecutarAsync(_admin, new SalvarClientePessoaFisica(
@@ -149,7 +150,7 @@ public class PerfisTests(BancoFixture banco) : TesteComBanco(banco)
         });
 
         await acao.Should().ThrowAsync<InvalidOperationException>().WithMessage("falhou depois de gravar");
-        (await PerfisNoBancoAsync()).Select(p => p.Nome).Should().Equal("Diretor", "Produção");
+        (await PerfisNoBancoAsync()).Select(p => p.Nome).Should().Equal("Cliente", "Diretor", "Produção");
         (await AuditoriaAsync()).Should().NotContain(r => r.Dados != null && r.Dados.Contains("Fantasma"));
     }
 
@@ -179,7 +180,7 @@ public class PerfisTests(BancoFixture banco) : TesteComBanco(banco)
         var resultado = await ExecutarAsync(_admin, new SalvarPerfil(null, nome, TipoPerfil.Producao));
 
         resultado.Erro.Should().Be(TipoErro.Conflito);
-        (await PerfisNoBancoAsync()).Should().HaveCount(2);
+        (await PerfisNoBancoAsync()).Should().HaveCount(3);
     }
 
     [Fact]
@@ -211,6 +212,7 @@ public class PerfisTests(BancoFixture banco) : TesteComBanco(banco)
 
         perfis.Should().BeEquivalentTo(
         [
+            new PerfilDetalhe(_perfilCliente, "Cliente", TipoPerfil.Cliente, true, 0),
             new PerfilDetalhe(_perfilDiretor, "Diretor", TipoPerfil.Diretoria, true, 1),
             new PerfilDetalhe(estagio, "Estagiário", TipoPerfil.Producao, false, 0),
             new PerfilDetalhe(_perfilProducao, "Produção", TipoPerfil.Producao, true, 1),
@@ -314,7 +316,7 @@ public class PerfisTests(BancoFixture banco) : TesteComBanco(banco)
 
         criar.Erro.Should().Be(TipoErro.AcessoNegado);
         listar.Erro.Should().Be(TipoErro.AcessoNegado);
-        (await PerfisNoBancoAsync()).Should().HaveCount(2);
+        (await PerfisNoBancoAsync()).Should().HaveCount(3);
         (await AuditoriaAsync()).Count(r => r.Evento == EventosDeSeguranca.AcessoNegado && r.UsuarioId == pedro).Should().Be(2);
     }
 
@@ -327,7 +329,7 @@ public class PerfisTests(BancoFixture banco) : TesteComBanco(banco)
 
         resultado.Erro.Should().Be(TipoErro.Conflito);
         resultado.Mensagem.Should().Be("Já existe um perfil com este nome.");
-        (await PerfisNoBancoAsync()).Select(p => p.Nome).Should().Equal("Diretor", "Estagiário", "Produção");
+        (await PerfisNoBancoAsync()).Select(p => p.Nome).Should().Equal("Cliente", "Diretor", "Estagiário", "Produção");
     }
 
     [Fact]

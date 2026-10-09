@@ -172,4 +172,88 @@ public class UsuarioTests
 
         usuario.VersaoDeSessao.Should().Be(versao, "reativar não revive nem renova sessões");
     }
+
+    // ---- Usuário de cliente ----
+
+    private static readonly Perfil PerfilCliente = Perfil.Criar("Cliente", TipoPerfil.Cliente);
+    private static readonly Guid Maria = Guid.CreateVersion7();
+
+    private static Usuario NovoDeCliente() =>
+        Usuario.Criar("Carla Cliente", Email.Criar("carla@x.com"), "hash", PerfilCliente, " AL 1 ", Maria);
+
+    [Fact]
+    public void Usuario_de_cliente_nasce_vinculado_ao_cliente_e_sem_oab()
+    {
+        var usuario = NovoDeCliente();
+
+        usuario.ClienteId.Should().Be(Maria);
+        usuario.EhDeCliente.Should().BeTrue();
+        usuario.PerfilId.Should().Be(PerfilCliente.Id);
+        usuario.NumeroOab.Should().BeNull("OAB é da equipe");
+        Novo().EhDeCliente.Should().BeFalse();
+        Novo().ClienteId.Should().BeNull();
+    }
+
+    [Fact]
+    public void Perfil_de_cliente_exige_cliente_e_perfil_interno_o_recusa()
+    {
+        var semCliente = () => Usuario.Criar("Carla", Email.Criar("carla@x.com"), "hash", PerfilCliente);
+        var internoComCliente = () => Usuario.Criar("Ana", Email.Criar("ana@x.com"), "hash", Diretor, null, Maria);
+        var clienteVazio = () => Usuario.Criar("Carla", Email.Criar("carla@x.com"), "hash", PerfilCliente, null, Guid.Empty);
+
+        semCliente.Should().Throw<ExcecaoDeDominio>().WithMessage("Informe o cliente do usuário.");
+        internoComCliente.Should().Throw<ExcecaoDeDominio>().WithMessage(Usuario.SoDeCliente);
+        clienteVazio.Should().Throw<ExcecaoDeDominio>().WithMessage("Cliente inválido.");
+    }
+
+    [Fact]
+    public void Usuario_nao_troca_entre_perfil_de_cliente_e_perfil_interno()
+    {
+        var deCliente = NovoDeCliente();
+        var interno = Novo();
+
+        var paraInterno = () => deCliente.AlterarPerfil(Diretor);
+        var paraCliente = () => interno.AlterarPerfil(PerfilCliente);
+
+        paraInterno.Should().Throw<ExcecaoDeDominio>().WithMessage(Usuario.TrocaEntreTipos);
+        paraCliente.Should().Throw<ExcecaoDeDominio>().WithMessage(Usuario.TrocaEntreTipos);
+        deCliente.PerfilId.Should().Be(PerfilCliente.Id);
+        interno.PerfilId.Should().Be(Diretor.Id);
+    }
+
+    [Fact]
+    public void Trocar_o_cliente_renova_a_sessao_e_manter_o_mesmo_nao()
+    {
+        var usuario = NovoDeCliente();
+        var versao = usuario.VersaoDeSessao;
+        var outro = Guid.CreateVersion7();
+
+        usuario.VincularAoCliente(Maria).Should().BeFalse();
+        usuario.VersaoDeSessao.Should().Be(versao);
+
+        usuario.VincularAoCliente(outro).Should().BeTrue();
+        usuario.ClienteId.Should().Be(outro);
+        usuario.VersaoDeSessao.Should().NotBe(versao);
+    }
+
+    [Fact]
+    public void So_usuario_de_cliente_e_vinculado_e_o_cliente_precisa_ser_valido()
+    {
+        var interno = () => Novo().VincularAoCliente(Maria);
+        var vazio = () => NovoDeCliente().VincularAoCliente(Guid.Empty);
+
+        interno.Should().Throw<ExcecaoDeDominio>().WithMessage(Usuario.SoDeCliente);
+        vazio.Should().Throw<ExcecaoDeDominio>().WithMessage("Cliente inválido.");
+    }
+
+    [Fact]
+    public void Editar_os_dados_de_usuario_de_cliente_mantem_a_oab_nula()
+    {
+        var usuario = NovoDeCliente();
+
+        usuario.AlterarDados("Carla C.", Email.Criar("carla.c@x.com"), "AL 9");
+
+        usuario.Nome.Should().Be("Carla C.");
+        usuario.NumeroOab.Should().BeNull();
+    }
 }

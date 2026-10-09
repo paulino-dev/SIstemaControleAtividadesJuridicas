@@ -1,21 +1,26 @@
 @inherits LayoutComponentBase
+@using AtividadesJuridicas.Web.Components.Pages
 @inject IDespachante Despachante
+@inject NavigationManager Navegacao
 
 <header class="topo">
     <a class="marca" href="/">Atividades Jurídicas</a>
     <nav>
         <NavLink href="/" Match="NavLinkMatch.All">Início</NavLink>
-        <NavLink href="/atividades">Atividades</NavLink>
-        <NavLink href="/agenda">Agenda</NavLink>
-        <NavLink href="/clientes">Clientes</NavLink>
-        <NavLink href="/processos">Processos</NavLink>
-        @if (_ator is { EhDiretoria: true })
+        @if (!EhCliente)
         {
-            <NavLink href="/areas">Áreas</NavLink>
-            <NavLink href="/usuarios">Usuários</NavLink>
-            <NavLink href="/produtores">Produtores</NavLink>
-            <NavLink href="/perfis">Perfis</NavLink>
-            <NavLink href="/auditoria">Auditoria</NavLink>
+            <NavLink href="/atividades">Atividades</NavLink>
+            <NavLink href="/agenda">Agenda</NavLink>
+            <NavLink href="/clientes">Clientes</NavLink>
+            <NavLink href="/processos">Processos</NavLink>
+            @if (_ator is { EhDiretoria: true })
+            {
+                <NavLink href="/areas">Áreas</NavLink>
+                <NavLink href="/usuarios">Usuários</NavLink>
+                <NavLink href="/produtores">Produtores</NavLink>
+                <NavLink href="/perfis">Perfis</NavLink>
+                <NavLink href="/auditoria">Auditoria</NavLink>
+            }
         }
         <NavLink href="/minha-senha">Minha senha</NavLink>
     </nav>
@@ -27,12 +32,39 @@
 </header>
 
 <main class="conteudo">
-    @Body
+    @if (!_marcaLida)
+    {
+        <p>Carregando…</p>
+    }
+    else if (EhCliente && !RotasDoCliente.Permite(Navegacao.ToBaseRelativePath(Navegacao.Uri)))
+    {
+        @* A página interna não é montada para o cliente: ela não chega a consultar nada. *@
+        <NaoEncontrada />
+    }
+    else
+    {
+        @Body
+    }
 </main>
 
 @code {
-    private UsuarioAutenticado? _ator;
+    [CascadingParameter]
+    private Task<AuthenticationState>? EstadoDeAutenticacao { get; set; }
 
-    protected override async Task OnInitializedAsync() =>
+    private UsuarioAutenticado? _ator;
+    private bool _marcaLida;
+    private bool _portalPeloCookie;
+
+    // O banco manda quando já respondeu; antes disso, e se o acesso foi encerrado, vale a marca do cookie.
+    private bool EhCliente => _ator?.EhCliente ?? _portalPeloCookie;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // A tarefa do estado de autenticação já vem concluída: a marca é lida antes da primeira renderização.
+        if (EstadoDeAutenticacao is not null)
+            _portalPeloCookie = IdentidadeHttp.EhDoPortal((await EstadoDeAutenticacao).User);
+        _marcaLida = true;
+
         _ator = await Despachante.EnviarAsync(new ObterMeuAcesso());
+    }
 }

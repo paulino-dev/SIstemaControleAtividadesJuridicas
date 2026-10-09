@@ -112,7 +112,38 @@ public class PerfisTests
         _c.AcessoInicial.Inclusoes.Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task Criar_perfil_de_tipo_cliente_e_recusado()
+    {
+        _c.AcessoInicial.DocumentosGerais = 7;
+
+        var resultado = await Salvar(_c.Diretor, null, "Cliente", TipoPerfil.Cliente);
+
+        resultado.Erro.Should().Be(TipoErro.Validacao);
+        resultado.Mensagem.Should().Be("O perfil de cliente é único e já existe.");
+        _c.Perfis.Itens.Should().HaveCount(2);
+        _c.Perfis.Itens.Should().NotContain(p => p.Tipo == TipoPerfil.Cliente);
+        _c.AcessoInicial.Inclusoes.Should().BeEmpty("o perfil de cliente nunca entra nos Documentos Gerais");
+        _c.Unidade.Salvamentos.Should().Be(0);
+        _c.Unidade.Transacoes.Should().Be(0);
+        _c.Auditoria.Eventos.Should().BeEmpty();
+    }
+
     // ---- Renomear ----
+
+    [Fact]
+    public async Task Perfil_de_cliente_pode_ser_renomeado()
+    {
+        _c.Perfis.Itens.Add(_c.PerfilCliente);
+
+        var resultado = await Salvar(_c.Diretor, _c.PerfilCliente.Id, "Portal do cliente", TipoPerfil.Cliente);
+
+        resultado.Sucesso.Should().BeTrue(resultado.Mensagem);
+        _c.PerfilCliente.Nome.Should().Be("Portal do cliente");
+        _c.PerfilCliente.Tipo.Should().Be(TipoPerfil.Cliente);
+        _c.AcessoInicial.Inclusoes.Should().BeEmpty();
+        _c.Unidade.Salvamentos.Should().Be(1);
+    }
 
     [Fact]
     public async Task Diretor_renomeia_sem_mexer_nos_documentos()

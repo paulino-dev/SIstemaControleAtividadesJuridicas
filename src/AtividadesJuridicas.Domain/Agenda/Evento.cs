@@ -15,6 +15,8 @@ public sealed class Evento : Entidade
 
     private const string Inativo = "Usuário inativo não pode ser incluído como participante.";
 
+    private const string ClienteNoEvento = "Usuário de cliente não pode participar de evento.";
+
     private readonly List<EventoParticipante> _participantes = [];
 
     private Evento() { }
@@ -64,6 +66,8 @@ public sealed class Evento : Entidade
         ExigirSemRepeticao(participantes);
         if (!criador.Ativo || participantes.Any(p => p.UsuarioId != criador.UsuarioId && !p.Ativo))
             throw new ExcecaoDeDominio(Inativo);
+        if (criador.EhCliente || participantes.Any(p => p.EhCliente))
+            throw new ExcecaoDeDominio(ClienteNoEvento);
 
         var evento = new Evento { CriadorId = criador.UsuarioId };
         evento.Aplicar(dados, vinculo);
@@ -107,6 +111,8 @@ public sealed class Evento : Entidade
         ExigirSemRepeticao(participantes);
         if (participantes.Count == 0)
             throw new ExcecaoDeDominio("O evento precisa de ao menos um participante.");
+        if (participantes.Any(p => p.EhCliente))
+            throw new ExcecaoDeDominio(ClienteNoEvento);
 
         var novos = participantes.Where(p => _participantes.All(e => e.UsuarioId != p.UsuarioId)).ToList();
         if (novos.Any(p => !p.Ativo))

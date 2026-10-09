@@ -41,7 +41,7 @@ Alternativas descartadas: negar o perfil Cliente caso de uso por caso de uso (a 
 
 `TipoPerfil` ganha o valor `Cliente`.
 
-- Existe um único perfil desse tipo, "Cliente", criado por migration nos bancos que já existem e pelo semeador em banco vazio.
+- Existe um único perfil desse tipo, "Cliente", criado pelo semeador: junto dos outros dois em banco vazio e, num banco que já existe, na primeira inicialização depois da atualização. A gravação passa pelos interceptores, como qualquer outra. Se já houver um perfil com o nome "Cliente", o novo nasce como "Cliente (portal)".
 - A criação de perfil continua aceitando só `Diretoria` e `Producao`. Dois perfis de cliente não teriam diferença entre si, porque o perfil Cliente não participa de listas de acesso.
 - O perfil "Cliente" pode ser renomeado. Inativá-lo segue a regra de hoje: só sem usuário ativo.
 - Criar o perfil "Cliente" não o inclui em Documento Geral nenhum.
@@ -58,13 +58,13 @@ Regras:
 - Um usuário não troca entre o tipo `Cliente` e os tipos internos. A edição que tentar é recusada como validação.
 - A Diretoria pode trocar o cliente vinculado, para corrigir um engano. A troca renova a `VersaoDeSessao` do usuário e gera o evento `usuario_cliente_alterado`.
 - `NumeroOab` não se aplica a usuário-cliente e fica nulo.
-- Usuário-cliente não é responsável nem revisor de atividade, não participa de evento e não entra em lista de acesso de documento. As consultas que alimentam essas escolhas deixam de trazê-lo, e o domínio recusa a inclusão.
+- Usuário-cliente não é responsável nem revisor de atividade, não participa de evento e não entra em lista de acesso de documento. A lista de nomes usada para escolher participantes de evento traz só a equipe; as telas que escolhem responsáveis e filtram por pessoa deixam os usuários de cliente de fora; a lista de usuários da Diretoria (`ListarUsuarios`) continua completa, porque a auditoria filtra por qualquer usuário; e o domínio recusa a inclusão em qualquer caso.
 - A regra do último diretor não muda: usuário-cliente não conta como diretor.
 - A ficha do cliente mostra à Diretoria, só para leitura, os usuários vinculados a ele, com nome, e-mail e se estão ativos.
 
 ### Cliente inativo
 
-- O usuário de um cliente inativo não tem acesso. O login responde com a mesma mensagem de credenciais inválidas, e uma sessão aberta é recusada na operação seguinte.
+- O usuário de um cliente inativo não tem acesso. O login recusado responde como uma senha errada: mensagem de credenciais inválidas e evento `login_falha`; na tentativa que aciona o bloqueio, mensagem de bloqueio e `login_bloqueado`. A tentativa conta para o bloqueio, e o evento leva `motivo`: `cliente_inativo` (cliente inativo ou inexistente) ou `vinculo_incoerente` (perfil `Cliente` sem cliente, ou perfil interno com cliente). Uma sessão aberta é recusada na operação seguinte: o cookie é rejeitado na próxima requisição HTTP, e uma tela já aberta recebe acesso negado.
 - Reativar o cliente devolve o acesso, sem mexer nos usuários.
 - O estado do cliente é lido do banco a cada operação, como já se faz com o perfil e o estado do usuário.
 
@@ -82,6 +82,7 @@ Requisições abertas ao cliente:
 
 | Requisição | Para quê |
 |---|---|
+| `AutenticarUsuario` | Entrar. Não usa o ator; sem a marca, quem tem uma sessão de cliente aberta no navegador não conseguiria entrar de novo |
 | `ObterMeuAcesso` | A interface saber quem é o usuário |
 | `AlterarMinhaSenha` | Trocar a própria senha |
 | `BaixarDocumento` | Baixar; quem decide é a regra de acesso do documento |
@@ -189,7 +190,7 @@ Consequência: o título de toda atividade com cliente passa a ser lido por esse
 | `Producao` | Os atuais |
 | `Cliente` | Início, Andamento, Meus documentos, Documentos comuns, Minha senha |
 
-Uma página interna aberta por um usuário-cliente mostra a página de não encontrada. Uma página do portal aberta por quem não é cliente, idem, com exceção de Documentos comuns, que a Diretoria usa.
+Uma página interna aberta por um usuário-cliente mostra "Página não encontrada" e não é montada: não chega a consultar nada. O cookie de um usuário de perfil `Cliente` leva uma marca de portal (`atividades:portal`), que serve só para o layout saber, sem esperar consulta, que não deve montar páginas internas. A marca não autoriza nada: perfil, estado ativo e cliente continuam lidos do banco a cada operação, e quem nega é o portão. Como o usuário não troca entre o tipo `Cliente` e os internos, a marca não envelhece. Uma página do portal aberta por quem não é cliente, idem, com exceção de Documentos comuns, que a Diretoria usa.
 
 ### Páginas
 
@@ -223,6 +224,7 @@ com os botões "Confirmar envio" e "Cancelar". Só a confirmação envia a requi
 Não há tabela nova.
 
 - Login, falha, bloqueio, logout e troca de senha de usuário-cliente geram os eventos de segurança existentes.
+- O login recusado por causa do cliente gera `login_falha`, ou `login_bloqueado` na tentativa que aciona o bloqueio, com `motivo` `cliente_inativo` ou `vinculo_incoerente` (seção 3).
 - `usuario_cliente_alterado`: evento de segurança no usuário, com o cliente anterior e o novo, na mesma transação da troca.
 - `ListarMeusDocumentos` e `ListarDocumentosComuns` registram `Listou` no recurso `Documento`. `ListarMeuAndamento` registra `Listou` no recurso `Atividade`. O download registra `Baixou`, como hoje.
 - A criação, a renomeação e a exclusão de documentos das categorias novas aparecem pelos registros do próprio documento.
@@ -241,7 +243,7 @@ Não há tabela nova.
 - `usuarios.cliente_id`: nulo, chave estrangeira para `clientes` sem cascata, com índice.
 - O banco não garante sozinho o par perfil–cliente, porque o tipo fica na tabela de perfis; quem garante é o domínio, com teste de integração.
 - Restrições de `documentos` reescritas: `cliente_id` é obrigatório nas categorias Documento Geral, Contrato de Honorários e Documento do cliente, e nulo no Documento comum; `atividade_id` continua existindo só no Documento de Atividade.
-- Migration de dados: insere o perfil "Cliente" quando não existe perfil de tipo `Cliente`.
+- Não há migration de dados: o perfil "Cliente" é garantido pelo semeador (seção 3).
 
 ## 10. Testes
 
@@ -277,12 +279,28 @@ De interface:
 
 ## 11. Fases
 
-Dois planos de implementação:
+A fase 7 é a de complexidade e produtividade (`2026-10-08-complexidade-e-produtividade-design.md`). O portal é a fase 8, em dois planos de implementação:
 
-- **7A — Perfil Cliente e portão.** Tipo de perfil, vínculo do usuário com o cliente, cliente inativo, portão no executor, recusas do domínio, mudança dos Documentos Gerais, tela de Usuários e a lista "Usuários do cliente". Ao fim, um cliente faz login, vê um início vazio, troca a senha e não alcança nada interno.
-- **7B — Documentos e andamento.** As duas categorias, os casos de uso e as consultas do portal, a quarta área na ficha do cliente, a página de Documentos comuns com a confirmação, Meus documentos, Andamento e o início do cliente.
+- **8A — Perfil Cliente e portão.** Tipo de perfil, vínculo do usuário com o cliente, cliente inativo, portão no executor, recusas do domínio, mudança dos Documentos Gerais, tela de Usuários e a lista "Usuários do cliente". Ao fim, um cliente faz login, vê um início vazio, troca a senha e não alcança nada interno. Nesta fase o portão abre só `AutenticarUsuario`, `ObterMeuAcesso` e `AlterarMinhaSenha`.
+- **8B — Documentos e andamento.** As duas categorias, os casos de uso e as consultas do portal, a quarta área na ficha do cliente, a página de Documentos comuns com a confirmação, Meus documentos, Andamento e o início do cliente. O portão passa a abrir também `BaixarDocumento` e as três consultas do portal.
+
+As duas fases 7 e 8 mexem no menu, no formulário de atividade, na modelagem de domínio e criam migration. A que for integrada por último refaz a sua migration sobre a outra e resolve o menu.
 
 A modelagem de domínio é emendada ao fim de cada fase com as regras fixadas, como nas fases anteriores.
+
+**Implantação.** Na primeira subida da versão nova o semeador cria o perfil "Cliente", que passa a aparecer em Perfis e no seletor de Usuários. Depois de existir usuário de cliente, **voltar para uma versão anterior ao portão não é seguro**: a versão antiga trata o tipo Cliente como Produção, e o cliente leria clientes e processos. Antes de reverter, inativar todos os usuários vinculados a cliente.
+
+**Registrado na revisão da 8A, para o plano da 8B.**
+
+- Ao abrir `BaixarDocumento` ao cliente, o acesso dele sai só da regra de acesso do documento. O filtro das listagens internas, por perfil e por usuário, não conhece o tipo do perfil e não é reaproveitado para o cliente.
+- A lista das requisições abertas ao cliente está em quatro lugares, que mudam juntos: o teste que a fixa, a seção 3 desta spec e dois pontos da modelagem de domínio (seções 5 e 12).
+- `/documentos-comuns` é a primeira rota compartilhada entre cliente e Diretoria. O layout passa a precisar também da guarda inversa (página do portal fechada a quem não é cliente), com teste.
+- Um teste de arquitetura: a camada Web só chega aos casos de uso pelo despachante ou pelo executor. O portão só protege o que passa por ele.
+- A porta que inclui um perfil novo em todos os Documentos Gerais por SQL não confere o tipo do perfil. Hoje o único chamador recusa o tipo Cliente antes; a porta ganha a guarda própria.
+- O aviso de inativação do cliente passa a dizer quantos usuários do portal ficam sem acesso.
+- O cliente que abre uma página interna recebe "não encontrada" com status 200; passa a receber 404.
+- Se o início do cliente fizer várias consultas, medir o custo do contexto de acesso, que o portão lê uma vez a mais por requisição interna.
+- Limpezas menores apontadas nas revisões de tarefa: asserções mais estritas em dois testes do portal, guarda contra dois envios seguidos na busca de cliente da tela de usuários, e a redação de três trechos da modelagem ("Bloqueio de login", "reativar o cliente devolve o acesso" e o termo "sem ator").
 
 ## 12. Fora do escopo
 

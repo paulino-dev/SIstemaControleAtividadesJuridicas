@@ -6,14 +6,16 @@ namespace AtividadesJuridicas.Application.Identidade;
 
 public sealed record SessaoIniciada(Guid UsuarioId, string Nome, TipoPerfil TipoPerfil, Guid VersaoDeSessao);
 
-public sealed record AutenticarUsuario(string Email, string Senha) : IRequisicao<Resultado<SessaoIniciada>>;
+public sealed record AutenticarUsuario(string Email, string Senha)
+    : IRequisicao<Resultado<SessaoIniciada>>, IRequisicaoAbertaAoCliente;
 
 public sealed class AutenticarUsuarioManipulador(
     IUsuarioRepositorio usuarios,
     IPerfilRepositorio perfis,
     IHasherDeSenha hasher,
     IRelogio relogio,
-    IAuditoria auditoria) : IManipulador<AutenticarUsuario, Resultado<SessaoIniciada>>
+    IAuditoria auditoria,
+    IClientesDaIdentidade clientes) : IManipulador<AutenticarUsuario, Resultado<SessaoIniciada>>
 {
     // Mesma mensagem para e-mail inexistente, usuário inativo e senha errada.
     private static readonly Resultado<SessaoIniciada> Invalido =
@@ -64,6 +66,19 @@ public sealed class AutenticarUsuarioManipulador(
         {
             await auditoria.RegistrarAsync(EventosDeSeguranca.LoginFalha, "Usuario", usuario.Id, ator: usuario.Id, ct: ct);
             return Invalido;
+        }
+
+        // Usuário de cliente só entra enquanto o cliente dele está ativo. A senha estava certa, mas a resposta é a
+        // de credenciais inválidas, e a tentativa continua contada: se foi ela que acionou o bloqueio, responde e
+        // registra como a senha errada, para as respostas não revelarem que a senha estava certa.
+        var parCoerente = AcessoPeloCliente.ParCoerente(usuario, perfil);
+        if (!parCoerente || !await AcessoPeloCliente.ClienteAtivoAsync(usuario, clientes, ct))
+        {
+            var bloqueou = tentativa == TentativaDeLogin.AdmitidaEBloqueou;
+            await auditoria.RegistrarAsync(
+                bloqueou ? EventosDeSeguranca.LoginBloqueado : EventosDeSeguranca.LoginFalha, "Usuario", usuario.Id,
+                new { motivo = parCoerente ? "cliente_inativo" : "vinculo_incoerente" }, ator: usuario.Id, ct: ct);
+            return bloqueou ? Bloqueado : Invalido;
         }
 
         await usuarios.RegistrarLoginBemSucedidoAsync(usuario.Id, agora, ct);

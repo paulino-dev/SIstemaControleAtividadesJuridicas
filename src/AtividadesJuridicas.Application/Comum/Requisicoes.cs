@@ -3,6 +3,13 @@ namespace AtividadesJuridicas.Application.Comum;
 /// <summary>Marca um comando ou consulta e declara o tipo da resposta.</summary>
 public interface IRequisicao<TResposta>;
 
+/// <summary>
+/// Marca a requisição que um ator que não é da equipe pode executar (hoje, o perfil Cliente). Tudo o que não tem
+/// esta marca é negado a ele pelo executor, antes do caso de uso. Marcar mais uma é abrir uma porta do escritório ao cliente: a lista
+/// completa está fixada em PortaoDoClienteTests.
+/// </summary>
+public interface IRequisicaoAbertaAoCliente;
+
 public interface IManipulador<in TRequisicao, TResposta>
     where TRequisicao : IRequisicao<TResposta>
 {

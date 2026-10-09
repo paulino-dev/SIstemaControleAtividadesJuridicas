@@ -14,8 +14,8 @@ public enum TipoEvento
 public sealed record DadosDoEvento(
     string Titulo, string? Descricao, string? Local, TipoEvento Tipo, DateTime InicioEm, int DuracaoEstimadaMinutos);
 
-/// <summary>Um usuário como o evento precisa conhecê-lo agora: quem é e se está ativo.</summary>
-public sealed record PessoaDoEvento(Guid UsuarioId, bool Ativo);
+/// <summary>Um usuário como o evento precisa conhecê-lo agora: quem é, se está ativo e se é do portal do cliente.</summary>
+public sealed record PessoaDoEvento(Guid UsuarioId, bool Ativo, bool EhCliente = false);
 
 /// <summary>Cliente, processo e atividade de um evento, já coerentes entre si.</summary>
 public sealed record VinculoDoEvento

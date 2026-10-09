@@ -1,4 +1,5 @@
 using AtividadesJuridicas.Domain.Comum;
+using AtividadesJuridicas.Domain.Identidade;
 
 namespace AtividadesJuridicas.Domain.Atividades;
 
@@ -128,6 +129,8 @@ public sealed class Atividade : Entidade
         var novos = responsaveis.Where(r => _responsaveis.All(e => e.UsuarioId != r.Pessoa.UsuarioId)).ToList();
         if (novos.Any(r => !r.Pessoa.Ativo))
             throw new ExcecaoDeDominio("Usuário inativo não pode ser incluído como responsável.");
+        if (responsaveis.Any(r => r.Pessoa.Tipo == TipoPerfil.Cliente))
+            throw new ExcecaoDeDominio("Usuário de cliente não pode ser responsável por atividade.");
         if (Status != StatusAtividade.Criada && responsaveis.Count == 0)
             throw new ExcecaoDeDominio("A atividade precisa de ao menos um responsável.");
 

@@ -5,7 +5,9 @@ using AtividadesJuridicas.Domain.Identidade;
 
 namespace AtividadesJuridicas.Application.Identidade;
 
-public sealed record EditarUsuario(Guid Id, string Nome, string Email, Guid PerfilId, string? NumeroOab)
+/// <summary><paramref name="ClienteId"/>: obrigatório para usuário de cliente e proibido para usuário interno.</summary>
+public sealed record EditarUsuario(
+    Guid Id, string Nome, string Email, Guid PerfilId, string? NumeroOab, Guid? ClienteId = null)
     : IRequisicao<Resultado>;
 
 public sealed class EditarUsuarioManipulador(
@@ -13,7 +15,8 @@ public sealed class EditarUsuarioManipulador(
     IUsuarioRepositorio usuarios,
     IPerfilRepositorio perfis,
     IUnidadeDeTrabalho unidade,
-    IAuditoria auditoria) : IManipulador<EditarUsuario, Resultado>
+    IAuditoria auditoria,
+    IClientesDaIdentidade clientes) : IManipulador<EditarUsuario, Resultado>
 {
     private const string EmailEmUso = "Já existe um usuário com este e-mail.";
 
@@ -33,6 +36,27 @@ public sealed class EditarUsuarioManipulador(
         if (perfil is null)
             return Resultado.Falha(TipoErro.Validacao, "Perfil não encontrado.");
 
+        // Quem é de cliente não vira equipe, e vice-versa; o cliente só se informa a quem é de cliente.
+        if ((perfil.Tipo == TipoPerfil.Cliente) != usuario.EhDeCliente)
+            return Resultado.Falha(TipoErro.Validacao, Usuario.TrocaEntreTipos);
+        if (!usuario.EhDeCliente && requisicao.ClienteId is not null)
+            return Resultado.Falha(TipoErro.Validacao, Usuario.SoDeCliente);
+        if (usuario.EhDeCliente)
+        {
+            if (requisicao.ClienteId is not { } novoClienteId)
+                return Resultado.Falha(TipoErro.Validacao, "Informe o cliente do usuário.");
+
+            // O cliente de sempre não é revalidado: um cliente inativado não impede editar o nome ou o e-mail.
+            if (novoClienteId != usuario.ClienteId)
+            {
+                var novo = await clientes.ObterAsync(novoClienteId, ct);
+                if (novo is null)
+                    return Resultado.Falha(TipoErro.Validacao, "Cliente não encontrado.");
+                if (!novo.Ativo)
+                    return Resultado.Falha(TipoErro.Validacao, "O cliente está inativo.");
+            }
+        }
+
         if (await usuarios.ExisteEmailAsync(email, usuario.Id, ct))
             return Resultado.Falha(TipoErro.Conflito, EmailEmUso);
 
@@ -48,6 +72,13 @@ public sealed class EditarUsuarioManipulador(
                 auditoria.Anotar(EventosDeSeguranca.PerfilAlterado, "Usuario", usuario.Id,
                     new { de = usuario.PerfilId, para = perfil.Id });
                 usuario.AlterarPerfil(perfil);
+            }
+            if (requisicao.ClienteId is { } clienteId && usuario.ClienteId is { } anterior)
+            {
+                // VincularAoCliente só devolve verdadeiro quando o cliente muda; aí as sessões deixam de valer.
+                if (usuario.VincularAoCliente(clienteId))
+                    auditoria.Anotar(EventosDeSeguranca.UsuarioClienteAlterado, "Usuario", usuario.Id,
+                        new { de = anterior, para = clienteId });
             }
             usuario.AlterarDados(requisicao.Nome, email, requisicao.NumeroOab);
             await unidade.SalvarAsync(ct);

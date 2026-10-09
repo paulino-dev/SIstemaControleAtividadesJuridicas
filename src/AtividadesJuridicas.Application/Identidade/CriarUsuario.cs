@@ -4,7 +4,9 @@ using AtividadesJuridicas.Domain.Identidade;
 
 namespace AtividadesJuridicas.Application.Identidade;
 
-public sealed record CriarUsuario(string Nome, string Email, string Senha, Guid PerfilId, string? NumeroOab)
+/// <summary><paramref name="ClienteId"/>: só para o perfil de tipo Cliente, e obrigatório nele.</summary>
+public sealed record CriarUsuario(
+    string Nome, string Email, string Senha, Guid PerfilId, string? NumeroOab, Guid? ClienteId = null)
     : IRequisicao<Resultado<Guid>>;
 
 public sealed class CriarUsuarioManipulador(
@@ -12,7 +14,8 @@ public sealed class CriarUsuarioManipulador(
     IUsuarioRepositorio usuarios,
     IPerfilRepositorio perfis,
     IHasherDeSenha hasher,
-    IUnidadeDeTrabalho unidade) : IManipulador<CriarUsuario, Resultado<Guid>>
+    IUnidadeDeTrabalho unidade,
+    IClientesDaIdentidade clientes) : IManipulador<CriarUsuario, Resultado<Guid>>
 {
     private const string EmailEmUso = "Já existe um usuário com este e-mail.";
 
@@ -30,12 +33,29 @@ public sealed class CriarUsuarioManipulador(
         if (perfil is null)
             return Resultado<Guid>.Falha(TipoErro.Validacao, "Perfil não encontrado.");
 
+        var deCliente = perfil.Tipo == TipoPerfil.Cliente;
+        if (deCliente)
+        {
+            if (requisicao.ClienteId is not { } clienteId)
+                return Resultado<Guid>.Falha(TipoErro.Validacao, "Informe o cliente do usuário.");
+
+            var cliente = await clientes.ObterAsync(clienteId, ct);
+            if (cliente is null)
+                return Resultado<Guid>.Falha(TipoErro.Validacao, "Cliente não encontrado.");
+            if (!cliente.Ativo)
+                return Resultado<Guid>.Falha(TipoErro.Validacao, "O cliente está inativo.");
+        }
+        else if (requisicao.ClienteId is not null)
+            return Resultado<Guid>.Falha(TipoErro.Validacao, Usuario.SoDeCliente);
+
         if (await usuarios.ExisteEmailAsync(email, null, ct))
             return Resultado<Guid>.Falha(TipoErro.Conflito, EmailEmUso);
 
         try
         {
-            var usuario = Usuario.Criar(requisicao.Nome, email, hasher.Gerar(requisicao.Senha), perfil, requisicao.NumeroOab);
+            // A OAB é coisa da equipe: a informada para um usuário de cliente é ignorada.
+            var usuario = Usuario.Criar(requisicao.Nome, email, hasher.Gerar(requisicao.Senha), perfil,
+                deCliente ? null : requisicao.NumeroOab, requisicao.ClienteId);
             usuarios.Adicionar(usuario);
             await unidade.SalvarAsync(ct);
             return Resultado<Guid>.Ok(usuario.Id);

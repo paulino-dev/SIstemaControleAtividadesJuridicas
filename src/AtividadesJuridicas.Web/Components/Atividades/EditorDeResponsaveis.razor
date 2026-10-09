@@ -108,7 +108,7 @@
         var linhas = new List<Linha>();
 
         // Usuários ativos podem ser incluídos; os responsáveis atuais aparecem sempre, mesmo inativos.
-        foreach (var usuario in usuarios.Where(u => u.Ativo).OrderBy(u => u.Nome, StringComparer.CurrentCultureIgnoreCase))
+        foreach (var usuario in usuarios.Where(u => u.Ativo && u.TipoPerfil != TipoPerfil.Cliente).OrderBy(u => u.Nome, StringComparer.CurrentCultureIgnoreCase))
         {
             atuais.TryGetValue(usuario.Id, out var atual);
             linhas.Add(new Linha

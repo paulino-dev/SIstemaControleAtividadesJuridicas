@@ -1,5 +1,7 @@
+using System.Security.Claims;
 using AtividadesJuridicas.Application.Identidade;
 using AtividadesJuridicas.Domain.Auditoria;
+using AtividadesJuridicas.Domain.Identidade;
 using AtividadesJuridicas.Web.Infra;
 
 namespace AtividadesJuridicas.IntegrationTests;
@@ -67,6 +69,63 @@ public class FiltroDaTelaDeAuditoriaTests
         atual.Entidade.Should().Be("Usuario");
         atual.Operacao.Should().Be(OperacaoAuditada.Alteracao);
         atual.UsuarioId.Should().NotBeNull();
+    }
+}
+
+/// <summary>As páginas que o perfil Cliente pode abrir.</summary>
+public class RotasDoClienteTests
+{
+    [Theory]
+    [InlineData("")]
+    [InlineData("/")]
+    [InlineData("minha-senha")]
+    [InlineData("minha-senha/")]
+    [InlineData("Minha-Senha")]
+    [InlineData("minha-senha?x=1")]
+    [InlineData("minha-senha#topo")]
+    [InlineData("nao-encontrada")]
+    public void Rotas_do_portal_sao_permitidas(string caminho) =>
+        RotasDoCliente.Permite(caminho).Should().BeTrue();
+
+    [Theory]
+    [InlineData("clientes")]
+    [InlineData("processos")]
+    [InlineData("atividades")]
+    [InlineData("agenda")]
+    [InlineData("areas")]
+    [InlineData("usuarios")]
+    [InlineData("perfis")]
+    [InlineData("auditoria")]
+    [InlineData("produtores")]
+    [InlineData("minha-senha/outra")]
+    [InlineData("qualquer-coisa")]
+    public void Paginas_internas_e_desconhecidas_nao_sao_permitidas(string caminho) =>
+        RotasDoCliente.Permite(caminho).Should().BeFalse();
+}
+
+public class IdentidadeHttpTests
+{
+    private static ClaimsPrincipal Com(params Claim[] claims) =>
+        new(new ClaimsIdentity(claims, "teste"));
+
+    [Fact]
+    public void Marca_do_portal_so_vale_com_a_claim()
+    {
+        IdentidadeHttp.EhDoPortal(Com(new Claim("atividades:portal", "1"))).Should().BeTrue();
+        IdentidadeHttp.EhDoPortal(Com()).Should().BeFalse();
+        IdentidadeHttp.EhDoPortal(Com(new Claim("atividades:portal", "0"))).Should().BeFalse();
+        IdentidadeHttp.EhDoPortal(Com(new Claim("atividades:portal", "true"))).Should().BeFalse();
+    }
+}
+
+public class RotulosDePerfilTests
+{
+    [Fact]
+    public void Cada_tipo_tem_o_seu_rotulo()
+    {
+        RotulosDePerfil.DoTipo(TipoPerfil.Diretoria).Should().Be("Diretoria");
+        RotulosDePerfil.DoTipo(TipoPerfil.Producao).Should().Be("Produção");
+        RotulosDePerfil.DoTipo(TipoPerfil.Cliente).Should().Be("Cliente");
     }
 }
 

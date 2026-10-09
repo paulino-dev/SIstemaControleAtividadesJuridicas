@@ -543,6 +543,17 @@ public class AgendaTests
     }
 
     [Fact]
+    public async Task Lista_de_usuarios_para_a_agenda_nao_traz_usuario_de_cliente()
+    {
+        var carla = _c.NovoUsuarioDeCliente("Carla Cliente", "carla@x.com", _maria);
+
+        var lista = await ListarUsuarios(Diana);
+
+        lista.Valor!.Select(u => u.Id).Should().NotContain(carla.Id);
+        lista.Valor!.Should().HaveCount(4);
+    }
+
+    [Fact]
     public async Task Lista_de_usuarios_para_a_agenda_traz_so_ativos_com_id_e_nome_para_qualquer_usuario()
     {
         var comoProducao = await ListarUsuarios(_pedro);

@@ -1,3 +1,4 @@
+using AtividadesJuridicas.Domain.Cadastros;
 using AtividadesJuridicas.Domain.Identidade;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -21,5 +22,6 @@ public sealed class UsuarioConfiguracao : IEntityTypeConfiguration<Usuario>
         b.HasIndex(u => u.Email).IsUnique().HasFilter("excluido_em IS NULL");
 
         b.HasOne<Perfil>().WithMany().HasForeignKey(u => u.PerfilId).OnDelete(DeleteBehavior.Restrict);
+        b.HasOne<Cliente>().WithMany().HasForeignKey(u => u.ClienteId).OnDelete(DeleteBehavior.Restrict);
     }
 }

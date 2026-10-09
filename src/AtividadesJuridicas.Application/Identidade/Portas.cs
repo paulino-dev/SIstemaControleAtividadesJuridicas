@@ -11,7 +11,13 @@ public sealed record UsuarioResumo(
     TipoPerfil TipoPerfil,
     string? NumeroOab,
     bool Ativo,
-    DateTime? UltimoAcessoEm);
+    DateTime? UltimoAcessoEm,
+    Guid? ClienteId = null,
+    string? ClienteNome = null,
+    bool? ClienteAtivo = null);
+
+/// <summary>Um usuário do portal, como a ficha do cliente o lista.</summary>
+public sealed record UsuarioDoCliente(Guid Id, string Nome, string Email, bool Ativo, DateTime? UltimoAcessoEm);
 
 public sealed record PerfilResumo(Guid Id, string Nome, TipoPerfil Tipo);
 
@@ -43,10 +49,13 @@ public interface IUsuarioRepositorio
 
     Task<IReadOnlyList<UsuarioResumo>> ListarAsync(CancellationToken ct);
 
+    /// <summary>Os usuários do cliente, ativos e inativos, por nome.</summary>
+    Task<IReadOnlyList<UsuarioDoCliente>> ListarDoClienteAsync(Guid clienteId, CancellationToken ct);
+
     /// <summary>Os usuários com os Ids informados; os inexistentes simplesmente não vêm.</summary>
     Task<IReadOnlyList<Usuario>> ObterVariosAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct);
 
-    /// <summary>Id e nome dos usuários ativos, por nome.</summary>
+    /// <summary>Id e nome dos usuários ativos da equipe (os de cliente não entram), por nome.</summary>
     Task<IReadOnlyList<(Guid Id, string Nome)>> ListarNomesDosAtivosAsync(CancellationToken ct);
 
     void Adicionar(Usuario usuario);
@@ -101,6 +110,16 @@ public sealed record PendenciasDoUsuario(int PartesPendentes, int RevisoesEmAber
 public interface IPendenciasDoUsuario
 {
     Task<PendenciasDoUsuario> ContarAsync(Guid usuarioId, DateTime agoraUtc, CancellationToken ct);
+}
+
+/// <summary>O cliente de um usuário, como a identidade precisa conhecê-lo.</summary>
+public sealed record ClienteDoUsuario(Guid Id, string Nome, bool Ativo);
+
+/// <summary>O que a identidade pede ao cadastro de clientes. Implementada na infraestrutura: Identidade não usa tipos de Cadastros.</summary>
+public interface IClientesDaIdentidade
+{
+    /// <summary>Nulo quando o cliente não existe.</summary>
+    Task<ClienteDoUsuario?> ObterAsync(Guid clienteId, CancellationToken ct);
 }
 
 public interface IHasherDeSenha

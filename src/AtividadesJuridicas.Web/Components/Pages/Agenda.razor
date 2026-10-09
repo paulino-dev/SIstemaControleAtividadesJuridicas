@@ -162,6 +162,7 @@ else
         if (AcessoEncerrado(resultado)) return;
 
         _usuarios = [.. (resultado.Valor ?? [])
+            .Where(u => u.TipoPerfil != TipoPerfil.Cliente)
             .OrderBy(u => u.Nome, StringComparer.CurrentCultureIgnoreCase)
             .Select(u => new OpcaoDeUsuario(u.Id, u.Ativo ? u.Nome : $"{u.Nome} (inativo)"))];
         if (!resultado.Sucesso) Avisar(resultado.Mensagem ?? "Não foi possível consultar os usuários.", "erro");

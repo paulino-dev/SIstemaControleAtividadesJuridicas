@@ -29,7 +29,7 @@ public sealed class UsuarioRepositorio(AppDbContext db) : IUsuarioRepositorio
 
     public async Task<IReadOnlyList<(Guid Id, string Nome)>> ListarNomesDosAtivosAsync(CancellationToken ct)
     {
-        var linhas = await db.Usuarios.AsNoTracking().Where(u => u.Ativo)
+        var linhas = await db.Usuarios.AsNoTracking().Where(u => u.Ativo && u.ClienteId == null)
             .OrderBy(u => u.Nome).Select(u => new { u.Id, u.Nome }).ToListAsync(ct);
         return [.. linhas.Select(u => (u.Id, u.Nome))];
     }
@@ -37,17 +37,32 @@ public sealed class UsuarioRepositorio(AppDbContext db) : IUsuarioRepositorio
     public async Task<IReadOnlyList<UsuarioResumo>> ListarAsync(CancellationToken ct)
     {
         // O e-mail usa conversor de valor; a leitura de .Valor acontece depois de materializar.
+        // Junção externa com clientes: o nome vem para quem é de cliente, mesmo com o cliente inativo.
         var linhas = await db.Usuarios.AsNoTracking()
-            .Join(db.Perfis, u => u.PerfilId, p => p.Id, (u, p) => new
+            .Join(db.Perfis, u => u.PerfilId, p => p.Id, (u, p) => new { u, p })
+            .GroupJoin(db.Clientes,x => x.u.ClienteId, c => (Guid?)c.Id, (x, cs) => new { x.u, x.p, cs })
+            .SelectMany(x => x.cs.DefaultIfEmpty(), (x, c) => new
             {
-                u.Id, u.Nome, u.Email, PerfilId = p.Id, PerfilNome = p.Nome, p.Tipo,
-                u.NumeroOab, u.Ativo, u.UltimoAcessoEm,
+                x.u.Id, x.u.Nome, x.u.Email, PerfilId = x.p.Id, PerfilNome = x.p.Nome, x.p.Tipo,
+                x.u.NumeroOab, x.u.Ativo, x.u.UltimoAcessoEm, x.u.ClienteId, ClienteNome = c == null ? null : c.Nome,
+                ClienteAtivo = c == null ? (bool?)null : c.Ativo,
             })
             .OrderBy(x => x.Nome)
             .ToListAsync(ct);
 
         return [.. linhas.Select(x => new UsuarioResumo(
-            x.Id, x.Nome, x.Email.Valor, x.PerfilId, x.PerfilNome, x.Tipo, x.NumeroOab, x.Ativo, x.UltimoAcessoEm))];
+            x.Id, x.Nome, x.Email.Valor, x.PerfilId, x.PerfilNome, x.Tipo, x.NumeroOab, x.Ativo, x.UltimoAcessoEm,
+            x.ClienteId, x.ClienteNome, x.ClienteAtivo))];
+    }
+
+    public async Task<IReadOnlyList<UsuarioDoCliente>> ListarDoClienteAsync(Guid clienteId, CancellationToken ct)
+    {
+        var linhas = await db.Usuarios.AsNoTracking().Where(u => u.ClienteId == clienteId)
+            .OrderBy(u => u.Nome)
+            .Select(u => new { u.Id, u.Nome, u.Email, u.Ativo, u.UltimoAcessoEm })
+            .ToListAsync(ct);
+
+        return [.. linhas.Select(x => new UsuarioDoCliente(x.Id, x.Nome, x.Email.Valor, x.Ativo, x.UltimoAcessoEm))];
     }
 
     public void Adicionar(Usuario usuario) => db.Usuarios.Add(usuario);

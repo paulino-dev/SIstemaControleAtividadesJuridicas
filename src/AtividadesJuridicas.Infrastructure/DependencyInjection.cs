@@ -43,6 +43,7 @@ public static class DependencyInjection
         servicos.AddScoped<IUnidadeDeTrabalho, UnidadeDeTrabalho>();
         servicos.AddScoped<IUsuarioRepositorio, UsuarioRepositorio>();
         servicos.AddScoped<IPerfilRepositorio, PerfilRepositorio>();
+        servicos.AddScoped<IClientesDaIdentidade, ClientesDaIdentidade>();
         servicos.AddScoped<IAcessoInicialDePerfil, AcessoInicialDePerfil>();
         servicos.AddScoped<IAreaAtuacaoRepositorio, AreaAtuacaoRepositorio>();
         servicos.AddScoped<IClienteRepositorio, ClienteRepositorio>();
