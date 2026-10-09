@@ -122,10 +122,9 @@ public sealed class SalvarEventoManipulador(
 
             // Aviso, não impedimento: quem dos participantes finais já tem outro evento nesse horário.
             var participantes = existente.Participantes.Select(p => p.UsuarioId).ToList();
-            var sobreposicoes = (await eventos.SobreposicoesAsync(
-                    existente.Id, participantes, existente.InicioEm, existente.FimEm, ct))
-                .OrderBy(s => s.UsuarioNome, StringComparer.CurrentCultureIgnoreCase).ThenBy(s => s.InicioEm)
-                .ToList();
+            var sobreposicoes = RecortarEFundir(
+                await eventos.SobreposicoesAsync(existente.Id, participantes, existente.InicioEm, existente.FimEm, ct),
+                existente.InicioEm, existente.FimEm);
 
             await unidade.SalvarAsync(ct);
             return Resultado<EventoSalvo>.Ok(new EventoSalvo(existente.Id, sobreposicoes));
@@ -142,6 +141,44 @@ public sealed class SalvarEventoManipulador(
         {
             return Falha(TipoErro.Conflito, AcessoAoEvento.Alterado);
         }
+    }
+
+    /// <summary>
+    /// Quem salva fica sabendo "fulano está ocupado entre A e B dentro do meu evento" e nada fora dele: cada aviso é
+    /// recortado ao intervalo do evento salvo e os do mesmo usuário que se sobrepõem ou se encostam viram um só.
+    /// </summary>
+    private static List<SobreposicaoDeAgenda> RecortarEFundir(
+        IReadOnlyList<SobreposicaoDeAgenda> avisos, DateTime inicioUtc, DateTime fimUtc)
+    {
+        var resultado = new List<SobreposicaoDeAgenda>();
+        foreach (var porUsuario in avisos.GroupBy(a => a.UsuarioId))
+        {
+            SobreposicaoDeAgenda? atual = null;
+            foreach (var a in porUsuario
+                         .Select(a => a with
+                         {
+                             InicioEm = a.InicioEm < inicioUtc ? inicioUtc : a.InicioEm,
+                             FimEm = a.FimEm > fimUtc ? fimUtc : a.FimEm,
+                         })
+                         .Where(a => a.InicioEm < a.FimEm)
+                         .OrderBy(a => a.InicioEm).ThenBy(a => a.FimEm))
+            {
+                if (atual is not null && a.InicioEm <= atual.FimEm)
+                {
+                    if (a.FimEm > atual.FimEm) atual = atual with { FimEm = a.FimEm };
+                    continue;
+                }
+
+                if (atual is not null) resultado.Add(atual);
+                atual = a;
+            }
+
+            if (atual is not null) resultado.Add(atual);
+        }
+
+        return [.. resultado
+            .OrderBy(s => s.UsuarioNome, StringComparer.CurrentCultureIgnoreCase).ThenBy(s => s.UsuarioId)
+            .ThenBy(s => s.InicioEm)];
     }
 
     private static Resultado<EventoSalvo> Falha(TipoErro erro, string mensagem) =>

@@ -258,8 +258,8 @@ public class AgendaTests
 
         resultado.Sucesso.Should().BeTrue(resultado.Mensagem);
         resultado.Valor!.Sobreposicoes.Should().Equal(
-            new SobreposicaoDeAgenda(_ester.Id, "Ester", Inicio, Inicio.AddHours(1)),
-            new SobreposicaoDeAgenda(_paula.Id, "Paula", Inicio, Inicio.AddHours(1)));
+            new SobreposicaoDeAgenda(_ester.Id, "Ester", Inicio.AddMinutes(30), Inicio.AddHours(1)),
+            new SobreposicaoDeAgenda(_paula.Id, "Paula", Inicio.AddMinutes(30), Inicio.AddHours(1)));
         _c.Eventos.Itens.Should().HaveCount(2);
     }
 
@@ -801,5 +801,43 @@ public class AgendaTests
         excluidaParaPedro.AtividadeId.Should().Be(doPedro);
         ocultaParaDiana.AtividadeExcluida.Should().BeFalse();
         ocultaParaDiana.AtividadeTitulo.Should().Be("Só da Diana");
+    }
+
+    // ---- Onda final: aviso recortado e fundido ----
+
+    [Fact]
+    public async Task Aviso_e_recortado_ao_intervalo_do_evento_salvo()
+    {
+        await CriadoAsync(Diana, "Dia todo", Inicio.AddHours(-5), 240, _paula);   // 08:00 a 12:00
+
+        var resultado = await Salvar(_pedro, inicio: Inicio.AddHours(-3), minutos: 60, participantes: [_paula]);   // 10:00 a 11:00
+
+        resultado.Valor!.Sobreposicoes.Should().Equal(
+            new SobreposicaoDeAgenda(_paula.Id, "Paula", Inicio.AddHours(-3), Inicio.AddHours(-2)));
+    }
+
+    [Fact]
+    public async Task Avisos_do_mesmo_usuario_que_se_sobrepoem_viram_um_so()
+    {
+        await CriadoAsync(Diana, "A", Inicio.AddHours(-3), 30, _paula);                 // 10:00 a 10:30
+        await CriadoAsync(Diana, "B", Inicio.AddHours(-3).AddMinutes(20), 40, _paula);  // 10:20 a 11:00
+
+        var resultado = await Salvar(_pedro, inicio: Inicio.AddHours(-4), minutos: 180, participantes: [_paula]);   // 09:00 a 12:00
+
+        resultado.Valor!.Sobreposicoes.Should().Equal(
+            new SobreposicaoDeAgenda(_paula.Id, "Paula", Inicio.AddHours(-3), Inicio.AddHours(-2)));
+    }
+
+    [Fact]
+    public async Task Avisos_disjuntos_do_mesmo_usuario_ficam_separados_e_em_ordem()
+    {
+        await CriadoAsync(Diana, "A", Inicio.AddHours(-3), 30, _paula);   // 10:00 a 10:30
+        await CriadoAsync(Diana, "B", Inicio.AddHours(-2), 30, _paula);   // 11:00 a 11:30
+
+        var resultado = await Salvar(_pedro, inicio: Inicio.AddHours(-4), minutos: 180, participantes: [_paula]);
+
+        resultado.Valor!.Sobreposicoes.Should().Equal(
+            new SobreposicaoDeAgenda(_paula.Id, "Paula", Inicio.AddHours(-3), Inicio.AddHours(-3).AddMinutes(30)),
+            new SobreposicaoDeAgenda(_paula.Id, "Paula", Inicio.AddHours(-2), Inicio.AddHours(-2).AddMinutes(30)));
     }
 }

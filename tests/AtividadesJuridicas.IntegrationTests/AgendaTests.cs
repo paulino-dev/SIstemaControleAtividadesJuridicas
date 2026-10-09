@@ -191,7 +191,7 @@ public class AgendaTests(BancoFixture banco) : TesteComBanco(banco)
         // Conflito parcial: aviso com a Paula e o intervalo do outro evento, sem o título.
         var parcial = await SalvarAsync(_pedro, "Outro", Inicio.AddMinutes(30), 60, participantes: [_paula]);
         parcial.Sucesso.Should().BeTrue(parcial.Mensagem);
-        parcial.Valor!.Sobreposicoes.Should().Equal(new SobreposicaoDeAgenda(_paula, "Paula", Inicio, Inicio.AddHours(1)));
+        parcial.Valor!.Sobreposicoes.Should().Equal(new SobreposicaoDeAgenda(_paula, "Paula", Inicio.AddMinutes(30), Inicio.AddHours(1)));
 
         // Encostados, antes e depois: sem aviso.
         (await SalvarAsync(_pedro, "Depois", Inicio.AddHours(21), 60, participantes: [_ester])).Valor!.Sobreposicoes.Should().BeEmpty();
