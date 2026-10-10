@@ -136,6 +136,9 @@ public partial class AutenticacaoWebTests(BancoFixture banco) : IAsyncLifetime
             .And.Contain("placeholder=\"nome@araujoadvocacia.com.br\"")
             .And.MatchRegex("<button type=\"submit\" class=\"aj-botao aj-botao--primario\"><span>Entrar</span>\\s*<svg");
         Regex.Matches(html, "Araújo Advocacia · uso interno").Should().HaveCount(2);
+        // Um rodapé por visão: o de dentro do cartão (desktop) e o da página (tablet e mobile).
+        html.Should().Contain("<p class=\"aj-entrar__rodape aj-entrar__rodape--cartao\">Araújo Advocacia · uso interno</p>")
+            .And.Contain("<p class=\"aj-entrar__rodape aj-entrar__rodape--pagina\">Araújo Advocacia · uso interno</p>");
         Regex.Matches(html, "<main").Should().ContainSingle();
         Regex.Matches(html, "<h1").Should().ContainSingle();
         html.Should().NotContain("aj-aviso");

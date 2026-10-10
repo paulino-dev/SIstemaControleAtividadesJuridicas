@@ -207,6 +207,30 @@ public class LayoutWebTests(BancoFixture banco) : IAsyncLifetime
         html.Should().MatchRegex("<div class=\"aj-exibir-menu\">\\s*<button[^>]*aria-label=\"Exibir menu\"");
     }
 
+    // A regra interina do app.css trata como migrada a tela cujo conteúdo começa por um bloco do design system.
+    // Enquanto a tela não for migrada, nenhum componente aj- pode abrir o conteúdo dela.
+    [Theory]
+    [InlineData("/atividades")]
+    [InlineData("/agenda")]
+    [InlineData("/clientes")]
+    [InlineData("/processos")]
+    [InlineData("/documentos-comuns")]
+    [InlineData("/areas")]
+    [InlineData("/usuarios")]
+    [InlineData("/produtores")]
+    [InlineData("/perfis")]
+    [InlineData("/auditoria")]
+    public async Task Tela_ainda_nao_migrada_nao_abre_o_conteudo_com_bloco_do_design_system(string rota)
+    {
+        var admin = await _app.ClienteAutenticadoAsync();
+
+        var html = await PaginaAsync(admin, rota);
+
+        var primeiro = Regex.Match(html, "<main class=\"aj-app__conteudo\">(?:\\s|<!--.*?-->)*(<[a-z][^>]*>)",
+            RegexOptions.Singleline).Groups[1].Value;
+        primeiro.Should().NotBeEmpty().And.NotContain("class=\"aj-");
+    }
+
     [Theory]
     [InlineData("Madonna", "M")]
     [InlineData("Maria Aparecida dos Santos Albuquerque Cavalcanti", "MC")]
@@ -245,7 +269,8 @@ public class LayoutWebTests(BancoFixture banco) : IAsyncLifetime
         var formulario = Regex.Match(corpo, "<form.*?</form>", RegexOptions.Singleline).Value;
         Regex.Matches(formulario, "<button type=\"submit\" class=\"aj-botao aj-botao--primario\">Alterar senha</button>")
             .Should().HaveCount(2);
-        formulario.Should().MatchRegex("<div class=\"aj-so-mobile\">\\s*<div class=\"aj-acoes aj-acoes--fixa\">");
+        formulario.Should().MatchRegex("<div class=\"aj-desktop-tablet\">\\s*<div class=\"aj-painel__acoes\">\\s*<button type=\"submit\"")
+            .And.MatchRegex("<div class=\"aj-so-mobile\">\\s*<div class=\"aj-acoes aj-acoes--fixa\">\\s*<button type=\"submit\"");
 
         // A barra do mobile é a de voltar, e a tela não tem link dentro do conteúdo.
         var barra = Regex.Match(html, "<header class=\"aj-barra-superior aj-barra-superior--voltar\">.*?</header>",

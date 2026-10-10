@@ -28,8 +28,20 @@
     box-shadow: var(--sombra-flutuante);
 }
 
+/* O valor de reserva vale para o navegador em que ::backdrop ainda não herda as variáveis da página. */
 #components-reconnect-modal::backdrop {
-    background: var(--veu);
+    background: var(--veu, rgba(22, 32, 26, .45));
+}
+
+/* Sem movimento: o aviso só espera 0,3 s para aparecer, para não piscar quando a página é recarregada ou fechada. */
+#components-reconnect-modal[open],
+#components-reconnect-modal[open]::backdrop {
+    animation: reconexao-aparecer 0s linear .3s both;
+}
+
+@keyframes reconexao-aparecer {
+    from { opacity: 0; }
+    to { opacity: 1; }
 }
 
 .components-reconnect-container {
