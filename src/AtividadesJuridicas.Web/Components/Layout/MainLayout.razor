@@ -162,11 +162,14 @@
 
     private string Rota => Navegacao.ToBaseRelativePath(Navegacao.Uri);
 
-    // O que o menu completo mostra a cada perfil. "Mais" acende quando a tela está aqui e fora da barra da visão.
+    // O que cada navegação mostra a cada perfil, pelo primeiro trecho do endereço. As listas repetem a marcação
+    // acima: destino novo entra nos dois lugares. "Mais" acende quando a tela está no menu e fora da barra da visão.
     private static readonly string[] MenuDoCliente = ["", "andamento", "meus-documentos", "documentos-comuns"];
     private static readonly string[] MenuDaProducao = ["", "atividades", "agenda", "clientes", "processos"];
     private static readonly string[] MenuDaDiretoria =
         [.. MenuDaProducao, "documentos-comuns", "areas", "usuarios", "produtores", "perfis", "auditoria"];
+    private static readonly string[] TrilhoDaEquipe = ["", "atividades", "agenda", "clientes", "processos"];
+    private static readonly string[] TrilhoDoCliente = ["", "andamento", "meus-documentos", "documentos-comuns"];
     private static readonly string[] BarraDaEquipe = ["", "atividades", "agenda"];
     private static readonly string[] BarraDoCliente = ["", "andamento", "meus-documentos"];
 
@@ -183,7 +186,7 @@
     // Com o menu aberto por cima da tela, quem fica aceso nas barras é "Mais", como no canvas.
     private string? Atual(string destino) => !_menuAberto && PaginaMontada && Secao == destino ? "page" : null;
 
-    private string? MaisNoTrilho => MaisAceso(EhCliente ? MenuDoCliente : MenuDaProducao);
+    private string? MaisNoTrilho => MaisAceso(EhCliente ? TrilhoDoCliente : TrilhoDaEquipe);
 
     private string? MaisNaBarra => MaisAceso(EhCliente ? BarraDoCliente : BarraDaEquipe);
 

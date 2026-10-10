@@ -8,7 +8,7 @@ body { margin: 0; background: var(--fundo); color: var(--tinta); font: 400 15px/
 :where(a) { color: var(--verde); }
 :where(a:hover) { color: var(--tinta); }
 :focus-visible { outline: 2px solid var(--verde); outline-offset: 2px; }
-/* O título recebe o foco a cada navegação (FocusOnNavigate) só para ser anunciado; não é um controle. */
+/* O título recebe o foco a cada navegação (FocoNoTitulo) só para ser anunciado; não é um controle. */
 h1:focus { outline: none; }
 
 /* ---------- Interino, até a fase 9G ---------- */

@@ -1,7 +1,12 @@
 @inject IJSRuntime JS
 
 @* Depois de cada navegação, o foco vai para o título da página, que é anunciado. Cada visão tem o seu h1 e os
-   das outras ficam escondidos; por isso não serve o FocusOnNavigate, que mira o primeiro h1 do HTML. *@
+   das outras ficam escondidos; por isso não serve o FocusOnNavigate, que mira o primeiro h1 do HTML.
+   Nas páginas sem circuito (entrar, erro) não há quem chame o módulo: lá o h1 é um só e vale o do Blazor. *@
+@if (AssignedRenderMode is null)
+{
+    <FocusOnNavigate RouteData="RouteData" Selector="h1" />
+}
 
 @code {
     private Type? _ultimaPagina;
@@ -31,6 +36,10 @@
         catch (JSDisconnectedException)
         {
             // O circuito caiu no meio da navegação: não há quem focar.
+        }
+        catch (JSException)
+        {
+            // O foco no título é uma ajuda: uma falha do módulo não pode derrubar a tela.
         }
     }
 }

@@ -18,8 +18,13 @@ public class LayoutWebTests(BancoFixture banco) : IAsyncLifetime
 
     public async Task DisposeAsync() => await _app.DisposeAsync();
 
-    private static string Navegacao(string html, string classe) =>
-        Regex.Match(html, $"<nav class=\"{classe}\"[^>]*>.*?</nav>", RegexOptions.Singleline).Value;
+    // Sem a barra na página, as asserções de "nada aceso" passariam sem provar nada.
+    private static string Navegacao(string html, string classe)
+    {
+        var barra = Regex.Match(html, $"<nav class=\"{classe}\"[^>]*>.*?</nav>", RegexOptions.Singleline);
+        barra.Success.Should().BeTrue($"a página deve trazer a navegação {classe}");
+        return barra.Value;
+    }
 
     // O destino aceso de uma barra: o href do link, ou "mais" quando é o botão.
     private static string[] Acesos(string barra) =>
@@ -35,6 +40,7 @@ public class LayoutWebTests(BancoFixture banco) : IAsyncLifetime
     [Theory]
     [InlineData("/atividades", "/atividades", "/atividades")]
     [InlineData("/clientes", "/clientes", "mais")]
+    [InlineData("/clientes?busca=maria", "/clientes", "mais")]
     [InlineData("/areas", "mais", "mais")]
     [InlineData("/documentos-comuns", "mais", "mais")]
     public async Task Diretoria_ve_o_destino_ou_mais_aceso_em_cada_barra(string rota, string noTrilho, string naBarra)
@@ -70,6 +76,47 @@ public class LayoutWebTests(BancoFixture banco) : IAsyncLifetime
 
         Acesos(Navegacao(html, "aj-trilho")).Should().BeEmpty();
         Acesos(Navegacao(html, "aj-nav-inferior")).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Producao_em_clientes_tem_o_destino_no_trilho_e_mais_na_barra()
+    {
+        await _app.CriarPedroAsync();
+        var pedro = await _app.ClienteAutenticadoAsync(AplicacaoDeTeste.EmailDoPedro, AplicacaoDeTeste.SenhaDoPedro);
+
+        var html = await PaginaAsync(pedro, "/clientes");
+
+        Acesos(Navegacao(html, "aj-trilho")).Should().Equal("/clientes");
+        Acesos(Navegacao(html, "aj-nav-inferior")).Should().Equal("mais");
+    }
+
+    [Fact]
+    public async Task Cliente_em_pagina_que_o_layout_nao_monta_nao_acende_nada()
+    {
+        await _app.CriarCarlaAsync();
+        var carla = await _app.ClienteAutenticadoAsync(
+            UsuariosDeClienteDeTeste.EmailDaCarla, UsuariosDeClienteDeTeste.SenhaDaCarla);
+
+        var html = await PaginaAsync(carla, "/clientes");
+
+        html.Should().Contain("Página não encontrada");
+        Acesos(Navegacao(html, "aj-trilho")).Should().BeEmpty();
+        Acesos(Navegacao(html, "aj-nav-inferior")).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Modulo_do_foco_no_titulo_e_servido_e_pagina_estatica_usa_o_foco_do_blazor()
+    {
+        var anonimo = _app.NovoCliente();
+
+        var modulo = await anonimo.GetAsync("/Components/Layout/FocoNoTitulo.razor.js");
+        modulo.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await modulo.Content.ReadAsStringAsync()).Should().Contain("export function focarTituloVisivel");
+
+        // Sem circuito (entrar, erro) quem foca o título é o FocusOnNavigate; com circuito, o módulo.
+        (await anonimo.GetStringAsync("/conta/entrar")).Should().Contain("<blazor-focus-on-navigate");
+        var admin = await _app.ClienteAutenticadoAsync();
+        (await admin.GetStringAsync("/")).Should().NotContain("<blazor-focus-on-navigate");
     }
 
     [Fact]

@@ -7,7 +7,7 @@
     @if (VoltarPara is not null)
     {
         <header class="aj-barra-superior aj-barra-superior--voltar">
-            <a href="@VoltarPara" class="aj-botao aj-botao--fantasma aj-botao--icone" aria-label="@RotuloDoVoltar"><Icone Nome="voltar" /></a>
+            <a href="@VoltarPara" class="aj-botao aj-botao--fantasma aj-botao--icone" aria-label="@(RotuloDoVoltar ?? "Voltar")"><Icone Nome="voltar" /></a>
             <h1>@Titulo</h1>
             <span class="aj-barra-superior__vazio" aria-hidden="true"></span>
         </header>
@@ -65,7 +65,7 @@
     /// <summary>Destino do voltar da barra superior do mobile. Informado, a barra é a de voltar.</summary>
     [Parameter] public string? VoltarPara { get; set; }
 
-    /// <summary>O rótulo acessível do voltar: "Voltar para Início".</summary>
+    /// <summary>O rótulo acessível do voltar: "Voltar para Início". Sem ele, o botão diz só "Voltar".</summary>
     [Parameter] public string? RotuloDoVoltar { get; set; }
 
     private Task ExibirMenuAsync() => Contexto is { } contexto ? contexto.AlternarMenu.InvokeAsync() : Task.CompletedTask;
