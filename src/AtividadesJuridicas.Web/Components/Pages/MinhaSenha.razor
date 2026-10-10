@@ -5,39 +5,40 @@
 
 <PageTitle>Minha senha</PageTitle>
 
-<h1>Minha senha</h1>
+<CabecalhoDePagina Titulo="Minha senha" Subtitulo="Depois de alterar, você entra de novo com a nova senha." Folgado="true"
+                   VoltarPara="/" RotuloDoVoltar="Voltar para Início" />
 
 @if (_mensagem is not null)
 {
-    <p class="@(_falhou ? "erro" : "ok")" role="status">@_mensagem</p>
+    <Aviso Tipo="TipoDeAviso.Erro">@_mensagem</Aviso>
 }
 
-<EditForm Model="_form" OnValidSubmit="SalvarAsync" FormName="minha-senha" class="formulario">
+<div class="aj-so-mobile"><span class="aj-ajuda">Depois de alterar, você entra de novo com a nova senha.</span></div>
+
+<EditForm Model="_form" OnValidSubmit="SalvarAsync" FormName="minha-senha" class="aj-painel aj-painel--estreito">
     <DataAnnotationsValidator />
 
-    <label>
-        Senha atual
-        <InputText @bind-Value="_form.SenhaAtual" type="password" autocomplete="current-password" />
-        <ValidationMessage For="() => _form.SenhaAtual" />
-    </label>
+    <RotuloDeCampo Texto="Senha atual" Para="() => _form.SenhaAtual">
+        <InputText @bind-Value="_form.SenhaAtual" type="password" autocomplete="current-password" class="aj-campo" />
+    </RotuloDeCampo>
 
-    <label>
-        Nova senha
-        <InputText @bind-Value="_form.NovaSenha" type="password" autocomplete="new-password" />
-        <ValidationMessage For="() => _form.NovaSenha" />
-    </label>
+    <RotuloDeCampo Texto="Nova senha" Para="() => _form.NovaSenha">
+        <InputText @bind-Value="_form.NovaSenha" type="password" autocomplete="new-password" class="aj-campo" />
+    </RotuloDeCampo>
 
-    <label>
-        Confirme a nova senha
-        <InputText @bind-Value="_form.Confirmacao" type="password" autocomplete="new-password" />
-        <ValidationMessage For="() => _form.Confirmacao" />
-    </label>
+    <RotuloDeCampo Texto="Confirme a nova senha" Para="() => _form.Confirmacao">
+        <InputText @bind-Value="_form.Confirmacao" type="password" autocomplete="new-password" class="aj-campo" />
+    </RotuloDeCampo>
 
-    <button type="submit">Alterar senha</button>
+    <div class="aj-desktop-tablet">
+        <div class="aj-painel__acoes"><button type="submit" class="aj-botao aj-botao--primario">Alterar senha</button></div>
+    </div>
+    <div class="aj-so-mobile">
+        <div class="aj-acoes aj-acoes--fixa"><button type="submit" class="aj-botao aj-botao--primario">Alterar senha</button></div>
+    </div>
 </EditForm>
 
 @code {
-    private bool _falhou;
     private string? _mensagem;
     private Formulario _form = new();
 
@@ -52,7 +53,6 @@
             return;
         }
 
-        _falhou = true;
         _mensagem = resultado.Mensagem;
     }
 
