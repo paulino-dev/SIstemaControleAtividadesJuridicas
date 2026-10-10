@@ -75,6 +75,8 @@
   --evento-prazo-rotulo: var(--aviso);
   --evento-outro-fundo: var(--superficie);
   --evento-outro-rotulo: #5B5E56;
+  --entrar-frase: #B9C3B5;
+  --veu: rgba(22,32,26,.45);
 
   --sombra-1: 0 1px 2px rgba(31,43,34,.04);
   --sombra-painel: 0 1px 2px rgba(31,43,34,.04), 0 12px 32px -20px rgba(31,43,34,.18);
@@ -83,6 +85,8 @@
   --sombra-cartao-hover: 0 8px 20px -12px rgba(31,43,34,.35);
   --sombra-flutuante: 0 12px 28px -16px rgba(31,43,34,.30);
   --sombra-login: 0 1px 2px rgba(31,43,34,.04), 0 24px 48px -24px rgba(31,43,34,.18);
+  --sombra-login-tablet: 0 1px 2px rgba(31,43,34,.04), 0 32px 64px -32px rgba(31,43,34,.3);
+  --sombra-login-mobile: 0 1px 2px rgba(31,43,34,.04), 0 24px 48px -24px rgba(31,43,34,.25);
   --sombra-fab: 0 12px 24px -8px rgba(31,43,34,.55);
   --sombra-foco: 0 0 0 3px rgba(35,48,38,.14);
   --sombra-foco-erro: 0 0 0 3px rgba(163,50,31,.10);
@@ -109,6 +113,7 @@
   --raio-16: 16px;
   --raio-18: 18px;
   --raio-20: 20px;
+  --raio-22: 22px;
   --raio-pilula: 999px;
 
   --bp-tablet: 761px;
