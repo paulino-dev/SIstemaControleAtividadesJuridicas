@@ -12,6 +12,8 @@ public partial class TelasNoDesignSystemTests
     private static readonly string[] Migradas =
     [
         "Components/Layout/Aviso.razor",
+        "Components/Layout/CabecalhoDePagina.razor",
+        "Components/Layout/MainLayout.razor",
         "Components/Layout/RotuloDeCampo.razor",
     ];
 

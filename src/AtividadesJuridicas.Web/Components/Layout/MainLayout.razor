@@ -1,6 +1,7 @@
 @inherits LayoutComponentBase
 @implements IDisposable
 @using AtividadesJuridicas.Web.Components.Pages
+@using Microsoft.AspNetCore.Components.Sections
 @inject IDespachante Despachante
 @inject NavigationManager Navegacao
 
@@ -62,7 +63,7 @@
         <div class="aj-usuario">
             <span class="aj-avatar" aria-hidden="true">@Iniciais</span>
             <div class="aj-usuario__texto">
-                <b class="quem">@_ator?.Nome</b>
+                <b>@_ator?.Nome</b>
                 <span>@Perfil@(Perfil is null ? null : " · ")<NavLink href="/minha-senha">Minha senha</NavLink></span>
             </div>
             <form method="post" action="/conta/sair" class="aj-menu__sair">
@@ -74,47 +75,46 @@
 
     <nav class="aj-trilho" aria-label="Principal">
         <img src="img/logo-horizontal-compacta-escuro.svg" alt="Araújo Advocacia" width="68" height="16" />
-        <NavLink class="aj-trilho__item" href="/" Match="NavLinkMatch.All"><Icone Nome="inicio" />Início</NavLink>
+        <a class="aj-trilho__item" href="/" aria-current="@Atual("")"><Icone Nome="inicio" />Início</a>
         @if (EhCliente)
         {
-            <NavLink class="aj-trilho__item" href="/andamento"><Icone Nome="atividades" />Andamento</NavLink>
-            <NavLink class="aj-trilho__item" href="/meus-documentos" style="text-align: center; line-height: 1.25"><Icone Nome="documento" />Meus documentos</NavLink>
-            <NavLink class="aj-trilho__item" href="/documentos-comuns" style="text-align: center; line-height: 1.25"><Icone Nome="pasta" />Documentos comuns</NavLink>
+            <a class="aj-trilho__item" href="/andamento" aria-current="@Atual("andamento")"><Icone Nome="atividades" />Andamento</a>
+            <a class="aj-trilho__item aj-trilho__item--duas-linhas" href="/meus-documentos" aria-current="@Atual("meus-documentos")"><Icone Nome="documento" />Meus documentos</a>
+            <a class="aj-trilho__item aj-trilho__item--duas-linhas" href="/documentos-comuns" aria-current="@Atual("documentos-comuns")"><Icone Nome="pasta" />Documentos comuns</a>
         }
         else
         {
-            <NavLink class="aj-trilho__item" href="/atividades"><Icone Nome="atividades" />Atividades</NavLink>
-            <NavLink class="aj-trilho__item" href="/agenda"><Icone Nome="agenda" />Agenda</NavLink>
-            <NavLink class="aj-trilho__item" href="/clientes"><Icone Nome="clientes" />Clientes</NavLink>
-            <NavLink class="aj-trilho__item" href="/processos"><Icone Nome="processos" />Processos</NavLink>
+            <a class="aj-trilho__item" href="/atividades" aria-current="@Atual("atividades")"><Icone Nome="atividades" />Atividades</a>
+            <a class="aj-trilho__item" href="/agenda" aria-current="@Atual("agenda")"><Icone Nome="agenda" />Agenda</a>
+            <a class="aj-trilho__item" href="/clientes" aria-current="@Atual("clientes")"><Icone Nome="clientes" />Clientes</a>
+            <a class="aj-trilho__item" href="/processos" aria-current="@Atual("processos")"><Icone Nome="processos" />Processos</a>
         }
-        <button type="button" class="aj-trilho__item" aria-controls="menu-principal" aria-expanded="@(_menuAberto ? "true" : "false")" @onclick="AbrirMenu"><Icone Nome="mais" />Mais</button>
+        <button type="button" class="aj-trilho__item" aria-controls="menu-principal" aria-expanded="@(_menuAberto ? "true" : "false")" aria-current="@MaisNoTrilho" @onclick="AbrirMenu"><Icone Nome="mais" />Mais</button>
         <span class="aj-trilho__espaco"></span>
         <a href="/minha-senha" class="aj-avatar aj-avatar--g" aria-label="Minha conta">@Iniciais</a>
     </nav>
 
     <div class="aj-app__coluna">
-        <header class="aj-barra-superior">
+        <SectionOutlet SectionName="@Encaixes.BarraSuperior" />
+        <header class="aj-barra-superior aj-barra-superior--padrao">
             <div class="aj-barra-superior__linha">
-                <a href="/" class="aj-barra-superior__marca" aria-label="Araújo Advocacia, início">
-                    <img src="img/logo-horizontal-compacta-claro.svg" alt="Araújo Advocacia" width="139" height="32" />
-                </a>
+                <img class="aj-barra-superior__logo" src="img/logo-horizontal-compacta-claro.svg" alt="Araújo Advocacia" width="139" height="32" />
                 <span class="aj-barra-superior__espaco"></span>
                 <a href="/minha-senha" class="aj-avatar" aria-label="Minha conta">@Iniciais</a>
             </div>
         </header>
+        <div class="aj-exibir-menu">
+            <button type="button" class="aj-botao aj-botao--secundario aj-botao--icone" aria-label="Exibir menu" @onclick="AlternarMenu"><Icone Nome="menu" /></button>
+            <img src="img/simbolo-claro.svg" alt="Araújo Advocacia" width="29" height="32" />
+        </div>
 
         <main class="aj-app__conteudo">
-            <div class="aj-exibir-menu">
-                <button type="button" class="aj-botao aj-botao--secundario aj-botao--icone" aria-label="Exibir menu" @onclick="AlternarMenu"><Icone Nome="menu" /></button>
-                <img src="img/simbolo-claro.svg" alt="" width="29" height="32" />
-            </div>
-            <div class="pagina">
+            <CascadingValue Value="_contexto">
                 @if (!_marcaLida)
                 {
-                    <p>Carregando…</p>
+                    <p class="aj-subtitulo">Carregando…</p>
                 }
-                else if (EhCliente ? !RotasDoCliente.Permite(Rota) : RotasDoCliente.Exclusiva(Rota))
+                else if (!PaginaMontada)
                 {
                     @* A página não é montada: ela não chega a consultar nada. *@
                     <NaoEncontrada />
@@ -123,23 +123,23 @@
                 {
                     @Body
                 }
-            </div>
+            </CascadingValue>
         </main>
     </div>
 
     <nav class="aj-nav-inferior" aria-label="Principal">
-        <NavLink class="aj-nav-inferior__item" href="/" Match="NavLinkMatch.All"><span><Icone Nome="inicio" /></span>Início</NavLink>
+        <a class="aj-nav-inferior__item" href="/" aria-current="@Atual("")"><span><Icone Nome="inicio" /></span>Início</a>
         @if (EhCliente)
         {
-            <NavLink class="aj-nav-inferior__item" href="/andamento"><span><Icone Nome="atividades" /></span>Andamento</NavLink>
-            <NavLink class="aj-nav-inferior__item" href="/meus-documentos"><span><Icone Nome="documento" /></span>Documentos</NavLink>
+            <a class="aj-nav-inferior__item" href="/andamento" aria-current="@Atual("andamento")"><span><Icone Nome="atividades" /></span>Andamento</a>
+            <a class="aj-nav-inferior__item" href="/meus-documentos" aria-current="@Atual("meus-documentos")"><span><Icone Nome="documento" /></span>Documentos</a>
         }
         else
         {
-            <NavLink class="aj-nav-inferior__item" href="/atividades"><span><Icone Nome="atividades" /></span>Atividades</NavLink>
-            <NavLink class="aj-nav-inferior__item" href="/agenda"><span><Icone Nome="agenda" /></span>Agenda</NavLink>
+            <a class="aj-nav-inferior__item" href="/atividades" aria-current="@Atual("atividades")"><span><Icone Nome="atividades" /></span>Atividades</a>
+            <a class="aj-nav-inferior__item" href="/agenda" aria-current="@Atual("agenda")"><span><Icone Nome="agenda" /></span>Agenda</a>
         }
-        <button type="button" class="aj-nav-inferior__item" aria-controls="menu-principal" aria-expanded="@(_menuAberto ? "true" : "false")" @onclick="AbrirMenu"><span><Icone Nome="mais" /></span>Mais</button>
+        <button type="button" class="aj-nav-inferior__item" aria-controls="menu-principal" aria-expanded="@(_menuAberto ? "true" : "false")" aria-current="@MaisNaBarra" @onclick="AbrirMenu"><span><Icone Nome="mais" /></span>Mais</button>
     </nav>
 
     <button type="button" class="aj-app__veu" aria-label="Fechar menu" @onclick="FecharMenu"></button>
@@ -161,6 +161,36 @@
     private bool EhCliente => _ator?.EhCliente ?? _portalPeloCookie;
 
     private string Rota => Navegacao.ToBaseRelativePath(Navegacao.Uri);
+
+    // O que o menu completo mostra a cada perfil. "Mais" acende quando a tela está aqui e fora da barra da visão.
+    private static readonly string[] MenuDoCliente = ["", "andamento", "meus-documentos", "documentos-comuns"];
+    private static readonly string[] MenuDaProducao = ["", "atividades", "agenda", "clientes", "processos"];
+    private static readonly string[] MenuDaDiretoria =
+        [.. MenuDaProducao, "documentos-comuns", "areas", "usuarios", "produtores", "perfis", "auditoria"];
+    private static readonly string[] BarraDaEquipe = ["", "atividades", "agenda"];
+    private static readonly string[] BarraDoCliente = ["", "andamento", "meus-documentos"];
+
+    private ContextoDoLayout _contexto = new(string.Empty, default);
+
+    private bool PaginaMontada => _marcaLida && (EhCliente ? RotasDoCliente.Permite(Rota) : !RotasDoCliente.Exclusiva(Rota));
+
+    /// <summary>O primeiro trecho do endereço: "" no início, "clientes" em /clientes e nas telas abaixo dela.</summary>
+    private string Secao => Rota.Split('?', '#')[0].Trim('/').Split('/')[0].ToLowerInvariant();
+
+    private string[] DestinosDoMenu =>
+        EhCliente ? MenuDoCliente : _ator is { EhDiretoria: true } ? MenuDaDiretoria : MenuDaProducao;
+
+    // Com o menu aberto por cima da tela, quem fica aceso nas barras é "Mais", como no canvas.
+    private string? Atual(string destino) => !_menuAberto && PaginaMontada && Secao == destino ? "page" : null;
+
+    private string? MaisNoTrilho => MaisAceso(EhCliente ? MenuDoCliente : MenuDaProducao);
+
+    private string? MaisNaBarra => MaisAceso(EhCliente ? BarraDoCliente : BarraDaEquipe);
+
+    private string? MaisAceso(string[] naBarra) =>
+        _menuAberto || (PaginaMontada && DestinosDoMenu.Contains(Secao) && !naBarra.Contains(Secao)) ? "page" : null;
+
+    private ContextoDoLayout NovoContexto() => new(Iniciais, EventCallback.Factory.Create(this, AlternarMenu));
 
     private string? Perfil => _ator is null ? null : RotulosDePerfil.DoTipo(_ator.TipoPerfil);
 
@@ -187,8 +217,10 @@
         if (EstadoDeAutenticacao is not null)
             _portalPeloCookie = IdentidadeHttp.EhDoPortal((await EstadoDeAutenticacao).User);
         _marcaLida = true;
+        _contexto = NovoContexto();
 
         _ator = await Despachante.EnviarAsync(new ObterMeuAcesso());
+        _contexto = NovoContexto();
     }
 
     private void AlternarMenu() => _menuEscondido = !_menuEscondido;

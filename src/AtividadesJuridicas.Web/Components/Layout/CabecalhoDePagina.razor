@@ -1,0 +1,72 @@
+@using Microsoft.AspNetCore.Components.Sections
+
+@* Cabeçalho de página do design system. Emite as duas formas e o CSS mostra a da visão atual: no desktop e no
+   tablet, o aj-cabecalho dentro do conteúdo; no mobile, a barra superior da tela, no encaixe do layout.
+   Com VoltarPara, a barra do mobile é a de voltar (ficha e formulário), e a barra inferior some. *@
+<SectionContent SectionName="@Encaixes.BarraSuperior">
+    @if (VoltarPara is not null)
+    {
+        <header class="aj-barra-superior aj-barra-superior--voltar">
+            <a href="@VoltarPara" class="aj-botao aj-botao--fantasma aj-botao--icone" aria-label="@RotuloDoVoltar"><Icone Nome="voltar" /></a>
+            <h1>@Titulo</h1>
+            <span class="aj-barra-superior__vazio" aria-hidden="true"></span>
+        </header>
+    }
+    else
+    {
+        <header class="aj-barra-superior">
+            <div class="aj-barra-superior__linha">
+                <img src="img/simbolo-claro.svg" alt="Araújo Advocacia" width="24" height="27" />
+                <div class="aj-barra-superior__titulo">
+                    <h1 class="aj-titulo">@Titulo</h1>
+                    @if ((SubtituloMobile ?? Subtitulo) is { } subtituloMobile)
+                    {
+                        <span class="aj-subtitulo">@subtituloMobile</span>
+                    }
+                </div>
+                <a href="/minha-senha" class="aj-avatar" aria-label="Minha conta">@Contexto?.Iniciais</a>
+            </div>
+        </header>
+    }
+</SectionContent>
+
+<div class="aj-desktop-tablet">
+    <header class="aj-cabecalho">
+        <div class="aj-cabecalho__inicio">
+            <span class="aj-cabecalho__menu">
+                <button type="button" class="aj-botao aj-botao--secundario aj-botao--icone" aria-label="Exibir menu" @onclick="ExibirMenuAsync"><Icone Nome="menu" /></button>
+                <img src="img/simbolo-claro.svg" alt="Araújo Advocacia" width="29" height="32" />
+            </span>
+            <div class="@(Folgado ? "aj-cabecalho__texto aj-cabecalho__texto--folgado" : "aj-cabecalho__texto")">
+                <h1 class="aj-titulo">@Titulo</h1>
+                @if (Subtitulo is not null)
+                {
+                    <p class="aj-subtitulo">@Subtitulo</p>
+                }
+            </div>
+        </div>
+    </header>
+</div>
+
+@code {
+    [CascadingParameter] private ContextoDoLayout? Contexto { get; set; }
+
+    [Parameter, EditorRequired] public string Titulo { get; set; } = string.Empty;
+
+    /// <summary>A linha de contexto sob o título, no desktop e no tablet.</summary>
+    [Parameter] public string? Subtitulo { get; set; }
+
+    /// <summary>A linha de contexto da barra superior do mobile, quando o quadro a encurta. Sem ela, vale <see cref="Subtitulo"/>.</summary>
+    [Parameter] public string? SubtituloMobile { get; set; }
+
+    /// <summary>Subtítulo em frase: o quadro afasta um pouco mais o título.</summary>
+    [Parameter] public bool Folgado { get; set; }
+
+    /// <summary>Destino do voltar da barra superior do mobile. Informado, a barra é a de voltar.</summary>
+    [Parameter] public string? VoltarPara { get; set; }
+
+    /// <summary>O rótulo acessível do voltar: "Voltar para Início".</summary>
+    [Parameter] public string? RotuloDoVoltar { get; set; }
+
+    private Task ExibirMenuAsync() => Contexto is { } contexto ? contexto.AlternarMenu.InvokeAsync() : Task.CompletedTask;
+}

@@ -5,42 +5,18 @@
 *, *::before, *::after { box-sizing: border-box; }
 html, body { height: 100%; }
 body { margin: 0; background: var(--fundo); color: var(--tinta); font: 400 15px/1.5 var(--font-sans); }
-a { color: var(--verde); }
-a:hover { color: var(--tinta); }
+:where(a) { color: var(--verde); }
+:where(a:hover) { color: var(--tinta); }
 :focus-visible { outline: 2px solid var(--verde); outline-offset: 2px; }
 /* O título recebe o foco a cada navegação (FocusOnNavigate) só para ser anunciado; não é um controle. */
 h1:focus { outline: none; }
 
-/* ---------- Estrutura: menu que abre e esconde ---------- */
-.aj-app { height: 100dvh; }
-.aj-app__veu, .aj-menu__fechar, .aj-exibir-menu { display: none; }
-.aj-exibir-menu img { display: block; }
-.aj-barra-superior__marca { display: flex; }
-.aj-barra-superior__espaco { flex: 1 1 auto; }
-.aj-menu__sair { display: flex; margin: 0; }
-.aj-menu a.aj-menu__item.active { background: var(--menu-ativo); color: var(--sobre-verde); font-weight: 600; }
-
-@media (min-width: 1200px) {
-    .aj-app--menu-escondido .aj-menu { display: none; }
-    .aj-app--menu-escondido .aj-exibir-menu { display: flex; align-items: center; gap: var(--espaco-14); }
-}
-
-/* Em tablet e mobile o menu completo abre por cima da tela, a partir de "Mais". */
-@media (max-width: 1199px) {
-    .aj-menu__esconder { display: none; }
-    .aj-app--menu-aberto .aj-menu { display: flex; position: absolute; inset: 0 auto 0 0; z-index: 20; width: min(var(--menu-largura), 86vw); flex-basis: auto; box-shadow: var(--sombra-flutuante); }
-    .aj-app--menu-aberto .aj-menu__fechar { display: inline-flex; }
-    .aj-app--menu-aberto .aj-app__veu { display: block; position: absolute; inset: 0; z-index: 19; padding: 0; border: 0; border-radius: 0; background: rgba(22, 32, 26, .45); cursor: default; }
-}
-
-/* No mobile o conteúdo reserva espaço só para a barra inferior; o respiro maior vale para telas com botão flutuante. */
-@media (max-width: 760px) {
-    .aj-app__conteudo { padding-bottom: 96px; }
-}
+/* ---------- Interino, até a fase 9G ---------- */
+/* Tela ainda não migrada (nenhum filho direto com classe aj-) continua em bloco, com as margens da marcação antiga.
+   Tela migrada usa a coluna flexível do design system. */
+.aj-app__conteudo:not(:has(> [class^="aj-"])) { display: block; }
 
 /* ---------- Página (marcação antiga) ---------- */
-.pagina { display: block; }
-.pagina > h1:first-child { margin-top: 0; }
 h1 { margin: 0 0 var(--espaco-14); font: 500 var(--aj-titulo)/1.1 var(--font-serif); letter-spacing: -.01em; }
 h2 { margin: var(--espaco-28) 0 var(--espaco-10); font: 700 18px/1.3 var(--font-sans); }
 h3 { margin: var(--espaco-18) 0 var(--espaco-8); font: 700 16px/1.4 var(--font-sans); }
