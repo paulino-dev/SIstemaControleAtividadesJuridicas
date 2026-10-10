@@ -84,7 +84,7 @@ Condições que a spec implica e que mais provavelmente atingem quem usa o siste
 
 ---
 
-### Tarefa 1: Design system — tokens, classes da fundação e cópia para o código
+### Task 1: Design system — tokens, classes da fundação e cópia para o código
 
 Feita pela sessão que coordena: publica no artifact do usuário.
 
@@ -373,7 +373,7 @@ git commit -m "feat(web): design system com blocos por visão, barra superior po
 
 ---
 
-### Tarefa 2: Ícones, aviso, rótulo de campo e a trava das telas migradas
+### Task 2: Ícones, aviso, rótulo de campo e a trava das telas migradas
 
 **Files:**
 - Modify: `src/AtividadesJuridicas.Web/Components/Layout/Icone.razor`
@@ -660,7 +660,7 @@ git commit -m "feat(web): ícones do design system, aviso, rótulo de campo e tr
 
 ---
 
-### Tarefa 3: Layout — barra superior por tela, "Mais" ativo e cabeçalho de página
+### Task 3: Layout — barra superior por tela, "Mais" ativo e cabeçalho de página
 
 **Files:**
 - Create: `src/AtividadesJuridicas.Web/Components/Layout/Encaixes.cs`
@@ -1167,7 +1167,7 @@ git commit -m "feat(web): layout recebe a barra superior de cada tela e acende M
 
 ---
 
-### Tarefa 4: Início — equipe e cliente
+### Task 4: Início — equipe e cliente
 
 Quadros: `Inicio`, `InicioTablet`, `InicioMobile`, `PortalInicio`, `PortalInicioTablet`, `PortalInicioMobile`.
 
@@ -1364,7 +1364,7 @@ git commit -m "feat(web): início da equipe e do cliente no design system, com c
 
 ---
 
-### Tarefa 5: Minha senha
+### Task 5: Minha senha
 
 Quadros: `MinhaSenha`, `MinhaSenhaTablet`, `MinhaSenhaMobile`.
 
@@ -1485,7 +1485,7 @@ git commit -m "feat(web): minha senha no design system, com painel estreito e ba
 
 ---
 
-### Tarefa 6: Não encontrada, erro, faixa de erro e reconexão
+### Task 6: Não encontrada, erro, faixa de erro e reconexão
 
 Quadros: `NaoEncontrada`, `NaoEncontradaTablet`, `NaoEncontradaMobile`. Erro, faixa de erro e reconexão não têm quadro: seguem o design system.
 
@@ -1695,7 +1695,7 @@ git commit -m "feat(web): página não encontrada, erro, faixa de erro e reconex
 
 ---
 
-### Tarefa 7: Entrar
+### Task 7: Entrar
 
 Quadros: `Main`, `LoginTablet`, `LoginMobile`.
 
@@ -1868,7 +1868,7 @@ git commit -m "feat(web): tela de login fiel aos quadros nas três visões, com 
 
 ---
 
-### Tarefa 8: Suíte inteira e conferência no navegador
+### Task 8: Suíte inteira e conferência no navegador
 
 Feita pela sessão que coordena.
 
