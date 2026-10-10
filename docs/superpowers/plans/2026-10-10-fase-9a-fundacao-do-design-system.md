@@ -396,7 +396,7 @@ git commit -m "feat(web): design system com blocos por visão, barra superior po
 **Regras:**
 - Os traçados novos são os do grupo Icones do design system. Confira cada um contra o arquivo do grupo (ação `read` do artifact com o id do arquivo, que está em `design-system.json`).
 - `Aviso` de erro tem `role="alert"`; os outros, `role="status"`. O ícone é o do tipo: `confirmar`, `atencao`, `erro`.
-- `RotuloDeCampo` acompanha a validação do `EditContext`: em erro, o rótulo ganha `aj-rotulo--erro` e a mensagem sai em `aj-campo-erro`. O campo recebe `aria-invalid` do próprio `InputBase`.
+- `RotuloDeCampo` acompanha a validação do `EditContext`: em erro, o rótulo ganha `aj-rotulo--erro` e cada mensagem sai num `<span class="aj-campo-erro">`, como no canvas (o `ValidationMessage` do Blazor emite `<div>`, inválido dentro de `<label>`). O campo recebe `aria-invalid` do próprio `InputBase`. Fora de um `EditForm`, o rótulo aparece sem erro.
 
 - [ ] **Step 1: Escrever os testes que falham**
 
@@ -420,12 +420,25 @@ public partial class TelasNoDesignSystemTests
         "Components/Layout/RotuloDeCampo.razor",
     ];
 
-    [GeneratedRegex("\\sstyle\\s*=\\s*\"")]
+    [GeneratedRegex("\\sstyle\\s*=\\s*[\"']")]
     private static partial Regex EstiloEmbutido();
 
     // Só o valor fixo: classe montada por expressão Razor (com @) é conferida na revisão.
-    [GeneratedRegex("\\sclass\\s*=\\s*\"([^\"@]*)\"")]
+    [GeneratedRegex("\\sclass\\s*=\\s*(?:\"([^\"@]*)\"|'([^'@]*)')")]
     private static partial Regex ClasseFixa();
+
+    /// <summary>O que a marcação tem de fora do design system: "style" para estilo embutido, ou o nome da classe.</summary>
+    private static List<string> Violacoes(string marcacao)
+    {
+        var violacoes = new List<string>();
+        if (EstiloEmbutido().IsMatch(marcacao)) violacoes.Add("style");
+
+        violacoes.AddRange(ClasseFixa().Matches(marcacao)
+            .SelectMany(m => (m.Groups[1].Success ? m.Groups[1].Value : m.Groups[2].Value)
+                .Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            .Where(classe => !classe.StartsWith("aj-", StringComparison.Ordinal)));
+        return violacoes;
+    }
 
     public static TheoryData<string> Arquivos => new(Migradas);
 
@@ -435,14 +448,30 @@ public partial class TelasNoDesignSystemTests
     {
         var caminho = Path.Combine(
             [GravacoesPorForaTests.RaizDoRepositorio(), "src", "AtividadesJuridicas.Web", .. arquivo.Split('/')]);
-        var texto = File.ReadAllText(caminho);
 
-        EstiloEmbutido().IsMatch(texto).Should().BeFalse(
-            "tela migrada não tem estilo embutido: o padrão vira classe aj- no design system");
-        ClasseFixa().Matches(texto)
-            .SelectMany(m => m.Groups[1].Value.Split(' ', StringSplitOptions.RemoveEmptyEntries))
-            .Where(classe => !classe.StartsWith("aj-", StringComparison.Ordinal))
-            .Should().BeEmpty("tela migrada só usa classes do design system");
+        Violacoes(File.ReadAllText(caminho)).Should().BeEmpty(
+            "tela migrada não tem estilo embutido nem classe fora do design system: o padrão vira classe aj- lá");
+    }
+
+    // A própria trava: o que ela tem de reprovar e o que tem de deixar passar.
+    [Theory]
+    [InlineData("<p style=\"margin:0\">x</p>", "style")]
+    [InlineData("<p style='margin:0'>x</p>", "style")]
+    [InlineData("<p class=\"erro\">x</p>", "erro")]
+    [InlineData("<p class='aj-aviso erro'>x</p>", "erro")]
+    [InlineData("<div class=\"aj-painel formulario\"></div>", "formulario")]
+    public void A_trava_reprova_estilo_embutido_e_classe_de_fora(string marcacao, string violacao)
+    {
+        Violacoes(marcacao).Should().Equal(violacao);
+    }
+
+    [Theory]
+    [InlineData("<p class=\"aj-aviso aj-aviso--erro\">x</p>")]
+    [InlineData("<label class=\"@(erro ? \"aj-rotulo aj-rotulo--erro\" : \"aj-rotulo\")\">x</label>")]
+    [InlineData("<Icone Nome=\"voltar\" Classe=\"aj-cartao__seta\" />")]
+    public void A_trava_aceita_marcacao_do_design_system(string marcacao)
+    {
+        Violacoes(marcacao).Should().BeEmpty();
     }
 }
 ```
@@ -503,18 +532,20 @@ public class ComponentesDoDesignSystemTests
     }
 
     [Theory]
-    [InlineData(TipoDeAviso.Sucesso, "aj-aviso aj-aviso--sucesso", "status")]
-    [InlineData(TipoDeAviso.Atencao, "aj-aviso aj-aviso--atencao", "status")]
-    [InlineData(TipoDeAviso.Erro, "aj-aviso aj-aviso--erro", "alert")]
-    public async Task Aviso_traz_a_classe_o_papel_e_o_icone_do_tipo(TipoDeAviso tipo, string classe, string papel)
+    [InlineData(TipoDeAviso.Sucesso, "aj-aviso aj-aviso--sucesso", "status", "M5 12.5l4.5 4.5L19 7.5")]
+    [InlineData(TipoDeAviso.Atencao, "aj-aviso aj-aviso--atencao", "status", "M12 4l9 16H3z")]
+    [InlineData(TipoDeAviso.Erro, "aj-aviso aj-aviso--erro", "alert", "M12 7.5v5.5")]
+    public async Task Aviso_traz_a_classe_o_papel_e_o_icone_do_tipo(
+        TipoDeAviso tipo, string classe, string papel, string tracado)
     {
         RenderFragment texto = construtor => construtor.AddContent(0, "Revisor alterado.");
 
         var html = await TelaDeTeste.RenderizarSemDadosAsync<Aviso>(
             new() { ["Tipo"] = tipo, ["ChildContent"] = texto });
 
+        // O traçado é o do ícone do tipo: confirmar, atenção ou erro.
         html.Should().Contain($"class=\"{classe}\"").And.Contain($"role=\"{papel}\"")
-            .And.Contain("<svg").And.Contain("<span>Revisor alterado.</span>");
+            .And.Contain($"d=\"{tracado}\"").And.Contain("<span>Revisor alterado.</span>");
     }
 }
 ```
@@ -601,11 +632,16 @@ public enum TipoDeAviso
 @implements IDisposable
 @using System.Linq.Expressions
 
-@* Rótulo de campo do design system: em erro, o rótulo muda de cor e a mensagem aparece sob o campo. *@
-<label class="@(Invalido ? "aj-rotulo aj-rotulo--erro" : "aj-rotulo")">
+@* Rótulo de campo do design system: em erro, o rótulo muda de cor e a mensagem aparece sob o campo.
+   A mensagem é escrita aqui, em <span>, como no canvas: o ValidationMessage emite <div>, que não cabe num <label>. *@
+@{ var mensagens = Mensagens(); }
+<label class="@(mensagens.Count > 0 ? "aj-rotulo aj-rotulo--erro" : "aj-rotulo")">
     @Texto
     @ChildContent
-    <ValidationMessage For="Para" class="aj-campo-erro" />
+    @foreach (var mensagem in mensagens)
+    {
+        <span class="aj-campo-erro">@mensagem</span>
+    }
 </label>
 
 @code {
@@ -620,8 +656,9 @@ public enum TipoDeAviso
 
     [Parameter] public RenderFragment? ChildContent { get; set; }
 
-    private bool Invalido =>
-        Contexto is not null && Contexto.GetValidationMessages(FieldIdentifier.Create(Para)).Any();
+    // Fora de um EditForm não há o que validar: o rótulo aparece sem erro.
+    private List<string> Mensagens() =>
+        Contexto is null ? [] : Contexto.GetValidationMessages(FieldIdentifier.Create(Para)).ToList();
 
     protected override void OnParametersSet()
     {
@@ -632,7 +669,7 @@ public enum TipoDeAviso
         if (_assinado is not null) _assinado.OnValidationStateChanged += AoValidar;
     }
 
-    private void AoValidar(object? sender, ValidationStateChangedEventArgs e) => StateHasChanged();
+    private void AoValidar(object? sender, ValidationStateChangedEventArgs e) => _ = InvokeAsync(StateHasChanged);
 
     public void Dispose()
     {
@@ -646,7 +683,7 @@ O estado de erro do `RotuloDeCampo` é testado pela tela de login, na Tarefa 7.
 - [ ] **Step 4: Rodar e ver passar**
 
 Run: `dotnet test tests/AtividadesJuridicas.UnitTests --filter TelasNoDesignSystemTests`
-Expected: PASS, 2 casos.
+Expected: PASS, 10 casos (2 arquivos e 8 da própria trava).
 
 Run: `dotnet test tests/AtividadesJuridicas.IntegrationTests --filter ComponentesDoDesignSystemTests`
 Expected: PASS, 16 casos.
@@ -1156,7 +1193,7 @@ Run: `dotnet test tests/AtividadesJuridicas.IntegrationTests --filter "LayoutWeb
 Expected: PASS. Os testes de navegação que já existiam continuam passando sem mudança.
 
 Run: `dotnet test tests/AtividadesJuridicas.UnitTests --filter TelasNoDesignSystemTests`
-Expected: PASS, 4 casos.
+Expected: PASS, 12 casos.
 
 - [ ] **Step 8: Commit**
 
@@ -1353,7 +1390,7 @@ Run: `dotnet test tests/AtividadesJuridicas.IntegrationTests --filter "LayoutWeb
 Expected: PASS.
 
 Run: `dotnet test tests/AtividadesJuridicas.UnitTests --filter TelasNoDesignSystemTests`
-Expected: PASS, 6 casos.
+Expected: PASS, 14 casos.
 
 - [ ] **Step 5: Commit**
 
@@ -1757,8 +1794,8 @@ Em `AutenticacaoWebTests`:
         resposta.StatusCode.Should().Be(HttpStatusCode.OK);
         var html = WebUtility.HtmlDecode(await resposta.Content.ReadAsStringAsync());
         Regex.Matches(html, "<label class=\"aj-rotulo aj-rotulo--erro\">").Should().HaveCount(2);
-        html.Should().Contain("<div class=\"aj-campo-erro\">Informe o e-mail.</div>")
-            .And.Contain("<div class=\"aj-campo-erro\">Informe a senha.</div>");
+        html.Should().Contain("<span class=\"aj-campo-erro\">Informe o e-mail.</span>")
+            .And.Contain("<span class=\"aj-campo-erro\">Informe a senha.</span>");
         Regex.Matches(html, "aria-invalid=\"true\"").Should().HaveCount(2);
         // O formulário continua pronto para a próxima tentativa.
         TokenRegex().IsMatch(html).Should().BeTrue();
@@ -1857,7 +1894,7 @@ Run: `dotnet test tests/AtividadesJuridicas.IntegrationTests --filter "Autentica
 Expected: PASS. Todo teste que entra pelo formulário continua entrando.
 
 Run: `dotnet test tests/AtividadesJuridicas.UnitTests --filter TelasNoDesignSystemTests`
-Expected: PASS, 10 casos.
+Expected: PASS, 18 casos.
 
 - [ ] **Step 5: Commit**
 
