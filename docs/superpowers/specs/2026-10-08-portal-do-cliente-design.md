@@ -193,6 +193,12 @@ Consequência: o título de toda atividade com cliente passa a ser lido por esse
 | `Producao` | Os atuais |
 | `Cliente` | Início, Andamento, Meus documentos, Documentos comuns, Minha senha |
 
+O layout tem três navegações, e cada item fica assim nelas:
+
+- Menu lateral (desktop): o cliente tem o grupo "Portal" com os cinco itens. A Diretoria tem "Documentos comuns" no grupo "Cadastros", depois de Processos; a Produção não ganha o item.
+- Trilho (tablet): o cliente tem Início, Andamento, Meus documentos e Documentos comuns, mais "Mais". Minha senha fica no avatar do rodapé.
+- Barra inferior (mobile): o cliente tem Início, Andamento e "Documentos" (Meus documentos), mais "Mais". O restante abre em "Mais", que mostra o menu completo.
+
 Uma página interna aberta por um usuário-cliente mostra "Página não encontrada" e não é montada: não chega a consultar nada. O cookie de um usuário de perfil `Cliente` leva uma marca de portal (`atividades:portal`), que serve só para o layout saber, sem esperar consulta, que não deve montar páginas internas. A marca não autoriza nada: perfil, estado ativo e cliente continuam lidos do banco a cada operação, e quem nega é o portão. Como o usuário não troca entre o tipo `Cliente` e os internos, a marca não envelhece.
 
 A guarda vale nos dois sentidos e compara o endereço já decodificado:
@@ -307,7 +313,7 @@ A modelagem de domínio é emendada ao fim de cada fase com as regras fixadas, c
 
 **Implantação.** Na primeira subida da versão nova o semeador cria o perfil "Cliente", que passa a aparecer em Perfis e no seletor de Usuários. Depois de existir usuário de cliente, **voltar para uma versão anterior ao portão não é seguro**: a versão antiga trata o tipo Cliente como Produção, e o cliente leria clientes e processos. Antes de reverter, inativar todos os usuários vinculados a cliente.
 
-Reverter o esquema da 8B também exige cuidado. Desfazer a migration `DocumentosDoPortal` volta a restrição antiga do banco, e ela falha se existir qualquer Documento comum, mesmo excluído logicamente: categoria sem cliente viola a restrição anterior. Antes de reverter o esquema, remova esses registros. Voltar só o binário para a versão da 8A, mantendo o esquema novo, é seguro para os dados: os documentos das duas categorias novas somem das telas e ninguém passa a lê-los.
+Reverter o esquema da 8B também exige cuidado. Desfazer a migration `DocumentosDoPortal` volta a restrição antiga do banco, e ela falha se existir qualquer Documento comum, mesmo excluído logicamente: categoria sem cliente viola a restrição anterior. Antes de reverter o esquema, remova esses registros. Voltar só o binário para a versão da 8A, mantendo o esquema novo, é seguro para os dados: os documentos das duas categorias novas somem das telas. Com o binário da 8A, a Diretoria continua lendo qualquer documento pelo endereço; quem não passa a lê-los é o cliente e a Produção.
 
 A fase 8B está concluída, e a modelagem de domínio foi emendada com as regras dela.
 

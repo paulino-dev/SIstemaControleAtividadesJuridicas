@@ -18,6 +18,19 @@ public static class RotulosDeAtividade
         _ => status.ToString(),
     };
 
+    /// <summary>O modificador da etiqueta do design system (<c>aj-etiqueta--…</c>) para a situação.</summary>
+    public static string ClasseDaEtiqueta(StatusAtividade status) => status switch
+    {
+        StatusAtividade.Criada => "criada",
+        StatusAtividade.Direcionada => "direcionada",
+        StatusAtividade.Feita => "feita",
+        StatusAtividade.ParaCorrecao => "correcao",
+        StatusAtividade.Corrigida => "corrigida",
+        StatusAtividade.Concluida => "concluida",
+        StatusAtividade.Reaberta => "reaberta",
+        _ => "criada",
+    };
+
     public static string Data(DateOnly? data) =>
         data is { } d ? d.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture) : "—";
 }

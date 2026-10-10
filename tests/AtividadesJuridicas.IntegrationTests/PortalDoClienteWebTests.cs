@@ -164,6 +164,54 @@ public class PortalDoClienteWebTests(BancoFixture banco) : IAsyncLifetime
         html.Should().NotContain("Seu perfil é de");
     }
 
+    private static string Navegacao(string html, string classe) =>
+        Regex.Match(html, $"<nav class=\"{classe}\"[^>]*>.*?</nav>", RegexOptions.Singleline).Value;
+
+    private static string[] Destinos(string trecho) =>
+        Regex.Matches(trecho, "href=\"([^\"]*)\"").Select(m => m.Groups[1].Value).ToArray();
+
+    [Fact]
+    public async Task Trilho_e_barra_inferior_do_cliente_levam_ao_portal()
+    {
+        var cliente = await DaCarlaAsync();
+
+        var html = Decodificado(await cliente.GetStringAsync("/"));
+
+        var trilho = Navegacao(html, "aj-trilho");
+        var barra = Navegacao(html, "aj-nav-inferior");
+        trilho.Should().NotBeEmpty();
+        barra.Should().NotBeEmpty();
+        Destinos(trilho).Should().Equal("/", "/andamento", "/meus-documentos", "/documentos-comuns", "/minha-senha");
+        Destinos(barra).Should().Equal("/", "/andamento", "/meus-documentos");
+        barra.Should().Contain("Documentos");
+    }
+
+    [Fact]
+    public async Task Navegacoes_da_equipe_nao_tem_destino_so_do_portal()
+    {
+        await _app.CriarPedroAsync();
+        var admin = await _app.ClienteAutenticadoAsync();
+        var pedro = await _app.ClienteAutenticadoAsync(AplicacaoDeTeste.EmailDoPedro, AplicacaoDeTeste.SenhaDoPedro);
+
+        var htmlAdmin = Decodificado(await admin.GetStringAsync("/"));
+        var htmlPedro = Decodificado(await pedro.GetStringAsync("/"));
+
+        foreach (var html in new[] { htmlAdmin, htmlPedro })
+        {
+            html.Should().NotContain("href=\"/andamento\"").And.NotContain("href=\"/meus-documentos\"");
+            Destinos(Navegacao(html, "aj-trilho")).Should().Equal(
+                "/", "/atividades", "/agenda", "/clientes", "/processos", "/minha-senha");
+            Destinos(Navegacao(html, "aj-nav-inferior")).Should().Equal("/", "/atividades", "/agenda");
+        }
+
+        var menuAdmin = Destinos(Regex.Match(htmlAdmin, "<nav[^>]*>.*?</nav>", RegexOptions.Singleline).Value);
+        var posicao = Array.IndexOf(menuAdmin, "/documentos-comuns");
+        posicao.Should().BeGreaterThan(0);
+        menuAdmin[posicao - 1].Should().Be("/processos");
+        menuAdmin[posicao + 1].Should().Be("/areas");
+        htmlPedro.Should().NotContain("href=\"/documentos-comuns\"");
+    }
+
     private const string Cnj = "1234567-85.2024.8.02.0001";
     private const string Direcionamento = "Direcionamento reservado da equipe";
 

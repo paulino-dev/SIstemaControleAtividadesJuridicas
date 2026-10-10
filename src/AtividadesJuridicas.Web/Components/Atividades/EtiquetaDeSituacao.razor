@@ -1,0 +1,12 @@
+@* A situação da atividade como etiqueta do design system; a entrega vencida ganha a etiqueta Atrasada ao lado. *@
+<span class="aj-etiqueta aj-etiqueta--@RotulosDeAtividade.ClasseDaEtiqueta(Status)">@RotulosDeAtividade.Status(Status)</span>
+@if (Atrasada)
+{
+    <span class="aj-etiqueta aj-etiqueta--atrasada"><Icone Nome="atrasada" />Atrasada</span>
+}
+
+@code {
+    [Parameter, EditorRequired] public StatusAtividade Status { get; set; }
+
+    [Parameter] public bool Atrasada { get; set; }
+}

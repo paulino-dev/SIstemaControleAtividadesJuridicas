@@ -1,58 +1,149 @@
 @inherits LayoutComponentBase
+@implements IDisposable
 @using AtividadesJuridicas.Web.Components.Pages
 @inject IDespachante Despachante
 @inject NavigationManager Navegacao
 
-<header class="topo">
-    <a class="marca" href="/">Atividades Jurídicas</a>
-    <nav>
-        <NavLink href="/" Match="NavLinkMatch.All">Início</NavLink>
+@* Três navegações, uma por visão; o CSS mostra a da largura atual (menu no desktop, trilho no tablet, barra
+   inferior no mobile). Em tablet e mobile, "Mais" abre o menu completo por cima da tela.
+   O usuário de cliente vê o menu do portal: no menu lateral, Início, Andamento, Meus documentos, Documentos comuns e
+   Minha senha; no trilho, os quatro primeiros (Minha senha fica no avatar); na barra inferior, Início, Andamento e
+   Documentos (Meus documentos), e o restante em "Mais". *@
+<div class="aj-app @(_menuEscondido ? "aj-app--menu-escondido" : null) @(_menuAberto ? "aj-app--menu-aberto" : null)">
+    <aside class="aj-menu" id="menu-principal">
+        <div class="aj-menu__topo">
+            <a href="/" aria-label="Araújo Advocacia, início">
+                <img src="img/logo-horizontal-compacta-escuro.svg" alt="Araújo Advocacia" width="140" height="32" />
+            </a>
+            <button type="button" class="aj-menu__botao aj-menu__esconder" aria-label="Esconder menu" @onclick="AlternarMenu"><Icone Nome="esconder-menu" /></button>
+            <button type="button" class="aj-menu__botao aj-menu__fechar" aria-label="Fechar menu" @onclick="FecharMenu"><Icone Nome="fechar" /></button>
+        </div>
+        <nav aria-label="Principal">
+            <div class="aj-menu__grupo">
+                <span>@(EhCliente ? "Portal" : "Dia a dia")</span>
+                <NavLink class="aj-menu__item" href="/" Match="NavLinkMatch.All"><Icone Nome="inicio" />Início</NavLink>
+                @if (EhCliente)
+                {
+                    <NavLink class="aj-menu__item" href="/andamento"><Icone Nome="atividades" />Andamento</NavLink>
+                    <NavLink class="aj-menu__item" href="/meus-documentos"><Icone Nome="documento" />Meus documentos</NavLink>
+                    <NavLink class="aj-menu__item" href="/documentos-comuns"><Icone Nome="pasta" />Documentos comuns</NavLink>
+                    <NavLink class="aj-menu__item" href="/minha-senha"><Icone Nome="usuarios" />Minha senha</NavLink>
+                }
+                else
+                {
+                    <NavLink class="aj-menu__item" href="/atividades"><Icone Nome="atividades" />Atividades</NavLink>
+                    <NavLink class="aj-menu__item" href="/agenda"><Icone Nome="agenda" />Agenda</NavLink>
+                }
+            </div>
+            @if (!EhCliente)
+            {
+                <div class="aj-menu__grupo">
+                    <span>Cadastros</span>
+                    <NavLink class="aj-menu__item" href="/clientes"><Icone Nome="clientes" />Clientes</NavLink>
+                    <NavLink class="aj-menu__item" href="/processos"><Icone Nome="processos" />Processos</NavLink>
+                    @if (_ator is { EhDiretoria: true })
+                    {
+                        <NavLink class="aj-menu__item" href="/documentos-comuns"><Icone Nome="pasta" />Documentos comuns</NavLink>
+                    }
+                </div>
+                @if (_ator is { EhDiretoria: true })
+                {
+                    <div class="aj-menu__grupo">
+                        <span>Administração</span>
+                        <NavLink class="aj-menu__item" href="/areas"><Icone Nome="areas" />Áreas</NavLink>
+                        <NavLink class="aj-menu__item" href="/usuarios"><Icone Nome="usuarios" />Usuários</NavLink>
+                        <NavLink class="aj-menu__item" href="/produtores"><Icone Nome="produtores" />Produtores</NavLink>
+                        <NavLink class="aj-menu__item" href="/perfis"><Icone Nome="perfis" />Perfis</NavLink>
+                        <NavLink class="aj-menu__item" href="/auditoria"><Icone Nome="auditoria" />Auditoria</NavLink>
+                    </div>
+                }
+            }
+        </nav>
+        <div class="aj-usuario">
+            <span class="aj-avatar" aria-hidden="true">@Iniciais</span>
+            <div class="aj-usuario__texto">
+                <b class="quem">@_ator?.Nome</b>
+                <span>@Perfil@(Perfil is null ? null : " · ")<NavLink href="/minha-senha">Minha senha</NavLink></span>
+            </div>
+            <form method="post" action="/conta/sair" class="aj-menu__sair">
+                <AntiforgeryToken />
+                <button type="submit" class="aj-menu__botao" aria-label="Sair"><Icone Nome="sair" /></button>
+            </form>
+        </div>
+    </aside>
+
+    <nav class="aj-trilho" aria-label="Principal">
+        <img src="img/logo-horizontal-compacta-escuro.svg" alt="Araújo Advocacia" width="68" height="16" />
+        <NavLink class="aj-trilho__item" href="/" Match="NavLinkMatch.All"><Icone Nome="inicio" />Início</NavLink>
         @if (EhCliente)
         {
-            <NavLink href="/andamento">Andamento</NavLink>
-            <NavLink href="/meus-documentos">Meus documentos</NavLink>
-            <NavLink href="/documentos-comuns">Documentos comuns</NavLink>
+            <NavLink class="aj-trilho__item" href="/andamento"><Icone Nome="atividades" />Andamento</NavLink>
+            <NavLink class="aj-trilho__item" href="/meus-documentos" style="text-align: center; line-height: 1.25"><Icone Nome="documento" />Meus documentos</NavLink>
+            <NavLink class="aj-trilho__item" href="/documentos-comuns" style="text-align: center; line-height: 1.25"><Icone Nome="pasta" />Documentos comuns</NavLink>
         }
         else
         {
-            <NavLink href="/atividades">Atividades</NavLink>
-            <NavLink href="/agenda">Agenda</NavLink>
-            <NavLink href="/clientes">Clientes</NavLink>
-            <NavLink href="/processos">Processos</NavLink>
-            @if (_ator is { EhDiretoria: true })
-            {
-                <NavLink href="/documentos-comuns">Documentos comuns</NavLink>
-                <NavLink href="/areas">Áreas</NavLink>
-                <NavLink href="/usuarios">Usuários</NavLink>
-                <NavLink href="/produtores">Produtores</NavLink>
-                <NavLink href="/perfis">Perfis</NavLink>
-                <NavLink href="/auditoria">Auditoria</NavLink>
-            }
+            <NavLink class="aj-trilho__item" href="/atividades"><Icone Nome="atividades" />Atividades</NavLink>
+            <NavLink class="aj-trilho__item" href="/agenda"><Icone Nome="agenda" />Agenda</NavLink>
+            <NavLink class="aj-trilho__item" href="/clientes"><Icone Nome="clientes" />Clientes</NavLink>
+            <NavLink class="aj-trilho__item" href="/processos"><Icone Nome="processos" />Processos</NavLink>
         }
-        <NavLink href="/minha-senha">Minha senha</NavLink>
+        <button type="button" class="aj-trilho__item" aria-controls="menu-principal" aria-expanded="@(_menuAberto ? "true" : "false")" @onclick="AbrirMenu"><Icone Nome="mais" />Mais</button>
+        <span class="aj-trilho__espaco"></span>
+        <a href="/minha-senha" class="aj-avatar aj-avatar--g" aria-label="Minha conta">@Iniciais</a>
     </nav>
-    <span class="quem">@_ator?.Nome</span>
-    <form method="post" action="/conta/sair">
-        <AntiforgeryToken />
-        <button type="submit">Sair</button>
-    </form>
-</header>
 
-<main class="conteudo">
-    @if (!_marcaLida)
-    {
-        <p>Carregando…</p>
-    }
-    else if (EhCliente ? !RotasDoCliente.Permite(Rota) : RotasDoCliente.Exclusiva(Rota))
-    {
-        @* A página não é montada: ela não chega a consultar nada. *@
-        <NaoEncontrada />
-    }
-    else
-    {
-        @Body
-    }
-</main>
+    <div class="aj-app__coluna">
+        <header class="aj-barra-superior">
+            <div class="aj-barra-superior__linha">
+                <a href="/" class="aj-barra-superior__marca" aria-label="Araújo Advocacia, início">
+                    <img src="img/logo-horizontal-compacta-claro.svg" alt="Araújo Advocacia" width="139" height="32" />
+                </a>
+                <span class="aj-barra-superior__espaco"></span>
+                <a href="/minha-senha" class="aj-avatar" aria-label="Minha conta">@Iniciais</a>
+            </div>
+        </header>
+
+        <main class="aj-app__conteudo">
+            <div class="aj-exibir-menu">
+                <button type="button" class="aj-botao aj-botao--secundario aj-botao--icone" aria-label="Exibir menu" @onclick="AlternarMenu"><Icone Nome="menu" /></button>
+                <img src="img/simbolo-claro.svg" alt="" width="29" height="32" />
+            </div>
+            <div class="pagina">
+                @if (!_marcaLida)
+                {
+                    <p>Carregando…</p>
+                }
+                else if (EhCliente ? !RotasDoCliente.Permite(Rota) : RotasDoCliente.Exclusiva(Rota))
+                {
+                    @* A página não é montada: ela não chega a consultar nada. *@
+                    <NaoEncontrada />
+                }
+                else
+                {
+                    @Body
+                }
+            </div>
+        </main>
+    </div>
+
+    <nav class="aj-nav-inferior" aria-label="Principal">
+        <NavLink class="aj-nav-inferior__item" href="/" Match="NavLinkMatch.All"><span><Icone Nome="inicio" /></span>Início</NavLink>
+        @if (EhCliente)
+        {
+            <NavLink class="aj-nav-inferior__item" href="/andamento"><span><Icone Nome="atividades" /></span>Andamento</NavLink>
+            <NavLink class="aj-nav-inferior__item" href="/meus-documentos"><span><Icone Nome="documento" /></span>Documentos</NavLink>
+        }
+        else
+        {
+            <NavLink class="aj-nav-inferior__item" href="/atividades"><span><Icone Nome="atividades" /></span>Atividades</NavLink>
+            <NavLink class="aj-nav-inferior__item" href="/agenda"><span><Icone Nome="agenda" /></span>Agenda</NavLink>
+        }
+        <button type="button" class="aj-nav-inferior__item" aria-controls="menu-principal" aria-expanded="@(_menuAberto ? "true" : "false")" @onclick="AbrirMenu"><span><Icone Nome="mais" /></span>Mais</button>
+    </nav>
+
+    <button type="button" class="aj-app__veu" aria-label="Fechar menu" @onclick="FecharMenu"></button>
+</div>
 
 @code {
     [CascadingParameter]
@@ -62,13 +153,36 @@
     private bool _marcaLida;
     private bool _portalPeloCookie;
 
+    // Desktop: o menu lateral pode ser escondido. Tablet e mobile: o menu completo abre por cima da tela.
+    private bool _menuEscondido;
+    private bool _menuAberto;
+
     // O banco manda quando já respondeu; antes disso, e se o acesso foi encerrado, vale a marca do cookie.
     private bool EhCliente => _ator?.EhCliente ?? _portalPeloCookie;
 
     private string Rota => Navegacao.ToBaseRelativePath(Navegacao.Uri);
 
+    private string? Perfil => _ator is null ? null : RotulosDePerfil.DoTipo(_ator.TipoPerfil);
+
+    /// <summary>As iniciais do primeiro e do último nome ("Marina Couto" → "MC").</summary>
+    private string Iniciais
+    {
+        get
+        {
+            var partes = (_ator?.Nome ?? string.Empty).Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            return partes.Length switch
+            {
+                0 => string.Empty,
+                1 => partes[0][..1].ToUpperInvariant(),
+                _ => (partes[0][..1] + partes[^1][..1]).ToUpperInvariant(),
+            };
+        }
+    }
+
     protected override async Task OnInitializedAsync()
     {
+        Navegacao.LocationChanged += AoNavegar;
+
         // A tarefa do estado de autenticação já vem concluída: a marca é lida antes da primeira renderização.
         if (EstadoDeAutenticacao is not null)
             _portalPeloCookie = IdentidadeHttp.EhDoPortal((await EstadoDeAutenticacao).User);
@@ -76,4 +190,21 @@
 
         _ator = await Despachante.EnviarAsync(new ObterMeuAcesso());
     }
+
+    private void AlternarMenu() => _menuEscondido = !_menuEscondido;
+
+    private void AbrirMenu() => _menuAberto = true;
+
+    private void FecharMenu() => _menuAberto = false;
+
+    /// <summary>Escolhido um destino no menu aberto por cima da tela, ele se fecha.</summary>
+    private void AoNavegar(object? sender, LocationChangedEventArgs e)
+    {
+        if (!_menuAberto) return;
+
+        _menuAberto = false;
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose() => Navegacao.LocationChanged -= AoNavegar;
 }

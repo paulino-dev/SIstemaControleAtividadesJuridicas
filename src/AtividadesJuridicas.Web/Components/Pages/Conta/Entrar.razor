@@ -10,35 +10,51 @@
 
 <PageTitle>Entrar</PageTitle>
 
-<h1>Atividades Jurídicas</h1>
+<div class="entrar">
+    <section class="entrar__marca" aria-label="Araújo Advocacia">
+        <img class="entrar__dagua" src="img/simbolo-claro.svg" alt="" width="700" height="782" />
+        <img class="entrar__logo" src="img/logo-vertical-ampla-escuro.svg" alt="Araújo Advocacia" width="200" height="193" />
+        <div class="entrar__texto">
+            <span class="entrar__sobretitulo">Sistema interno</span>
+            <p class="entrar__nome">Atividades Jurídicas</p>
+            <p class="entrar__frase">Agenda, prazos e atividades do escritório em um só lugar.</p>
+        </div>
+    </section>
 
-@if (Aviso == "senha-alterada")
-{
-    <p class="ok" role="status">Senha alterada. Entre novamente com a nova senha.</p>
-}
+    <div class="entrar__area">
+        @if (Aviso == "senha-alterada")
+        {
+            <p class="ok" role="status">Senha alterada. Entre novamente com a nova senha.</p>
+        }
 
-<EditForm Model="Entrada" FormName="entrar" OnValidSubmit="EntrarAsync" method="post" class="cartao">
-    <DataAnnotationsValidator />
+        <EditForm Model="Entrada" FormName="entrar" OnValidSubmit="EntrarAsync" method="post" class="entrar__cartao">
+            <DataAnnotationsValidator />
 
-    @if (_erro is not null)
-    {
-        <p class="erro" role="alert">@_erro</p>
-    }
+            <h1>Entrar</h1>
+            <p class="entrar__ajuda">Acesse com o e-mail e a senha do escritório.</p>
 
-    <label>
-        E-mail
-        <InputText @bind-Value="Entrada.Email" type="email" autocomplete="username" />
-        <ValidationMessage For="() => Entrada.Email" />
-    </label>
+            @if (_erro is not null)
+            {
+                <p class="erro" role="alert">@_erro</p>
+            }
 
-    <label>
-        Senha
-        <InputText @bind-Value="Entrada.Senha" type="password" autocomplete="current-password" />
-        <ValidationMessage For="() => Entrada.Senha" />
-    </label>
+            <label>
+                E-mail
+                <InputText @bind-Value="Entrada.Email" type="email" autocomplete="username" />
+                <ValidationMessage For="() => Entrada.Email" />
+            </label>
 
-    <button type="submit">Entrar</button>
-</EditForm>
+            <label>
+                Senha
+                <InputText @bind-Value="Entrada.Senha" type="password" autocomplete="current-password" />
+                <ValidationMessage For="() => Entrada.Senha" />
+            </label>
+
+            <button type="submit">Entrar</button>
+            <p class="entrar__rodape">Araújo Advocacia · uso interno</p>
+        </EditForm>
+    </div>
+</div>
 
 @code {
     private string? _erro;

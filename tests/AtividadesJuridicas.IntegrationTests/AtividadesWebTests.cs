@@ -52,8 +52,11 @@ public class AtividadesWebTests(BancoFixture banco) : IAsyncLifetime
 
         // As palavras acima também aparecem nos filtros (<option>); só a tabela tem estas células.
         html.Should().MatchRegex(@"<td>\s*Elaborar contestação\s*</td>");
-        html.Should().MatchRegex(@"<td>\s*Direcionada\s*<strong[^>]*>Atrasada</strong>\s*</td>");
-        html.Should().MatchRegex(@"<td>\s*Criada\s*</td>");
+        // A situação é uma etiqueta do design system; a entrega vencida ganha a etiqueta Atrasada ao lado.
+        html.Should().MatchRegex(
+            @"<td>\s*<span class=""aj-etiqueta aj-etiqueta--direcionada"">Direcionada</span>\s*" +
+            @"<span class=""aj-etiqueta aj-etiqueta--atrasada"">(<svg.*?</svg>)?Atrasada</span>\s*</td>");
+        html.Should().MatchRegex(@"<td>\s*<span class=""aj-etiqueta aj-etiqueta--criada"">Criada</span>\s*</td>");
         html.Should().MatchRegex(@"<td>\s*15/01/2020\s*</td>");
         html.Should().MatchRegex(@"<td>\s*Pedro Produção\s*</td>");
     }
