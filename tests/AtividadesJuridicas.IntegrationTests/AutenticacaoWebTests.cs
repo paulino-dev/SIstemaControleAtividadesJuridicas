@@ -79,6 +79,8 @@ public partial class AutenticacaoWebTests(BancoFixture banco) : IAsyncLifetime
         var html = WebUtility.HtmlDecode(await resposta.Content.ReadAsStringAsync());
         html.Should().Contain("Ocorreu um erro inesperado.");
         html.Should().NotContain("Exception").And.NotContain("StackTrace").And.NotContain("   at ");
+        html.Should().MatchRegex("<main class=\"aj-estado aj-estado--pagina\">\\s*<img[^>]*>\\s*<h1 class=\"aj-titulo\">Ocorreu um erro inesperado\\.</h1>")
+            .And.Contain("<a href=\"/\" class=\"aj-botao aj-botao--secundario\">Voltar ao início</a>");
     }
 
     [Fact]
@@ -91,6 +93,24 @@ public partial class AutenticacaoWebTests(BancoFixture banco) : IAsyncLifetime
         resposta.StatusCode.Should().Be(HttpStatusCode.NotFound);
         var html = WebUtility.HtmlDecode(await resposta.Content.ReadAsStringAsync());
         html.Should().Contain("Página não encontrada").And.Contain("href=\"/\"");
+        var corpo = Regex.Match(html, "<main[^>]*>.*?</main>", RegexOptions.Singleline).Value;
+        corpo.Should().MatchRegex("<div class=\"aj-estado\">\\s*<img[^>]*>\\s*<h1 class=\"aj-titulo\">Página não encontrada</h1>\\s*<p class=\"aj-subtitulo\">O endereço acessado não existe\\.</p>\\s*<a href=\"/\" class=\"aj-botao aj-botao--secundario\">Voltar ao início</a>");
+        // No mobile vale a barra de logo: a tela não entrega barra própria.
+        Regex.Matches(html, "<header class=\"aj-barra-superior").Should().ContainSingle();
+        Regex.Matches(html, "<h1").Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Faixa_de_erro_e_aviso_de_reconexao_estao_em_portugues()
+    {
+        await EntrarAsync("diana@x.com", "senha-segura");
+
+        var html = WebUtility.HtmlDecode(await _cliente.GetStringAsync("/"));
+
+        html.Should().MatchRegex("<div id=\"blazor-error-ui\" class=\"aj-faixa-erro\"")
+            .And.Contain("aria-label=\"Fechar aviso\"")
+            .And.Contain("Reconectando ao servidor…").And.Contain("Tentar de novo").And.Contain("Retomar")
+            .And.NotContain("Rejoin").And.NotContain("Retry").And.NotContain("Resume");
     }
 
     [Fact]

@@ -22,9 +22,6 @@ h2 { margin: var(--espaco-28) 0 var(--espaco-10); font: 700 18px/1.3 var(--font-
 h3 { margin: var(--espaco-18) 0 var(--espaco-8); font: 700 16px/1.4 var(--font-sans); }
 p { margin: var(--espaco-8) 0; }
 
-.centro { min-height: 100dvh; display: grid; place-content: center; gap: var(--espaco-16); padding: var(--espaco-16); }
-.centro:has(.entrar) { display: block; padding: 0; }
-
 /* As regras de elemento abaixo não valem para os componentes do design system (classes aj-). */
 
 /* ---------- Botões ---------- */
@@ -148,25 +145,3 @@ strong.erro { margin-left: var(--espaco-6); }
     .entrar__cartao, form.formulario.entrar__cartao { padding: 22px 20px; border-radius: var(--raio-20); }
     .entrar__cartao h1 { font-size: 28px; }
 }
-
-/* ---------- Erro do Blazor ---------- */
-#blazor-error-ui {
-    color-scheme: light only;
-    background: var(--aviso-fundo);
-    bottom: 0;
-    box-shadow: 0 -1px 2px rgba(0, 0, 0, 0.2);
-    box-sizing: border-box;
-    display: none;
-    left: 0;
-    padding: 0.6rem 1.25rem 0.7rem 1.25rem;
-    position: fixed;
-    width: 100%;
-    z-index: 1000;
-}
-
-    #blazor-error-ui .dismiss {
-        cursor: pointer;
-        position: absolute;
-        right: 0.75rem;
-        top: 0.5rem;
-    }
