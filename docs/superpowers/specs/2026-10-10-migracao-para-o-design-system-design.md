@@ -1,11 +1,11 @@
 # Migração das telas para o design system — fidelidade ao canvas
 
 Data: 2026-10-10
-Estado: aguardando revisão
+Estado: aprovada pelo usuário em 2026-10-10; fase 9A executada
 Fontes de desenho:
 
 - Canvas de telas: https://claude.ai/artifact/HzHWv1pgVXAnYHuPEYQDFj (versão lida: `1791598628-21e1`)
-- Design system: https://claude.ai/artifact/G8rFozAhnH4eMqctLNTvbS (versão lida: `1791598661-a3fd`)
+- Design system: https://claude.ai/artifact/G8rFozAhnH4eMqctLNTvbS (versão lida: `1791598661-a3fd`; a fase 9A publicou a `1791646790-3a09`)
 
 ## 1. Objetivo
 
@@ -303,6 +303,15 @@ Por fase:
 - Conferência estrutural: as classes e a ordem dos blocos do HTML renderizado batem com as do quadro.
 - Navegação por teclado em cada tela nova: foco no título ao entrar, ordem de tabulação, menu de ações.
 
+Como a fase 9A fez a conferência (emenda de 2026-10-10), para as fases seguintes repetirem:
+
+- A tela é medida, não só olhada: estilos computados e caixas dos blocos são comparados com os valores do quadro, e o roteiro devolve só o que diverge. A captura fica como registro para o usuário.
+- As três larguras são vistas em molduras da mesma origem (1440×900, 834×1194 e 390×844) abertas sobre uma aba do próprio sistema. A moldura responde às consultas de mídia pela própria largura e, reduzida por `transform`, cabe inteira na janela, com as três visões lado a lado numa captura só.
+- Com a aba em segundo plano o Chrome estrangula os temporizadores da página. As esperas dos roteiros usam um Worker, que não é estrangulado.
+- `EditForm` com `FormName` emite campos ocultos antes dos campos da tela. O roteiro escolhe os campos pela classe (`input.aj-campo`), nunca pela posição.
+- Elemento com `display: contents` não tem caixa. A visão ativa de um invólucro se confere pelo `display` computado, não pela caixa.
+- Enter num formulário com um botão de envio por visão envia uma vez só, pelo primeiro botão da marcação, mesmo quando ele está escondido naquela largura.
+
 ## 12. Fases
 
 | Fase | Conteúdo |
@@ -336,3 +345,12 @@ Por fase:
 | Asserção reescrita que passa a não provar nada | Revisão das asserções negativas uma a uma; cada uma ganha uma afirmação positiva ao lado |
 | Fases longas divergindo da `main` | Fase curta, entrada na `main` ao fim de cada uma |
 | Desenho novo (seção 9) não agradar | Cada item aparece primeiro na fase que o usa, é mostrado no navegador e pode ser ajustado antes da entrada na `main` |
+
+## 15. Anotado na fase 9A para as fases seguintes
+
+Vistos na conferência da fase 9A, fora do que ela mudava. Nenhum é regressão da migração.
+
+- Bloco do usuário no menu: nome longo quebra em mais de uma linha, sem reticências. É regra do design system anterior à fase. A decidir na 9G.
+- Menu aberto por "Mais" no tablet e no mobile: o foco continua no título da tela, não vai para o menu. A decidir na 9G, junto da revisão de teclado de todas as telas.
+- Login: depois de um erro de credencial o campo de senha volta preenchido na resposta. Já era assim antes da migração; limpar o campo é mudança de comportamento, fora desta spec.
+- Telas ainda não migradas, no mobile: o respiro inferior do conteúdo passou de 96 para 104 px, o valor do canvas para tela com barra inferior.
