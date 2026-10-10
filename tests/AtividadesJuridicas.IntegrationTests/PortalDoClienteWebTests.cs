@@ -183,7 +183,8 @@ public class PortalDoClienteWebTests(BancoFixture banco) : IAsyncLifetime
         barra.Should().NotBeEmpty();
         Destinos(trilho).Should().Equal("/", "/andamento", "/meus-documentos", "/documentos-comuns", "/minha-senha");
         Destinos(barra).Should().Equal("/", "/andamento", "/meus-documentos");
-        barra.Should().Contain("Documentos");
+        // O rótulo é "Documentos", sozinho: "Meus documentos" e "Documentos comuns" não casam.
+        barra.Should().MatchRegex(@"</span>\s*Documentos\s*</a>");
     }
 
     [Fact]

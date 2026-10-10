@@ -198,6 +198,7 @@ O layout tem três navegações, e cada item fica assim nelas:
 - Menu lateral (desktop): o cliente tem o grupo "Portal" com os cinco itens. A Diretoria tem "Documentos comuns" no grupo "Cadastros", depois de Processos; a Produção não ganha o item.
 - Trilho (tablet): o cliente tem Início, Andamento, Meus documentos e Documentos comuns, mais "Mais". Minha senha fica no avatar do rodapé.
 - Barra inferior (mobile): o cliente tem Início, Andamento e "Documentos" (Meus documentos), mais "Mais". O restante abre em "Mais", que mostra o menu completo.
+- No trilho e na barra inferior, a Diretoria chega a "Documentos comuns" por "Mais".
 
 Uma página interna aberta por um usuário-cliente mostra "Página não encontrada" e não é montada: não chega a consultar nada. O cookie de um usuário de perfil `Cliente` leva uma marca de portal (`atividades:portal`), que serve só para o layout saber, sem esperar consulta, que não deve montar páginas internas. A marca não autoriza nada: perfil, estado ativo e cliente continuam lidos do banco a cada operação, e quem nega é o portão. Como o usuário não troca entre o tipo `Cliente` e os internos, a marca não envelhece.
 
