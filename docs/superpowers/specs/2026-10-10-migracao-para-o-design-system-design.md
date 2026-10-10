@@ -17,7 +17,7 @@ Hoje as páginas Razor usam a marcação antiga (`h1`, `table`, `.filtros`, `.fi
 
 - Cada tela com quadro no canvas, aberta na largura do quadro, mostra a mesma estrutura, os mesmos componentes, os mesmos textos e as mesmas medidas do quadro.
 - Nenhuma função que o sistema tem hoje deixa de existir.
-- Nenhuma tela tem CSS próprio: todo estilo vem de `css/tokens.css` e `css/componentes.css`, que são cópias do design system.
+- Nenhuma tela tem CSS próprio: todo estilo vem de `css/tokens.css` e `css/componentes.css`, que são cópias do design system. A única exceção é `ReconnectModal.razor.css`, do aviso de reconexão do Blazor, que não é tela: as regras que o framework exige, escritas só com os tokens.
 - O `app.css` termina sem nenhuma regra que vista marcação antiga.
 - As duas suítes de teste passam, e cada asserção reescrita continua provando o que provava.
 
@@ -119,7 +119,7 @@ Componentes de um assunto só (cartão de atividade, cartão de evento, linha de
 
 ### 4.6 Ícones
 
-`Icone.razor` ganha: `adicionar`, `buscar`, `filtros`, `filtrar` (funil), `voltar`, `avancar`, `confirmar`, `excluir`, `devolver`, `entrar`, `baixar`, `atencao`, `erro`, `enviar` e `planilha`. Os traçados vêm do grupo Icones do design system e dos quadros. O componente passa a aceitar tamanho, para uso fora de menu e botão.
+`Icone.razor` ganha: `adicionar`, `buscar`, `filtros`, `filtrar` (funil), `voltar`, `avancar`, `confirmar`, `excluir`, `devolver`, `entrar`, `baixar`, `atencao`, `erro`, `enviar` e `planilha`. Os traçados vêm do grupo Icones do design system e dos quadros. O componente passa a aceitar uma classe (`Classe`), para uso fora de menu e botão; o tamanho vem da classe do design system.
 
 ## 5. Rotas
 
@@ -179,7 +179,7 @@ O inventário abaixo vem do levantamento de 2026-10-10. O plano de cada fase rel
 | Não encontrada | `NaoEncontrada*` | `Pages/NaoEncontrada.razor` | Bloco centralizado com símbolo e botão secundário |
 | Menu aberto por "Mais" | `MaisTablet`, `MaisMobile` | `Layout/MainLayout.razor` | Já corresponde; ganha "Mais" ativo |
 
-Sem quadro, pelo design system: página de erro (bloco centralizado, como a não encontrada), faixa de erro do Blazor e aviso de reconexão (texto em português, `aj-aviso`).
+Sem quadro, pelo design system: página de erro (bloco centralizado, como a não encontrada), faixa de erro do Blazor (`aj-faixa-erro`) e aviso de reconexão (texto em português; é o `<dialog>` do Blazor, com CSS próprio sobre os tokens e botões `aj-botao`; espera 0,3 s para aparecer, sem movimento).
 
 ### 7.2 Portal do cliente (fase 9B)
 
@@ -354,3 +354,23 @@ Vistos na conferência da fase 9A, fora do que ela mudava. Nenhum é regressão 
 - Menu aberto por "Mais" no tablet e no mobile: o foco continua no título da tela, não vai para o menu. A decidir na 9G, junto da revisão de teclado de todas as telas.
 - Login: depois de um erro de credencial o campo de senha volta preenchido na resposta. Já era assim antes da migração; limpar o campo é mudança de comportamento, fora desta spec.
 - Telas ainda não migradas, no mobile: o respiro inferior do conteúdo passou de 96 para 104 px, o valor do canvas para tela com barra inferior.
+
+Da revisão final do branch da fase 9A:
+
+- Navegador mínimo: o layout depende de `:has()` (Chrome 105, Safari 15.4, Firefox 121). Sem ele a regra interina do `app.css` não vale e a barra inferior cobre o botão fixo das telas com barra de voltar.
+- Na abertura da 9B, antes das telas:
+  - reforçar a trava das telas migradas (`TelasNoDesignSystemTests`): recusar `<style` e arquivo `.razor.css` ao lado da tela; recusar `<button`, `<table`, `<input`, `<select` e `<textarea` sem `class`; conferir também `Classe=` de componente; separar as classes por qualquer espaço em branco;
+  - tirar de `LayoutWebTests` os testes de Início e de Minha senha, cada tela no seu arquivo, e criar o auxiliar de recorte por visão;
+  - afirmar no teste que a barra da tela é irmã imediatamente anterior da barra padrão (o CSS que esconde a padrão depende disso);
+  - cobrir os estados "falha dos totais" e "acesso encerrado" do início;
+  - dar classe do design system ao ícone "mais", que ainda sai com `style`.
+- Enquanto uma tela não for migrada, nenhum componente do design system entra solto no topo do conteúdo dela: a regra interina a trataria como migrada. Há teste que trava isso para as telas da equipe.
+- Em cada fase, listar as regras de elemento do `app.css` que alcançam as classes `aj-` que a fase vai usar e tirá-las junto com a tela. Já conhecidas: `h1 { letter-spacing }`, que chega ao título da barra de voltar, e `.aj-etiqueta + .aj-etiqueta { margin-left }`, que somaria ao `gap` de duas etiquetas num cartão.
+- Para a 9G, junto da revisão de teclado e de leitor de tela:
+  - "Mais" fica com `aria-current="page"` enquanto o menu está aberto (o estado aberto já é dito por `aria-expanded`); a troca do gancho de estilo é do design system;
+  - "Exibir menu" e "Esconder menu" somem depois do clique e o foco se perde;
+  - há três `<nav aria-label="Principal">`, dois à vista com o menu aberto no tablet;
+  - a rolagem do conteúdo é preservada entre navegações;
+  - "Mais", o nome e o grupo Administração piscam ao conectar o circuito, porque o ator chega depois da primeira renderização interativa;
+  - entre 1199 e 1200 px (largura fracionária, com zoom) nenhuma das duas consultas de mídia vale; no design system, `(width < 1200px)` e `(width >= 1200px)`.
+- Fora da migração, como tarefa de segurança própria: o login devolve a senha digitada no HTML da resposta quando a credencial é recusada, e os botões de envio do login e de Minha senha não se desabilitam durante o envio.
