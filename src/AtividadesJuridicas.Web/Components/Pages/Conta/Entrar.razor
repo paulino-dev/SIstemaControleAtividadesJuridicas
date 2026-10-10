@@ -10,50 +10,53 @@
 
 <PageTitle>Entrar</PageTitle>
 
-<div class="entrar">
-    <section class="entrar__marca" aria-label="Araújo Advocacia">
-        <img class="entrar__dagua" src="img/simbolo-claro.svg" alt="" width="700" height="782" />
-        <img class="entrar__logo" src="img/logo-vertical-ampla-escuro.svg" alt="Araújo Advocacia" width="200" height="193" />
-        <div class="entrar__texto">
-            <span class="entrar__sobretitulo">Sistema interno</span>
-            <p class="entrar__nome">Atividades Jurídicas</p>
-            <p class="entrar__frase">Agenda, prazos e atividades do escritório em um só lugar.</p>
+<div class="aj-entrar">
+    <section class="aj-entrar__marca" aria-label="Araújo Advocacia">
+        <img class="aj-entrar__dagua" src="img/simbolo-claro.svg" alt="" width="700" height="782" />
+        <img class="aj-entrar__logo" src="img/logo-vertical-ampla-escuro.svg" alt="Araújo Advocacia" width="236" height="227" />
+        <div class="aj-entrar__texto">
+            <span class="aj-entrar__sobretitulo">Sistema interno</span>
+            <p class="aj-entrar__nome">Atividades Jurídicas</p>
+            <p class="aj-entrar__frase">Agenda, prazos e atividades do escritório em um só lugar.</p>
         </div>
     </section>
 
-    <div class="entrar__area">
-        @if (Aviso == "senha-alterada")
-        {
-            <p class="ok" role="status">Senha alterada. Entre novamente com a nova senha.</p>
-        }
-
-        <EditForm Model="Entrada" FormName="entrar" OnValidSubmit="EntrarAsync" method="post" class="entrar__cartao">
+    <main class="aj-entrar__area">
+        <EditForm Model="Entrada" FormName="entrar" OnValidSubmit="EntrarAsync" method="post" class="aj-entrar__cartao">
             <DataAnnotationsValidator />
 
-            <h1>Entrar</h1>
-            <p class="entrar__ajuda">Acesse com o e-mail e a senha do escritório.</p>
+            <div class="aj-entrar__titulo">
+                <h1>Entrar</h1>
+                <p><span class="aj-desktop-tablet">Acesse com o e-mail e a senha do escritório.</span><span class="aj-so-mobile">Use o e-mail e a senha do escritório.</span></p>
+            </div>
+
+            @if (AvisoDaConsulta == "senha-alterada")
+            {
+                <Aviso Tipo="TipoDeAviso.Sucesso">Senha alterada. Entre novamente com a nova senha.</Aviso>
+            }
 
             @if (_erro is not null)
             {
-                <p class="erro" role="alert">@_erro</p>
+                <Aviso Tipo="TipoDeAviso.Erro">@_erro</Aviso>
             }
 
-            <label>
-                E-mail
-                <InputText @bind-Value="Entrada.Email" type="email" autocomplete="username" />
-                <ValidationMessage For="() => Entrada.Email" />
-            </label>
+            <div class="aj-entrar__campos">
+                <RotuloDeCampo Texto="E-mail" Para="() => Entrada.Email">
+                    <InputText @bind-Value="Entrada.Email" type="email" inputmode="email" autocomplete="username" placeholder="nome@araujoadvocacia.com.br" class="aj-campo" />
+                </RotuloDeCampo>
 
-            <label>
-                Senha
-                <InputText @bind-Value="Entrada.Senha" type="password" autocomplete="current-password" />
-                <ValidationMessage For="() => Entrada.Senha" />
-            </label>
+                <RotuloDeCampo Texto="Senha" Para="() => Entrada.Senha">
+                    <InputText @bind-Value="Entrada.Senha" type="password" autocomplete="current-password" class="aj-campo" />
+                </RotuloDeCampo>
 
-            <button type="submit">Entrar</button>
-            <p class="entrar__rodape">Araújo Advocacia · uso interno</p>
+                <button type="submit" class="aj-botao aj-botao--primario"><span>Entrar</span><Icone Nome="entrar" /></button>
+            </div>
+
+            <p class="aj-entrar__rodape aj-entrar__rodape--cartao">Araújo Advocacia · uso interno</p>
         </EditForm>
-    </div>
+
+        <p class="aj-entrar__rodape aj-entrar__rodape--pagina">Araújo Advocacia · uso interno</p>
+    </main>
 </div>
 
 @code {
@@ -72,8 +75,8 @@
     [SupplyParameterFromQuery]
     private string? ReturnUrl { get; set; }
 
-    [SupplyParameterFromQuery]
-    private string? Aviso { get; set; }
+    [SupplyParameterFromQuery(Name = "aviso")]
+    private string? AvisoDaConsulta { get; set; }
 
     private async Task EntrarAsync()
     {

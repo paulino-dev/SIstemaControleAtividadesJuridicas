@@ -118,6 +118,62 @@ public partial class AutenticacaoWebTests(BancoFixture banco) : IAsyncLifetime
     {
         (await _cliente.GetAsync("/conta/entrar")).StatusCode.Should().Be(HttpStatusCode.OK);
         (await _cliente.GetAsync("/app.css")).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await _cliente.GetAsync("/css/tokens.css")).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await _cliente.GetAsync("/css/componentes.css")).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await _cliente.GetAsync("/img/logo-vertical-ampla-escuro.svg")).StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task Tela_de_login_segue_o_quadro()
+    {
+        var html = WebUtility.HtmlDecode(await _cliente.GetStringAsync("/conta/entrar"));
+
+        html.Should().Contain("<span class=\"aj-entrar__sobretitulo\">Sistema interno</span>")
+            .And.Contain("<p class=\"aj-entrar__nome\">Atividades Jurídicas</p>")
+            .And.Contain("Agenda, prazos e atividades do escritório em um só lugar.")
+            .And.Contain("<span class=\"aj-desktop-tablet\">Acesse com o e-mail e a senha do escritório.</span>")
+            .And.Contain("<span class=\"aj-so-mobile\">Use o e-mail e a senha do escritório.</span>")
+            .And.Contain("placeholder=\"nome@araujoadvocacia.com.br\"")
+            .And.MatchRegex("<button type=\"submit\" class=\"aj-botao aj-botao--primario\"><span>Entrar</span>\\s*<svg");
+        Regex.Matches(html, "Araújo Advocacia · uso interno").Should().HaveCount(2);
+        Regex.Matches(html, "<main").Should().ContainSingle();
+        Regex.Matches(html, "<h1").Should().ContainSingle();
+        html.Should().NotContain("aj-aviso");
+    }
+
+    [Fact]
+    public async Task Login_com_campos_vazios_marca_os_campos_e_mantem_o_formulario()
+    {
+        var resposta = await EntrarAsync("", "");
+
+        resposta.StatusCode.Should().Be(HttpStatusCode.OK);
+        var html = WebUtility.HtmlDecode(await resposta.Content.ReadAsStringAsync());
+        Regex.Matches(html, "<label class=\"aj-rotulo aj-rotulo--erro\">").Should().HaveCount(2);
+        html.Should().Contain("<span class=\"aj-campo-erro\">Informe o e-mail.</span>")
+            .And.Contain("<span class=\"aj-campo-erro\">Informe a senha.</span>");
+        Regex.Matches(html, "aria-invalid=\"true\"").Should().HaveCount(2);
+        // O formulário continua pronto para a próxima tentativa.
+        TokenRegex().IsMatch(html).Should().BeTrue();
+        html.Should().Contain("name=\"Entrada.Email\"").And.Contain("name=\"Entrada.Senha\"");
+    }
+
+    [Fact]
+    public async Task Login_errado_mostra_o_aviso_de_erro_dentro_do_cartao()
+    {
+        var resposta = await EntrarAsync("diana@x.com", "senha-errada");
+
+        var html = WebUtility.HtmlDecode(await resposta.Content.ReadAsStringAsync());
+        var cartao = Regex.Match(html, "<form[^>]*class=\"aj-entrar__cartao\".*?</form>", RegexOptions.Singleline).Value;
+        cartao.Should().MatchRegex("<p class=\"aj-aviso aj-aviso--erro\" role=\"alert\">\\s*<svg.*?</svg>\\s*<span>E-mail ou senha inválidos\\.</span></p>");
+        cartao.Should().NotContain("aj-rotulo--erro");
+    }
+
+    [Fact]
+    public async Task Login_depois_da_troca_de_senha_mostra_o_aviso_de_sucesso()
+    {
+        var html = WebUtility.HtmlDecode(await _cliente.GetStringAsync("/conta/entrar?aviso=senha-alterada"));
+
+        html.Should().MatchRegex("<p class=\"aj-aviso aj-aviso--sucesso\" role=\"status\">\\s*<svg.*?</svg>\\s*<span>Senha alterada\\. Entre novamente com a nova senha\\.</span></p>");
     }
 
     [Fact]
