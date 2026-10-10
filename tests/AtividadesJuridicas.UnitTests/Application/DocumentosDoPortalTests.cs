@@ -270,6 +270,14 @@ public class DocumentosDoPortalTests
     }
 
     [Fact]
+    public void Linha_do_documento_do_portal_tem_exatamente_os_cinco_campos()
+    {
+        typeof(DocumentoDoPortal).GetProperties().Select(p => p.Name).Order().Should().Equal(
+            ["EnviadoEm", "EnviadoPor", "Id", "Nome", "TamanhoBytes"],
+            "acrescentar um campo ao que o cliente lê é uma decisão: acrescente-o aqui e na spec do portal");
+    }
+
+    [Fact]
     public void Consultas_do_portal_sao_auditaveis_e_nao_tem_campo_de_cliente()
     {
         IConsultaAuditavel[] consultas = [new ListarMeusDocumentos(), new ListarDocumentosComuns()];

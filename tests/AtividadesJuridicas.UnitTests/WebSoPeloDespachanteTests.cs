@@ -14,7 +14,7 @@ public partial class WebSoPeloDespachanteTests
         ["ValidacaoDeSessao.cs"] = "valida o cookie a cada requisição HTTP: lê só o usuário e o cliente dele, não executa caso de uso",
     };
 
-    [GeneratedRegex(@"\b(I\w+Repositorio|AppDbContext|IUnidadeDeTrabalho|IClientesDaIdentidade|IManipulador\s*<)")]
+    [GeneratedRegex(@"\b(I\w+Repositorio|AppDbContext|IUnidadeDeTrabalho|IClientesDaIdentidade|IArmazenamentoDeArquivos|IConsultaDeAuditoria|IPendenciasDoUsuario|IAtividadesDoProcesso|IResponsaveisDeAtividade|IManipulador\s*<)")]
     private static partial Regex AcessoPorFora();
 
     [Fact]

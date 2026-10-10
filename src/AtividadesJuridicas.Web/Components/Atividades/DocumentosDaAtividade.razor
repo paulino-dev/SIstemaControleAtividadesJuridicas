@@ -51,7 +51,7 @@
                                    é o que impede o roteador do Blazor de interceptar o clique; não o remova. *@
                                 <a href="@($"/documentos/{documento.Id}/baixar")" download data-enhance-nav="false">@documento.Nome</a>
                             </td>
-                            <td>@Tamanho(documento.TamanhoBytes)</td>
+                            <td>@TamanhoDeArquivo.Formatar(documento.TamanhoBytes)</td>
                             <td>@Fuso.Formatar(documento.EnviadoEm)</td>
                             <td>@documento.EnviadoPor</td>
                             <td class="acoes">
@@ -372,11 +372,4 @@
         _mensagem = mensagem;
         _falhou = falhou;
     }
-
-    private static string Tamanho(long bytes) => bytes switch
-    {
-        >= UmMegabyte => $"{bytes / (double)UmMegabyte:0.#} MB",
-        >= 1024 => $"{bytes / 1024d:0.#} KB",
-        _ => $"{bytes} B",
-    };
 }

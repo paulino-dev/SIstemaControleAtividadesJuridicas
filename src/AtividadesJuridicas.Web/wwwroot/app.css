@@ -15,6 +15,7 @@ label { display: grid; gap: .25rem; font-size: .9rem; }
 input, select { padding: .5rem; border: 1px solid var(--borda); border-radius: .375rem; font: inherit; }
 button { padding: .5rem 1rem; border: 1px solid var(--primaria); border-radius: .375rem; background: var(--primaria); color: #fff; font: inherit; cursor: pointer; }
 button.secundario { background: #fff; color: var(--primaria); }
+button:disabled { opacity: .55; cursor: not-allowed; }
 table { width: 100%; border-collapse: collapse; background: #fff; }
 th, td { padding: .5rem .75rem; border-bottom: 1px solid var(--borda); text-align: left; }
 .acoes { display: flex; gap: .5rem; }
@@ -53,6 +54,9 @@ td code { font-size: .8rem; word-break: break-all; }
 .ficha { background: #fff; border: 1px solid var(--borda); border-radius: .5rem; padding: 1rem; margin-top: 1rem; }
 .ficha dl { display: grid; grid-template-columns: 12rem 1fr; gap: .25rem .75rem; margin: 0; }
 .ficha dt { font-weight: 600; }
+.totais { display: grid; grid-template-rows: auto auto; grid-auto-flow: column; grid-auto-columns: minmax(9rem, 12rem); gap: 0 1.5rem; margin: 1rem 0; }
+.totais dt { font-size: .875rem; }
+.totais dd { margin: 0; font-size: 1.75rem; font-weight: 600; color: var(--primaria); }
 /* Texto digitado em várias linhas (descrição, direcionamento, motivo) mantém as quebras de linha. */
 .texto-livre { white-space: pre-wrap; }
 textarea { padding: .5rem; border: 1px solid var(--borda); border-radius: .375rem; font: inherit; }

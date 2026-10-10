@@ -27,7 +27,7 @@ public sealed class ListarDocumentosDoClienteManipulador(IContextoDeAcesso conte
             return Falha(TipoErro.Validacao, "Categoria inválida para esta consulta.");
 
         // Contrato de honorários e documento do cliente: Produção não tem acesso, nem à lista.
-        if (requisicao.Categoria is CategoriaDocumento.ContratoHonorarios or CategoriaDocumento.DocumentoDoCliente
+        if (requisicao.Categoria is (CategoriaDocumento.ContratoHonorarios or CategoriaDocumento.DocumentoDoCliente)
             && !ator.EhDiretoria)
             return Falha(TipoErro.AcessoNegado, "Acesso negado.");
 

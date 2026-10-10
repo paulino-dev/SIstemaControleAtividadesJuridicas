@@ -1,4 +1,4 @@
-﻿using AtividadesJuridicas.Application.Atividades;
+using AtividadesJuridicas.Application.Atividades;
 using AtividadesJuridicas.Application.Auditoria;
 using AtividadesJuridicas.Application.Comum;
 using AtividadesJuridicas.Application.Identidade;

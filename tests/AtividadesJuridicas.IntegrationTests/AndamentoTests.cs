@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using AtividadesJuridicas.Application.Atividades;
 using AtividadesJuridicas.Application.Cadastros;
 using AtividadesJuridicas.Application.Identidade;

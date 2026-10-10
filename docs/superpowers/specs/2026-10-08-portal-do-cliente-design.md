@@ -74,7 +74,7 @@ Regras:
 
 O executor de requisições consulta o ator antes de chamar o caso de uso:
 
-- Sem ator (sem usuário autenticado, como no login, ou autenticado sem acesso: usuário inativo, cliente inativo ou par perfil/cliente incoerente), o portão não age; cada caso de uso mantém a verificação que já faz.
+- Sem ator (sem usuário autenticado, como no login, ou autenticado sem acesso: usuário inativo, sessão invalidada pela troca da versão de sessão, perfil que não existe mais, par perfil/cliente incoerente ou cliente inativo), o portão não age; cada caso de uso mantém a verificação que já faz.
 - Ator de tipo `Diretoria` ou `Producao`: nada muda.
 - Ator de tipo `Cliente`: a requisição só segue se estiver marcada com `IRequisicaoAbertaAoCliente`. Caso contrário, o executor responde `AcessoNegado` sem chamar o caso de uso, e a tentativa gera o evento `acesso_negado` com o nome da requisição.
 
@@ -306,6 +306,8 @@ As duas fases 7 e 8 mexem no menu, no formulário de atividade, na modelagem de 
 A modelagem de domínio é emendada ao fim de cada fase com as regras fixadas, como nas fases anteriores.
 
 **Implantação.** Na primeira subida da versão nova o semeador cria o perfil "Cliente", que passa a aparecer em Perfis e no seletor de Usuários. Depois de existir usuário de cliente, **voltar para uma versão anterior ao portão não é seguro**: a versão antiga trata o tipo Cliente como Produção, e o cliente leria clientes e processos. Antes de reverter, inativar todos os usuários vinculados a cliente.
+
+Reverter o esquema da 8B também exige cuidado. Desfazer a migration `DocumentosDoPortal` volta a restrição antiga do banco, e ela falha se existir qualquer Documento comum, mesmo excluído logicamente: categoria sem cliente viola a restrição anterior. Antes de reverter o esquema, remova esses registros. Voltar só o binário para a versão da 8A, mantendo o esquema novo, é seguro para os dados: os documentos das duas categorias novas somem das telas e ninguém passa a lê-los.
 
 A fase 8B está concluída, e a modelagem de domínio foi emendada com as regras dela.
 

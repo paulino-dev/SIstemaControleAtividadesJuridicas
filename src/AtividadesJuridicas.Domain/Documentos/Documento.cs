@@ -232,8 +232,9 @@ public sealed class Documento : Entidade
     private static Documento Criar(CategoriaDocumento categoria, Guid? clienteId, string? nome, ArquivoDoDocumento arquivo)
     {
         ArgumentNullException.ThrowIfNull(arquivo);
-        if (clienteId == Guid.Empty || (clienteId is null && categoria is CategoriaDocumento.DocumentoGeral or CategoriaDocumento.ContratoHonorarios
-                or CategoriaDocumento.DocumentoDoCliente))
+        if (clienteId == Guid.Empty || (clienteId is null
+                && categoria is (CategoriaDocumento.DocumentoGeral or CategoriaDocumento.ContratoHonorarios
+                    or CategoriaDocumento.DocumentoDoCliente)))
             throw new ExcecaoDeDominio(ClienteObrigatorio);
         if (string.IsNullOrWhiteSpace(arquivo.NomeOriginal))
             throw new ExcecaoDeDominio("O nome do arquivo é obrigatório.");
