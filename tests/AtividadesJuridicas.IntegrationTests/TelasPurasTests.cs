@@ -318,3 +318,15 @@ public class TextosDaInativacaoTests
         TextosDaInativacao.Pergunta("Ana").Should().Be("Confirmar a inativação de Ana?");
     }
 }
+
+public class ContagemTests
+{
+    [Theory]
+    [InlineData(0, "0 documentos")]
+    [InlineData(1, "1 documento")]
+    [InlineData(8, "8 documentos")]
+    public void Contagem_usa_o_singular_so_para_um(int quantidade, string esperado)
+    {
+        Contagem.De(quantidade, "documento", "documentos").Should().Be(esperado);
+    }
+}

@@ -2,7 +2,8 @@
 
 @* Cabeçalho de página do design system. Emite as duas formas e o CSS mostra a da visão atual: no desktop e no
    tablet, o aj-cabecalho dentro do conteúdo; no mobile, a barra superior da tela, no encaixe do layout.
-   Com VoltarPara, a barra do mobile é a de voltar (ficha e formulário), e a barra inferior some. *@
+   Com VoltarPara, a barra do mobile é a de voltar (ficha e formulário), e a barra inferior some.
+   Com Acao, a ação principal da tela: botão primário no cabeçalho e, no mobile, botão flutuante. *@
 <SectionContent SectionName="@Encaixes.BarraSuperior">
     @if (VoltarPara is not null)
     {
@@ -45,8 +46,31 @@
                 }
             </div>
         </div>
+        @if (Acao is not null)
+        {
+            @if (AcaoHref is not null)
+            {
+                <a href="@AcaoHref" class="aj-botao aj-botao--primario aj-botao--com-icone"><Icone Nome="@IconeDaAcao" />@Acao</a>
+            }
+            else
+            {
+                <button type="button" class="aj-botao aj-botao--primario aj-botao--com-icone" @onclick="OnAcao"><Icone Nome="@IconeDaAcao" />@Acao</button>
+            }
+        }
     </header>
 </div>
+
+@if (Acao is not null)
+{
+    @if (AcaoHref is not null)
+    {
+        <a href="@AcaoHref" class="aj-fab" aria-label="@Acao"><Icone Nome="@IconeDaAcao" /></a>
+    }
+    else
+    {
+        <button type="button" class="aj-fab" aria-label="@Acao" @onclick="OnAcao"><Icone Nome="@IconeDaAcao" /></button>
+    }
+}
 
 @code {
     [CascadingParameter] private ContextoDoLayout? Contexto { get; set; }
@@ -67,6 +91,17 @@
 
     /// <summary>O rótulo acessível do voltar: "Voltar para Início". Sem ele, o botão diz só "Voltar".</summary>
     [Parameter] public string? RotuloDoVoltar { get; set; }
+
+    /// <summary>A ação principal da tela: botão no cabeçalho do desktop e do tablet, botão flutuante no mobile.</summary>
+    [Parameter] public string? Acao { get; set; }
+
+    /// <summary>O ícone da ação principal.</summary>
+    [Parameter] public string IconeDaAcao { get; set; } = "adicionar";
+
+    /// <summary>Destino da ação principal quando ela leva a outra tela. Sem ele, a ação chama <see cref="OnAcao"/>.</summary>
+    [Parameter] public string? AcaoHref { get; set; }
+
+    [Parameter] public EventCallback OnAcao { get; set; }
 
     private Task ExibirMenuAsync() => Contexto is { } contexto ? contexto.AlternarMenu.InvokeAsync() : Task.CompletedTask;
 }

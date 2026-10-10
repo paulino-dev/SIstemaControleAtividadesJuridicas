@@ -1,5 +1,5 @@
 @* Ícones de traço do design system (grade de 24px). O tamanho e a cor vêm do CSS de quem os contém. *@
-<svg class="@Classe" viewBox="0 0 24 24" aria-hidden="true" focusable="false" style="@(Nome == "mais" ? "fill:currentColor;stroke:none" : null)">@Tracado</svg>
+<svg class="@ClasseDoIcone" viewBox="0 0 24 24" aria-hidden="true" focusable="false">@Tracado</svg>
 
 @code {
     private static readonly Dictionary<string, MarkupString> Tracados = new()
@@ -41,6 +41,11 @@
 
     /// <summary>Classe do design system para o ícone solto (fora de menu e de botão), que traz tamanho e cor.</summary>
     [Parameter] public string? Classe { get; set; }
+
+    // Os três pontos são preenchidos; os demais ícones são de traço.
+    private string? ClasseDoIcone => Nome == "mais"
+        ? (Classe is null ? "aj-icone-cheio" : $"{Classe} aj-icone-cheio")
+        : Classe;
 
     private MarkupString Tracado => Tracados.TryGetValue(Nome, out var tracado) ? tracado : default;
 }

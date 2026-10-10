@@ -1,0 +1,29 @@
+@* O que aparece no lugar da lista: falha de consulta, carregando ou nada a mostrar. *@
+@if (Erro is not null)
+{
+    <Aviso Tipo="TipoDeAviso.Erro">
+        <ChildContent>@Erro</ChildContent>
+        <Acoes><button type="button" class="aj-botao aj-botao--secundario" @onclick="TentarDeNovo">Tentar de novo</button></Acoes>
+    </Aviso>
+}
+else if (Carregando)
+{
+    <p class="aj-subtitulo" role="status">Carregando…</p>
+}
+else if (Vazio)
+{
+    <div class="aj-estado-lista"><strong>@TextoDeVazio</strong></div>
+}
+else
+{
+    @ChildContent
+}
+
+@code {
+    [Parameter] public string? Erro { get; set; }
+    [Parameter] public bool Carregando { get; set; }
+    [Parameter] public bool Vazio { get; set; }
+    [Parameter, EditorRequired] public string TextoDeVazio { get; set; } = string.Empty;
+    [Parameter] public EventCallback TentarDeNovo { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

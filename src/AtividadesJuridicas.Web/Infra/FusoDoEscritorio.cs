@@ -56,6 +56,10 @@ public sealed class FusoDoEscritorio(string idDoFuso)
         return TimeZoneInfo.ConvertTimeToUtc(minuto, _fuso);
     }
 
+    /// <summary>Só o dia, no fuso do escritório.</summary>
+    public string FormatarData(DateTime? utc) =>
+        utc is { } valor ? ParaLocal(valor).ToString("dd/MM/yyyy", Cultura) : "—";
+
     public string Formatar(DateTime? utc) =>
         utc is { } valor ? ParaLocal(valor).ToString("dd/MM/yyyy HH:mm", Cultura) : "—";
 }

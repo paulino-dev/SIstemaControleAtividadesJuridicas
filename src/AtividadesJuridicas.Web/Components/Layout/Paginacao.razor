@@ -1,0 +1,31 @@
+@* A linha de paginação do design system, ao fim da lista. *@
+@if (SempreVisivel || TotalDePaginas > 1)
+{
+    <div class="aj-paginacao">
+        <span class="aj-subtitulo">@Texto</span>
+        <div class="aj-paginacao__botoes">
+            <button type="button" class="aj-botao aj-botao--secundario" disabled="@(Ocupado || Numero <= 1)" @onclick="() => IrPara.InvokeAsync(Numero - 1)">Anterior</button>
+            <button type="button" class="aj-botao aj-botao--secundario" disabled="@(Ocupado || Numero >= TotalDePaginas)" @onclick="() => IrPara.InvokeAsync(Numero + 1)">Próxima</button>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public int Numero { get; set; }
+    [Parameter, EditorRequired] public int TotalDePaginas { get; set; }
+    [Parameter, EditorRequired] public int Total { get; set; }
+
+    /// <summary>O nome do item: "atividade" e "atividades".</summary>
+    [Parameter, EditorRequired] public string Singular { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string Plural { get; set; } = string.Empty;
+
+    /// <summary>Mostra a linha mesmo com uma página só, como o quadro do Andamento no desktop.</summary>
+    [Parameter] public bool SempreVisivel { get; set; }
+
+    /// <summary>Uma consulta está em curso: os dois botões esperam.</summary>
+    [Parameter] public bool Ocupado { get; set; }
+
+    [Parameter] public EventCallback<int> IrPara { get; set; }
+
+    private string Texto => $"Página {Numero} de {TotalDePaginas} · {Contagem.De(Total, Singular, Plural)}";
+}
