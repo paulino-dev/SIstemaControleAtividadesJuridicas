@@ -1,0 +1,22 @@
+@* Faixa de retorno do design system: sucesso, atenção ou erro, sempre com o ícone do tipo. *@
+<p class="@Classe" role="@(Tipo == TipoDeAviso.Erro ? "alert" : "status")"><Icone Nome="@NomeDoIcone" /><span>@ChildContent</span></p>
+
+@code {
+    [Parameter, EditorRequired] public TipoDeAviso Tipo { get; set; }
+
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private string Classe => Tipo switch
+    {
+        TipoDeAviso.Sucesso => "aj-aviso aj-aviso--sucesso",
+        TipoDeAviso.Atencao => "aj-aviso aj-aviso--atencao",
+        _ => "aj-aviso aj-aviso--erro",
+    };
+
+    private string NomeDoIcone => Tipo switch
+    {
+        TipoDeAviso.Sucesso => "confirmar",
+        TipoDeAviso.Atencao => "atencao",
+        _ => "erro",
+    };
+}

@@ -29,6 +29,17 @@ public static class TelaDeTeste
             (await renderizador.RenderComponentAsync<TComponente>(ParameterView.FromDictionary(parametros))).ToHtmlString());
     }
 
+    /// <summary>Desenha um componente que não consulta nada: sem aplicação, sem banco.</summary>
+    public static async Task<string> RenderizarSemDadosAsync<TComponente>(Dictionary<string, object?> parametros)
+        where TComponente : IComponent
+    {
+        await using var servicos = new ServiceCollection().BuildServiceProvider();
+        await using var renderizador = new HtmlRenderer(servicos, NullLoggerFactory.Instance);
+
+        return await renderizador.Dispatcher.InvokeAsync(async () =>
+            (await renderizador.RenderComponentAsync<TComponente>(ParameterView.FromDictionary(parametros))).ToHtmlString());
+    }
+
     private sealed class DespachanteDeTeste(AplicacaoDeTeste app, Guid usuarioId) : IDespachante
     {
         public Task<TResposta> EnviarAsync<TResposta>(IRequisicao<TResposta> requisicao, CancellationToken ct = default) =>

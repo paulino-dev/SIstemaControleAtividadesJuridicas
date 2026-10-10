@@ -1,5 +1,5 @@
 @* Ícones de traço do design system (grade de 24px). O tamanho e a cor vêm do CSS de quem os contém. *@
-<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" style="@(Nome == "mais" ? "fill:currentColor;stroke:none" : null)">@Tracado</svg>
+<svg class="@Classe" viewBox="0 0 24 24" aria-hidden="true" focusable="false" style="@(Nome == "mais" ? "fill:currentColor;stroke:none" : null)">@Tracado</svg>
 
 @code {
     private static readonly Dictionary<string, MarkupString> Tracados = new()
@@ -22,10 +22,25 @@
         ["esconder-menu"] = new("<rect x=\"3.5\" y=\"4.5\" width=\"17\" height=\"15\" rx=\"3\"></rect><path d=\"M9.5 4.5v15\"></path><path d=\"M15.5 10l-2 2 2 2\"></path>"),
         ["fechar"] = new("<path d=\"M6 6l12 12\"></path><path d=\"M18 6L6 18\"></path>"),
         ["atrasada"] = new("<circle cx=\"12\" cy=\"12\" r=\"9\"></circle><path d=\"M12 7v5l3 2\"></path>"),
+        ["adicionar"] = new("<path d=\"M12 5v14\"></path><path d=\"M5 12h14\"></path>"),
+        ["buscar"] = new("<circle cx=\"11\" cy=\"11\" r=\"6.5\"></circle><path d=\"M16 16l4 4\"></path>"),
+        ["filtros"] = new("<path d=\"M4 6h10\"></path><path d=\"M18 6h2\"></path><circle cx=\"16\" cy=\"6\" r=\"2\"></circle><path d=\"M4 12h4\"></path><path d=\"M12 12h8\"></path><circle cx=\"10\" cy=\"12\" r=\"2\"></circle><path d=\"M4 18h12\"></path><circle cx=\"18\" cy=\"18\" r=\"2\"></circle>"),
+        ["voltar"] = new("<path d=\"M15 6l-6 6 6 6\"></path>"),
+        ["avancar"] = new("<path d=\"M9 6l6 6-6 6\"></path>"),
+        ["confirmar"] = new("<path d=\"M5 12.5l4.5 4.5L19 7.5\"></path>"),
+        ["excluir"] = new("<path d=\"M4 7h16\"></path><path d=\"M10 11v6\"></path><path d=\"M14 11v6\"></path><path d=\"M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12\"></path><path d=\"M9 7V4h6v3\"></path>"),
+        ["devolver"] = new("<path d=\"M9 14l-5-5 5-5\"></path><path d=\"M4 9h10a6 6 0 0 1 0 12h-3\"></path>"),
+        ["entrar"] = new("<path d=\"M5 12h14\"></path><path d=\"M13 6l6 6-6 6\"></path>"),
+        ["baixar"] = new("<path d=\"M12 4v11\"></path><path d=\"M7.5 11l4.5 4.5 4.5-4.5\"></path><path d=\"M5 19.5h14\"></path>"),
+        ["atencao"] = new("<path d=\"M12 4l9 16H3z\"></path><path d=\"M12 10v4\"></path><path d=\"M12 17v.5\"></path>"),
+        ["erro"] = new("<circle cx=\"12\" cy=\"12\" r=\"9\"></circle><path d=\"M12 7.5v5.5\"></path><path d=\"M12 16v.5\"></path>"),
     };
 
     /// <summary>Nome do ícone no design system (grupo Icones): "inicio", "agenda", "sair"…</summary>
     [Parameter, EditorRequired] public string Nome { get; set; } = string.Empty;
+
+    /// <summary>Classe do design system para o ícone solto (fora de menu e de botão), que traz tamanho e cor.</summary>
+    [Parameter] public string? Classe { get; set; }
 
     private MarkupString Tracado => Tracados.TryGetValue(Nome, out var tracado) ? tracado : default;
 }
