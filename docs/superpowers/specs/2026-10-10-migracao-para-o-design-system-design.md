@@ -29,7 +29,7 @@ Hoje as páginas Razor usam a marcação antiga (`h1`, `table`, `.filtros`, `.fi
 | Três visões | A página emite a marcação de cada visão e o CSS mostra a da largura atual |
 | CSS | Fonte única no design system. Padrão do canvas sem classe vira classe `aj-` lá, e de lá é copiado para o código |
 | Ficha e formulário | Telas inteiras com rota própria e "voltar", como no canvas |
-| Layout | A página preenche encaixes do `MainLayout`: barra superior do mobile, botão flutuante e barra de ações fixa |
+| Layout | A página entrega ao `MainLayout` a barra superior do mobile; botão flutuante e barra de ações fixa ficam na página, presos por CSS |
 | Backend | Só os contadores que o canvas mostra e as listagens não devolvem |
 | Entrega | Uma spec, sete fases (9A a 9G), um plano por fase, um worktree por fase |
 
@@ -74,13 +74,9 @@ Consequências:
 
 ### 4.3 Layout e encaixes
 
-O `MainLayout` passa a oferecer encaixes que a página preenche com as seções do Blazor (`SectionOutlet` e `SectionContent`):
+O `MainLayout` passa a oferecer um encaixe, `barra-superior`, que a página preenche com as seções do Blazor (`SectionOutlet` e `SectionContent`). Ele fica antes do `main`, fora da área que rola, e recebe a barra superior do mobile da tela.
 
-| Encaixe | Conteúdo | Posição |
-|---|---|---|
-| `barra-superior` | A barra superior do mobile da tela | Antes do `main`, fora da área que rola |
-| `flutuante` | O botão flutuante da ação principal | Fora do `main`, sobre o conteúdo |
-| `acoes-fixas` | A barra `aj-acoes--fixa` de ficha e formulário | Depois do `main`, fora da área que rola |
+O botão flutuante e a barra `aj-acoes--fixa` não precisam de encaixe: ficam na própria página e o CSS os prende à coluna de conteúdo (`aj-app__coluna`, que é posicionada), fora do fluxo que rola. A barra de ações fica dentro do formulário, para o botão enviá-lo. (Emenda de 2026-10-10, ao planejar a 9A: a primeira versão previa três encaixes.)
 
 A barra superior do mobile tem três variantes, as do canvas:
 
@@ -92,10 +88,10 @@ A barra superior do mobile tem três variantes, as do canvas:
 
 Outras mudanças no layout:
 
-- O invólucro `div.pagina` sai: cabeçalho, filtros e painéis passam a ser filhos diretos de `main.aj-app__conteudo`, que é quem dá o espaçamento entre blocos.
+- O invólucro `div.pagina` sai: cabeçalho, filtros e painéis passam a ser filhos diretos de `main.aj-app__conteudo`, que é quem dá o espaçamento entre blocos. Até a 9G, uma regra interina no `app.css` mantém em bloco o conteúdo das telas ainda não migradas, para elas não mudarem de aparência.
 - A barra inferior some nas telas com a barra de voltar. O layout decide por CSS, sem estado.
 - "Mais" continua sendo o botão que abre o menu. Ganha `aria-current="page"` quando a rota atual não está entre os destinos da barra daquela visão, e enquanto o menu está aberto.
-- Com o menu escondido no desktop, o botão "Exibir menu" e o símbolo ficam na linha do título, como no quadro `AgendaMenuEscondido`.
+- Com o menu escondido no desktop, o botão "Exibir menu" e o símbolo ficam na linha do título, como no quadro `AgendaMenuEscondido`. Tela sem cabeçalho de página (as ainda não migradas e a página não encontrada) recebe do layout uma faixa com o mesmo botão acima do conteúdo, para o menu sempre poder voltar.
 - Mensagem que atravessa uma navegação ("Evento salvo." mostrado na agenda depois de salvar o formulário) passa por um serviço de escopo do circuito: a tela de origem deixa a mensagem, a de destino mostra uma vez.
 
 ### 4.4 Componentes Razor compartilhados
