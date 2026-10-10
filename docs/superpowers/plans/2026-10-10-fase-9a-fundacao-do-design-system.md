@@ -753,8 +753,13 @@ public class LayoutWebTests(BancoFixture banco) : IAsyncLifetime
 
     public async Task DisposeAsync() => await _app.DisposeAsync();
 
-    private static string Navegacao(string html, string classe) =>
-        Regex.Match(html, $"<nav class=\"{classe}\"[^>]*>.*?</nav>", RegexOptions.Singleline).Value;
+    // Sem a barra na página, as asserções de "nada aceso" passariam sem provar nada.
+    private static string Navegacao(string html, string classe)
+    {
+        var barra = Regex.Match(html, $"<nav class=\"{classe}\"[^>]*>.*?</nav>", RegexOptions.Singleline);
+        barra.Success.Should().BeTrue($"a página deve trazer a navegação {classe}");
+        return barra.Value;
+    }
 
     // O destino aceso de uma barra: o href do link, ou "mais" quando é o botão.
     private static string[] Acesos(string barra) =>
@@ -770,6 +775,7 @@ public class LayoutWebTests(BancoFixture banco) : IAsyncLifetime
     [Theory]
     [InlineData("/atividades", "/atividades", "/atividades")]
     [InlineData("/clientes", "/clientes", "mais")]
+    [InlineData("/clientes?busca=maria", "/clientes", "mais")]
     [InlineData("/areas", "mais", "mais")]
     [InlineData("/documentos-comuns", "mais", "mais")]
     public async Task Diretoria_ve_o_destino_ou_mais_aceso_em_cada_barra(string rota, string noTrilho, string naBarra)
@@ -805,6 +811,47 @@ public class LayoutWebTests(BancoFixture banco) : IAsyncLifetime
 
         Acesos(Navegacao(html, "aj-trilho")).Should().BeEmpty();
         Acesos(Navegacao(html, "aj-nav-inferior")).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Producao_em_clientes_tem_o_destino_no_trilho_e_mais_na_barra()
+    {
+        await _app.CriarPedroAsync();
+        var pedro = await _app.ClienteAutenticadoAsync(AplicacaoDeTeste.EmailDoPedro, AplicacaoDeTeste.SenhaDoPedro);
+
+        var html = await PaginaAsync(pedro, "/clientes");
+
+        Acesos(Navegacao(html, "aj-trilho")).Should().Equal("/clientes");
+        Acesos(Navegacao(html, "aj-nav-inferior")).Should().Equal("mais");
+    }
+
+    [Fact]
+    public async Task Cliente_em_pagina_que_o_layout_nao_monta_nao_acende_nada()
+    {
+        await _app.CriarCarlaAsync();
+        var carla = await _app.ClienteAutenticadoAsync(
+            UsuariosDeClienteDeTeste.EmailDaCarla, UsuariosDeClienteDeTeste.SenhaDaCarla);
+
+        var html = await PaginaAsync(carla, "/clientes");
+
+        html.Should().Contain("Página não encontrada");
+        Acesos(Navegacao(html, "aj-trilho")).Should().BeEmpty();
+        Acesos(Navegacao(html, "aj-nav-inferior")).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Modulo_do_foco_no_titulo_e_servido_e_pagina_estatica_usa_o_foco_do_blazor()
+    {
+        var anonimo = _app.NovoCliente();
+
+        var modulo = await anonimo.GetAsync("/Components/Layout/FocoNoTitulo.razor.js");
+        modulo.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await modulo.Content.ReadAsStringAsync()).Should().Contain("export function focarTituloVisivel");
+
+        // Sem circuito (entrar, erro) quem foca o título é o FocusOnNavigate; com circuito, o módulo.
+        (await anonimo.GetStringAsync("/conta/entrar")).Should().Contain("<blazor-focus-on-navigate");
+        var admin = await _app.ClienteAutenticadoAsync();
+        (await admin.GetStringAsync("/")).Should().NotContain("<blazor-focus-on-navigate");
     }
 
     [Fact]
@@ -922,7 +969,7 @@ public sealed record ContextoDoLayout(string Iniciais, EventCallback AlternarMen
     @if (VoltarPara is not null)
     {
         <header class="aj-barra-superior aj-barra-superior--voltar">
-            <a href="@VoltarPara" class="aj-botao aj-botao--fantasma aj-botao--icone" aria-label="@RotuloDoVoltar"><Icone Nome="voltar" /></a>
+            <a href="@VoltarPara" class="aj-botao aj-botao--fantasma aj-botao--icone" aria-label="@(RotuloDoVoltar ?? "Voltar")"><Icone Nome="voltar" /></a>
             <h1>@Titulo</h1>
             <span class="aj-barra-superior__vazio" aria-hidden="true"></span>
         </header>
@@ -980,7 +1027,7 @@ public sealed record ContextoDoLayout(string Iniciais, EventCallback AlternarMen
     /// <summary>Destino do voltar da barra superior do mobile. Informado, a barra é a de voltar.</summary>
     [Parameter] public string? VoltarPara { get; set; }
 
-    /// <summary>O rótulo acessível do voltar: "Voltar para Início".</summary>
+    /// <summary>O rótulo acessível do voltar: "Voltar para Início". Sem ele, o botão diz só "Voltar".</summary>
     [Parameter] public string? RotuloDoVoltar { get; set; }
 
     private Task ExibirMenuAsync() => Contexto is { } contexto ? contexto.AlternarMenu.InvokeAsync() : Task.CompletedTask;
@@ -1068,11 +1115,14 @@ A coluna de conteúdo:
 No bloco `@code`, acrescente:
 
 ```csharp
-    // O que o menu completo mostra a cada perfil. "Mais" acende quando a tela está aqui e fora da barra da visão.
+    // O que cada navegação mostra a cada perfil, pelo primeiro trecho do endereço. As listas repetem a marcação
+    // acima: destino novo entra nos dois lugares. "Mais" acende quando a tela está no menu e fora da barra da visão.
     private static readonly string[] MenuDoCliente = ["", "andamento", "meus-documentos", "documentos-comuns"];
     private static readonly string[] MenuDaProducao = ["", "atividades", "agenda", "clientes", "processos"];
     private static readonly string[] MenuDaDiretoria =
         [.. MenuDaProducao, "documentos-comuns", "areas", "usuarios", "produtores", "perfis", "auditoria"];
+    private static readonly string[] TrilhoDaEquipe = ["", "atividades", "agenda", "clientes", "processos"];
+    private static readonly string[] TrilhoDoCliente = ["", "andamento", "meus-documentos", "documentos-comuns"];
     private static readonly string[] BarraDaEquipe = ["", "atividades", "agenda"];
     private static readonly string[] BarraDoCliente = ["", "andamento", "meus-documentos"];
 
@@ -1089,7 +1139,7 @@ No bloco `@code`, acrescente:
     // Com o menu aberto por cima da tela, quem fica aceso nas barras é "Mais", como no canvas.
     private string? Atual(string destino) => !_menuAberto && PaginaMontada && Secao == destino ? "page" : null;
 
-    private string? MaisNoTrilho => MaisAceso(EhCliente ? MenuDoCliente : MenuDaProducao);
+    private string? MaisNoTrilho => MaisAceso(EhCliente ? TrilhoDoCliente : TrilhoDaEquipe);
 
     private string? MaisNaBarra => MaisAceso(EhCliente ? BarraDoCliente : BarraDaEquipe);
 
@@ -1119,7 +1169,12 @@ Em `OnInitializedAsync`, monte o contexto antes da primeira renderização e de 
 @inject IJSRuntime JS
 
 @* Depois de cada navegação, o foco vai para o título da página, que é anunciado. Cada visão tem o seu h1 e os
-   das outras ficam escondidos; por isso não serve o FocusOnNavigate, que mira o primeiro h1 do HTML. *@
+   das outras ficam escondidos; por isso não serve o FocusOnNavigate, que mira o primeiro h1 do HTML.
+   Nas páginas sem circuito (entrar, erro) não há quem chame o módulo: lá o h1 é um só e vale o do Blazor. *@
+@if (AssignedRenderMode is null)
+{
+    <FocusOnNavigate RouteData="RouteData" Selector="h1" />
+}
 
 @code {
     private Type? _ultimaPagina;
@@ -1150,6 +1205,10 @@ Em `OnInitializedAsync`, monte o contexto antes da primeira renderização e de 
         {
             // O circuito caiu no meio da navegação: não há quem focar.
         }
+        catch (JSException)
+        {
+            // O foco no título é uma ajuda: uma falha do módulo não pode derrubar a tela.
+        }
     }
 }
 ```
@@ -1179,6 +1238,8 @@ Apague do comentário `/* ---------- Estrutura: menu que abre e esconde --------
    Tela migrada usa a coluna flexível do design system. */
 .aj-app__conteudo:not(:has(> [class^="aj-"])) { display: block; }
 ```
+
+O comentário de `h1:focus` passa a citar `FocoNoTitulo` no lugar de `FocusOnNavigate`.
 
 As duas regras de link do topo do arquivo passam a ter especificidade zero, para toda classe do design system vencer:
 
