@@ -104,6 +104,51 @@ public class LayoutWebTests(BancoFixture banco) : IAsyncLifetime
         Acesos(Navegacao(html, "aj-nav-inferior")).Should().BeEmpty();
     }
 
+    private static string BarraDaTela(string html) =>
+        Regex.Match(html, "<header class=\"aj-barra-superior\">.*?</header>", RegexOptions.Singleline).Value;
+
+    [Fact]
+    public async Task Inicio_da_equipe_tem_o_cabecalho_os_atalhos_e_a_barra_superior_da_tela()
+    {
+        var admin = await _app.ClienteAutenticadoAsync();
+
+        var html = await PaginaAsync(admin, "/");
+
+        var corpo = Regex.Match(html, "<main[^>]*>.*?</main>", RegexOptions.Singleline).Value;
+        corpo.Should().Contain("<h1 class=\"aj-titulo\">Início</h1>")
+            .And.Contain("<p class=\"aj-subtitulo\">Olá, Diana Diretora. Seu perfil é de Diretoria.</p>")
+            .And.Contain("Minhas atividades").And.Contain("Prazos, situações e o que espera por você.")
+            .And.Contain("Agenda da semana").And.Contain("Audiências, reuniões e prazos dos próximos dias.");
+        Regex.Matches(corpo, "href=\"([^\"]*)\"").Select(m => m.Groups[1].Value)
+            .Should().Equal("/atividades", "/agenda");
+
+        // No mobile o título vai para a barra superior da tela, que vem antes da padrão.
+        var barra = BarraDaTela(html);
+        barra.Should().Contain("<h1 class=\"aj-titulo\">Início</h1>")
+            .And.Contain("<span class=\"aj-subtitulo\">Olá, Diana Diretora</span>")
+            .And.MatchRegex("<a href=\"/minha-senha\" class=\"aj-avatar\"[^>]*>DD</a>");
+        html.IndexOf("<header class=\"aj-barra-superior\">", StringComparison.Ordinal)
+            .Should().BeLessThan(html.IndexOf("aj-barra-superior--padrao", StringComparison.Ordinal));
+        Acesos(Navegacao(html, "aj-nav-inferior")).Should().Equal("/");
+    }
+
+    [Fact]
+    public async Task Inicio_do_cliente_nao_fala_do_perfil()
+    {
+        await _app.CriarCarlaAsync();
+        var carla = await _app.ClienteAutenticadoAsync(
+            UsuariosDeClienteDeTeste.EmailDaCarla, UsuariosDeClienteDeTeste.SenhaDaCarla);
+
+        var html = await PaginaAsync(carla, "/");
+
+        html.Should().Contain("<p class=\"aj-subtitulo\">Olá, Carla Cliente.</p>")
+            .And.Contain("<span class=\"aj-subtitulo\">Olá, Carla Cliente</span>")
+            .And.Contain("O que o escritório está fazendo por você.")
+            .And.Contain("Arquivos que o escritório compartilhou com você.")
+            .And.Contain("Modelos e orientações para todos os clientes.")
+            .And.NotContain("Seu perfil é de");
+    }
+
     [Fact]
     public async Task Modulo_do_foco_no_titulo_e_servido_e_pagina_estatica_usa_o_foco_do_blazor()
     {

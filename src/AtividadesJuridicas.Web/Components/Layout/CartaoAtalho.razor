@@ -1,0 +1,16 @@
+@* Cartão-atalho do design system: ícone num quadro, título, uma linha de descrição e a seta. O cartão inteiro é o link. *@
+<a href="@Href" class="aj-cartao aj-cartao--atalho">
+    <span class="aj-cartao__icone" aria-hidden="true"><Icone Nome="@NomeDoIcone" /></span>
+    <span class="aj-cartao__texto"><span class="aj-cartao__titulo">@Titulo</span><span class="aj-cartao__meta">@Descricao</span></span>
+    <Icone Nome="avancar" Classe="aj-cartao__seta" />
+</a>
+
+@code {
+    [Parameter, EditorRequired] public string Href { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired] public string NomeDoIcone { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired] public string Titulo { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired] public string Descricao { get; set; } = string.Empty;
+}

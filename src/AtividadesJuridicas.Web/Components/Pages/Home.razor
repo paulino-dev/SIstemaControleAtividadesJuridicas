@@ -3,40 +3,41 @@
 
 <PageTitle>Início</PageTitle>
 
-<h1>Início</h1>
+<CabecalhoDePagina Titulo="Início" Subtitulo="@Saudacao" SubtituloMobile="@SaudacaoCurta" />
 
 @if (!_carregado)
 {
-    <p>Carregando…</p>
+    <p class="aj-subtitulo">Carregando…</p>
 }
 else if (_ator is null)
 {
-    <p class="erro">Seu acesso foi encerrado. Entre novamente.</p>
+    <Aviso Tipo="TipoDeAviso.Erro">Seu acesso foi encerrado. Entre novamente.</Aviso>
+}
+else if (_ator.EhCliente)
+{
+    @if (_erroDosTotais is not null)
+    {
+        <Aviso Tipo="TipoDeAviso.Erro">@_erroDosTotais</Aviso>
+    }
+    else if (_totais is { } totais)
+    {
+        <div class="aj-totais">
+            <div class="aj-painel aj-total"><span class="aj-ajuda">Em andamento</span><b>@totais.EmAndamento</b></div>
+            <div class="aj-painel aj-total"><span class="aj-ajuda">Concluídas</span><b>@totais.Concluidas</b></div>
+        </div>
+    }
+    <div class="aj-grade">
+        <CartaoAtalho Href="/andamento" NomeDoIcone="atividades" Titulo="Andamento" Descricao="O que o escritório está fazendo por você." />
+        <CartaoAtalho Href="/meus-documentos" NomeDoIcone="documento" Titulo="Meus documentos" Descricao="Arquivos que o escritório compartilhou com você." />
+        <CartaoAtalho Href="/documentos-comuns" NomeDoIcone="pasta" Titulo="Documentos comuns" Descricao="Modelos e orientações para todos os clientes." />
+    </div>
 }
 else
 {
-    @if (_ator.EhCliente)
-    {
-        <p>Olá, <strong>@_ator.Nome</strong>.</p>
-        @if (_erroDosTotais is not null)
-        {
-            <p class="erro">@_erroDosTotais</p>
-        }
-        else if (_totais is { } totais)
-        {
-            <TotaisDoAndamento EmAndamento="totais.EmAndamento" Concluidas="totais.Concluidas" />
-        }
-        <p><a href="/andamento">Andamento</a></p>
-        <p><a href="/meus-documentos">Meus documentos</a></p>
-        <p><a href="/documentos-comuns">Documentos comuns</a></p>
-        <p><a href="/minha-senha">Minha senha</a></p>
-    }
-    else
-    {
-        <p>Olá, <strong>@_ator.Nome</strong>. Seu perfil é de @RotulosDePerfil.DoTipo(_ator.TipoPerfil).</p>
-        <p><a href="/atividades">Minhas atividades</a></p>
-        <p><a href="/agenda">Agenda da semana</a></p>
-    }
+    <div class="aj-grade">
+        <CartaoAtalho Href="/atividades" NomeDoIcone="atividades" Titulo="Minhas atividades" Descricao="Prazos, situações e o que espera por você." />
+        <CartaoAtalho Href="/agenda" NomeDoIcone="agenda" Titulo="Agenda da semana" Descricao="Audiências, reuniões e prazos dos próximos dias." />
+    </div>
 }
 
 @code {
@@ -44,6 +45,16 @@ else
     private bool _carregado;
     private (int EmAndamento, int Concluidas)? _totais;
     private string? _erroDosTotais;
+
+    // Cada saudação é uma expressão só: o HTML traz o texto inteiro, sem marcador no meio.
+    private string? Saudacao => _ator switch
+    {
+        null => null,
+        { EhCliente: true } => $"Olá, {_ator.Nome}.",
+        _ => $"Olá, {_ator.Nome}. Seu perfil é de {RotulosDePerfil.DoTipo(_ator.TipoPerfil)}.",
+    };
+
+    private string? SaudacaoCurta => _ator is null ? null : $"Olá, {_ator.Nome}";
 
     protected override async Task OnInitializedAsync()
     {

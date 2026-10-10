@@ -299,10 +299,12 @@ public class PortalDoClienteWebTests(BancoFixture banco) : IAsyncLifetime
         var html = Decodificado(await cliente.GetStringAsync("/"));
 
         var corpo = Regex.Match(html, "<main[^>]*>.*?</main>", RegexOptions.Singleline).Value;
-        corpo.Should().Contain("<dt>Em andamento</dt><dd>2</dd>").And.Contain("<dt>Concluídas</dt><dd>1</dd>");
+        corpo.Should().MatchRegex(@"<span class=""aj-ajuda"">Em andamento</span>\s*<b>2</b>")
+            .And.MatchRegex(@"<span class=""aj-ajuda"">Concluídas</span>\s*<b>1</b>");
+        // O quadro tem três atalhos; a senha fica no menu e no avatar.
         Regex.Matches(corpo, "href=\"([^\"]*)\"").Select(m => m.Groups[1].Value)
-            .Should().Equal("/andamento", "/meus-documentos", "/documentos-comuns", "/minha-senha");
-        corpo.Should().Contain("Carla Cliente").And.NotContain("Carregando").And.NotContain("Contestação trabalhista");
+            .Should().Equal("/andamento", "/meus-documentos", "/documentos-comuns");
+        corpo.Should().Contain("Olá, Carla Cliente.").And.NotContain("Carregando").And.NotContain("Contestação trabalhista");
     }
 
     [Fact]

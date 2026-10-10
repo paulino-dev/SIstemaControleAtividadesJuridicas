@@ -13,8 +13,10 @@ public partial class TelasNoDesignSystemTests
     [
         "Components/Layout/Aviso.razor",
         "Components/Layout/CabecalhoDePagina.razor",
+        "Components/Layout/CartaoAtalho.razor",
         "Components/Layout/MainLayout.razor",
         "Components/Layout/RotuloDeCampo.razor",
+        "Components/Pages/Home.razor",
     ];
 
     [GeneratedRegex("\\sstyle\\s*=\\s*[\"']")]
