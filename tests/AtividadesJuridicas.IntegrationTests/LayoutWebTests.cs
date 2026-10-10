@@ -8,7 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace AtividadesJuridicas.IntegrationTests;
 
-/// <summary>O que o layout decide sozinho: o destino aceso em cada barra e a barra superior do mobile.</summary>
+/// <summary>O que o layout decide sozinho: o destino aceso em cada barra, o avatar, o foco no título e a tela ainda não migrada.</summary>
 [Collection(ColecaoBanco.Nome)]
 public class LayoutWebTests(BancoFixture banco) : IAsyncLifetime
 {
@@ -19,7 +19,7 @@ public class LayoutWebTests(BancoFixture banco) : IAsyncLifetime
     public async Task DisposeAsync() => await _app.DisposeAsync();
 
     // Sem a barra na página, as asserções de "nada aceso" passariam sem provar nada.
-    private static string Navegacao(string html, string classe)
+    internal static string Navegacao(string html, string classe)
     {
         var barra = Regex.Match(html, $"<nav class=\"{classe}\"[^>]*>.*?</nav>", RegexOptions.Singleline);
         barra.Success.Should().BeTrue($"a página deve trazer a navegação {classe}");
@@ -27,7 +27,7 @@ public class LayoutWebTests(BancoFixture banco) : IAsyncLifetime
     }
 
     // O destino aceso de uma barra: o href do link, ou "mais" quando é o botão.
-    private static string[] Acesos(string barra) =>
+    internal static string[] Acesos(string barra) =>
         Regex.Matches(barra, "<(a|button)\\b[^>]*aria-current=\"page\"[^>]*>")
             .Select(m => m.Groups[1].Value == "button"
                 ? "mais"
@@ -102,51 +102,6 @@ public class LayoutWebTests(BancoFixture banco) : IAsyncLifetime
         html.Should().Contain("Página não encontrada");
         Acesos(Navegacao(html, "aj-trilho")).Should().BeEmpty();
         Acesos(Navegacao(html, "aj-nav-inferior")).Should().BeEmpty();
-    }
-
-    private static string BarraDaTela(string html) =>
-        Regex.Match(html, "<header class=\"aj-barra-superior\">.*?</header>", RegexOptions.Singleline).Value;
-
-    [Fact]
-    public async Task Inicio_da_equipe_tem_o_cabecalho_os_atalhos_e_a_barra_superior_da_tela()
-    {
-        var admin = await _app.ClienteAutenticadoAsync();
-
-        var html = await PaginaAsync(admin, "/");
-
-        var corpo = Regex.Match(html, "<main[^>]*>.*?</main>", RegexOptions.Singleline).Value;
-        corpo.Should().Contain("<h1 class=\"aj-titulo\">Início</h1>")
-            .And.Contain("<p class=\"aj-subtitulo\">Olá, Diana Diretora. Seu perfil é de Diretoria.</p>")
-            .And.Contain("Minhas atividades").And.Contain("Prazos, situações e o que espera por você.")
-            .And.Contain("Agenda da semana").And.Contain("Audiências, reuniões e prazos dos próximos dias.");
-        Regex.Matches(corpo, "href=\"([^\"]*)\"").Select(m => m.Groups[1].Value)
-            .Should().Equal("/atividades", "/agenda");
-
-        // No mobile o título vai para a barra superior da tela, que vem antes da padrão.
-        var barra = BarraDaTela(html);
-        barra.Should().Contain("<h1 class=\"aj-titulo\">Início</h1>")
-            .And.Contain("<span class=\"aj-subtitulo\">Olá, Diana Diretora</span>")
-            .And.MatchRegex("<a href=\"/minha-senha\" class=\"aj-avatar\"[^>]*>DD</a>");
-        html.IndexOf("<header class=\"aj-barra-superior\">", StringComparison.Ordinal)
-            .Should().BeLessThan(html.IndexOf("aj-barra-superior--padrao", StringComparison.Ordinal));
-        Acesos(Navegacao(html, "aj-nav-inferior")).Should().Equal("/");
-    }
-
-    [Fact]
-    public async Task Inicio_do_cliente_nao_fala_do_perfil()
-    {
-        await _app.CriarCarlaAsync();
-        var carla = await _app.ClienteAutenticadoAsync(
-            UsuariosDeClienteDeTeste.EmailDaCarla, UsuariosDeClienteDeTeste.SenhaDaCarla);
-
-        var html = await PaginaAsync(carla, "/");
-
-        html.Should().Contain("<p class=\"aj-subtitulo\">Olá, Carla Cliente.</p>")
-            .And.Contain("<span class=\"aj-subtitulo\">Olá, Carla Cliente</span>")
-            .And.Contain("O que o escritório está fazendo por você.")
-            .And.Contain("Arquivos que o escritório compartilhou com você.")
-            .And.Contain("Modelos e orientações para todos os clientes.")
-            .And.NotContain("Seu perfil é de");
     }
 
     [Fact]
@@ -248,35 +203,5 @@ public class LayoutWebTests(BancoFixture banco) : IAsyncLifetime
 
         var barra = Regex.Match(html, "<header class=\"aj-barra-superior.*?</header>", RegexOptions.Singleline).Value;
         barra.Should().MatchRegex($"<a href=\"/minha-senha\" class=\"aj-avatar\"[^>]*>{iniciais}</a>");
-    }
-
-    [Fact]
-    public async Task Minha_senha_tem_o_painel_o_voltar_do_mobile_e_um_botao_por_visao()
-    {
-        var admin = await _app.ClienteAutenticadoAsync();
-
-        var html = await PaginaAsync(admin, "/minha-senha");
-
-        var corpo = Regex.Match(html, "<main[^>]*>.*?</main>", RegexOptions.Singleline).Value;
-        corpo.Should().Contain("<h1 class=\"aj-titulo\">Minha senha</h1>")
-            .And.Contain("<p class=\"aj-subtitulo\">Depois de alterar, você entra de novo com a nova senha.</p>")
-            .And.Contain("<span class=\"aj-ajuda\">Depois de alterar, você entra de novo com a nova senha.</span>")
-            .And.MatchRegex("<form[^>]*class=\"aj-painel aj-painel--estreito\"")
-            .And.Contain("Senha atual").And.Contain("Nova senha").And.Contain("Confirme a nova senha");
-        Regex.Matches(corpo, "type=\"password\"").Should().HaveCount(3);
-        Regex.Matches(corpo, "<input[^>]*class=\"aj-campo").Should().HaveCount(3);
-        // Um botão de envio para desktop e tablet, outro para o mobile, os dois dentro do formulário.
-        var formulario = Regex.Match(corpo, "<form.*?</form>", RegexOptions.Singleline).Value;
-        Regex.Matches(formulario, "<button type=\"submit\" class=\"aj-botao aj-botao--primario\">Alterar senha</button>")
-            .Should().HaveCount(2);
-        formulario.Should().MatchRegex("<div class=\"aj-desktop-tablet\">\\s*<div class=\"aj-painel__acoes\">\\s*<button type=\"submit\"")
-            .And.MatchRegex("<div class=\"aj-so-mobile\">\\s*<div class=\"aj-acoes aj-acoes--fixa\">\\s*<button type=\"submit\"");
-
-        // A barra do mobile é a de voltar, e a tela não tem link dentro do conteúdo.
-        var barra = Regex.Match(html, "<header class=\"aj-barra-superior aj-barra-superior--voltar\">.*?</header>",
-            RegexOptions.Singleline).Value;
-        barra.Should().MatchRegex("<a href=\"/\"[^>]*aria-label=\"Voltar para Início\"")
-            .And.Contain("<h1>Minha senha</h1>");
-        corpo.Should().NotContain("href=");
     }
 }
