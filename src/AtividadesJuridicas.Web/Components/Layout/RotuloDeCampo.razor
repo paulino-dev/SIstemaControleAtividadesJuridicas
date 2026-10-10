@@ -2,11 +2,16 @@
 @implements IDisposable
 @using System.Linq.Expressions
 
-@* Rótulo de campo do design system: em erro, o rótulo muda de cor e a mensagem aparece sob o campo. *@
-<label class="@(Invalido ? "aj-rotulo aj-rotulo--erro" : "aj-rotulo")">
+@* Rótulo de campo do design system: em erro, o rótulo muda de cor e a mensagem aparece sob o campo.
+   A mensagem é escrita aqui, em <span>, como no canvas: o ValidationMessage emite <div>, que não cabe num <label>. *@
+@{ var mensagens = Mensagens(); }
+<label class="@(mensagens.Count > 0 ? "aj-rotulo aj-rotulo--erro" : "aj-rotulo")">
     @Texto
     @ChildContent
-    <ValidationMessage For="Para" class="aj-campo-erro" />
+    @foreach (var mensagem in mensagens)
+    {
+        <span class="aj-campo-erro">@mensagem</span>
+    }
 </label>
 
 @code {
@@ -21,8 +26,9 @@
 
     [Parameter] public RenderFragment? ChildContent { get; set; }
 
-    private bool Invalido =>
-        Contexto is not null && Contexto.GetValidationMessages(FieldIdentifier.Create(Para)).Any();
+    // Fora de um EditForm não há o que validar: o rótulo aparece sem erro.
+    private List<string> Mensagens() =>
+        Contexto is null ? [] : Contexto.GetValidationMessages(FieldIdentifier.Create(Para)).ToList();
 
     protected override void OnParametersSet()
     {
@@ -33,7 +39,7 @@
         if (_assinado is not null) _assinado.OnValidationStateChanged += AoValidar;
     }
 
-    private void AoValidar(object? sender, ValidationStateChangedEventArgs e) => StateHasChanged();
+    private void AoValidar(object? sender, ValidationStateChangedEventArgs e) => _ = InvokeAsync(StateHasChanged);
 
     public void Dispose()
     {

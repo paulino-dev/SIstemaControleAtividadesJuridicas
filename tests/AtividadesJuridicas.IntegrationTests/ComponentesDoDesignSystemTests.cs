@@ -36,17 +36,19 @@ public class ComponentesDoDesignSystemTests
     }
 
     [Theory]
-    [InlineData(TipoDeAviso.Sucesso, "aj-aviso aj-aviso--sucesso", "status")]
-    [InlineData(TipoDeAviso.Atencao, "aj-aviso aj-aviso--atencao", "status")]
-    [InlineData(TipoDeAviso.Erro, "aj-aviso aj-aviso--erro", "alert")]
-    public async Task Aviso_traz_a_classe_o_papel_e_o_icone_do_tipo(TipoDeAviso tipo, string classe, string papel)
+    [InlineData(TipoDeAviso.Sucesso, "aj-aviso aj-aviso--sucesso", "status", "M5 12.5l4.5 4.5L19 7.5")]
+    [InlineData(TipoDeAviso.Atencao, "aj-aviso aj-aviso--atencao", "status", "M12 4l9 16H3z")]
+    [InlineData(TipoDeAviso.Erro, "aj-aviso aj-aviso--erro", "alert", "M12 7.5v5.5")]
+    public async Task Aviso_traz_a_classe_o_papel_e_o_icone_do_tipo(
+        TipoDeAviso tipo, string classe, string papel, string tracado)
     {
         RenderFragment texto = construtor => construtor.AddContent(0, "Revisor alterado.");
 
         var html = await TelaDeTeste.RenderizarSemDadosAsync<Aviso>(
             new() { ["Tipo"] = tipo, ["ChildContent"] = texto });
 
+        // O traçado é o do ícone do tipo: confirmar, atenção ou erro.
         html.Should().Contain($"class=\"{classe}\"").And.Contain($"role=\"{papel}\"")
-            .And.Contain("<svg").And.Contain("<span>Revisor alterado.</span>");
+            .And.Contain($"d=\"{tracado}\"").And.Contain("<span>Revisor alterado.</span>");
     }
 }
