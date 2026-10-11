@@ -77,8 +77,8 @@
                             <td class="aj-tabela__data">@Fuso.Formatar(documento.EnviadoEm)</td>
                             <td>@documento.EnviadoPor</td>
                             <td class="aj-tabela__acao aj-tabela__acao--varias">
-                                <button type="button" class="aj-botao aj-botao--fantasma aj-botao--menor" @onclick="() => RenomearLinha(documento)">Renomear</button>
-                                <button type="button" class="aj-botao aj-botao--perigo aj-botao--menor" @onclick="() => ExcluirLinha(documento.Id)">Excluir</button>
+                                <button type="button" class="aj-botao aj-botao--fantasma aj-botao--menor" disabled="@Ocupada" @onclick="() => RenomearLinha(documento)">Renomear</button>
+                                <button type="button" class="aj-botao aj-botao--perigo aj-botao--menor" disabled="@Ocupada" @onclick="() => ExcluirLinha(documento.Id)">Excluir</button>
                             </td>
                         </tr>
                     }
@@ -97,8 +97,8 @@
                     <div class="aj-linha__texto"><span class="aj-linha__titulo">@documento.Nome</span><span class="aj-ajuda">@Detalhe(documento)</span></div>
                     <MenuDeAcoes Rotulo="@($"Ações de {documento.Nome}")">
                         <a href="@Endereco(documento)" download data-enhance-nav="false" class="aj-menu-acoes__item">Baixar</a>
-                        <button type="button" class="aj-menu-acoes__item" @onclick="() => RenomearLinha(documento)">Renomear</button>
-                        <button type="button" class="aj-menu-acoes__item aj-menu-acoes__item--perigo" @onclick="() => ExcluirLinha(documento.Id)">Excluir</button>
+                        <button type="button" class="aj-menu-acoes__item" disabled="@Ocupada" @onclick="() => RenomearLinha(documento)">Renomear</button>
+                        <button type="button" class="aj-menu-acoes__item aj-menu-acoes__item--perigo" disabled="@Ocupada" @onclick="() => ExcluirLinha(documento.Id)">Excluir</button>
                     </MenuDeAcoes>
                 </div>
             }
