@@ -1,10 +1,57 @@
-@* Faixa de retorno do design system: sucesso, atenção ou erro, sempre com o ícone do tipo. *@
-<p class="@Classe" role="@(Tipo == TipoDeAviso.Erro ? "alert" : "status")"><Icone Nome="@NomeDoIcone" /><span>@ChildContent</span></p>
+@* Faixa de retorno do design system: sucesso, atenção ou erro, sempre com o ícone do tipo.
+   Com ações, vira a caixa de confirmação (ou o erro com nova tentativa) dos quadros. *@
+@if (Acoes is null)
+{
+    <p class="@Classe" role="@Papel"><Icone Nome="@NomeDoIcone" /><span>@ChildContent</span></p>
+}
+else
+{
+    <div class="@($"{Classe} aj-aviso--com-acoes")" role="@Papel" aria-label="@Rotulo" tabindex="-1" @ref="_caixa">
+        <Icone Nome="@NomeDoIcone" />
+        <div class="aj-aviso__texto">
+            @if (Titulo is not null)
+            {
+                <strong>@Titulo</strong>
+            }
+            @ChildContent
+        </div>
+        <div class="aj-aviso__acoes">@Acoes</div>
+    </div>
+}
 
 @code {
     [Parameter, EditorRequired] public TipoDeAviso Tipo { get; set; }
 
     [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Os botões da faixa. Com eles, o aviso é a caixa de confirmação.</summary>
+    [Parameter] public RenderFragment? Acoes { get; set; }
+
+    /// <summary>A primeira linha, em destaque, acima do texto (só com ações).</summary>
+    [Parameter] public string? Titulo { get; set; }
+
+    /// <summary>O nome acessível da confirmação; com ele o aviso é um diálogo de alerta e recebe o foco ao aparecer.</summary>
+    [Parameter] public string? Rotulo { get; set; }
+
+    private ElementReference _caixa;
+
+    // O diálogo de alerta leva o foco a si mesmo quando aparece: é o foco que faz o leitor de tela anunciá-lo e a
+    // página rolar até ele. Aviso sem Rotulo não mexe no foco, e a caixa que o recebe só existe com ações.
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || Rotulo is null || Acoes is null) return;
+
+        try
+        {
+            await _caixa.FocusAsync();
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or JSException or JSDisconnectedException)
+        {
+            // Sem foco (circuito caindo, por exemplo) o aviso continua visível e funcional.
+        }
+    }
+
+    private string Papel => Rotulo is not null ? "alertdialog" : Tipo == TipoDeAviso.Erro ? "alert" : "status";
 
     private string Classe => Tipo switch
     {

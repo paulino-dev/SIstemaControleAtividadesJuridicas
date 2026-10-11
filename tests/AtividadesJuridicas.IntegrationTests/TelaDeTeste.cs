@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.JSInterop;
 
 namespace AtividadesJuridicas.IntegrationTests;
 
@@ -18,10 +19,28 @@ public static class TelaDeTeste
         AplicacaoDeTeste app, Guid usuarioId, Dictionary<string, object?> parametros)
         where TComponente : IComponent
     {
-        // Só o que os componentes da aplicação injetam: o despachante e o fuso do escritório.
+        // Só o que os componentes da aplicação injetam: o despachante, o fuso do escritório e o JavaScript (que o
+        // InputFile injeta e o desenho estático nunca chama).
         await using var servicos = new ServiceCollection()
             .AddSingleton<IDespachante>(new DespachanteDeTeste(app, usuarioId))
             .AddSingleton(new FusoDoEscritorio("America/Sao_Paulo"))
+            .AddSingleton<IJSRuntime>(new SemJavaScript())
+            .BuildServiceProvider();
+        await using var renderizador = new HtmlRenderer(servicos, NullLoggerFactory.Instance);
+
+        return await renderizador.Dispatcher.InvokeAsync(async () =>
+            (await renderizador.RenderComponentAsync<TComponente>(ParameterView.FromDictionary(parametros))).ToHtmlString());
+    }
+
+    /// <summary>Desenha um componente com o despachante informado: sem aplicação, sem banco.</summary>
+    public static async Task<string> RenderizarComAsync<TComponente>(
+        IDespachante despachante, Dictionary<string, object?> parametros)
+        where TComponente : IComponent
+    {
+        await using var servicos = new ServiceCollection()
+            .AddSingleton(despachante)
+            .AddSingleton(new FusoDoEscritorio("America/Sao_Paulo"))
+            .AddSingleton<IJSRuntime>(new SemJavaScript())
             .BuildServiceProvider();
         await using var renderizador = new HtmlRenderer(servicos, NullLoggerFactory.Instance);
 
@@ -33,7 +52,9 @@ public static class TelaDeTeste
     public static async Task<string> RenderizarSemDadosAsync<TComponente>(Dictionary<string, object?> parametros)
         where TComponente : IComponent
     {
-        await using var servicos = new ServiceCollection().BuildServiceProvider();
+        await using var servicos = new ServiceCollection()
+            .AddSingleton<IJSRuntime>(new SemJavaScript())
+            .BuildServiceProvider();
         await using var renderizador = new HtmlRenderer(servicos, NullLoggerFactory.Instance);
 
         return await renderizador.Dispatcher.InvokeAsync(async () =>
@@ -44,5 +65,14 @@ public static class TelaDeTeste
     {
         public Task<TResposta> EnviarAsync<TResposta>(IRequisicao<TResposta> requisicao, CancellationToken ct = default) =>
             app.ExecutarAsync(usuarioId, requisicao);
+    }
+
+    private sealed class SemJavaScript : IJSRuntime
+    {
+        public ValueTask<TValue> InvokeAsync<TValue>(string identifier, object?[]? args) =>
+            throw new InvalidOperationException($"O desenho estático não chama JavaScript ({identifier}).");
+
+        public ValueTask<TValue> InvokeAsync<TValue>(string identifier, CancellationToken cancellationToken, object?[]? args) =>
+            throw new InvalidOperationException($"O desenho estático não chama JavaScript ({identifier}).");
     }
 }

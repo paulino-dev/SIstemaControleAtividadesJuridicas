@@ -7,6 +7,16 @@ public class FusoDoEscritorioTests
     private readonly FusoDoEscritorio _fuso = new("America/Sao_Paulo");
 
     [Fact]
+    public void Formatar_data_traz_so_o_dia_no_fuso_do_escritorio()
+    {
+        var fuso = new FusoDoEscritorio("America/Sao_Paulo");
+
+        // 01:30 UTC do dia 6 ainda é dia 5 em São Paulo.
+        fuso.FormatarData(new DateTime(2026, 10, 6, 1, 30, 0, DateTimeKind.Utc)).Should().Be("05/10/2026");
+        fuso.FormatarData(null).Should().Be("—");
+    }
+
+    [Fact]
     public void Formata_utc_no_horario_local_do_escritorio()
     {
         _fuso.Formatar(new DateTime(2026, 10, 6, 15, 0, 0, DateTimeKind.Utc)).Should().Be("06/10/2026 12:00");

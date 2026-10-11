@@ -5,12 +5,14 @@ using System.Text.RegularExpressions;
 using AtividadesJuridicas.Application.Atividades;
 using AtividadesJuridicas.Application.Auditoria;
 using AtividadesJuridicas.Application.Cadastros;
+using AtividadesJuridicas.Application.Comum;
 using AtividadesJuridicas.Application.Documentos;
 using AtividadesJuridicas.Application.Identidade;
 using AtividadesJuridicas.Domain.Cadastros;
 using AtividadesJuridicas.Domain.Documentos;
 using AtividadesJuridicas.Domain.Identidade;
 using AtividadesJuridicas.Infrastructure.Persistencia;
+using TelaAndamento = AtividadesJuridicas.Web.Components.Pages.Andamento;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -263,10 +265,34 @@ public class PortalDoClienteWebTests(BancoFixture banco) : IAsyncLifetime
 
         var html = Decodificado(await cliente.GetStringAsync("/andamento"));
 
-        html.Should().Contain("Contestação trabalhista").And.Contain("Parecer sem processo").And.Contain("Recurso protocolado")
-            .And.Contain("Trabalhista").And.Contain(Cnj)
-            .And.Contain("<td>Em andamento</td>").And.Contain("<td>Concluída</td>")
-            .And.Contain("<dt>Em andamento</dt><dd>2</dd>").And.Contain("<dt>Concluídas</dt><dd>1</dd>");
+        // Os totais estão no subtítulo e nos chips, e não dependem do filtro.
+        html.Should().Contain("<p class=\"aj-subtitulo\">2 em andamento · 1 concluída</p>")
+            .And.MatchRegex("<button type=\"button\" class=\"aj-chip\" aria-pressed=\"true\"[^>]*>Todas · 3</button>")
+            .And.MatchRegex("<button type=\"button\" class=\"aj-chip\" aria-pressed=\"false\"[^>]*>Em andamento · 2</button>")
+            .And.MatchRegex("<button type=\"button\" class=\"aj-chip\" aria-pressed=\"false\"[^>]*>Concluídas · 1</button>");
+
+        var tabela = BlocoDeVisao.De(html, "aj-so-desktop");
+        tabela.Should().Contain("<th scope=\"col\">Atividade</th>").And.Contain("<th scope=\"col\">Concluída em</th>")
+            .And.Contain("<td class=\"aj-tabela__principal\">Contestação trabalhista</td>")
+            .And.Contain("Parecer sem processo").And.Contain("Recurso protocolado")
+            .And.Contain("<td>Trabalhista</td>").And.Contain($"<td class=\"aj-tabela__data\">{Cnj}</td>")
+            .And.Contain("<span class=\"aj-etiqueta aj-etiqueta--andamento\">Em andamento</span>")
+            .And.Contain("<span class=\"aj-etiqueta aj-etiqueta--concluida\">Concluída</span>")
+            .And.Contain("<td class=\"aj-tabela__data\">—</td>")
+            .And.Contain("<span class=\"aj-subtitulo\">Página 1 de 1 · 3 atividades</span>");
+        // Só o dia da conclusão, sem a hora.
+        tabela.Should().MatchRegex("<td class=\"aj-tabela__data\">\\d{2}/\\d{2}/\\d{4}</td>");
+
+        var cartoes = BlocoDeVisao.De(html, "aj-tablet-mobile");
+        cartoes.Should().Contain("<span class=\"aj-cartao__titulo\">Contestação trabalhista</span>")
+            .And.Contain("Parecer sem processo").And.Contain("Recurso protocolado")
+            .And.Contain(Cnj).And.Contain("Sem processo")
+            .And.Contain("<span class=\"aj-etiqueta aj-etiqueta--andamento\">Em andamento</span>")
+            .And.MatchRegex("<span class=\"aj-cartao__data\">Concluída em \\d{2}/\\d{2}/\\d{4}</span>")
+            .And.NotContain("aj-paginacao");
+        Regex.Matches(cartoes, "class=\"aj-painel aj-painel--cartao\"").Should().HaveCount(3);
+        Regex.Matches(cartoes, "aj-cartao__rodape").Should().ContainSingle();
+
         html.Should().NotContain("Descrição da contestação.").And.NotContain("Descrição do parecer.")
             .And.NotContain("Descrição do recurso.").And.NotContain("Pedro").And.NotContain(Direcionamento)
             .And.NotContain("Carregando").And.NotContain("Página não encontrada").And.NotContain("Nenhuma atividade.");
@@ -284,10 +310,39 @@ public class PortalDoClienteWebTests(BancoFixture banco) : IAsyncLifetime
 
         var html = Decodificado(await cliente.GetStringAsync("/andamento"));
 
-        Regex.Matches(html, "<dd>0</dd>").Should().HaveCount(2);
-        html.Should().Contain("<dt>Em andamento</dt><dd>0</dd>").And.Contain("<dt>Concluídas</dt><dd>0</dd>")
-            .And.Contain("Nenhuma atividade.");
-        html.Should().NotContain("Contestação trabalhista").And.NotContain("Carregando");
+        html.Should().Contain("<p class=\"aj-subtitulo\">0 em andamento · 0 concluídas</p>")
+            .And.Contain(">Todas · 0</button>").And.Contain(">Em andamento · 0</button>").And.Contain(">Concluídas · 0</button>")
+            .And.Contain("<div class=\"aj-estado-lista\"><strong>Nenhuma atividade.</strong></div>");
+        html.Should().NotContain("Contestação trabalhista").And.NotContain("Carregando")
+            .And.NotContain("<table").And.NotContain("aj-painel--cartao").And.NotContain("aj-paginacao");
+    }
+
+    [Fact]
+    public async Task Andamento_com_falha_na_consulta_mostra_o_erro_e_os_chips_sem_numero()
+    {
+        var despachante = new DespachanteCombinado().Responde<ListarMeuAndamento, Resultado<AndamentoDoCliente>>(
+            Resultado<AndamentoDoCliente>.Falha(TipoErro.Validacao, "Falha de teste."));
+
+        var html = Decodificado(await TelaDeTeste.RenderizarComAsync<TelaAndamento>(despachante, new()));
+
+        // Falha não é "nenhuma atividade": o erro ocupa o lugar da lista, com a nova tentativa.
+        html.Should().MatchRegex("<div class=\"aj-aviso aj-aviso--erro aj-aviso--com-acoes\"[^>]*role=\"alert\"")
+            .And.Contain("Falha de teste.").And.Contain(">Tentar de novo</button>")
+            .And.Contain(">Todas</button>").And.Contain(">Em andamento</button>").And.Contain(">Concluídas</button>");
+        html.Should().NotContain("Nenhuma atividade.").And.NotContain("Carregando").And.NotContain(" · ")
+            .And.NotContain("<table").And.NotContain("aj-painel--cartao");
+    }
+
+    [Fact]
+    public async Task Andamento_com_acesso_encerrado_nao_mostra_chips_nem_lista()
+    {
+        var despachante = new DespachanteCombinado().Responde<ListarMeuAndamento, Resultado<AndamentoDoCliente>>(
+            Resultado<AndamentoDoCliente>.Falha(TipoErro.AcessoNegado, "Acesso negado."));
+
+        var html = Decodificado(await TelaDeTeste.RenderizarComAsync<TelaAndamento>(despachante, new()));
+
+        html.Should().Contain("Seu acesso foi encerrado. Entre novamente.").And.Contain("aj-aviso--erro");
+        html.Should().NotContain("aj-chip").And.NotContain("Tentar de novo").And.NotContain("<table").And.NotContain("Acesso negado.");
     }
 
     [Fact]
@@ -322,7 +377,7 @@ public class PortalDoClienteWebTests(BancoFixture banco) : IAsyncLifetime
             var html = Decodificado(await equipe.GetStringAsync("/andamento"));
 
             html.Should().Contain("Página não encontrada").And.NotContain("Contestação trabalhista")
-                .And.NotContain("<dt>Em andamento</dt>").And.NotContain("Carregando");
+                .And.NotContain("em andamento ·").And.NotContain("aj-chip").And.NotContain("Carregando");
         }
 
         (await _app.EventosAsync(EventosDeSeguranca.AcessoNegado)).Should().HaveCount(negadosAntes);

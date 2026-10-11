@@ -3,11 +3,10 @@
 
 <PageTitle>Meus documentos</PageTitle>
 
-<h1>Meus documentos</h1>
-
 @if (_encerrado)
 {
-    <p class="erro">Seu acesso foi encerrado. Entre novamente.</p>
+    <CabecalhoDePagina Titulo="Meus documentos" />
+    <Aviso Tipo="TipoDeAviso.Erro">Seu acesso foi encerrado. Entre novamente.</Aviso>
 }
 else
 {

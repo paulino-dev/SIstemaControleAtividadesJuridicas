@@ -1,55 +1,47 @@
 @inject FusoDoEscritorio Fuso
 
-<section class="ficha">
-    <h3>@Titulo</h3>
+@* No mobile o subtítulo é a contagem. Sem ela, nenhum (vazio): a frase do desktop não cabe na barra. *@
+<CabecalhoDePagina Titulo="@Titulo" Subtitulo="@(Subtitulo ?? Quantos)" SubtituloMobile="@(Quantos ?? string.Empty)" />
 
-    @if (!_carregado)
-    {
-        <p>Carregando…</p>
-    }
-    else if (_erroDaLista is not null)
-    {
-        <p class="erro">@_erroDaLista</p>
-        <div class="acoes">
-            <button type="button" class="secundario" @onclick="() => IrParaAsync(_paginaPedida)">Tentar de novo</button>
-        </div>
-    }
-    else if (_pagina.Itens.Count == 0)
-    {
-        <p>Nenhum documento.</p>
-    }
-    else
-    {
-        <table>
-            <thead>
-                <tr><th>Nome</th><th>Tamanho</th><th>Enviado em</th></tr>
-            </thead>
-            <tbody>
-                @foreach (var documento in _pagina.Itens)
-                {
-                    <tr @key="documento.Id">
-                        <td>
+<EstadoDaLista Erro="@_erroDaLista" Carregando="@(!_carregado)" Vazio="@(_pagina.Itens.Count == 0)"
+               TextoDeVazio="Nenhum documento." TentarDeNovo="() => IrParaAsync(_paginaPedida)">
+    <div class="aj-so-desktop">
+        <div class="aj-tabela-caixa">
+            <table class="aj-tabela">
+                <thead><tr><th scope="col">Nome</th><th scope="col">Tamanho</th><th scope="col">Enviado em</th><th scope="col"><span class="aj-so-leitor">Ações</span></th></tr></thead>
+                <tbody>
+                    @foreach (var documento in _pagina.Itens)
+                    {
+                        <tr @key="documento.Id">
                             @* Link fora da navegação do Blazor: é um download, não uma página. O atributo "download"
                                é o que impede o roteador do Blazor de interceptar o clique; não o remova. *@
-                            <a href="@($"/documentos/{documento.Id}/baixar")" download data-enhance-nav="false">@documento.Nome</a>
-                        </td>
-                        <td>@TamanhoDeArquivo.Formatar(documento.TamanhoBytes)</td>
-                        <td>@Fuso.Formatar(documento.EnviadoEm)</td>
-                    </tr>
-                }
-            </tbody>
-        </table>
+                            <td class="aj-tabela__principal"><a href="@Endereco(documento)" download data-enhance-nav="false">@documento.Nome</a></td>
+                            <td class="aj-tabela__data">@TamanhoDeArquivo.Formatar(documento.TamanhoBytes)</td>
+                            <td class="aj-tabela__data">@Fuso.Formatar(documento.EnviadoEm)</td>
+                            <td class="aj-tabela__acao"><a href="@Endereco(documento)" download data-enhance-nav="false" class="aj-botao aj-botao--secundario aj-botao--com-icone aj-botao--compacto"><Icone Nome="baixar" />Baixar</a></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <Paginacao Numero="_pagina.Numero" TotalDePaginas="_pagina.TotalDePaginas" Total="_pagina.Total"
+                   Singular="documento" Plural="documentos" IrPara="IrParaAsync" />
+    </div>
 
-        @if (_pagina.TotalDePaginas > 1)
-        {
-            <div class="acoes">
-                <button type="button" class="secundario" disabled="@(_pagina.Numero <= 1)" @onclick="() => IrParaAsync(_pagina.Numero - 1)">Anterior</button>
-                <span>Página @_pagina.Numero de @_pagina.TotalDePaginas</span>
-                <button type="button" class="secundario" disabled="@(_pagina.Numero >= _pagina.TotalDePaginas)" @onclick="() => IrParaAsync(_pagina.Numero + 1)">Próxima</button>
-            </div>
-        }
-    }
-</section>
+    <div class="aj-tablet-mobile">
+        <section class="aj-painel aj-painel--principal">
+            @foreach (var documento in _pagina.Itens)
+            {
+                <div class="aj-linha" @key="documento.Id">
+                    <div class="aj-linha__texto"><span class="aj-linha__titulo">@documento.Nome</span><span class="aj-ajuda">@Detalhe(documento)</span></div>
+                    <a href="@Endereco(documento)" download data-enhance-nav="false" class="aj-botao aj-botao--secundario aj-botao--icone" aria-label="@($"Baixar {documento.Nome}")"><Icone Nome="baixar" /></a>
+                </div>
+            }
+        </section>
+        <Paginacao Numero="_pagina.Numero" TotalDePaginas="_pagina.TotalDePaginas" Total="_pagina.Total"
+                   Singular="documento" Plural="documentos" IrPara="IrParaAsync" />
+    </div>
+</EstadoDaLista>
 
 @code {
     private static readonly Pagina<DocumentoDoPortal> Vazia = new([], 0, 1, DocumentosOpcoes.TamanhoDaPagina);
@@ -58,6 +50,9 @@
 
     /// <summary>A consulta de uma página da lista; o componente não sabe de onde vêm os documentos.</summary>
     [Parameter, EditorRequired] public Func<int, Task<Resultado<Pagina<DocumentoDoPortal>>>> Listar { get; set; } = default!;
+
+    /// <summary>A frase do quadro sob o título, no desktop e no tablet; sem ela, vale a contagem.</summary>
+    [Parameter] public string? Subtitulo { get; set; }
 
     /// <summary>Avisado quando a consulta responde acesso negado: a página decide o que mostrar.</summary>
     [Parameter] public EventCallback OnAcessoEncerrado { get; set; }
@@ -72,6 +67,15 @@
         await CarregarAsync(1);
         _carregado = true;
     }
+
+    private string? Quantos => _carregado && _erroDaLista is null && _pagina.Total > 0
+        ? Contagem.De(_pagina.Total, "documento", "documentos")
+        : null;
+
+    private static string Endereco(DocumentoDoPortal documento) => $"/documentos/{documento.Id}/baixar";
+
+    private string Detalhe(DocumentoDoPortal documento) =>
+        $"{TamanhoDeArquivo.Formatar(documento.TamanhoBytes)} · {Fuso.Formatar(documento.EnviadoEm)}";
 
     private Task IrParaAsync(int pagina) => CarregarAsync(pagina);
 

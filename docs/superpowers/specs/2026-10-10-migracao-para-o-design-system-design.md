@@ -1,11 +1,11 @@
 # Migração das telas para o design system — fidelidade ao canvas
 
 Data: 2026-10-10
-Estado: aprovada pelo usuário em 2026-10-10; fase 9A executada
+Estado: aprovada pelo usuário em 2026-10-10; fases 9A e 9B executadas
 Fontes de desenho:
 
 - Canvas de telas: https://claude.ai/artifact/HzHWv1pgVXAnYHuPEYQDFj (versão lida: `1791598628-21e1`)
-- Design system: https://claude.ai/artifact/G8rFozAhnH4eMqctLNTvbS (versão lida: `1791598661-a3fd`; a fase 9A publicou a `1791646790-3a09`)
+- Design system: https://claude.ai/artifact/G8rFozAhnH4eMqctLNTvbS (versão lida: `1791598661-a3fd`; a fase 9A publicou a `1791646790-3a09`; a fase 9B, a `1791672723-8f5a`)
 
 ## 1. Objetivo
 
@@ -312,6 +312,17 @@ Como a fase 9A fez a conferência (emenda de 2026-10-10), para as fases seguinte
 - Elemento com `display: contents` não tem caixa. A visão ativa de um invólucro se confere pelo `display` computado, não pela caixa.
 - Enter num formulário com um botão de envio por visão envia uma vez só, pelo primeiro botão da marcação, mesmo quando ele está escondido naquela largura.
 
+Como a fase 9B fez a conferência (emenda de 2026-10-11), além do que está acima:
+
+- O quadro é desenhado no navegador, não só lido. Os arquivos `.dc.html` da cópia local do canvas são HTML comum com as classes `aj-` e o CSS do design system da época; um servidor local os entrega e a tela do sistema é medida contra o quadro desenhado na mesma largura. A navegação dos quadros vem de componentes importados que não desenham fora do canvas: reserva-se a caixa que o quadro declara (o menu e o trilho ocupam a lateral; a barra inferior do mobile fica fora do fluxo). As imagens dos quadros não carregam fora do canvas: troca-se cada uma por uma imagem vazia da mesma proporção.
+- Mede-se por "átomos": todo elemento visível com texto próprio, todo elemento gráfico (ícone, imagem, campo) e toda caixa com fundo, borda ou sombra, na ordem do documento, com a caixa relativa à coluna de conteúdo e os estilos computados. Os átomos do quadro e os do sistema são casados pela ordem; os textos que o sistema mostrou são copiados para o quadro antes de medir, trecho a trecho, para as caixas dependerem só do desenho. O roteiro devolve só o que diverge.
+- Para isso o ambiente descartável recebe os mesmos dados do quadro em quantidade e forma (oito atividades, três em andamento e cinco concluídas; quatro documentos), e a tela é posta no mesmo estado (a confirmação de envio aberta).
+- O que o `app.css` muda dentro de uma tela migrada se mede desligando a folha na página e comparando os estilos computados antes e depois. Foi assim que apareceram as regras de elemento que alcançavam o campo de arquivo e as etiquetas. O que sobra dessa medida são os ajustes globais que ainda moram no `app.css` (margem do `body`, `box-sizing`, cor dos links), assunto da 9G.
+- Arquivo se escolhe por roteiro, dentro da moldura, com `DataTransfer` e um evento `change`; o conteúdo é gerado na página, e o SHA-256 do que foi enviado se compara com o do que o cliente baixa.
+- A chamada de roteiro da ferramenta do navegador expira em 45 s. Roteiro longo é disparado sem esperar e consultado depois. Saída que parece `chave=valor` é bloqueada: trocar `=` por `:`.
+- Zoom diferente entre abas faz a borda de 1px medir 1,11px: larguras de borda se comparam com folga. A moldura de 390px mostra barra de rolagem comum do desktop quando o conteúdo passa da altura, o que estreita o conteúdo em relação a um celular: o quadro desenhado na mesma moldura tem a mesma barra, e a comparação continua válida.
+- As credenciais de teste ficam num arquivo local que só a página lê; o ambiente, o arquivo e as abas são removidos antes da última rodada da suíte.
+
 ## 12. Fases
 
 | Fase | Conteúdo |
@@ -374,3 +385,52 @@ Da revisão final do branch da fase 9A:
   - "Mais", o nome e o grupo Administração piscam ao conectar o circuito, porque o ator chega depois da primeira renderização interativa;
   - entre 1199 e 1200 px (largura fracionária, com zoom) nenhuma das duas consultas de mídia vale; no design system, `(width < 1200px)` e `(width >= 1200px)`.
 - Fora da migração, como tarefa de segurança própria: o login devolve a senha digitada no HTML da resposta quando a credencial é recusada, e os botões de envio do login e de Minha senha não se desabilitam durante o envio.
+
+### Da fase 9B (emenda de 2026-10-11)
+
+O que a fase entregou além das telas da seção 7.2, e que as próximas reutilizam:
+
+- Peças compartilhadas: `Paginacao`, `EstadoDaLista` (erro, carregando, vazio, nessa ordem de precedência), `MenuDeAcoes`, `Aviso` com ações, ação principal no `CabecalhoDePagina` (botão no cabeçalho e botão flutuante), `Contagem.De`, `FusoDoEscritorio.FormatarData`.
+- `Aviso` com `Rotulo` é o diálogo de alerta das confirmações: leva o foco a si mesmo quando aparece (o que também rola a tela até ele) e guarda sozinho a falha de foco. A tela não pede o foco. Confirmação que pode ser trocada por outra do mesmo tipo leva `@key` com o item, para o foco voltar a ela.
+- Painel que se abre por uma ação (enviar, renomear) leva o foco ao primeiro campo, uma vez por abertura.
+- `CabecalhoDePagina`: `SubtituloMobile` nulo repete o `Subtitulo` na barra do mobile; vazio quer dizer "sem subtítulo no mobile". Lista que mostra a contagem na barra passa a contagem ou vazio, nunca nulo.
+- Na tela de Documentos comuns da Diretoria fica no máximo uma coisa aberta entre o envio (painel ou confirmação), o renomear e a confirmação de exclusão; cada abertura fecha as outras, e com um envio ou uma exclusão em curso nada se abre e os botões das linhas ficam desabilitados. Decidido na execução, sem quadro: rever se o usuário preferir o painel de envio aberto enquanto renomeia.
+- Dois botões lado a lado numa célula de tabela são escritos colados na marcação: o espaço em branco entre eles é desenhado (4px) e desloca as colunas.
+- Nos testes: texto com acento se confere decodificando o HTML na chamada, não dentro de `TelaDeTeste`; `BlocoDeVisao.De` recorta o bloco de uma visão; `DespachanteCombinado` responde o que o banco não produz por encomenda; `ComBarraSuperior` desenha um componente junto com o encaixe da barra superior (sem ele a barra do mobile não chega ao HTML do teste).
+- Regras antigas do `app.css` estreitadas nesta fase, e o padrão para as próximas: `input[type="file"]:not([class*="aj-"])`; as duas regras de `.aj-etiqueta` só dentro de `.aj-app__conteudo:not(:has(> [class^="aj-"]))`, a mesma convenção da regra interina.
+
+Pendente de publicação no design system. A conferência no navegador pediu três acréscimos ao `bundle.css`, e a publicação no artifact não pôde ser feita na sessão que executou a fase. Enquanto não forem publicados e copiados, o `componentes.css` fica como está:
+
+- `.aj-aviso__texto` e `.aj-painel h2` com `overflow-wrap:anywhere`. Sem isso, um nome de arquivo longo e sem espaços transborda a tela de 390px na confirmação de envio, na confirmação de exclusão e no título do renomear (na lista o nome já quebra).
+- `:where(.aj-tabela a){color:var(--verde)}` e `:where(.aj-tabela a:hover){color:var(--tinta)}`. A cor do link que baixa o arquivo vem hoje do `:where(a)` do `app.css`; quando a 9G tirar a camada antiga, o link ficaria azul.
+- `.aj-menu-acoes__item:disabled{opacity:.55;cursor:not-allowed}` e `.aj-menu-acoes__item:disabled:hover{background:transparent}`. O item desabilitado do menu de ações trava, mas com a aparência de habilitado.
+- Os READMEs de Aviso, Painel, Tabela e Menu de ações ganham uma linha cada sobre isso.
+
+Para decidir com o usuário:
+
+- Teste automático de interação. O fluxo da tela da Diretoria (painel escondido durante a confirmação, cancelar, fechar ao enviar, uma coisa aberta por vez, foco ao abrir) só foi conferido no navegador: o desenhador estático dos testes não clica e a fase não podia trazer pacote novo. A revisão final pede que a cobertura exista antes de a 9D mexer em `GestaoDeDocumentos`. Dois caminhos, que se somam: tirar as regras de abertura da tela para uma classe pura testada, como `EnvioComConfirmacao`; e decidir se entra um pacote de teste de componentes (bUnit) ou um desenhador interativo próprio (um experimento da leva de correção mostrou que dá para clicar em teste sem pacote novo).
+
+Para a abertura da 9C:
+
+- `TelaDeTeste.RenderizarAsync` e `RenderizarComAsync` têm o mesmo corpo, salvo o despachante: juntar quando a navegação for registrada (seção 10).
+- `MenuDeAcoes`: o foco só volta ao botão com Esc (fechando por um item, fica com o que a ação abre; fechando pelo fundo, se perde); sair com Tab deixa o menu aberto, e pelo teclado dá para abrir dois.
+
+Para a 9D, quando a ficha do cliente migrar e a tela antiga de documentos sair:
+
+- `GestaoDeDocumentos` tem cerca de vinte campos protegidos que as telas alteram, e a tela nova repete em `FecharEnvio` a limpeza que a base faz ao concluir um envio: um `DescartarEnvio()` protegido na base junta as duas. O `OnAfterRenderAsync` mora na base: quem o sobrescrever chama o da base. O ramo de confirmação de envio de `DocumentosDoCliente.razor` ficou sem quem o use.
+- A terceira tela sobre essa base (documentos da ficha) é o terceiro uso de `Quantos`, `Endereco` e da tabela de documentos, repetidos hoje em `DocumentosParaBaixar` e `DocumentosComunsDaDiretoria`: extrair então (seção 4.4).
+
+Para a 9G, junto da revisão de teclado e de leitor de tela:
+
+- Depois de "Cancelar", "Salvar nome" e "Confirmar envio" o foco cai no `body`. Com a confirmação de envio à vista, "Enviar documento" pede o foco num campo escondido e nada acontece.
+- Em `/documentos-comuns` o foco no título se perde de vez em quando: a página tem um cabeçalho por ramo, e o título focado é trocado quando o "Carregando…" dá lugar à lista.
+- No Andamento, depois de "Anterior" ou "Próxima" a lista dá lugar a "Carregando…" e o botão focado some.
+- Comportamentos que a extração da lógica de documentos manteve como eram: "Salvar nome" sem guarda de clique duplo, resposta atrasada da consulta sem descarte, "Tentar de novo" sem estado de carregando, Enter nos campos dos painéis não envia. Durante o envio, a confirmação some e o painel volta à vista com "Enviando…" e o campo de arquivo habilitado.
+- Os ajustes globais que ainda moram no `app.css` e alcançam as telas migradas: `box-sizing`, margem do `body`, cor e foco dos links. Passam ao design system quando a camada antiga sair.
+
+Observações de desenho, sem ação nesta fase:
+
+- No quadro do mobile da Diretoria o botão de três pontos encolhe para 41,8px na linha de título longo; no sistema ele mantém os 46px do alvo de toque. Mantido o do sistema.
+- O campo de arquivo mede 42,7px no desktop, ao lado do campo de texto de 40px (no tablet e no mobile os dois medem 50px). É a regra do próprio design system para o campo de arquivo.
+- Os chips do Andamento rolam de lado no mobile quando os números crescem ("Em andamento · 15"): é o comportamento de `aj-chips`.
+- `Aviso` com `Rotulo` e sem `Acoes` sairia como diálogo de alerta sem nome e sem foco. Nenhuma tela usa a combinação.

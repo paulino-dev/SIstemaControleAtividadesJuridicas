@@ -1,0 +1,61 @@
+@using Microsoft.JSInterop
+
+@* O menu que o botão de três pontos abre, com as ações da linha (a destrutiva por último).
+   Fecha ao escolher (o clique do item sobe até a lista), ao tocar fora e com Esc. *@
+<div class="aj-menu-acoes" @onkeydown="AoTeclarAsync">
+    <button type="button" class="aj-botao aj-botao--fantasma aj-botao--icone" aria-label="@Rotulo"
+            aria-expanded="@(_aberto ? "true" : "false")" @ref="_gatilho" @onclick="Alternar"><Icone Nome="mais" /></button>
+    @if (_aberto)
+    {
+        <button type="button" class="aj-menu-acoes__fundo" tabindex="-1" aria-hidden="true" @onclick="Fechar"></button>
+    }
+    <div class="aj-menu-acoes__lista" hidden="@(!_aberto)" tabindex="-1" @ref="_lista" @onclick="Fechar">@ChildContent</div>
+</div>
+
+@code {
+    /// <summary>O que o botão diz ao leitor de tela: "Ações de Procuração.pdf".</summary>
+    [Parameter, EditorRequired] public string Rotulo { get; set; } = string.Empty;
+
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private bool _aberto;
+    private bool _focarLista;
+    private ElementReference _gatilho;
+    private ElementReference _lista;
+
+    private void Alternar()
+    {
+        _aberto = !_aberto;
+        _focarLista = _aberto;
+    }
+
+    private void Fechar() => _aberto = false;
+
+    private async Task AoTeclarAsync(KeyboardEventArgs e)
+    {
+        if (e.Key != "Escape" || !_aberto) return;
+
+        _aberto = false;
+        await FocarAsync(_gatilho);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_focarLista) return;
+
+        _focarLista = false;
+        await FocarAsync(_lista);
+    }
+
+    private static async Task FocarAsync(ElementReference alvo)
+    {
+        try
+        {
+            await alvo.FocusAsync();
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or JSException or JSDisconnectedException)
+        {
+            // Sem foco (circuito caindo, por exemplo) o menu continua funcionando.
+        }
+    }
+}
