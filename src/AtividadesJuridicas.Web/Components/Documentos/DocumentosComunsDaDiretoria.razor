@@ -76,9 +76,10 @@
                             <td class="aj-tabela__data">@TamanhoDeArquivo.Formatar(documento.TamanhoBytes)</td>
                             <td class="aj-tabela__data">@Fuso.Formatar(documento.EnviadoEm)</td>
                             <td>@documento.EnviadoPor</td>
+                            @* Os dois botões na mesma linha, sem espaço entre eles, como no quadro: o espaço em branco
+                               entre dois elementos em linha é desenhado e alargaria a célula. *@
                             <td class="aj-tabela__acao aj-tabela__acao--varias">
-                                <button type="button" class="aj-botao aj-botao--fantasma aj-botao--menor" disabled="@Ocupada" @onclick="() => RenomearLinha(documento)">Renomear</button>
-                                <button type="button" class="aj-botao aj-botao--perigo aj-botao--menor" disabled="@Ocupada" @onclick="() => ExcluirLinha(documento.Id)">Excluir</button>
+                                <button type="button" class="aj-botao aj-botao--fantasma aj-botao--menor" disabled="@Ocupada" @onclick="() => RenomearLinha(documento)">Renomear</button><button type="button" class="aj-botao aj-botao--perigo aj-botao--menor" disabled="@Ocupada" @onclick="() => ExcluirLinha(documento.Id)">Excluir</button>
                             </td>
                         </tr>
                     }

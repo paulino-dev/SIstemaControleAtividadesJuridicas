@@ -106,7 +106,8 @@ public class DocumentosDoPortalWebTests(BancoFixture banco) : IAsyncLifetime
         var tabela = BlocoDeVisao.De(html, "aj-so-desktop");
         tabela.Should().Contain("<th scope=\"col\">Por</th>").And.Contain("<td>Diana Diretora</td>")
             .And.MatchRegex($"<td class=\"aj-tabela__principal\"><a href=\"/documentos/{_comum}/baixar\"[^>]*download[^>]*>comum\\.pdf</a></td>")
-            .And.MatchRegex("<td class=\"aj-tabela__acao aj-tabela__acao--varias\">\\s*<button type=\"button\" class=\"aj-botao aj-botao--fantasma aj-botao--menor\"[^>]*>Renomear</button>\\s*<button type=\"button\" class=\"aj-botao aj-botao--perigo aj-botao--menor\"[^>]*>Excluir</button>");
+            // Os dois botões colados, como no quadro: um espaço em branco entre eles alarga a célula em 4px.
+            .And.MatchRegex("<td class=\"aj-tabela__acao aj-tabela__acao--varias\">\\s*<button type=\"button\" class=\"aj-botao aj-botao--fantasma aj-botao--menor\"[^>]*>Renomear</button><button type=\"button\" class=\"aj-botao aj-botao--perigo aj-botao--menor\"[^>]*>Excluir</button>");
 
         var linhas = BlocoDeVisao.De(html, "aj-tablet-mobile");
         linhas.Should().Contain("<span class=\"aj-linha__titulo\">comum.pdf</span>")
