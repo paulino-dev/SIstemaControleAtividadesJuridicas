@@ -5,13 +5,13 @@
 
 @if (!_carregado)
 {
-    <h1>Documentos comuns</h1>
-    <p>Carregando…</p>
+    <CabecalhoDePagina Titulo="Documentos comuns" />
+    <p class="aj-subtitulo" role="status">Carregando…</p>
 }
 else if (_ator is null)
 {
-    <h1>Documentos comuns</h1>
-    <p class="erro">Seu acesso foi encerrado. Entre novamente.</p>
+    <CabecalhoDePagina Titulo="Documentos comuns" />
+    <Aviso Tipo="TipoDeAviso.Erro">Seu acesso foi encerrado. Entre novamente.</Aviso>
 }
 else if (_ator.EhDiretoria)
 {
@@ -22,8 +22,8 @@ else if (_ator.EhDiretoria)
 }
 else if (_ator.EhCliente)
 {
-    <h1>Documentos comuns</h1>
-    <DocumentosParaBaixar Titulo="Documentos comuns" Listar="ListarAsync" OnAcessoEncerrado="Encerrar" />
+    <DocumentosParaBaixar Titulo="Documentos comuns" Subtitulo="Modelos e orientações do escritório para todos os clientes."
+                          Listar="ListarAsync" OnAcessoEncerrado="Encerrar" />
 }
 else
 {

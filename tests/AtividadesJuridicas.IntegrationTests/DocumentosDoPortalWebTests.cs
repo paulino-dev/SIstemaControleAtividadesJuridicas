@@ -3,8 +3,10 @@ using System.Text;
 using System.Text.RegularExpressions;
 using AtividadesJuridicas.Application.Auditoria;
 using AtividadesJuridicas.Application.Cadastros;
+using AtividadesJuridicas.Application.Comum;
 using AtividadesJuridicas.Application.Documentos;
 using AtividadesJuridicas.Infrastructure.Persistencia;
+using AtividadesJuridicas.Web.Components.Documentos;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -69,18 +71,36 @@ public class DocumentosDoPortalWebTests(BancoFixture banco) : IAsyncLifetime
     {
         var cliente = await DaCarlaAsync();
 
-        foreach (var (endereco, nome, id) in new[]
+        foreach (var (endereco, nome, id, subtitulo) in new[]
                  {
-                     ("/documentos-comuns", "comum.pdf", _comum),
-                     ("/meus-documentos", "do-cliente.pdf", _doCliente),
+                     ("/documentos-comuns", "comum.pdf", _comum, "Modelos e orientações do escritório para todos os clientes."),
+                     ("/meus-documentos", "do-cliente.pdf", _doCliente, "1 documento"),
                  })
         {
             var html = Decodificado(await cliente.GetStringAsync(endereco));
 
-            html.Should().Contain(nome, endereco).And.Contain($"/documentos/{id}/baixar", endereco);
+            html.Should().Contain($"<p class=\"aj-subtitulo\">{subtitulo}</p>", endereco)
+                // No mobile o subtítulo é sempre a contagem.
+                .And.Contain("<span class=\"aj-subtitulo\">1 documento</span>", endereco);
+
+            var tabela = BlocoDeVisao.De(html, "aj-so-desktop");
+            tabela.Should().MatchRegex(
+                    $"<td class=\"aj-tabela__principal\"><a href=\"/documentos/{id}/baixar\"[^>]*download[^>]*>{Regex.Escape(nome)}</a></td>", endereco)
+                .And.MatchRegex(
+                    $"<a href=\"/documentos/{id}/baixar\"[^>]*class=\"aj-botao aj-botao--secundario aj-botao--com-icone aj-botao--compacto\"[^>]*>\\s*<svg[^>]*>.*?</svg>\\s*Baixar</a>", endereco)
+                .And.Contain("<span class=\"aj-so-leitor\">Ações</span>", endereco)
+                .And.NotContain("aj-paginacao", endereco);
+
+            var linhas = BlocoDeVisao.De(html, "aj-tablet-mobile");
+            linhas.Should().Contain($"<span class=\"aj-linha__titulo\">{nome}</span>", endereco)
+                .And.MatchRegex(
+                    $"<a href=\"/documentos/{id}/baixar\"[^>]*class=\"aj-botao aj-botao--secundario aj-botao--icone\"[^>]*aria-label=\"Baixar {Regex.Escape(nome)}\"", endereco)
+                .And.MatchRegex("<span class=\"aj-ajuda\">[^<]+ · \\d{2}/\\d{2}/\\d{4} \\d{2}:\\d{2}</span>", endereco);
+
+            // O cliente não gerencia nem vê quem enviou. A Diretoria vê: o teste dela é o controle positivo.
             html.Should().NotContain("Enviar documento").And.NotContain("Renomear").And.NotContain("Excluir")
-                .And.NotContain("<th>Por</th>").And.NotContain("Diana Diretora").And.NotContain("Carregando")
-                .And.NotContain("Página não encontrada");
+                .And.NotContain("Ações de").And.NotContain(">Por</th>").And.NotContain("Diana Diretora")
+                .And.NotContain("Carregando").And.NotContain("Página não encontrada");
         }
     }
 
@@ -95,7 +115,26 @@ public class DocumentosDoPortalWebTests(BancoFixture banco) : IAsyncLifetime
 
         var html = Decodificado(await cliente.GetStringAsync("/meus-documentos"));
 
-        html.Should().Contain("Nenhum documento.").And.NotContain("do-cliente.pdf").And.NotContain("Carregando");
+        html.Should().Contain("<div class=\"aj-estado-lista\"><strong>Nenhum documento.</strong></div>")
+            .And.Contain("<h1 class=\"aj-titulo\">Meus documentos</h1>")
+            .And.NotContain("do-cliente.pdf").And.NotContain("Carregando")
+            .And.NotContain("<table").And.NotContain("aj-linha").And.NotContain("documentos</p>");
+    }
+
+    [Fact]
+    public async Task Lista_de_documentos_com_falha_na_consulta_mostra_o_erro_e_nao_a_lista_vazia()
+    {
+        Func<int, Task<Resultado<Pagina<DocumentoDoPortal>>>> listar = _ => Task.FromResult(
+            Resultado<Pagina<DocumentoDoPortal>>.Falha(TipoErro.Validacao, "Falha de teste."));
+
+        var html = Decodificado(await TelaDeTeste.RenderizarComAsync<DocumentosParaBaixar>(
+            new DespachanteCombinado(), new() { ["Titulo"] = "Meus documentos", ["Listar"] = listar }));
+
+        html.Should().Contain("<h1 class=\"aj-titulo\">Meus documentos</h1>")
+            .And.MatchRegex("<div class=\"aj-aviso aj-aviso--erro aj-aviso--com-acoes\"[^>]*role=\"alert\"")
+            .And.Contain("Falha de teste.").And.Contain(">Tentar de novo</button>");
+        html.Should().NotContain("Nenhum documento.").And.NotContain("<table").And.NotContain("aj-linha")
+            .And.NotContain("aj-subtitulo");
     }
 
     [Fact]
