@@ -74,8 +74,8 @@
                             <td class="aj-tabela__data">@Fuso.Formatar(documento.EnviadoEm)</td>
                             <td>@documento.EnviadoPor</td>
                             <td class="aj-tabela__acao aj-tabela__acao--varias">
-                                <button type="button" class="aj-botao aj-botao--fantasma aj-botao--menor" @onclick="() => AbrirRenomear(documento)">Renomear</button>
-                                <button type="button" class="aj-botao aj-botao--perigo aj-botao--menor" @onclick="() => PedirExclusao(documento.Id)">Excluir</button>
+                                <button type="button" class="aj-botao aj-botao--fantasma aj-botao--menor" @onclick="() => RenomearLinha(documento)">Renomear</button>
+                                <button type="button" class="aj-botao aj-botao--perigo aj-botao--menor" @onclick="() => ExcluirLinha(documento.Id)">Excluir</button>
                             </td>
                         </tr>
                     }
@@ -94,8 +94,8 @@
                     <div class="aj-linha__texto"><span class="aj-linha__titulo">@documento.Nome</span><span class="aj-ajuda">@Detalhe(documento)</span></div>
                     <MenuDeAcoes Rotulo="@($"Ações de {documento.Nome}")">
                         <a href="@Endereco(documento)" download data-enhance-nav="false" class="aj-menu-acoes__item">Baixar</a>
-                        <button type="button" class="aj-menu-acoes__item" @onclick="() => AbrirRenomear(documento)">Renomear</button>
-                        <button type="button" class="aj-menu-acoes__item aj-menu-acoes__item--perigo" @onclick="() => PedirExclusao(documento.Id)">Excluir</button>
+                        <button type="button" class="aj-menu-acoes__item" @onclick="() => RenomearLinha(documento)">Renomear</button>
+                        <button type="button" class="aj-menu-acoes__item aj-menu-acoes__item--perigo" @onclick="() => ExcluirLinha(documento.Id)">Excluir</button>
                     </MenuDeAcoes>
                 </div>
             }
@@ -125,11 +125,36 @@
 
     private Linha? AExcluir => _pagina.Itens.FirstOrDefault(documento => documento.Id == _excluindo);
 
+    // No máximo uma coisa aberta por vez entre o envio, o renomear e a confirmação de exclusão: cada abertura fecha
+    // as outras. Com um envio ou uma exclusão em curso nada se abre, para não desmontar o que a ação usa.
+    private bool Ocupada => _enviando || _removendo;
+
     private void AbrirEnvio()
     {
+        if (Ocupada) return;
+
+        CancelarExclusao();
         _mensagem = null;
         _renomeando = null;
         _envioAberto = true;
+    }
+
+    private void RenomearLinha(Linha documento)
+    {
+        if (Ocupada) return;
+
+        CancelarExclusao();
+        if (_envioAberto) FecharEnvio();
+        AbrirRenomear(documento);
+    }
+
+    private void ExcluirLinha(Guid id)
+    {
+        if (Ocupada) return;
+
+        if (_envioAberto) FecharEnvio();
+        FecharRenomear();
+        PedirExclusao(id);
     }
 
     // O arquivo escolhido não é guardado: reabrir o painel começa do zero.
