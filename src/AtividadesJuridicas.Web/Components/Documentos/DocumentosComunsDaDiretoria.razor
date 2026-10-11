@@ -145,7 +145,8 @@
         }
     }
 
-    protected override void AoConcluirEnvio() => _envioAberto = false;
+    // Fecha limpando: outro arquivo escolhido enquanto este subia não fica para a próxima abertura.
+    protected override void AoConcluirEnvio() => FecharEnvio();
 
     private string RotuloDoArquivo => $"Arquivo (até {DocumentosOpcoes.TamanhoMaximoBytes / UmMegabyte} MB)";
 
