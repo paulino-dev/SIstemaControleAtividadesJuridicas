@@ -20,7 +20,7 @@
                 <img src="img/simbolo-claro.svg" alt="Araújo Advocacia" width="24" height="27" />
                 <div class="aj-barra-superior__titulo">
                     <h1 class="aj-titulo">@Titulo</h1>
-                    @if ((SubtituloMobile ?? Subtitulo) is { } subtituloMobile)
+                    @if (SubtituloDaBarra is { } subtituloMobile)
                     {
                         <span class="aj-subtitulo">@subtituloMobile</span>
                     }
@@ -80,7 +80,10 @@
     /// <summary>A linha de contexto sob o título, no desktop e no tablet.</summary>
     [Parameter] public string? Subtitulo { get; set; }
 
-    /// <summary>A linha de contexto da barra superior do mobile, quando o quadro a encurta. Sem ela, vale <see cref="Subtitulo"/>.</summary>
+    /// <summary>
+    /// A linha de contexto da barra superior do mobile, quando o quadro a encurta. Nula, vale <see cref="Subtitulo"/>;
+    /// vazia, a barra do mobile fica sem subtítulo.
+    /// </summary>
     [Parameter] public string? SubtituloMobile { get; set; }
 
     /// <summary>Subtítulo em frase: o quadro afasta um pouco mais o título.</summary>
@@ -102,6 +105,9 @@
     [Parameter] public string? AcaoHref { get; set; }
 
     [Parameter] public EventCallback OnAcao { get; set; }
+
+    private string? SubtituloDaBarra =>
+        SubtituloMobile is null ? Subtitulo : SubtituloMobile.Length == 0 ? null : SubtituloMobile;
 
     private Task ExibirMenuAsync() => Contexto is { } contexto ? contexto.AlternarMenu.InvokeAsync() : Task.CompletedTask;
 }

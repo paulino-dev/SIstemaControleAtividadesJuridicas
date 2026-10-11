@@ -55,6 +55,9 @@ public class DocumentosDoPortalWebTests(BancoFixture banco) : IAsyncLifetime
     private Task<int> RegistrosDeConsultaAsync() => _app.EmEscopoAsync(null, sp =>
         sp.GetRequiredService<AppDbContext>().RegistrosAcesso.AsNoTracking().CountAsync());
 
+    private static string BarraDaTela(string html) =>
+        Regex.Match(html, "<header class=\"aj-barra-superior\">.*?</header>", RegexOptions.Singleline).Value;
+
     // O aviso que a página põe no lugar da lista quando a consulta responde acesso negado.
     private const string AvisoDeAcessoEncerrado =
         "<p class=\"aj-aviso aj-aviso--erro\" role=\"alert\">\\s*<svg.*?</svg>\\s*<span>Seu acesso foi encerrado\\. Entre novamente\\.</span></p>";
@@ -166,6 +169,34 @@ public class DocumentosDoPortalWebTests(BancoFixture banco) : IAsyncLifetime
             .And.Contain("Falha de teste.").And.Contain(">Tentar de novo</button>");
         html.Should().NotContain("Nenhum documento.").And.NotContain("<table").And.NotContain("aj-linha")
             .And.NotContain("aj-subtitulo");
+    }
+
+    // Sem contagem (aqui, por falha na consulta), a barra do mobile não cai na frase do desktop, que ela cortaria.
+    [Fact]
+    public async Task Lista_de_documentos_com_frase_e_falha_na_consulta_fica_sem_subtitulo_na_barra_do_mobile()
+    {
+        const string frase = "Modelos e orientações do escritório para todos os clientes.";
+        Func<int, Task<Resultado<Pagina<DocumentoDoPortal>>>> listar = _ => Task.FromResult(
+            Resultado<Pagina<DocumentoDoPortal>>.Falha(TipoErro.Validacao, "Falha de teste."));
+
+        var html = Decodificado(await TelaDeTeste.RenderizarComAsync<ComBarraSuperior<DocumentosParaBaixar>>(
+            new DespachanteCombinado(), new() { ["Titulo"] = "Documentos comuns", ["Subtitulo"] = frase, ["Listar"] = listar }));
+
+        html.Should().Contain($"<p class=\"aj-subtitulo\">{frase}</p>").And.Contain("Falha de teste.");
+        BarraDaTela(html).Should().Contain("<h1 class=\"aj-titulo\">Documentos comuns</h1>").And.NotContain("aj-subtitulo");
+    }
+
+    [Fact]
+    public async Task Documentos_comuns_da_diretoria_com_falha_na_consulta_fica_sem_subtitulo_na_barra_do_mobile()
+    {
+        var despachante = new DespachanteCombinado().Responde<ListarDocumentosComuns, Resultado<Pagina<DocumentoDoPortal>>>(
+            Resultado<Pagina<DocumentoDoPortal>>.Falha(TipoErro.Validacao, "Falha de teste."));
+
+        var html = Decodificado(await TelaDeTeste.RenderizarComAsync<ComBarraSuperior<DocumentosComunsDaDiretoria>>(despachante, new()));
+
+        html.Should().Contain("<p class=\"aj-subtitulo\">Visíveis para todos os clientes do escritório.</p>")
+            .And.Contain("Falha de teste.");
+        BarraDaTela(html).Should().Contain("<h1 class=\"aj-titulo\">Documentos comuns</h1>").And.NotContain("aj-subtitulo");
     }
 
     [Fact]

@@ -1,6 +1,7 @@
 @inject FusoDoEscritorio Fuso
 
-<CabecalhoDePagina Titulo="@Titulo" Subtitulo="@(Subtitulo ?? Quantos)" SubtituloMobile="@Quantos" />
+@* No mobile o subtítulo é a contagem. Sem ela, nenhum (vazio): a frase do desktop não cabe na barra. *@
+<CabecalhoDePagina Titulo="@Titulo" Subtitulo="@(Subtitulo ?? Quantos)" SubtituloMobile="@(Quantos ?? string.Empty)" />
 
 <EstadoDaLista Erro="@_erroDaLista" Carregando="@(!_carregado)" Vazio="@(_pagina.Itens.Count == 0)"
                TextoDeVazio="Nenhum documento." TentarDeNovo="() => IrParaAsync(_paginaPedida)">

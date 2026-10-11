@@ -176,4 +176,34 @@ public class ComponentesDoDesignSystemTests
             .And.MatchRegex("<a href=\"/clientes/novo\" class=\"aj-fab\" aria-label=\"Novo cliente\"");
         semAcao.Should().NotContain("aj-fab").And.NotContain("aj-botao--primario");
     }
+
+    private const string Frase = "Visíveis para todos os clientes do escritório.";
+
+    private static string BarraDaTela(string html) =>
+        Regex.Match(html, "<header class=\"aj-barra-superior\">.*?</header>", RegexOptions.Singleline).Value;
+
+    // Sem subtítulo próprio, a barra do mobile repete o do desktop; com um, mostra o dela.
+    [Theory]
+    [InlineData(null, Frase)]
+    [InlineData("3 documentos", "3 documentos")]
+    public async Task Cabecalho_traz_o_subtitulo_na_barra_superior_do_mobile(string? subtituloMobile, string naBarra)
+    {
+        var html = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarSemDadosAsync<ComBarraSuperior<CabecalhoDePagina>>(
+            new() { ["Titulo"] = "Documentos comuns", ["Subtitulo"] = Frase, ["SubtituloMobile"] = subtituloMobile }));
+
+        html.Should().Contain($"<p class=\"aj-subtitulo\">{Frase}</p>");
+        BarraDaTela(html).Should().Contain("<h1 class=\"aj-titulo\">Documentos comuns</h1>")
+            .And.Contain($"<span class=\"aj-subtitulo\">{naBarra}</span>");
+    }
+
+    [Fact]
+    public async Task Cabecalho_com_subtitulo_do_mobile_vazio_fica_sem_subtitulo_na_barra_superior()
+    {
+        var html = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarSemDadosAsync<ComBarraSuperior<CabecalhoDePagina>>(
+            new() { ["Titulo"] = "Documentos comuns", ["Subtitulo"] = Frase, ["SubtituloMobile"] = string.Empty }));
+
+        html.Should().Contain($"<p class=\"aj-subtitulo\">{Frase}</p>").And.NotContain("<span class=\"aj-subtitulo\">");
+        // A barra está no HTML, com o título: é só o subtítulo que ela não tem.
+        BarraDaTela(html).Should().Contain("<h1 class=\"aj-titulo\">Documentos comuns</h1>").And.NotContain("aj-subtitulo");
+    }
 }

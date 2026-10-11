@@ -1,8 +1,9 @@
 @inherits GestaoDeDocumentos
 @inject FusoDoEscritorio Fuso
 
+@* No mobile o subtítulo é a contagem. Sem ela, nenhum (vazio): a frase do desktop não cabe na barra. *@
 <CabecalhoDePagina Titulo="Documentos comuns" Subtitulo="Visíveis para todos os clientes do escritório."
-                   SubtituloMobile="@Quantos" Acao="Enviar documento" OnAcao="AbrirEnvio" />
+                   SubtituloMobile="@(Quantos ?? string.Empty)" Acao="Enviar documento" OnAcao="AbrirEnvio" />
 
 @if (_mensagem is not null)
 {
