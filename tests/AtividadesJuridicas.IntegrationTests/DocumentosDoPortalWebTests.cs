@@ -58,11 +58,31 @@ public class DocumentosDoPortalWebTests(BancoFixture banco) : IAsyncLifetime
 
         var html = Decodificado(await admin.GetStringAsync("/documentos-comuns"));
 
-        html.Should().Contain("Documentos comuns").And.Contain("comum.pdf").And.Contain("Enviar documento")
-            .And.Contain("Renomear").And.Contain("Excluir");
-        // Controle positivo do que o cliente não vê: a Diretoria vê a coluna do autor e o nome de quem enviou.
-        html.Should().Contain("<th>Por</th>").And.Contain("<td>Diana Diretora</td>");
-        html.Should().NotContain("Confirmar envio").And.NotContain("Página não encontrada").And.NotContain("Carregando");
+        html.Should().Contain("<h1 class=\"aj-titulo\">Documentos comuns</h1>")
+            .And.Contain("<p class=\"aj-subtitulo\">Visíveis para todos os clientes do escritório.</p>")
+            .And.Contain("<span class=\"aj-subtitulo\">1 documento</span>")
+            .And.MatchRegex("<button type=\"button\" class=\"aj-botao aj-botao--primario aj-botao--com-icone\"[^>]*>\\s*<svg[^>]*>.*?</svg>\\s*Enviar documento</button>")
+            .And.MatchRegex("<button type=\"button\" class=\"aj-fab\" aria-label=\"Enviar documento\"");
+
+        // Controle positivo do que o cliente não vê: a Diretoria vê a coluna do autor, o nome de quem enviou e as ações.
+        var tabela = BlocoDeVisao.De(html, "aj-so-desktop");
+        tabela.Should().Contain("<th scope=\"col\">Por</th>").And.Contain("<td>Diana Diretora</td>")
+            .And.MatchRegex($"<td class=\"aj-tabela__principal\"><a href=\"/documentos/{_comum}/baixar\"[^>]*download[^>]*>comum\\.pdf</a></td>")
+            .And.MatchRegex("<td class=\"aj-tabela__acao aj-tabela__acao--varias\">\\s*<button type=\"button\" class=\"aj-botao aj-botao--fantasma aj-botao--menor\"[^>]*>Renomear</button>\\s*<button type=\"button\" class=\"aj-botao aj-botao--perigo aj-botao--menor\"[^>]*>Excluir</button>");
+
+        var linhas = BlocoDeVisao.De(html, "aj-tablet-mobile");
+        linhas.Should().Contain("<span class=\"aj-linha__titulo\">comum.pdf</span>")
+            .And.MatchRegex("<span class=\"aj-ajuda\">[^<]+ · \\d{2}/\\d{2}/\\d{4} \\d{2}:\\d{2} · Diana Diretora</span>")
+            .And.Contain("aria-label=\"Ações de comum.pdf\"");
+        // O menu nasce fechado, com as três ações na ordem: baixar, renomear e, por último, excluir.
+        Regex.Matches(linhas, "class=\"aj-menu-acoes__item[^\"]*\"[^>]*>([^<]+)<").Select(m => m.Groups[1].Value)
+            .Should().Equal("Baixar", "Renomear", "Excluir");
+        linhas.Should().MatchRegex("<div class=\"aj-menu-acoes__lista\"[^>]*\\shidden")
+            .And.Contain("class=\"aj-menu-acoes__item aj-menu-acoes__item--perigo\"");
+
+        // Nada aberto de início: nem confirmação, nem painel de envio.
+        html.Should().NotContain("Confirmar envio").And.NotContain("Arquivo (até").And.NotContain("Confirmar exclusão")
+            .And.NotContain("Página não encontrada").And.NotContain("Carregando");
         html.Should().NotContain("do-cliente.pdf");
     }
 

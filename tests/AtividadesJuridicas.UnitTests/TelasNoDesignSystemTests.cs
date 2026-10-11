@@ -16,6 +16,7 @@ public partial class TelasNoDesignSystemTests
     // Caminhos a partir de src/AtividadesJuridicas.Web.
     private static readonly string[] Migradas =
     [
+        "Components/Documentos/DocumentosComunsDaDiretoria.razor",
         "Components/Documentos/DocumentosParaBaixar.razor",
         "Components/Layout/Aviso.razor",
         "Components/Layout/CabecalhoDePagina.razor",
@@ -28,6 +29,7 @@ public partial class TelasNoDesignSystemTests
         "Components/Layout/RotuloDeCampo.razor",
         "Components/Pages/Andamento.razor",
         "Components/Pages/Conta/Entrar.razor",
+        "Components/Pages/DocumentosComuns.razor",
         "Components/Pages/Erro.razor",
         "Components/Pages/Home.razor",
         "Components/Pages/MeusDocumentos.razor",

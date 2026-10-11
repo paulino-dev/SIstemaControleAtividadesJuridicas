@@ -15,10 +15,7 @@ else if (_ator is null)
 }
 else if (_ator.EhDiretoria)
 {
-    <h1>Documentos comuns</h1>
-    <p>Os arquivos desta área ficam visíveis para todos os clientes do escritório.</p>
-    <DocumentosDoCliente Categoria="CategoriaDocumento.DocumentoComum" Titulo="Documentos comuns"
-                         PodeGerenciar="true" OnAcessoEncerrado="Encerrar" />
+    <DocumentosComunsDaDiretoria OnAcessoEncerrado="Encerrar" />
 }
 else if (_ator.EhCliente)
 {

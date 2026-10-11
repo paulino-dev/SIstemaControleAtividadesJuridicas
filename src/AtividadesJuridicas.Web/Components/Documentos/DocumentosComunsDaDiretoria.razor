@@ -1,0 +1,154 @@
+@inherits GestaoDeDocumentos
+@inject FusoDoEscritorio Fuso
+
+<CabecalhoDePagina Titulo="Documentos comuns" Subtitulo="Visíveis para todos os clientes do escritório."
+                   SubtituloMobile="@Quantos" Acao="Enviar documento" OnAcao="AbrirEnvio" />
+
+@if (_mensagem is not null)
+{
+    <Aviso Tipo="@(_falhou ? TipoDeAviso.Erro : TipoDeAviso.Sucesso)">@_mensagem</Aviso>
+}
+
+@if (_confirmacao.AguardandoConfirmacao && _arquivo is { } escolhido)
+{
+    <Aviso @ref="_avisoDeEnvio" Tipo="TipoDeAviso.Atencao" Rotulo="Confirmar envio" Titulo="@TituloDoEnvio(escolhido)">
+        <ChildContent>Documentos desta área ficam visíveis para todos os clientes do escritório. Não envie aqui arquivos de um cliente específico.</ChildContent>
+        <Acoes>
+            <button type="button" class="aj-botao aj-botao--secundario" disabled="@_enviando" @onclick="CancelarEnvio">Cancelar</button>
+            <button type="button" class="aj-botao aj-botao--primario" disabled="@_enviando" @onclick="ConfirmarEnvioAsync">Confirmar envio</button>
+        </Acoes>
+    </Aviso>
+}
+
+@if (AExcluir is { } aExcluir)
+{
+    <Aviso Tipo="TipoDeAviso.Atencao" Rotulo="Confirmar exclusão" Titulo="@($"Confirmar a exclusão de {aExcluir.Nome}?")">
+        <ChildContent>O documento deixa de aparecer para todos os clientes.</ChildContent>
+        <Acoes>
+            <button type="button" class="aj-botao aj-botao--secundario" disabled="@_removendo" @onclick="CancelarExclusao">Cancelar</button>
+            <button type="button" class="aj-botao aj-botao--primario" disabled="@_removendo" @onclick="() => ExcluirAsync(aExcluir.Id)">Confirmar exclusão</button>
+        </Acoes>
+    </Aviso>
+}
+
+@if (_envioAberto)
+{
+    @* Escondido, não removido, enquanto a confirmação está à vista: o arquivo escolhido mora neste campo. *@
+    <section class="aj-painel" hidden="@_confirmacao.AguardandoConfirmacao">
+        <h2>Enviar documento</h2>
+        <label class="aj-rotulo">@RotuloDoArquivo<InputFile @key="_versaoDoCampo" OnChange="Escolher" class="aj-campo" /></label>
+        <label class="aj-rotulo">Nome (opcional)<input type="text" class="aj-campo" @bind="_nomeDoEnvio" /></label>
+        <div class="aj-painel__acoes">
+            <button type="button" class="aj-botao aj-botao--secundario" disabled="@_enviando" @onclick="FecharEnvio">Cancelar</button>
+            <button type="button" class="aj-botao aj-botao--primario" disabled="@(_arquivo is null || _enviando)" @onclick="EnviarAsync">@(_enviando ? "Enviando…" : "Enviar")</button>
+        </div>
+    </section>
+}
+
+@if (_renomeando is { } renomeando)
+{
+    <section class="aj-painel">
+        <h2>@($"Renomear \"{renomeando.Nome}\"")</h2>
+        <label class="aj-rotulo">Novo nome<input type="text" class="aj-campo" @bind="_novoNome" /></label>
+        <div class="aj-painel__acoes">
+            <button type="button" class="aj-botao aj-botao--secundario" @onclick="FecharRenomear">Cancelar</button>
+            <button type="button" class="aj-botao aj-botao--primario" @onclick="RenomearAsync">Salvar nome</button>
+        </div>
+    </section>
+}
+
+<EstadoDaLista Erro="@_erroDaLista" Carregando="@(!_carregado)" Vazio="@(_pagina.Itens.Count == 0)"
+               TextoDeVazio="Nenhum documento." TentarDeNovo="() => IrParaAsync(_paginaPedida)">
+    <div class="aj-so-desktop">
+        <div class="aj-tabela-caixa">
+            <table class="aj-tabela">
+                <thead><tr><th scope="col">Nome</th><th scope="col">Tamanho</th><th scope="col">Enviado em</th><th scope="col">Por</th><th scope="col"><span class="aj-so-leitor">Ações</span></th></tr></thead>
+                <tbody>
+                    @foreach (var documento in _pagina.Itens)
+                    {
+                        <tr @key="documento.Id">
+                            @* Link fora da navegação do Blazor: é um download, não uma página. O atributo "download"
+                               é o que impede o roteador do Blazor de interceptar o clique; não o remova. *@
+                            <td class="aj-tabela__principal"><a href="@Endereco(documento)" download data-enhance-nav="false">@documento.Nome</a></td>
+                            <td class="aj-tabela__data">@TamanhoDeArquivo.Formatar(documento.TamanhoBytes)</td>
+                            <td class="aj-tabela__data">@Fuso.Formatar(documento.EnviadoEm)</td>
+                            <td>@documento.EnviadoPor</td>
+                            <td class="aj-tabela__acao aj-tabela__acao--varias">
+                                <button type="button" class="aj-botao aj-botao--fantasma aj-botao--menor" @onclick="() => AbrirRenomear(documento)">Renomear</button>
+                                <button type="button" class="aj-botao aj-botao--perigo aj-botao--menor" @onclick="() => PedirExclusao(documento.Id)">Excluir</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <Paginacao Numero="_pagina.Numero" TotalDePaginas="_pagina.TotalDePaginas" Total="_pagina.Total"
+                   Singular="documento" Plural="documentos" IrPara="IrParaAsync" />
+    </div>
+
+    <div class="aj-tablet-mobile">
+        <section class="aj-painel aj-painel--principal">
+            @foreach (var documento in _pagina.Itens)
+            {
+                <div class="aj-linha" @key="documento.Id">
+                    <div class="aj-linha__texto"><span class="aj-linha__titulo">@documento.Nome</span><span class="aj-ajuda">@Detalhe(documento)</span></div>
+                    <MenuDeAcoes Rotulo="@($"Ações de {documento.Nome}")">
+                        <a href="@Endereco(documento)" download data-enhance-nav="false" class="aj-menu-acoes__item">Baixar</a>
+                        <button type="button" class="aj-menu-acoes__item" @onclick="() => AbrirRenomear(documento)">Renomear</button>
+                        <button type="button" class="aj-menu-acoes__item aj-menu-acoes__item--perigo" @onclick="() => PedirExclusao(documento.Id)">Excluir</button>
+                    </MenuDeAcoes>
+                </div>
+            }
+        </section>
+        <Paginacao Numero="_pagina.Numero" TotalDePaginas="_pagina.TotalDePaginas" Total="_pagina.Total"
+                   Singular="documento" Plural="documentos" IrPara="IrParaAsync" />
+    </div>
+</EstadoDaLista>
+
+@code {
+    private bool _envioAberto;
+    private Aviso? _avisoDeEnvio;
+
+    protected override CategoriaDocumento CategoriaDosDocumentos => CategoriaDocumento.DocumentoComum;
+    protected override Guid? ClienteDosDocumentos => null;
+
+    protected override ValueTask FocarAvisoDeEnvioAsync() =>
+        _avisoDeEnvio is { } aviso ? aviso.FocarAsync() : ValueTask.CompletedTask;
+
+    protected override void AoConcluirEnvio() => _envioAberto = false;
+
+    private string RotuloDoArquivo => $"Arquivo (até {DocumentosOpcoes.TamanhoMaximoBytes / UmMegabyte} MB)";
+
+    private string? Quantos => _carregado && _erroDaLista is null && _pagina.Total > 0
+        ? Contagem.De(_pagina.Total, "documento", "documentos")
+        : null;
+
+    private Linha? AExcluir => _pagina.Itens.FirstOrDefault(documento => documento.Id == _excluindo);
+
+    private void AbrirEnvio()
+    {
+        _mensagem = null;
+        _renomeando = null;
+        _envioAberto = true;
+    }
+
+    // O arquivo escolhido não é guardado: reabrir o painel começa do zero.
+    private void FecharEnvio()
+    {
+        _confirmacao.Cancelar();
+        _arquivo = null;
+        _nomeDoEnvio = null;
+        _versaoDoCampo++;
+        _envioAberto = false;
+    }
+
+    private string TituloDoEnvio(IBrowserFile arquivo) =>
+        $"{(string.IsNullOrWhiteSpace(_nomeDoEnvio) ? arquivo.Name : _nomeDoEnvio.Trim())} · {TamanhoDeArquivo.Formatar(arquivo.Size)}";
+
+    private static string Endereco(Linha documento) => $"/documentos/{documento.Id}/baixar";
+
+    private string Detalhe(Linha documento) => string.Join(" · ", new[]
+    {
+        TamanhoDeArquivo.Formatar(documento.TamanhoBytes), Fuso.Formatar(documento.EnviadoEm), documento.EnviadoPor,
+    }.Where(parte => !string.IsNullOrWhiteSpace(parte)));
+}
