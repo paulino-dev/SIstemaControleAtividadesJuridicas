@@ -12,7 +12,7 @@
 
 @if (_confirmacao.AguardandoConfirmacao && _arquivo is { } escolhido)
 {
-    <Aviso @ref="_avisoDeEnvio" Tipo="TipoDeAviso.Atencao" Rotulo="Confirmar envio" Titulo="@TituloDoEnvio(escolhido)">
+    <Aviso Tipo="TipoDeAviso.Atencao" Rotulo="Confirmar envio" Titulo="@TituloDoEnvio(escolhido)">
         <ChildContent>Documentos desta área ficam visíveis para todos os clientes do escritório. Não envie aqui arquivos de um cliente específico.</ChildContent>
         <Acoes>
             <button type="button" class="aj-botao aj-botao--secundario" disabled="@_enviando" @onclick="CancelarEnvio">Cancelar</button>
@@ -23,7 +23,9 @@
 
 @if (AExcluir is { } aExcluir)
 {
-    <Aviso Tipo="TipoDeAviso.Atencao" Rotulo="Confirmar exclusão" Titulo="@($"Confirmar a exclusão de {aExcluir.Nome}?")">
+    @* A chave é o documento: pedir a exclusão de outro com a confirmação aberta é uma confirmação nova, que
+       aparece de novo e por isso leva o foco de novo. *@
+    <Aviso @key="aExcluir.Id" Tipo="TipoDeAviso.Atencao" Rotulo="Confirmar exclusão" Titulo="@($"Confirmar a exclusão de {aExcluir.Nome}?")">
         <ChildContent>O documento deixa de aparecer para todos os clientes.</ChildContent>
         <Acoes>
             <button type="button" class="aj-botao aj-botao--secundario" disabled="@_removendo" @onclick="CancelarExclusao">Cancelar</button>
@@ -37,7 +39,7 @@
     @* Escondido, não removido, enquanto a confirmação está à vista: o arquivo escolhido mora neste campo. *@
     <section class="aj-painel" hidden="@_confirmacao.AguardandoConfirmacao">
         <h2>Enviar documento</h2>
-        <label class="aj-rotulo">@RotuloDoArquivo<InputFile @key="_versaoDoCampo" OnChange="Escolher" class="aj-campo" /></label>
+        <label class="aj-rotulo">@RotuloDoArquivo<InputFile @key="_versaoDoCampo" @ref="_campoDeArquivo" OnChange="Escolher" class="aj-campo" /></label>
         <label class="aj-rotulo">Nome (opcional)<input type="text" class="aj-campo" @bind="_nomeDoEnvio" /></label>
         <div class="aj-painel__acoes">
             <button type="button" class="aj-botao aj-botao--secundario" disabled="@_enviando" @onclick="FecharEnvio">Cancelar</button>
@@ -50,7 +52,7 @@
 {
     <section class="aj-painel">
         <h2>@($"Renomear \"{renomeando.Nome}\"")</h2>
-        <label class="aj-rotulo">Novo nome<input type="text" class="aj-campo" @bind="_novoNome" /></label>
+        <label class="aj-rotulo">Novo nome<input type="text" class="aj-campo" @bind="_novoNome" @ref="_campoDoNovoNome" /></label>
         <div class="aj-painel__acoes">
             <button type="button" class="aj-botao aj-botao--secundario" @onclick="FecharRenomear">Cancelar</button>
             <button type="button" class="aj-botao aj-botao--primario" @onclick="RenomearAsync">Salvar nome</button>
@@ -108,13 +110,40 @@
 
 @code {
     private bool _envioAberto;
-    private Aviso? _avisoDeEnvio;
+
+    // Um painel acabou de abrir e o campo dele ainda espera o foco: pedido uma vez por abertura, não a cada desenho.
+    private bool _focarPainel;
+    private InputFile? _campoDeArquivo;
+    private ElementReference _campoDoNovoNome;
 
     protected override CategoriaDocumento CategoriaDosDocumentos => CategoriaDocumento.DocumentoComum;
     protected override Guid? ClienteDosDocumentos => null;
 
-    protected override ValueTask FocarAvisoDeEnvioAsync() =>
-        _avisoDeEnvio is { } aviso ? aviso.FocarAsync() : ValueTask.CompletedTask;
+    // As confirmações desta tela são avisos com rótulo, que levam o foco a si mesmos quando aparecem.
+    protected override ValueTask FocarAvisoDeEnvioAsync() => ValueTask.CompletedTask;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await base.OnAfterRenderAsync(firstRender);
+        if (!_focarPainel) return;
+
+        _focarPainel = false;
+        // Uma coisa aberta por vez: o campo é o do painel que está na tela.
+        if (_renomeando is not null) await FocarAsync(_campoDoNovoNome);
+        else if (_envioAberto && _campoDeArquivo?.Element is { } campoDeArquivo) await FocarAsync(campoDeArquivo);
+    }
+
+    private static async Task FocarAsync(ElementReference campo)
+    {
+        try
+        {
+            await campo.FocusAsync();
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or JSException or JSDisconnectedException)
+        {
+            // Sem foco (circuito caindo, por exemplo) o painel continua visível e funcional.
+        }
+    }
 
     protected override void AoConcluirEnvio() => _envioAberto = false;
 
@@ -138,6 +167,7 @@
         _mensagem = null;
         _renomeando = null;
         _envioAberto = true;
+        _focarPainel = true;
     }
 
     private void RenomearLinha(Linha documento)
@@ -147,6 +177,7 @@
         CancelarExclusao();
         if (_envioAberto) FecharEnvio();
         AbrirRenomear(documento);
+        _focarPainel = true;
     }
 
     private void ExcluirLinha(Guid id)
