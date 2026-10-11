@@ -65,6 +65,30 @@ public class DocumentosDoPortalWebTests(BancoFixture banco) : IAsyncLifetime
     private static Resultado<Pagina<DocumentoDoPortal>> AcessoNegado() =>
         Resultado<Pagina<DocumentoDoPortal>>.Falha(TipoErro.AcessoNegado, "Acesso negado.");
 
+    /// <summary>Responde depois de ceder a vez, como o banco: a tela chega a se desenhar antes de a resposta chegar.</summary>
+    private sealed class DespachanteQueDemora(IDespachante combinado) : IDespachante
+    {
+        public async Task<TResposta> EnviarAsync<TResposta>(IRequisicao<TResposta> requisicao, CancellationToken ct = default)
+        {
+            await Task.Yield();
+            return await combinado.EnviarAsync(requisicao, ct);
+        }
+    }
+
+    // A página põe o cabeçalho dela e o aviso no lugar do que a lista desenhava: um cabeçalho só, nas duas formas
+    // (o da página e a barra do mobile), e nada da lista nem da mensagem crua do caso de uso.
+    private static void DeveMostrarSoOAcessoEncerrado(string html, string titulo)
+    {
+        html.Should().Contain($"<h1 class=\"aj-titulo\">{titulo}</h1>").And.MatchRegex(AvisoDeAcessoEncerrado);
+        Regex.Matches(html, "<header class=\"aj-cabecalho\">").Should().ContainSingle();
+        Regex.Matches(html, "<header class=\"aj-barra-superior\">").Should().ContainSingle();
+        Regex.Matches(html, "<h1\\b").Should().HaveCount(2);
+        BarraDaTela(html).Should().Contain($"<h1 class=\"aj-titulo\">{titulo}</h1>");
+        html.Should().NotContain("<table").And.NotContain("aj-linha").And.NotContain("Nenhum documento.")
+            .And.NotContain("Tentar de novo").And.NotContain("Acesso negado.").And.NotContain("Enviar documento")
+            .And.NotContain("aj-subtitulo").And.NotContain("Carregando");
+    }
+
     [Fact]
     public async Task Diretor_ve_documentos_comuns_com_o_envio_e_sem_o_aviso_aberto()
     {
@@ -199,40 +223,40 @@ public class DocumentosDoPortalWebTests(BancoFixture banco) : IAsyncLifetime
         BarraDaTela(html).Should().Contain("<h1 class=\"aj-titulo\">Documentos comuns</h1>").And.NotContain("aj-subtitulo");
     }
 
-    [Fact]
-    public async Task Meus_documentos_com_acesso_encerrado_mostra_o_aviso_no_lugar_da_lista()
+    // Com a resposta na hora, a lista nem chega a se desenhar; com demora (o caso de verdade, com banco), o
+    // cabeçalho dela já estava na tela, e é ele que a página troca pelo próprio.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Meus_documentos_com_acesso_encerrado_mostra_o_aviso_no_lugar_da_lista(bool demora)
     {
-        var despachante = new DespachanteCombinado()
+        var combinado = new DespachanteCombinado()
             .Responde<ListarMeusDocumentos, Resultado<Pagina<DocumentoDoPortal>>>(AcessoNegado());
 
-        var html = Decodificado(await TelaDeTeste.RenderizarComAsync<TelaMeusDocumentos>(despachante, new()));
+        var html = Decodificado(await TelaDeTeste.RenderizarComAsync<ComBarraSuperior<TelaMeusDocumentos>>(
+            demora ? new DespachanteQueDemora(combinado) : combinado, new()));
 
-        // A lista avisa a página, e a página troca o cabeçalho da lista pelo próprio: um título só.
-        html.Should().Contain("<h1 class=\"aj-titulo\">Meus documentos</h1>").And.MatchRegex(AvisoDeAcessoEncerrado);
-        Regex.Matches(html, "<h1\\b").Should().ContainSingle();
-        html.Should().NotContain("<table").And.NotContain("aj-linha").And.NotContain("Nenhum documento.")
-            .And.NotContain("Tentar de novo").And.NotContain("Acesso negado.");
+        DeveMostrarSoOAcessoEncerrado(html, "Meus documentos");
     }
 
     [Theory]
-    [InlineData(TipoPerfil.Cliente)]
-    [InlineData(TipoPerfil.Diretoria)]
-    public async Task Documentos_comuns_com_acesso_encerrado_mostra_o_aviso_no_lugar_da_lista(TipoPerfil tipo)
+    [InlineData(TipoPerfil.Cliente, false)]
+    [InlineData(TipoPerfil.Cliente, true)]
+    [InlineData(TipoPerfil.Diretoria, false)]
+    [InlineData(TipoPerfil.Diretoria, true)]
+    public async Task Documentos_comuns_com_acesso_encerrado_mostra_o_aviso_no_lugar_da_lista(TipoPerfil tipo, bool demora)
     {
         var ator = new UsuarioAutenticado(
             Guid.NewGuid(), "Fulano de Tal", tipo, Guid.NewGuid(), tipo == TipoPerfil.Cliente ? Guid.NewGuid() : null);
-        var despachante = new DespachanteCombinado()
+        var combinado = new DespachanteCombinado()
             .Responde<ObterMeuAcesso, UsuarioAutenticado?>(ator)
             .Responde<ListarDocumentosComuns, Resultado<Pagina<DocumentoDoPortal>>>(AcessoNegado());
 
-        var html = Decodificado(await TelaDeTeste.RenderizarComAsync<TelaDocumentosComuns>(despachante, new()));
+        var html = Decodificado(await TelaDeTeste.RenderizarComAsync<ComBarraSuperior<TelaDocumentosComuns>>(
+            demora ? new DespachanteQueDemora(combinado) : combinado, new()));
 
-        html.Should().Contain("<h1 class=\"aj-titulo\">Documentos comuns</h1>").And.MatchRegex(AvisoDeAcessoEncerrado);
-        Regex.Matches(html, "<h1\\b").Should().ContainSingle();
-        // Nem a lista do cliente, nem a gestão da Diretoria: o envio também sai.
-        html.Should().NotContain("<table").And.NotContain("aj-linha").And.NotContain("Nenhum documento.")
-            .And.NotContain("Tentar de novo").And.NotContain("Acesso negado.").And.NotContain("Enviar documento")
-            .And.NotContain("Carregando");
+        // Nem a lista do cliente, nem a gestão da Diretoria: o envio e a frase do cabeçalho dela também saem.
+        DeveMostrarSoOAcessoEncerrado(html, "Documentos comuns");
     }
 
     [Fact]
