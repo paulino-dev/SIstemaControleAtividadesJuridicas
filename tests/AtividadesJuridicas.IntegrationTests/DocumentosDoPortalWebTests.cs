@@ -5,8 +5,12 @@ using AtividadesJuridicas.Application.Auditoria;
 using AtividadesJuridicas.Application.Cadastros;
 using AtividadesJuridicas.Application.Comum;
 using AtividadesJuridicas.Application.Documentos;
+using AtividadesJuridicas.Application.Identidade;
+using AtividadesJuridicas.Domain.Identidade;
 using AtividadesJuridicas.Infrastructure.Persistencia;
 using AtividadesJuridicas.Web.Components.Documentos;
+using TelaDocumentosComuns = AtividadesJuridicas.Web.Components.Pages.DocumentosComuns;
+using TelaMeusDocumentos = AtividadesJuridicas.Web.Components.Pages.MeusDocumentos;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -50,6 +54,13 @@ public class DocumentosDoPortalWebTests(BancoFixture banco) : IAsyncLifetime
 
     private Task<int> RegistrosDeConsultaAsync() => _app.EmEscopoAsync(null, sp =>
         sp.GetRequiredService<AppDbContext>().RegistrosAcesso.AsNoTracking().CountAsync());
+
+    // O aviso que a página põe no lugar da lista quando a consulta responde acesso negado.
+    private const string AvisoDeAcessoEncerrado =
+        "<p class=\"aj-aviso aj-aviso--erro\" role=\"alert\">\\s*<svg.*?</svg>\\s*<span>Seu acesso foi encerrado\\. Entre novamente\\.</span></p>";
+
+    private static Resultado<Pagina<DocumentoDoPortal>> AcessoNegado() =>
+        Resultado<Pagina<DocumentoDoPortal>>.Falha(TipoErro.AcessoNegado, "Acesso negado.");
 
     [Fact]
     public async Task Diretor_ve_documentos_comuns_com_o_envio_e_sem_o_aviso_aberto()
@@ -155,6 +166,68 @@ public class DocumentosDoPortalWebTests(BancoFixture banco) : IAsyncLifetime
             .And.Contain("Falha de teste.").And.Contain(">Tentar de novo</button>");
         html.Should().NotContain("Nenhum documento.").And.NotContain("<table").And.NotContain("aj-linha")
             .And.NotContain("aj-subtitulo");
+    }
+
+    [Fact]
+    public async Task Meus_documentos_com_acesso_encerrado_mostra_o_aviso_no_lugar_da_lista()
+    {
+        var despachante = new DespachanteCombinado()
+            .Responde<ListarMeusDocumentos, Resultado<Pagina<DocumentoDoPortal>>>(AcessoNegado());
+
+        var html = Decodificado(await TelaDeTeste.RenderizarComAsync<TelaMeusDocumentos>(despachante, new()));
+
+        // A lista avisa a página, e a página troca o cabeçalho da lista pelo próprio: um título só.
+        html.Should().Contain("<h1 class=\"aj-titulo\">Meus documentos</h1>").And.MatchRegex(AvisoDeAcessoEncerrado);
+        Regex.Matches(html, "<h1\\b").Should().ContainSingle();
+        html.Should().NotContain("<table").And.NotContain("aj-linha").And.NotContain("Nenhum documento.")
+            .And.NotContain("Tentar de novo").And.NotContain("Acesso negado.");
+    }
+
+    [Theory]
+    [InlineData(TipoPerfil.Cliente)]
+    [InlineData(TipoPerfil.Diretoria)]
+    public async Task Documentos_comuns_com_acesso_encerrado_mostra_o_aviso_no_lugar_da_lista(TipoPerfil tipo)
+    {
+        var ator = new UsuarioAutenticado(
+            Guid.NewGuid(), "Fulano de Tal", tipo, Guid.NewGuid(), tipo == TipoPerfil.Cliente ? Guid.NewGuid() : null);
+        var despachante = new DespachanteCombinado()
+            .Responde<ObterMeuAcesso, UsuarioAutenticado?>(ator)
+            .Responde<ListarDocumentosComuns, Resultado<Pagina<DocumentoDoPortal>>>(AcessoNegado());
+
+        var html = Decodificado(await TelaDeTeste.RenderizarComAsync<TelaDocumentosComuns>(despachante, new()));
+
+        html.Should().Contain("<h1 class=\"aj-titulo\">Documentos comuns</h1>").And.MatchRegex(AvisoDeAcessoEncerrado);
+        Regex.Matches(html, "<h1\\b").Should().ContainSingle();
+        // Nem a lista do cliente, nem a gestão da Diretoria: o envio também sai.
+        html.Should().NotContain("<table").And.NotContain("aj-linha").And.NotContain("Nenhum documento.")
+            .And.NotContain("Tentar de novo").And.NotContain("Acesso negado.").And.NotContain("Enviar documento")
+            .And.NotContain("Carregando");
+    }
+
+    [Fact]
+    public async Task Lista_de_documentos_com_mais_de_uma_pagina_traz_a_paginacao_nas_duas_formas()
+    {
+        var itens = Enumerable.Range(1, DocumentosOpcoes.TamanhoDaPagina)
+            .Select(n => new DocumentoDoPortal(Guid.NewGuid(), $"modelo-{n}.pdf", 1024, new DateTime(2026, 10, 1, 15, 0, 0, DateTimeKind.Utc)))
+            .ToList();
+        Func<int, Task<Resultado<Pagina<DocumentoDoPortal>>>> listar = pagina => Task.FromResult(
+            Resultado<Pagina<DocumentoDoPortal>>.Ok(new Pagina<DocumentoDoPortal>(itens, 45, pagina, DocumentosOpcoes.TamanhoDaPagina)));
+
+        var html = Decodificado(await TelaDeTeste.RenderizarComAsync<DocumentosParaBaixar>(
+            new DespachanteCombinado(), new() { ["Titulo"] = "Meus documentos", ["Listar"] = listar }));
+
+        // A tabela do desktop e a lista do tablet e do mobile têm cada uma a sua linha de paginação.
+        foreach (var visao in new[] { "aj-so-desktop", "aj-tablet-mobile" })
+        {
+            var bloco = BlocoDeVisao.De(html, visao);
+
+            bloco.Should().Contain("modelo-20.pdf", visao).And.Contain("<div class=\"aj-paginacao\">", visao)
+                .And.Contain("<span class=\"aj-subtitulo\">Página 1 de 3 · 45 documentos</span>", visao)
+                .And.MatchRegex("<button[^>]*disabled[^>]*>Anterior</button>", visao)
+                .And.Contain(">Próxima</button>", visao)
+                .And.NotMatchRegex("<button[^>]*disabled[^>]*>Próxima</button>", visao);
+            Regex.Matches(bloco, "<div class=\"aj-paginacao\">").Should().ContainSingle(visao);
+        }
     }
 
     [Fact]
