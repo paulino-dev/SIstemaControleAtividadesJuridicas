@@ -154,7 +154,9 @@ public class ComponentesDoDesignSystemTests
         var html = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarSemDadosAsync<MenuDeAcoes>(
             new() { ["Rotulo"] = "Ações de modelo.pdf", ["ChildContent"] = itens }));
 
-        html.Should().MatchRegex("<button type=\"button\" class=\"aj-botao aj-botao--fantasma aj-botao--icone\"[^>]*aria-label=\"Ações de modelo.pdf\"")
+        // O invólucro é um div: a lista de dentro é um div, que não cabe num span.
+        html.Should().Contain("<div class=\"aj-menu-acoes\">")
+            .And.MatchRegex("<button type=\"button\" class=\"aj-botao aj-botao--fantasma aj-botao--icone\"[^>]*aria-label=\"Ações de modelo.pdf\"")
             .And.Contain("aria-expanded=\"false\"").And.Contain("class=\"aj-icone-cheio\"")
             .And.MatchRegex("<div class=\"aj-menu-acoes__lista\"[^>]*\\shidden[^>]*>\\s*<button type=\"button\" class=\"aj-menu-acoes__item\">Renomear</button>")
             .And.NotContain("aj-menu-acoes__fundo");
