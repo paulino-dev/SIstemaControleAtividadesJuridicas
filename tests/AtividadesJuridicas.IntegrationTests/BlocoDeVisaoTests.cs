@@ -26,4 +26,14 @@ public class BlocoDeVisaoTests
 
         BlocoDeVisao.De(html, "aj-so-desktop").Should().BeEmpty();
     }
+
+    [Fact]
+    public void Bloco_que_nao_fecha_lanca_em_vez_de_passar_por_vazio()
+    {
+        const string html = "<main><div class=\"aj-so-desktop\"><div class=\"aj-tabela-caixa\"><table></table></div></main>";
+
+        var recortar = () => BlocoDeVisao.De(html, "aj-so-desktop");
+
+        recortar.Should().Throw<InvalidOperationException>().WithMessage("O bloco aj-so-desktop não foi fechado.");
+    }
 }
