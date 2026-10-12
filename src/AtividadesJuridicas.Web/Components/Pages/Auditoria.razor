@@ -52,8 +52,9 @@ else
             <label class="aj-campo-filtro aj-campo-filtro--data"><span>Até</span><input type="date" class="aj-campo-filtro__controle" @bind="_filtro.Ate" /></label>
             <div class="aj-so-tablet"><button type="button" class="aj-botao aj-botao--secundario aj-botao--com-icone" aria-expanded="@(_filtrosAbertos ? "true" : "false")" aria-controls="filtros-da-auditoria" @onclick="AlternarFiltros"><Icone Nome="filtros" />@RotuloDosFiltros</button></div>
             <div class="aj-so-mobile"><button type="button" class="aj-botao aj-botao--secundario aj-botao--icone" aria-label="Mais filtros" aria-expanded="@(_filtrosAbertos ? "true" : "false")" aria-controls="filtros-da-auditoria" @onclick="AlternarFiltros"><Icone Nome="filtros" /></button></div>
-            @* Sem botão de envio, o Enter nos campos de data não envia este formulário: este, escondido, o aciona. *@
-            <button type="submit" class="aj-botao" hidden>Filtrar</button>
+            @* Sem botão de envio, o Enter nos campos de data não envia este formulário: este, escondido, o aciona.
+               A classe é aj-so-leitor porque aj-botao define display e anularia o hidden. *@
+            <button type="submit" class="aj-so-leitor" hidden>Filtrar</button>
         </form>
 
         @if (_filtrosAbertos)

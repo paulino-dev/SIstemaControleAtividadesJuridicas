@@ -60,7 +60,9 @@ public class AuditoriaWebTests(BancoFixture banco) : IAsyncLifetime
         linha.Should().MatchRegex("<form[^>]*class=\"aj-linha-filtros\"[^>]*role=\"search\"")
             .And.Contain("aria-controls=\"filtros-da-auditoria\"").And.Contain("aria-expanded=\"false\"")
             // O botão de envio escondido: sem ele, o Enter nos campos de data não envia o formulário da linha.
-            .And.MatchRegex("(?s)<form[^>]*class=\"aj-linha-filtros\".*?<button type=\"submit\" class=\"aj-botao\" hidden[^>]*>Filtrar</button>\\s*</form>");
+            .And.MatchRegex("(?s)<form[^>]*class=\"aj-linha-filtros\".*?<button type=\"submit\" class=\"aj-so-leitor\" hidden[^>]*>Filtrar</button>\\s*</form>")
+            // aj-botao define display e anularia o hidden: o botão escondido não pode voltar a ser um aj-botao.
+            .And.NotContain("class=\"aj-botao\" hidden");
         BlocoDeVisao.De(html, "aj-so-tablet").Should().MatchRegex("(?s)<button type=\"button\" class=\"aj-botao aj-botao--secundario aj-botao--com-icone\"[^>]*>.*?Usuário, operação</button>");
         BlocoDeVisao.De(html, "aj-so-mobile").Should().Contain("aria-label=\"Mais filtros\"");
         // O painel de filtros só aparece aberto.
