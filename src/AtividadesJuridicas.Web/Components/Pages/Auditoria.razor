@@ -52,6 +52,8 @@ else
             <label class="aj-campo-filtro aj-campo-filtro--data"><span>Até</span><input type="date" class="aj-campo-filtro__controle" @bind="_filtro.Ate" /></label>
             <div class="aj-so-tablet"><button type="button" class="aj-botao aj-botao--secundario aj-botao--com-icone" aria-expanded="@(_filtrosAbertos ? "true" : "false")" aria-controls="filtros-da-auditoria" @onclick="AlternarFiltros"><Icone Nome="filtros" />@RotuloDosFiltros</button></div>
             <div class="aj-so-mobile"><button type="button" class="aj-botao aj-botao--secundario aj-botao--icone" aria-label="Mais filtros" aria-expanded="@(_filtrosAbertos ? "true" : "false")" aria-controls="filtros-da-auditoria" @onclick="AlternarFiltros"><Icone Nome="filtros" /></button></div>
+            @* Sem botão de envio, o Enter nos campos de data não envia este formulário: este, escondido, o aciona. *@
+            <button type="submit" class="aj-botao" hidden>Filtrar</button>
         </form>
 
         @if (_filtrosAbertos)
@@ -84,7 +86,7 @@ else
     }
     else
     {
-        <EstadoDaLista Erro="@_erro" Vazio="@(Total == 0)" TextoDeVazio="Nenhum registro." TentarDeNovo="TentarDeNovoAsync">
+        <EstadoDaLista Erro="@_erro" Carregando="@(!_consultou)" Vazio="@(Total == 0)" TextoDeVazio="Nenhum registro." TentarDeNovo="TentarDeNovoAsync">
             @if (_aba == Aba.Alteracoes)
             {
                 <div class="aj-so-desktop">
@@ -264,6 +266,8 @@ else
     {
         if (_ocupado) return Task.CompletedTask;
         _aba = aba;
+        // A aba nova ainda não respondeu: sem contagem nem "Nenhum registro." até a consulta voltar.
+        _consultou = false;
         return IrParaAsync(1);
     }
 

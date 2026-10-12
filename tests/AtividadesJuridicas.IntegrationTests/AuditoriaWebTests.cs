@@ -58,7 +58,9 @@ public class AuditoriaWebTests(BancoFixture banco) : IAsyncLifetime
 
         var linha = BlocoDeVisao.De(html, "aj-tablet-mobile");
         linha.Should().MatchRegex("<form[^>]*class=\"aj-linha-filtros\"[^>]*role=\"search\"")
-            .And.Contain("aria-controls=\"filtros-da-auditoria\"").And.Contain("aria-expanded=\"false\"");
+            .And.Contain("aria-controls=\"filtros-da-auditoria\"").And.Contain("aria-expanded=\"false\"")
+            // O botão de envio escondido: sem ele, o Enter nos campos de data não envia o formulário da linha.
+            .And.MatchRegex("(?s)<form[^>]*class=\"aj-linha-filtros\".*?<button type=\"submit\" class=\"aj-botao\" hidden[^>]*>Filtrar</button>\\s*</form>");
         BlocoDeVisao.De(html, "aj-so-tablet").Should().MatchRegex("(?s)<button type=\"button\" class=\"aj-botao aj-botao--secundario aj-botao--com-icone\"[^>]*>.*?Usuário, operação</button>");
         BlocoDeVisao.De(html, "aj-so-mobile").Should().Contain("aria-label=\"Mais filtros\"");
         // O painel de filtros só aparece aberto.
