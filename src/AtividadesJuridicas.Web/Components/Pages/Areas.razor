@@ -86,6 +86,7 @@ else
     private bool _falhou;
     private bool _salvando;
     private bool _focarNome;
+    private bool _listaCarregada;
     private string? _mensagem;
     private string? _erroDaLista;
     private InputText? _campoNome;
@@ -128,16 +129,28 @@ else
         }
     }
 
-    private async Task RecarregarAsync()
+    // Falso quando a recarga falhou. Só a falha da primeira consulta (nada na tela ainda) toma o lugar da lista, com o
+    // "Tentar de novo"; depois disso a lista que está na tela fica, e quem chamou avisa.
+    private async Task<bool> RecarregarAsync()
     {
         var resultado = await Despachante.EnviarAsync(new ListarAreasAtuacao());
-        if (resultado.Erro == TipoErro.AcessoNegado) _autorizado = false;
-        _areas = resultado.Valor ?? [];
+        if (resultado.Erro == TipoErro.AcessoNegado)
+        {
+            _autorizado = false;
+            return false;
+        }
 
-        // Falha que não é de acesso: o motivo aparece no lugar da lista, em vez de uma lista vazia sem explicação.
-        _erroDaLista = !resultado.Sucesso && resultado.Erro != TipoErro.AcessoNegado ? resultado.Mensagem : null;
+        if (resultado.Sucesso && resultado.Valor is { } lista)
+        {
+            _areas = lista;
+            _listaCarregada = true;
+            _erroDaLista = null;
+            return true;
+        }
+
+        if (!_listaCarregada) _erroDaLista = resultado.Mensagem;
+        return false;
     }
-
     private Task TentarDeNovoAsync() => RecarregarAsync();
 
     private void Limpar()
@@ -199,7 +212,12 @@ else
             return;
         }
 
-        await RecarregarAsync();
+        // A ação deu certo; se só a recarga falhou, o aviso diz isso e a lista anterior fica na tela.
+        if (!await RecarregarAsync() && _autorizado && resultado.Sucesso)
+        {
+            _falhou = true;
+            _mensagem = $"{mensagemDeSucesso.TrimEnd('.')}, mas não foi possível atualizar a lista.";
+        }
     }
 
     private sealed class Formulario

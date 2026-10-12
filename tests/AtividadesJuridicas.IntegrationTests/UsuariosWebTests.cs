@@ -1,4 +1,5 @@
 using System.Net;
+using System.Reflection;
 using System.Text.RegularExpressions;
 using AtividadesJuridicas.Application.Comum;
 using AtividadesJuridicas.Application.Identidade;
@@ -211,5 +212,32 @@ public class UsuariosWebTests(BancoFixture banco) : IAsyncLifetime
 
         html.Should().Contain("Falha de teste.").And.Contain(">Tentar de novo</button>").And.Contain("Novo usuário");
         html.Should().NotContain("Acesso negado").And.NotContain("Nenhum usuário.").And.NotContain("<table");
+    }
+
+    [Fact]
+    public async Task Recarga_que_falha_depois_de_ativar_mantem_a_lista_e_avisa()
+    {
+        var diretora = new UsuarioAutenticado(Guid.NewGuid(), "Diana Diretora", TipoPerfil.Diretoria, Guid.NewGuid(), null);
+        var inativo = new UsuarioResumo(Guid.NewGuid(), "Pedro Produção", "pedro@x.com", Guid.NewGuid(), "Produção",
+            TipoPerfil.Producao, null, false, null);
+        var despachante = new DespachanteCombinado()
+            .Responde<ObterMeuAcesso, UsuarioAutenticado?>(diretora)
+            .Responde<ListarPerfis, Resultado<IReadOnlyList<PerfilDetalhe>>>(Resultado<IReadOnlyList<PerfilDetalhe>>.Ok([]))
+            .Responde<ListarUsuarios, Resultado<IReadOnlyList<UsuarioResumo>>>(Resultado<IReadOnlyList<UsuarioResumo>>.Ok([inativo]))
+            .Responde<DefinirAtivoUsuario, Resultado>(Resultado.Ok());
+
+        var html = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarEAgirAsync<UsuariosPagina>(despachante, new(), async tela =>
+        {
+            // A ativação dá certo, mas a consulta que a segue falha.
+            despachante.Responde<ListarUsuarios, Resultado<IReadOnlyList<UsuarioResumo>>>(
+                Resultado<IReadOnlyList<UsuarioResumo>>.Falha(TipoErro.Validacao, "Falha de teste."));
+            await (Task)typeof(UsuariosPagina).GetMethod("AlternarAtivoAsync", BindingFlags.NonPublic | BindingFlags.Instance)!
+                .Invoke(tela, [inativo])!;
+        }));
+
+        html.Should().MatchRegex("(?s)<p class=\"aj-aviso aj-aviso--erro\" role=\"alert\">.*?<span>Usuário ativado, mas não foi possível atualizar a lista.</span>")
+            .And.Contain("<p class=\"aj-subtitulo\">1 usuário · 1 inativo</p>");
+        BlocoDeVisao.De(html, "aj-so-desktop").Should().Contain("Pedro Produção");
+        html.Should().NotContain("Falha de teste.").And.NotContain(">Tentar de novo</button>");
     }
 }

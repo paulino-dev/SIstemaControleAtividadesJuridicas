@@ -28,7 +28,7 @@ else
                                  OnCancelar="CancelarInativacao" OnAcessoEncerrado="() => _autorizado = false" />
     }
 
-    <EstadoDaLista Erro="@_erroDaLista" Vazio="@(_usuarios.Count == 0)" TextoDeVazio="Nenhum usuário." TentarDeNovo="RecarregarAsync">
+    <EstadoDaLista Erro="@_erroDaLista" Vazio="@(_usuarios.Count == 0)" TextoDeVazio="Nenhum usuário." TentarDeNovo="TentarDeNovoAsync">
         <div class="aj-so-desktop">
             <div class="aj-tabela-caixa">
                 <table class="aj-tabela">
@@ -73,6 +73,7 @@ else
     private bool _autorizado;
     private bool _falhou;
     private bool _emAndamento;
+    private bool _listaCarregada;
     private string? _mensagem;
     private string? _erroDaLista;
     private UsuarioResumo? _inativando;
@@ -124,19 +125,30 @@ else
         _carregado = true;
     }
 
-    // Acesso negado encerra a tela; outra falha toma o lugar da lista, com o "Tentar de novo".
-    private async Task RecarregarAsync()
+    // Falso quando a recarga falhou. Só a falha da primeira consulta (nada na tela ainda) toma o lugar da lista, com o
+    // "Tentar de novo"; depois disso a lista que está na tela fica, e quem chamou avisa.
+    private async Task<bool> RecarregarAsync()
     {
         var resultado = await Despachante.EnviarAsync(new ListarUsuarios());
         if (resultado.Erro == TipoErro.AcessoNegado)
         {
             _autorizado = false;
-            return;
+            return false;
         }
 
-        _erroDaLista = resultado.Sucesso ? null : resultado.Mensagem;
-        _usuarios = resultado.Valor ?? [];
+        if (resultado.Sucesso && resultado.Valor is { } lista)
+        {
+            _usuarios = lista;
+            _listaCarregada = true;
+            _erroDaLista = null;
+            return true;
+        }
+
+        if (!_listaCarregada) _erroDaLista = resultado.Mensagem;
+        return false;
     }
+
+    private Task TentarDeNovoAsync() => RecarregarAsync();
 
     // Ativar é um clique. Inativar abre a confirmação, que mostra o que o usuário deixa pendente.
     private async Task AlternarAtivoAsync(UsuarioResumo usuario)
@@ -186,6 +198,12 @@ else
 
         _falhou = !resultado.Sucesso;
         _mensagem = resultado.Sucesso ? mensagemDeSucesso : resultado.Mensagem;
-        await RecarregarAsync();
+
+        // A ação deu certo; se só a recarga falhou, o aviso diz isso e a lista anterior fica na tela.
+        if (!await RecarregarAsync() && _autorizado && resultado.Sucesso)
+        {
+            _falhou = true;
+            _mensagem = $"{mensagemDeSucesso.TrimEnd('.')}, mas não foi possível atualizar a lista.";
+        }
     }
 }

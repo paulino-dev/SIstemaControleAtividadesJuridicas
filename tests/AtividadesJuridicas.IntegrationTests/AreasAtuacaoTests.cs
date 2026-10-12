@@ -1,4 +1,5 @@
 using System.Net;
+using System.Reflection;
 using System.Text.Json.Nodes;
 using AtividadesJuridicas.Application.Cadastros;
 using AtividadesJuridicas.Application.Comum;
@@ -148,5 +149,30 @@ public class AreasWebTests(BancoFixture banco) : IAsyncLifetime
             .Should().Contain("<h1 class=\"aj-titulo\">Áreas de atuação</h1>").And.Contain("Acesso negado.")
             .And.NotContain("Nova área").And.NotContain("<table");
         (await cliente.GetStringAsync("/")).Should().NotContain("href=\"/areas\"");
+    }
+
+    [Fact]
+    public async Task Recarga_que_falha_depois_de_ativar_mantem_a_lista_e_avisa()
+    {
+        var diretora = new UsuarioAutenticado(Guid.NewGuid(), "Diana Diretora", TipoPerfil.Diretoria, Guid.NewGuid(), null);
+        var inativa = new AreaAtuacaoResumo(Guid.NewGuid(), "Previdenciário", false);
+        var despachante = new DespachanteCombinado()
+            .Responde<ObterMeuAcesso, UsuarioAutenticado?>(diretora)
+            .Responde<ListarAreasAtuacao, Resultado<IReadOnlyList<AreaAtuacaoResumo>>>(Resultado<IReadOnlyList<AreaAtuacaoResumo>>.Ok([inativa]))
+            .Responde<DefinirAtivoAreaAtuacao, Resultado>(Resultado.Ok());
+
+        var html = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarEAgirAsync<TelaAreas>(despachante, new(), async tela =>
+        {
+            // A ativação dá certo, mas a consulta que a segue falha.
+            despachante.Responde<ListarAreasAtuacao, Resultado<IReadOnlyList<AreaAtuacaoResumo>>>(
+                Resultado<IReadOnlyList<AreaAtuacaoResumo>>.Falha(TipoErro.Validacao, "Falha de teste."));
+            await (Task)typeof(TelaAreas).GetMethod("AlternarAtivoAsync", BindingFlags.NonPublic | BindingFlags.Instance)!
+                .Invoke(tela, [inativa])!;
+        }));
+
+        html.Should().MatchRegex("(?s)<p class=\"aj-aviso aj-aviso--erro\" role=\"alert\">.*?<span>Área ativada, mas não foi possível atualizar a lista.</span>")
+            .And.Contain("<p class=\"aj-subtitulo\">1 área · 1 inativa</p>");
+        BlocoDeVisao.De(html, "aj-so-desktop").Should().Contain("Previdenciário");
+        html.Should().NotContain("Falha de teste.").And.NotContain(">Tentar de novo</button>");
     }
 }

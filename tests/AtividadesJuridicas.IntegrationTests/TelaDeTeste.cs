@@ -41,6 +41,54 @@ public static class TelaDeTeste
             (await renderizador.RenderComponentAsync<TComponente>(ParameterView.FromDictionary(parametros))).ToHtmlString());
     }
 
+    /// <summary>
+    /// Desenha o componente com o despachante informado, deixa o teste agir sobre a instância (o que um clique faria,
+    /// por exemplo, chamando um método dela) e devolve o HTML de depois da ação.
+    /// </summary>
+    public static async Task<string> RenderizarEAgirAsync<TComponente>(
+        IDespachante despachante, Dictionary<string, object?> parametros, Func<TComponente, Task> agir)
+        where TComponente : class, IComponent
+    {
+        await using var servicos = new ServiceCollection()
+            .AddSingleton(despachante)
+            .AddSingleton(new FusoDoEscritorio("America/Sao_Paulo"))
+            .AddSingleton(new Recados())
+            .AddSingleton<NavigationManager>(new NavegacaoDeTeste())
+            .AddSingleton<IJSRuntime>(new SemJavaScript())
+            .BuildServiceProvider();
+        await using var renderizador = new HtmlRenderer(servicos, NullLoggerFactory.Instance);
+
+        return await renderizador.Dispatcher.InvokeAsync(async () =>
+        {
+            TComponente? instancia = null;
+            var raiz = await renderizador.RenderComponentAsync<Hospedeiro<TComponente>>(ParameterView.FromDictionary(
+                new Dictionary<string, object?>
+                {
+                    [nameof(Hospedeiro<TComponente>.Parametros)] = parametros,
+                    [nameof(Hospedeiro<TComponente>.AoCriar)] = new Action<TComponente>(c => instancia = c),
+                }));
+            // Como o clique: o componente roda o método e se desenha de novo ao terminar.
+            await ((IHandleEvent)instancia!).HandleEventAsync(new EventCallbackWorkItem(() => agir(instancia!)), null);
+            await raiz.QuiescenceTask;
+            return raiz.ToHtmlString();
+        });
+    }
+
+    // Expõe a instância do componente desenhado, que o RenderComponentAsync não entrega.
+    private sealed class Hospedeiro<TComponente> : ComponentBase where TComponente : class, IComponent
+    {
+        [Parameter] public Dictionary<string, object?> Parametros { get; set; } = [];
+        [Parameter] public Action<TComponente> AoCriar { get; set; } = _ => { };
+
+        protected override void BuildRenderTree(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder construtor)
+        {
+            construtor.OpenComponent<TComponente>(0);
+            construtor.AddMultipleAttributes(1, Parametros.Select(p => new KeyValuePair<string, object>(p.Key, p.Value!)));
+            construtor.AddComponentReferenceCapture(2,instancia => AoCriar((TComponente)instancia));
+            construtor.CloseComponent();
+        }
+    }
+
     /// <summary>Desenha um componente que não consulta nada: sem aplicação, sem banco.</summary>
     public static async Task<string> RenderizarSemDadosAsync<TComponente>(Dictionary<string, object?> parametros)
         where TComponente : IComponent
