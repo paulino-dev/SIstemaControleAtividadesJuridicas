@@ -1,0 +1,19 @@
+@* Cabeçalho de ficha e de formulário: no desktop e no tablet, o voltar acima do cabeçalho; no mobile, a barra de
+   voltar, que esconde a barra inferior. Origem é o nome da tela de onde se veio ("Usuários"). *@
+<div class="aj-desktop-tablet">
+    <div><a href="@VoltarPara" class="aj-voltar"><Icone Nome="voltar" />@Origem</a></div>
+</div>
+<CabecalhoDePagina Titulo="@Titulo" Subtitulo="@Subtitulo" Folgado="@(Subtitulo is not null)"
+                   VoltarPara="@VoltarPara" RotuloDoVoltar="@($"Voltar para {Origem}")" />
+
+@code {
+    [Parameter, EditorRequired] public string Titulo { get; set; } = string.Empty;
+
+    /// <summary>A linha sob o título, no desktop e no tablet. A barra de voltar do mobile não tem subtítulo.</summary>
+    [Parameter] public string? Subtitulo { get; set; }
+
+    [Parameter, EditorRequired] public string VoltarPara { get; set; } = string.Empty;
+
+    /// <summary>O nome da tela de destino do voltar: o texto do link e o rótulo do botão do mobile.</summary>
+    [Parameter, EditorRequired] public string Origem { get; set; } = string.Empty;
+}

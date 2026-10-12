@@ -3,7 +3,9 @@
 @* Cabeçalho de página do design system. Emite as duas formas e o CSS mostra a da visão atual: no desktop e no
    tablet, o aj-cabecalho dentro do conteúdo; no mobile, a barra superior da tela, no encaixe do layout.
    Com VoltarPara, a barra do mobile é a de voltar (ficha e formulário), e a barra inferior some.
-   Com Acao, a ação principal da tela: botão primário no cabeçalho e, no mobile, botão flutuante. *@
+   Com Acao, a ação principal da tela: botão primário no cabeçalho e, no mobile, botão flutuante.
+   Dois encaixes: Complemento, ao lado do título no desktop e no tablet (um controle segmentado, antes da ação), e
+   LinhaDoMobile, a segunda linha da barra superior do mobile (busca, chips, controle segmentado). *@
 <SectionContent SectionName="@Encaixes.BarraSuperior">
     @if (VoltarPara is not null)
     {
@@ -27,6 +29,7 @@
                 </div>
                 <a href="/minha-senha" class="aj-avatar" aria-label="Minha conta">@Contexto?.Iniciais</a>
             </div>
+            @LinhaDoMobile
         </header>
     }
 </SectionContent>
@@ -46,6 +49,7 @@
                 }
             </div>
         </div>
+        @Complemento
         @if (Acao is not null)
         {
             @if (AcaoHref is not null)
@@ -105,6 +109,12 @@
     [Parameter] public string? AcaoHref { get; set; }
 
     [Parameter] public EventCallback OnAcao { get; set; }
+
+    /// <summary>O que fica ao lado do título no desktop e no tablet, no lugar ou antes da ação (um controle segmentado).</summary>
+    [Parameter] public RenderFragment? Complemento { get; set; }
+
+    /// <summary>A segunda linha da barra superior do mobile (busca, chips, controle segmentado).</summary>
+    [Parameter] public RenderFragment? LinhaDoMobile { get; set; }
 
     private string? SubtituloDaBarra =>
         SubtituloMobile is null ? Subtitulo : SubtituloMobile.Length == 0 ? null : SubtituloMobile;

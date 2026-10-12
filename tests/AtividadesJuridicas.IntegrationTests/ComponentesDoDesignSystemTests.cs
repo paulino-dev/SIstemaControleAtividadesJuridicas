@@ -2,6 +2,8 @@ using System.Net;
 using System.Text.RegularExpressions;
 using AtividadesJuridicas.Web.Components.Layout;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Forms;
+using Microsoft.AspNetCore.Components.Rendering;
 
 namespace AtividadesJuridicas.IntegrationTests;
 
@@ -207,5 +209,71 @@ public class ComponentesDoDesignSystemTests
         html.Should().Contain($"<p class=\"aj-subtitulo\">{Frase}</p>").And.NotContain("<span class=\"aj-subtitulo\">");
         // A barra está no HTML, com o título: é só o subtítulo que ela não tem.
         BarraDaTela(html).Should().Contain("<h1 class=\"aj-titulo\">Documentos comuns</h1>").And.NotContain("aj-subtitulo");
+    }
+
+    [Fact]
+    public async Task Cabecalho_leva_o_complemento_ao_lado_do_titulo_e_a_linha_do_mobile_na_barra()
+    {
+        RenderFragment complemento = c => c.AddMarkupContent(0, "<div class=\"aj-segmentado\">segmentado do cabeçalho</div>");
+        RenderFragment linha = c => c.AddMarkupContent(0, "<div class=\"aj-segmentado\">segmentado da barra</div>");
+
+        var html = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarSemDadosAsync<ComBarraSuperior<CabecalhoDePagina>>(new()
+        {
+            ["Titulo"] = "Auditoria", ["Complemento"] = complemento, ["LinhaDoMobile"] = linha,
+        }));
+
+        var desktop = BlocoDeVisao.De(html, "aj-desktop-tablet");
+        desktop.Should().MatchRegex("(?s)<header class=\"aj-cabecalho\">.*segmentado do cabeçalho.*</header>");
+        desktop.Should().NotContain("segmentado da barra");
+        html.Should().MatchRegex(
+            "(?s)<header class=\"aj-barra-superior\">\\s*<div class=\"aj-barra-superior__linha\">.*?</div>\\s*<div class=\"aj-segmentado\">segmentado da barra</div>\\s*</header>");
+    }
+
+    [Fact]
+    public async Task Cabecalho_sem_complemento_nem_linha_continua_como_era()
+    {
+        var html = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarSemDadosAsync<ComBarraSuperior<CabecalhoDePagina>>(
+            new() { ["Titulo"] = "Áreas de atuação" }));
+
+        html.Should().MatchRegex("(?s)<header class=\"aj-barra-superior\">\\s*<div class=\"aj-barra-superior__linha\">.*?</div>\\s*</header>")
+            .And.Contain("<h1 class=\"aj-titulo\">Áreas de atuação</h1>");
+        html.Should().NotContain("aj-segmentado");
+    }
+
+    [Fact]
+    public async Task Cabecalho_de_detalhe_traz_o_voltar_no_desktop_e_a_barra_de_voltar_no_mobile()
+    {
+        var html = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarSemDadosAsync<ComBarraSuperior<CabecalhoDeDetalhe>>(new()
+        {
+            ["Titulo"] = "Novo usuário", ["Subtitulo"] = "Escolha o perfil.", ["VoltarPara"] = "/usuarios", ["Origem"] = "Usuários",
+        }));
+
+        var desktop = BlocoDeVisao.De(html, "aj-desktop-tablet");
+        desktop.Should().MatchRegex("(?s)<div>\\s*<a href=\"/usuarios\" class=\"aj-voltar\">\\s*<svg[^>]*>.*?</svg>\\s*Usuários</a>\\s*</div>")
+            .And.MatchRegex("<div class=\"aj-cabecalho__texto aj-cabecalho__texto--folgado\">\\s*<h1 class=\"aj-titulo\">Novo usuário</h1>")
+            .And.Contain("<p class=\"aj-subtitulo\">Escolha o perfil.</p>");
+        html.Should().MatchRegex(
+            "<header class=\"aj-barra-superior aj-barra-superior--voltar\">\\s*<a href=\"/usuarios\" class=\"aj-botao aj-botao--fantasma aj-botao--icone\" aria-label=\"Voltar para Usuários\">");
+        // O voltar do desktop não vai para a barra do mobile, e a barra não repete o subtítulo.
+        Regex.Matches(html, "class=\"aj-voltar\"").Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Desenho_estatico_aceita_formulario_com_nome()
+    {
+        var html = await TelaDeTeste.RenderizarComAsync<ComFormularioNomeado>(new DespachanteCombinado(), new());
+
+        html.Should().Contain("<form");
+    }
+
+    private sealed class ComFormularioNomeado : ComponentBase
+    {
+        protected override void BuildRenderTree(RenderTreeBuilder construtor)
+        {
+            construtor.OpenComponent<EditForm>(0);
+            construtor.AddComponentParameter(1, nameof(EditForm.Model), new object());
+            construtor.AddComponentParameter(2, nameof(EditForm.FormName), "teste");
+            construtor.CloseComponent();
+        }
     }
 }

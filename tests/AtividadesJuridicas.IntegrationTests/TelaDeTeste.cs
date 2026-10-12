@@ -11,35 +11,27 @@ namespace AtividadesJuridicas.IntegrationTests;
 /// <summary>
 /// Desenha um componente fora da página, até ele terminar de carregar, e devolve o HTML. Serve aos painéis que só
 /// abrem por clique e por isso não aparecem no HTML pré-renderizado. Os casos de uso rodam de verdade, contra o banco
-/// do teste, como o usuário informado. Cliques ficam fora do alcance: só o primeiro desenho é verificado.
+/// do teste, como o usuário informado. Os recados entre telas (`Recados`) vêm do teste, para ele deixar um antes de
+/// desenhar. Cliques ficam fora do alcance: só o primeiro desenho é verificado.
 /// </summary>
 public static class TelaDeTeste
 {
-    public static async Task<string> RenderizarAsync<TComponente>(
-        AplicacaoDeTeste app, Guid usuarioId, Dictionary<string, object?> parametros)
-        where TComponente : IComponent
-    {
-        // Só o que os componentes da aplicação injetam: o despachante, o fuso do escritório e o JavaScript (que o
-        // InputFile injeta e o desenho estático nunca chama).
-        await using var servicos = new ServiceCollection()
-            .AddSingleton<IDespachante>(new DespachanteDeTeste(app, usuarioId))
-            .AddSingleton(new FusoDoEscritorio("America/Sao_Paulo"))
-            .AddSingleton<IJSRuntime>(new SemJavaScript())
-            .BuildServiceProvider();
-        await using var renderizador = new HtmlRenderer(servicos, NullLoggerFactory.Instance);
-
-        return await renderizador.Dispatcher.InvokeAsync(async () =>
-            (await renderizador.RenderComponentAsync<TComponente>(ParameterView.FromDictionary(parametros))).ToHtmlString());
-    }
+    public static Task<string> RenderizarAsync<TComponente>(
+        AplicacaoDeTeste app, Guid usuarioId, Dictionary<string, object?> parametros, Recados? recados = null)
+        where TComponente : IComponent =>
+        RenderizarComAsync<TComponente>(new DespachanteDeTeste(app, usuarioId), parametros, recados);
 
     /// <summary>Desenha um componente com o despachante informado: sem aplicação, sem banco.</summary>
     public static async Task<string> RenderizarComAsync<TComponente>(
-        IDespachante despachante, Dictionary<string, object?> parametros)
+        IDespachante despachante, Dictionary<string, object?> parametros, Recados? recados = null)
         where TComponente : IComponent
     {
+        // Só o que os componentes da aplicação injetam: o despachante, o fuso do escritório, os recados entre telas e
+        // o JavaScript (que o InputFile injeta e o desenho estático nunca chama).
         await using var servicos = new ServiceCollection()
             .AddSingleton(despachante)
             .AddSingleton(new FusoDoEscritorio("America/Sao_Paulo"))
+            .AddSingleton(recados ?? new Recados())
             .AddSingleton<IJSRuntime>(new SemJavaScript())
             .BuildServiceProvider();
         await using var renderizador = new HtmlRenderer(servicos, NullLoggerFactory.Instance);
