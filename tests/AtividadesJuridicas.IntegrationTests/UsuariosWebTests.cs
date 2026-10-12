@@ -2,7 +2,9 @@ using System.Net;
 using System.Text.RegularExpressions;
 using AtividadesJuridicas.Application.Comum;
 using AtividadesJuridicas.Application.Identidade;
+using AtividadesJuridicas.Domain.Identidade;
 using AtividadesJuridicas.Web.Components.Usuarios;
+using UsuarioFormularioPagina = AtividadesJuridicas.Web.Components.Pages.UsuarioFormulario;
 
 namespace AtividadesJuridicas.IntegrationTests;
 
@@ -133,5 +135,24 @@ public class UsuariosWebTests(BancoFixture banco) : IAsyncLifetime
 
         html.Should().Contain("<strong>Confirmar a inativação de Rafael Teles?</strong>")
             .And.Contain("Não foi possível verificar as pendências deste usuário.").And.Contain(">Confirmar inativação</button>");
+    }
+
+    [Fact]
+    public async Task Falha_na_consulta_da_lista_na_edicao_mostra_o_erro_e_nao_diz_que_o_usuario_nao_existe()
+    {
+        var diretora = new UsuarioAutenticado(Guid.NewGuid(), "Diana Diretora", TipoPerfil.Diretoria, Guid.NewGuid(), null);
+        var despachante = new DespachanteCombinado()
+            .Responde<ObterMeuAcesso, UsuarioAutenticado?>(diretora)
+            .Responde<ListarPerfis, Resultado<IReadOnlyList<PerfilDetalhe>>>(Resultado<IReadOnlyList<PerfilDetalhe>>.Ok([]))
+            .Responde<ListarUsuarios, Resultado<IReadOnlyList<UsuarioResumo>>>(
+                Resultado<IReadOnlyList<UsuarioResumo>>.Falha(TipoErro.Validacao, "Falha de teste."));
+
+        var html = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarComAsync<UsuarioFormularioPagina>(
+            despachante, new() { ["Id"] = Guid.NewGuid() }));
+
+        html.Should().MatchRegex("(?s)class=\"aj-aviso aj-aviso--erro\".*?Falha de teste\\.")
+            .And.MatchRegex("<h1 class=\"aj-titulo\">Editar usuário</h1>")
+            .And.MatchRegex("<a href=\"/usuarios\" class=\"aj-voltar\">");
+        html.Should().NotContain("Usuário não encontrado.").And.NotContain("<h2>Usuário</h2>").And.NotContain("Salvar usuário");
     }
 }

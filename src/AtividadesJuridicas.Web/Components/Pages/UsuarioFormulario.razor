@@ -18,6 +18,10 @@ else if (!_autorizado)
 {
     <Aviso Tipo="TipoDeAviso.Erro">Acesso negado.</Aviso>
 }
+else if (_erroDaConsulta is not null)
+{
+    <Aviso Tipo="TipoDeAviso.Erro">@_erroDaConsulta</Aviso>
+}
 else if (_naoEncontrado)
 {
     <Aviso Tipo="TipoDeAviso.Erro">Usuário não encontrado.</Aviso>
@@ -31,7 +35,7 @@ else
 
     @if (_inativando)
     {
-        <ConfirmacaoDeInativacao @key="Id" UsuarioId="Id!.Value" Nome="@_form.Nome" OnConcluido="AoInativar"
+        <ConfirmacaoDeInativacao @key="Id" UsuarioId="Id!.Value" Nome="@_nomeCarregado" OnConcluido="AoInativar"
                                  OnCancelar="() => _inativando = false" OnAcessoEncerrado="() => _autorizado = false" />
     }
 
@@ -147,6 +151,8 @@ else
     private bool _carregado;
     private bool _autorizado;
     private bool _naoEncontrado;
+    private string? _erroDaConsulta;
+    private string _nomeCarregado = string.Empty;
     private bool _salvando;
     private bool _inativando;
     private bool _ativo = true;
@@ -194,6 +200,12 @@ else
             return;
         }
 
+        if (!lista.Sucesso)
+        {
+            _erroDaConsulta = lista.Mensagem ?? "Não foi possível consultar os usuários.";
+            return;
+        }
+
         if (lista.Valor?.FirstOrDefault(u => u.Id == id) is not { } usuario)
         {
             _naoEncontrado = true;
@@ -203,6 +215,7 @@ else
         _perfilInativoAtual = _perfis.FirstOrDefault(p => p.Id == usuario.PerfilId && !p.Ativo);
         _tipoOriginal = usuario.TipoPerfil;
         _ativo = usuario.Ativo;
+        _nomeCarregado = usuario.Nome;
         LimparBuscaDeCliente();
         _form = new Formulario
         {

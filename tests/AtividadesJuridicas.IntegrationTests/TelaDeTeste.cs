@@ -32,6 +32,7 @@ public static class TelaDeTeste
             .AddSingleton(despachante)
             .AddSingleton(new FusoDoEscritorio("America/Sao_Paulo"))
             .AddSingleton(recados ?? new Recados())
+            .AddSingleton<NavigationManager>(new NavegacaoDeTeste())
             .AddSingleton<IJSRuntime>(new SemJavaScript())
             .BuildServiceProvider();
         await using var renderizador = new HtmlRenderer(servicos, NullLoggerFactory.Instance);
@@ -57,6 +58,14 @@ public static class TelaDeTeste
     {
         public Task<TResposta> EnviarAsync<TResposta>(IRequisicao<TResposta> requisicao, CancellationToken ct = default) =>
             app.ExecutarAsync(usuarioId, requisicao);
+    }
+
+    // Telas que navegam depois de salvar injetam o NavigationManager; o desenho estático só precisa que ele exista.
+    private sealed class NavegacaoDeTeste : NavigationManager
+    {
+        public NavegacaoDeTeste() => Initialize("http://localhost/", "http://localhost/");
+
+        protected override void NavigateToCore(string uri, NavigationOptions options) { }
     }
 
     private sealed class SemJavaScript : IJSRuntime
