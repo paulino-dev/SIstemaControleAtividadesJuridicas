@@ -167,15 +167,18 @@ public class ProdutoresWebTests(BancoFixture banco) : IAsyncLifetime
 
         var html = WebUtility.HtmlDecode(await cliente.GetStringAsync("/produtores"));
 
-        html.Should().Contain("Produtores").And.Contain("Acompanhar produtividade").And.NotContain("Acesso negado");
-        // Só as células de dados (a das ações tem classe): nome, perfil, OAB e situação de cada linha, em ordem.
-        // A diretora não está entre elas, embora o nome dela apareça no cabeçalho da página.
-        Textos(html, @"<td>\s*([^<]*?)\s*</td>").Should().Equal(
-            "Iara Inativa", "Produção", "", "Inativo",
-            "Pedro Produção", "Produção", "", "Ativo");
-        Regex.Matches(html, "<tr class=\"inativo\"").Count.Should().Be(1);
-        // O painel só abre por clique.
-        html.Should().NotContain("Produtividade —");
+        html.Should().Contain("<p class=\"aj-subtitulo\">2 produtores</p>").And.NotContain("Acesso negado");
+        var tabela = BlocoDeVisao.De(html, "aj-so-desktop");
+        // As linhas, em ordem de nome: nome, perfil, OAB e situação. A diretora não está entre elas.
+        Regex.Matches(tabela, "<tr[^>]*>\\s*<td class=\"aj-tabela__principal\">([^<]+)</td>\\s*<td>([^<]+)</td>\\s*<td class=\"aj-tabela__data\">([^<]+)</td>\\s*<td>([^<]+)</td>")
+            .Select(m => $"{m.Groups[1].Value}|{m.Groups[2].Value}|{m.Groups[3].Value}|{m.Groups[4].Value}")
+            .Should().Equal("Iara Inativa|Produção|—|Inativo", "Pedro Produção|Produção|—|Ativo");
+        Regex.Matches(tabela, "<tr class=\"aj-tabela__linha--inativa\"").Count.Should().Be(1);
+        tabela.Should().MatchRegex($"<a href=\"/produtores\\?produtor={_pedro}\" class=\"aj-botao aj-botao--fantasma aj-botao--seta\">Acompanhar\\s*<svg");
+        // Sem produtor no endereço não há painel: a consulta de produtividade só acontece por escolha.
+        html.Should().NotContain("Produtividade —").And.NotContain("Em acompanhamento");
+        BlocoDeVisao.De(html, "aj-tablet-mobile").Should().MatchRegex("<select class=\"aj-campo-filtro__controle\"[^>]*>\\s*<option value(?:=\"\")?>Escolha o produtor</option>")
+            .And.Contain(">Iara Inativa (inativo)</option>");
     }
 
     [Fact]
@@ -185,9 +188,45 @@ public class ProdutoresWebTests(BancoFixture banco) : IAsyncLifetime
 
         var html = WebUtility.HtmlDecode(await cliente.GetStringAsync("/produtores"));
 
-        html.Should().Contain("Acesso negado").And.NotContain("Acompanhar produtividade");
+        html.Should().Contain("<h1 class=\"aj-titulo\">Produtores</h1>").And.Contain("Acesso negado").And.NotContain("Acompanhar");
         (await _app.EventosAsync(EventosDeSeguranca.AcessoNegado)).Should().BeEmpty(
             "a página confere o perfil antes de pedir a lista de usuários");
+    }
+
+    [Fact]
+    public async Task Produtor_no_endereco_abre_o_painel_e_marca_a_linha()
+    {
+        await ConcluidaAgoraAsync("Petição simples", 1);
+        var cliente = await _app.ClienteAutenticadoAsync();
+
+        var html = WebUtility.HtmlDecode(await cliente.GetStringAsync($"/produtores?produtor={_pedro}"));
+
+        html.Should().MatchRegex("<div class=\"aj-lado-a-lado aj-lado-a-lado--painel-largo\">")
+            .And.MatchRegex("<section class=\"aj-painel aj-painel--principal aj-lado-a-lado__painel\">")
+            .And.Contain("<h2>Produtividade — Pedro Produção</h2>");
+        BlocoDeVisao.De(html, "aj-so-desktop").Should()
+            .MatchRegex("(?s)<tr class=\"aj-tabela__linha--selecionada\">.*?Pedro Produção.*?<span class=\"aj-tabela__marca\">Em acompanhamento</span>");
+        BlocoDeVisao.De(html, "aj-tablet-mobile").Should()
+            .MatchRegex($"<option value=\"{_pedro}\" selected[^>]*>Pedro Produção</option>")
+            .And.NotContain("Escolha o produtor");
+    }
+
+    [Theory]
+    [InlineData("lixo")]
+    [InlineData("00000000-0000-0000-0000-000000000000")]
+    [InlineData("admin")]
+    public async Task Produtor_que_nao_vale_no_endereco_nao_abre_painel_nem_consulta(string valor)
+    {
+        var produtor = valor == "admin" ? _admin.ToString() : valor;
+        var cliente = await _app.ClienteAutenticadoAsync();
+
+        var html = WebUtility.HtmlDecode(await cliente.GetStringAsync($"/produtores?produtor={produtor}"));
+
+        html.Should().Contain("<p class=\"aj-subtitulo\">1 produtor</p>").And.Contain("Pedro Produção");
+        html.Should().NotContain("Produtividade —").And.NotContain("Em acompanhamento");
+        var acessos = await _app.EmEscopoAsync(null, sp =>
+            sp.GetRequiredService<AppDbContext>().RegistrosAcesso.AsNoTracking().CountAsync(a => a.TipoRecurso == "Produtividade"));
+        acessos.Should().Be(0);
     }
 
     [Fact]
@@ -222,18 +261,24 @@ public class ProdutoresWebTests(BancoFixture banco) : IAsyncLifetime
         var html = await PainelAsync(_pedro, "Pedro Produção");
 
         html.Should().Contain("Produtividade — Pedro Produção");
-        // Sem conclusão mais antiga, o seletor traz só o mês corrente, e ele está escolhido.
-        Meses(html).Should().Equal(mesCorrente);
-        Textos(html, @"<option[^>]*selected[^>]*>\s*([^<]*?)\s*</option>").Should().Equal(mesCorrente);
+        // Sem conclusão mais antiga, o seletor traz só o mês corrente, e ele está escolhido. O campo do desktop
+        // e o do tablet e do mobile são o mesmo controle: trazem as mesmas opções.
+        var desktop = BlocoDeVisao.De(html, "aj-so-desktop");
+        Meses(desktop).Should().Equal(mesCorrente);
+        Textos(desktop, @"<option[^>]*selected[^>]*>\s*([^<]*?)\s*</option>").Should().Equal(mesCorrente);
+        Meses(BlocoDeVisao.De(html, "aj-tablet-mobile")).Should().Equal(Meses(desktop));
 
-        // Totais, na ordem das colunas: complexidade 1, 2, 3 e o total. Só a linha de totais tem células numéricas.
-        Textos(html, @"<th>\s*(Complexidade \d|Total)\s*</th>")
+        // Totais, na ordem dos blocos: complexidade 1, 2, 3 e o total (em destaque).
+        Textos(html, "<div class=\"aj-bloco[^\"]*\">\\s*<span class=\"aj-ajuda\">(Complexidade \\d|Total)</span>")
             .Should().Equal("Complexidade 1", "Complexidade 2", "Complexidade 3", "Total");
-        Textos(html, @"<td>\s*(\d+)\s*</td>").Should().Equal("1", "0", "2", "3");
+        Textos(html, "<span class=\"aj-ajuda\">(?:Complexidade \\d|Total)</span>\\s*<b>(\\d+)</b>")
+            .Should().Equal("1", "0", "2", "3");
+        html.Should().MatchRegex("<div class=\"aj-bloco aj-bloco--destaque\">\\s*<span class=\"aj-ajuda\">Total</span>\\s*<b>3</b>");
 
         Textos(html, @"<h3>\s*([^<]*?)\s*</h3>")
             .Should().Equal("Complexidade 1 (1)", "Complexidade 2 (0)", "Complexidade 3 (2)");
-        html.Should().MatchRegex(@"<td>\s*Petição simples\s*</td>");
+        BlocoDeVisao.De(html, "aj-so-desktop").Should().Contain("<td class=\"aj-tabela__principal\">Petição simples</td>");
+        BlocoDeVisao.De(html, "aj-tablet-mobile").Should().Contain("<span class=\"aj-linha__titulo\">Petição simples</span>");
         // Dentro do grupo, da conclusão mais antiga para a mais recente.
         html.IndexOf("Parecer difícil", StringComparison.Ordinal).Should().BePositive()
             .And.BeLessThan(html.IndexOf("Recurso difícil", StringComparison.Ordinal));
@@ -248,9 +293,10 @@ public class ProdutoresWebTests(BancoFixture banco) : IAsyncLifetime
     {
         var html = await PainelAsync(_pedro, "Pedro Produção");
 
-        Textos(html, @"<td>\s*(\d+)\s*</td>").Should().Equal("0", "0", "0", "0");
+        Textos(html, "<span class=\"aj-ajuda\">(?:Complexidade \\d|Total)</span>\\s*<b>(\\d+)</b>")
+            .Should().Equal("0", "0", "0", "0");
         Regex.Matches(html, "Nenhuma atividade\\.").Count.Should().Be(3);
-        Meses(html).Should().Equal(RotulosDeProdutividade.Mes(RotulosDeProdutividade.MesDe(Hoje())));
+        Meses(BlocoDeVisao.De(html, "aj-so-desktop")).Should().Equal(RotulosDeProdutividade.Mes(RotulosDeProdutividade.MesDe(Hoje())));
     }
 
     [Fact]
@@ -270,9 +316,11 @@ public class ProdutoresWebTests(BancoFixture banco) : IAsyncLifetime
         var html = await PainelAsync(_pedro, "Pedro Produção");
 
         esperados.Count.Should().BeGreaterThan(1);
-        Meses(html).Should().Equal(esperados.Select(RotulosDeProdutividade.Mes));
+        var desktop = BlocoDeVisao.De(html, "aj-so-desktop");
+        Meses(desktop).Should().Equal(esperados.Select(RotulosDeProdutividade.Mes));
+        Meses(BlocoDeVisao.De(html, "aj-tablet-mobile")).Should().Equal(Meses(desktop));
         // O painel abre no mês corrente, e a atividade antiga não é dele.
-        Textos(html, @"<option[^>]*selected[^>]*>\s*([^<]*?)\s*</option>")
+        Textos(desktop, @"<option[^>]*selected[^>]*>\s*([^<]*?)\s*</option>")
             .Should().Equal(RotulosDeProdutividade.Mes(esperados[0]));
         html.Should().NotContain("De três meses atrás");
     }
@@ -293,7 +341,7 @@ public class ProdutoresWebTests(BancoFixture banco) : IAsyncLifetime
     {
         var html = await PainelAsync(_admin, "Diana Diretora");
 
-        html.Should().Contain("Produtor não encontrado.").And.Contain("Tentar de novo");
-        html.Should().NotContain("Complexidade 1").And.NotContain("Nenhuma atividade.");
+        html.Should().MatchRegex("(?s)<div class=\"aj-aviso aj-aviso--erro[^\"]*\"[^>]*>.*?Produtor não encontrado\\..*?Tentar de novo");
+        html.Should().NotContain("aj-blocos").And.NotContain("Complexidade 1").And.NotContain("Nenhuma atividade.");
     }
 }

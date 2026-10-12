@@ -1,94 +1,79 @@
 @inject IDespachante Despachante
 @inject FusoDoEscritorio Fuso
 
-@* Todo texto que os testes procuram sai de uma única expressão: texto fixo junto de expressão pode vir separado. *@
-<section class="ficha">
-    <h2>@RotulosDeProdutividade.Titulo(ProdutorNome)</h2>
+<div class="aj-tablet-mobile">
+    <div class="aj-linha-filtros aj-linha-filtros--empilha">
+        @SeletorDoProdutor
+        <label class="aj-campo-filtro"><span>Mês</span>@SeletorDoMes</label>
+    </div>
+</div>
 
-    <div class="acoes">
-        <label>
-            Mês
-            <select value="@RotulosDeProdutividade.Chave(_mes)" disabled="@_carregando" @onchange="MudarMesAsync">
-                @foreach (var mes in _meses)
-                {
-                    <option value="@RotulosDeProdutividade.Chave(mes)">@RotulosDeProdutividade.Mes(mes)</option>
-                }
-            </select>
-        </label>
-        <button type="button" class="secundario" @onclick="FecharAsync">Fechar</button>
+@* Todo texto que os testes procuram sai de uma única expressão: texto fixo junto de expressão pode vir separado. *@
+<section class="aj-painel aj-painel--principal aj-lado-a-lado__painel">
+    <div class="aj-painel__cabecalho">
+        <h2>@RotulosDeProdutividade.Titulo(ProdutorNome)</h2>
+        <div class="aj-so-desktop"><label class="aj-campo-filtro"><span>Mês</span>@SeletorDoMes</label></div>
     </div>
 
-    @if (_erro is not null)
-    {
-        @* Falha na consulta não é "nenhuma atividade": mostra o erro no lugar dos números. *@
-        <p class="erro">@_erro</p>
-        <div class="acoes">
-            <button type="button" class="secundario" disabled="@_carregando" @onclick="TentarDeNovoAsync">Tentar de novo</button>
-        </div>
-    }
-    else if (_produtividade is not { } p)
-    {
-        <p>Carregando…</p>
-    }
-    else
-    {
-        <table>
-            <thead>
-                <tr>
-                    @foreach (var grupo in p.Grupos)
-                    {
-                        <th>@RotulosDeProdutividade.Coluna(grupo.Complexidade)</th>
-                    }
-                    <th>Total</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    @foreach (var grupo in p.Grupos)
-                    {
-                        <td>@grupo.Total</td>
-                    }
-                    <td>@p.Total</td>
-                </tr>
-            </tbody>
-        </table>
-
-        @foreach (var grupo in p.Grupos)
+    @* Falha na consulta não é "nenhuma atividade": mostra o erro no lugar dos números. *@
+    <EstadoDaLista Erro="@_erro" Carregando="@(_produtividade is null)" TextoDeVazio="Nenhuma atividade." TentarDeNovo="TentarDeNovoAsync">
+        @if (_produtividade is { } p)
         {
-            <h3>@RotulosDeProdutividade.Grupo(grupo)</h3>
-            @if (grupo.Total == 0)
+            <div class="aj-blocos">
+                @foreach (var grupo in p.Grupos)
+                {
+                    <div class="aj-bloco"><span class="aj-ajuda">@RotulosDeProdutividade.Coluna(grupo.Complexidade)</span><b>@grupo.Total</b></div>
+                }
+                <div class="aj-bloco aj-bloco--destaque"><span class="aj-ajuda">Total</span><b>@p.Total</b></div>
+            </div>
+
+            @foreach (var grupo in p.Grupos)
             {
-                <p>Nenhuma atividade.</p>
+                <h3>@RotulosDeProdutividade.Grupo(grupo)</h3>
+                @if (grupo.Total == 0)
+                {
+                    <span class="aj-ajuda">Nenhuma atividade.</span>
+                }
+                else
+                {
+                    <div class="aj-so-desktop">
+                        <div class="aj-tabela-caixa aj-tabela-caixa--plana">
+                            <table class="aj-tabela">
+                                <thead><tr><th scope="col">Título</th><th scope="col">Cliente</th><th scope="col">Concluída em</th><th scope="col"><span class="aj-so-leitor">Ações</span></th></tr></thead>
+                                <tbody>
+                                    @foreach (var atividade in grupo.Atividades)
+                                    {
+                                        <tr @key="atividade.Id">
+                                            <td class="aj-tabela__principal">@atividade.Titulo</td>
+                                            <td>@(atividade.ClienteNome ?? "—")</td>
+                                            <td class="aj-tabela__data">@Fuso.Formatar(atividade.ConcluidaEm)</td>
+                                            <td class="aj-tabela__acao"><button type="button" class="aj-botao aj-botao--fantasma aj-botao--seta" @onclick="() => Abrir(atividade.Id)">Abrir<Icone Nome="avancar" /></button></td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="aj-tablet-mobile">
+                        <div class="aj-linhas">
+                            @foreach (var atividade in grupo.Atividades)
+                            {
+                                <button type="button" class="aj-linha aj-linha--botao" @key="atividade.Id" @onclick="() => Abrir(atividade.Id)"><span class="aj-linha__texto"><span class="aj-linha__titulo">@atividade.Titulo</span><span class="aj-ajuda">@Detalhe(atividade)</span></span><Icone Nome="avancar" Classe="aj-cartao__seta" /></button>
+                            }
+                        </div>
+                    </div>
+                }
             }
-            else
+
+            @if (_atividadeAberta is { } id)
             {
-                <table>
-                    <thead><tr><th>Título</th><th>Cliente</th><th>Concluída em</th><th></th></tr></thead>
-                    <tbody>
-                        @foreach (var atividade in grupo.Atividades)
-                        {
-                            <tr @key="atividade.Id">
-                                <td>@atividade.Titulo</td>
-                                <td>@atividade.ClienteNome</td>
-                                <td>@Fuso.Formatar(atividade.ConcluidaEm)</td>
-                                <td class="acoes">
-                                    <button type="button" class="secundario" @onclick="() => Abrir(atividade.Id)">Abrir</button>
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
+                @* A ficha da atividade (marcação antiga até a 9E), como hoje. O que mudar nela muda os números. *@
+                <FichaDaAtividade @key="id" AtividadeId="id" OnMudou="RecarregarAsync" OnAcessoEncerrado="EncerrarAcessoAsync"
+                                  OnFechar="() => FecharFicha(id)" />
             }
         }
-    }
+    </EstadoDaLista>
 </section>
-
-@if (_atividadeAberta is { } id)
-{
-    @* A mesma ficha da tela de atividades. O que mudar nela (uma reabertura, a complexidade) muda os números. *@
-    <FichaDaAtividade @key="id" AtividadeId="id" OnMudou="RecarregarAsync" OnAcessoEncerrado="EncerrarAcessoAsync"
-                      OnFechar="() => FecharFicha(id)" />
-}
 
 @code {
     [Parameter, EditorRequired] public Guid ProdutorId { get; set; }
@@ -98,7 +83,8 @@
     /// <summary>Avisado quando a consulta responde acesso negado: a página decide o que mostrar.</summary>
     [Parameter] public EventCallback OnAcessoEncerrado { get; set; }
 
-    [Parameter] public EventCallback OnFechar { get; set; }
+    /// <summary>O campo "Produtor" da página, para a linha de filtros do tablet e do mobile.</summary>
+    [Parameter] public RenderFragment? SeletorDoProdutor { get; set; }
 
     private bool _carregando;
     private int _geracao;
@@ -180,6 +166,17 @@
 
     private void Abrir(Guid atividadeId) => _atividadeAberta = atividadeId;
 
+    private string Detalhe(AtividadeRealizada atividade) =>
+        $"{atividade.ClienteNome ?? "Sem cliente"} · concluída em {Fuso.Formatar(atividade.ConcluidaEm)}";
+
+    /// <summary>O mesmo controle no cabeçalho do painel (desktop) e na linha de filtros (tablet e mobile).</summary>
+    private RenderFragment SeletorDoMes => @<select class="aj-campo-filtro__controle" value="@RotulosDeProdutividade.Chave(_mes)" disabled="@_carregando" @onchange="MudarMesAsync">
+        @foreach (var mes in _meses)
+        {
+            <option value="@RotulosDeProdutividade.Chave(mes)">@RotulosDeProdutividade.Mes(mes)</option>
+        }
+    </select>;
+
     private void FecharFicha(Guid idDaFicha)
     {
         if (_atividadeAberta == idDaFicha) _atividadeAberta = null;
@@ -192,6 +189,4 @@
         _erro = null;
         await OnAcessoEncerrado.InvokeAsync();
     }
-
-    private async Task FecharAsync() => await OnFechar.InvokeAsync();
 }
