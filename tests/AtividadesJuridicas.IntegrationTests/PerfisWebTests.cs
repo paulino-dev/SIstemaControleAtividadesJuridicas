@@ -1,4 +1,5 @@
 using System.Net;
+using System.Reflection;
 using AtividadesJuridicas.Application.Comum;
 using AtividadesJuridicas.Application.Identidade;
 using AtividadesJuridicas.Domain.Identidade;
@@ -40,7 +41,9 @@ public class PerfisWebTests(BancoFixture banco) : IAsyncLifetime
         tabela.Should().Contain("<th scope=\"col\">Usuários ativos</th>")
             .And.MatchRegex("<tr>\\s*<td class=\"aj-tabela__principal\">Diretor</td>\\s*<td>Diretoria</td>\\s*<td>1</td>\\s*<td>Ativo</td>")
             .And.MatchRegex("<tr class=\"aj-tabela__linha--inativa\">\\s*<td class=\"aj-tabela__principal\">Estagiário</td>\\s*<td>Produção</td>\\s*<td>0</td>\\s*<td>Inativo</td>")
-            .And.MatchRegex("<td class=\"aj-tabela__acao aj-tabela__acao--varias\"><button[^>]*>Renomear</button><button[^>]*>Ativar</button></td>");
+            .And.MatchRegex("<td class=\"aj-tabela__acao aj-tabela__acao--varias\"><button[^>]*>Renomear</button><button[^>]*>Ativar</button></td>")
+            // O perfil ativo: Renomear e Inativar colados na célula de ações da linha dele.
+            .And.MatchRegex("<td class=\"aj-tabela__principal\">Diretor</td>\\s*<td>Diretoria</td>\\s*<td>1</td>\\s*<td>Ativo</td>\\s*<td class=\"aj-tabela__acao aj-tabela__acao--varias\"><button[^>]*>Renomear</button><button[^>]*>Inativar</button></td>");
 
         var linhas = BlocoDeVisao.De(html, "aj-tablet-mobile");
         linhas.Should().MatchRegex("<section class=\"aj-painel aj-painel--principal aj-painel--lista\">\\s*<h2>Perfis</h2>")
@@ -75,6 +78,31 @@ public class PerfisWebTests(BancoFixture banco) : IAsyncLifetime
 
         html.Should().Contain("<h1 class=\"aj-titulo\">Perfis</h1>").And.Contain("Acesso negado.");
         html.Should().NotContain("Estagiário").And.NotContain("Novo perfil").And.NotContain("Renomear");
+    }
+
+    [Fact]
+    public async Task Recarga_que_falha_depois_de_ativar_mantem_a_lista_e_avisa()
+    {
+        var diretora = new UsuarioAutenticado(Guid.NewGuid(), "Diana Diretora", TipoPerfil.Diretoria, Guid.NewGuid(), null);
+        var inativo = new PerfilDetalhe(Guid.NewGuid(), "Estagiário", TipoPerfil.Producao, false, 0);
+        var despachante = new DespachanteCombinado()
+            .Responde<ObterMeuAcesso, UsuarioAutenticado?>(diretora)
+            .Responde<ListarPerfis, Resultado<IReadOnlyList<PerfilDetalhe>>>(Resultado<IReadOnlyList<PerfilDetalhe>>.Ok([inativo]))
+            .Responde<DefinirAtivoPerfil, Resultado>(Resultado.Ok());
+
+        var html = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarEAgirAsync<TelaPerfis>(despachante, new(), async tela =>
+        {
+            // A ativação dá certo, mas a consulta que a segue falha.
+            despachante.Responde<ListarPerfis, Resultado<IReadOnlyList<PerfilDetalhe>>>(
+                Resultado<IReadOnlyList<PerfilDetalhe>>.Falha(TipoErro.Validacao, "Falha de teste."));
+            await (Task)typeof(TelaPerfis).GetMethod("AlternarAtivoAsync", BindingFlags.NonPublic | BindingFlags.Instance)!
+                .Invoke(tela, [inativo])!;
+        }));
+
+        html.Should().MatchRegex("(?s)<p class=\"aj-aviso aj-aviso--erro\" role=\"alert\">.*?<span>Perfil ativado, mas não foi possível atualizar a lista.</span>")
+            .And.Contain("<p class=\"aj-subtitulo\">1 perfil · 1 inativo</p>");
+        BlocoDeVisao.De(html, "aj-so-desktop").Should().Contain("Estagiário");
+        html.Should().NotContain("Falha de teste.").And.NotContain(">Tentar de novo</button>");
     }
 
     [Fact]

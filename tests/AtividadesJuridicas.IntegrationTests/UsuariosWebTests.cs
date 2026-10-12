@@ -15,13 +15,13 @@ namespace AtividadesJuridicas.IntegrationTests;
 public class UsuariosWebTests(BancoFixture banco) : IAsyncLifetime
 {
     private readonly AplicacaoDeTeste _app = new(banco);
-    private Guid _admin, _pedro, _carla, _maria;
+    private Guid _admin, _pedro, _carla;
 
     public async Task InitializeAsync()
     {
         _admin = await _app.IdDoUsuarioAsync(AplicacaoDeTeste.EmailDoAdmin);
         _pedro = await _app.CriarPedroAsync();
-        (_carla, _maria) = await _app.CriarCarlaAsync();
+        (_carla, _) = await _app.CriarCarlaAsync();
     }
 
     public async Task DisposeAsync() => await _app.DisposeAsync();
@@ -74,7 +74,10 @@ public class UsuariosWebTests(BancoFixture banco) : IAsyncLifetime
 
         var situacao = BlocoDeVisao.De(html, "aj-tablet-mobile");
         situacao.Should().MatchRegex("(?s)<section class=\"aj-painel\">\\s*<h2>Situação</h2>.*?Ativo.*?>Inativar usuário</button>");
-        BlocoDeVisao.De(html, "aj-so-desktop").Should().Contain("Salvar usuário").And.NotContain("Situação");
+        situacao.Should().Contain("<h2>Situação</h2>");
+        BlocoDeVisao.De(html, "aj-so-desktop").Should().Contain("Salvar usuário");
+        // O painel "Situação" existe uma vez só na página, e é o do tablet e do mobile.
+        Regex.Matches(html, "<h2>Situação</h2>").Count.Should().Be(1);
     }
 
     [Fact]
@@ -105,6 +108,18 @@ public class UsuariosWebTests(BancoFixture banco) : IAsyncLifetime
 
         html.Should().Contain("Acesso negado.").And.MatchRegex("<h1 class=\"aj-titulo\">Novo usuário</h1>");
         html.Should().NotContain("<h2>Usuário</h2>").And.NotContain("diana@x.com").And.NotContain("Escolha o perfil.");
+    }
+
+    [Fact]
+    public async Task Producao_nao_abre_a_edicao()
+    {
+        var pedro = await _app.ClienteAutenticadoAsync(AplicacaoDeTeste.EmailDoPedro, AplicacaoDeTeste.SenhaDoPedro);
+
+        var html = WebUtility.HtmlDecode(await pedro.GetStringAsync($"/usuarios/{_carla}/editar"));
+
+        html.Should().Contain("Acesso negado.").And.MatchRegex("<h1 class=\"aj-titulo\">Editar usuário</h1>")
+            .And.MatchRegex("<a href=\"/usuarios\" class=\"aj-voltar\">");
+        html.Should().NotContain("<h2>Usuário</h2>").And.NotContain("Salvar usuário").And.NotContain("Carla Cliente");
     }
 
     [Fact]

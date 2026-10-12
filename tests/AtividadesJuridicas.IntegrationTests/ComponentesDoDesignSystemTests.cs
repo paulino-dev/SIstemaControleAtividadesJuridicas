@@ -220,11 +220,19 @@ public class ComponentesDoDesignSystemTests
         var html = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarSemDadosAsync<ComBarraSuperior<CabecalhoDePagina>>(new()
         {
             ["Titulo"] = "Auditoria", ["Complemento"] = complemento, ["LinhaDoMobile"] = linha,
+            ["Acao"] = "Novo registro", ["AcaoHref"] = "/novo",
         }));
 
         var desktop = BlocoDeVisao.De(html, "aj-desktop-tablet");
         desktop.Should().MatchRegex("(?s)<header class=\"aj-cabecalho\">.*segmentado do cabeçalho.*</header>");
         desktop.Should().NotContain("segmentado da barra");
+        // A ordem do cabeçalho: o início (título), o complemento e, por último, a ação.
+        var inicio = desktop.IndexOf("aj-cabecalho__inicio", StringComparison.Ordinal);
+        var posicaoDoComplemento = desktop.IndexOf("segmentado do cabeçalho", StringComparison.Ordinal);
+        var posicaoDaAcao = desktop.IndexOf("Novo registro", StringComparison.Ordinal);
+        inicio.Should().BeGreaterThanOrEqualTo(0);
+        posicaoDoComplemento.Should().BeGreaterThan(inicio);
+        posicaoDaAcao.Should().BeGreaterThan(posicaoDoComplemento);
         html.Should().MatchRegex(
             "(?s)<header class=\"aj-barra-superior\">\\s*<div class=\"aj-barra-superior__linha\">.*?</div>\\s*<div class=\"aj-segmentado\">segmentado da barra</div>\\s*</header>");
     }
