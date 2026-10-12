@@ -2,9 +2,12 @@ using System.Net;
 using System.Text.Json.Nodes;
 using AtividadesJuridicas.Application.Cadastros;
 using AtividadesJuridicas.Application.Comum;
+using AtividadesJuridicas.Application.Identidade;
 using AtividadesJuridicas.Domain.Auditoria;
 using AtividadesJuridicas.Domain.Cadastros;
+using AtividadesJuridicas.Domain.Identidade;
 using AtividadesJuridicas.Infrastructure.Persistencia;
+using TelaAreas = AtividadesJuridicas.Web.Components.Pages.Areas;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -89,11 +92,50 @@ public class AreasWebTests(BancoFixture banco) : IAsyncLifetime
     {
         var adminId = await _app.IdDoUsuarioAsync(AplicacaoDeTeste.EmailDoAdmin);
         await _app.ExecutarAsync(adminId, new SalvarAreaAtuacao(null, "Trabalhista"));
+        var previdenciario = await _app.ExecutarAsync(adminId, new SalvarAreaAtuacao(null, "Previdenciário"));
+        (await _app.ExecutarAsync(adminId, new DefinirAtivoAreaAtuacao(previdenciario.Valor, false))).Sucesso.Should().BeTrue();
         var cliente = await _app.ClienteAutenticadoAsync();
 
         var html = WebUtility.HtmlDecode(await cliente.GetStringAsync("/areas"));
 
-        html.Should().Contain("Áreas de atuação").And.Contain("Trabalhista").And.Contain("Nova área");
+        html.Should().Contain("<p class=\"aj-subtitulo\">2 áreas · 1 inativa</p>")
+            .And.Contain("<span class=\"aj-subtitulo\">2 áreas · 1 inativa</span>")
+            .And.MatchRegex("<form[^>]*class=\"aj-painel aj-lado-a-lado__painel\"")
+            .And.Contain("<h2>Nova área</h2>")
+            .And.MatchRegex("(?s)<div class=\"aj-campo-com-botao\">.*?<input[^>]*class=\"aj-campo[^\"]*\".*?<button type=\"submit\" class=\"aj-botao aj-botao--primario\"[^>]*>Salvar</button>");
+        // Fora da renomeação, o painel não tem "Cancelar" (o "Salvar" do mesmo painel está acima).
+        html.Should().NotContain(">Cancelar</button>");
+        // A tabela vem antes do painel e o painel antes da lista do tablet e do mobile.
+        html.IndexOf("<th scope=\"col\">Nome</th>", StringComparison.Ordinal).Should().BeLessThan(html.IndexOf("<h2>Nova área</h2>", StringComparison.Ordinal));
+        html.IndexOf("<h2>Nova área</h2>", StringComparison.Ordinal).Should().BeLessThan(html.IndexOf("<h2>Áreas</h2>", StringComparison.Ordinal));
+
+        var tabela = BlocoDeVisao.De(html, "aj-so-desktop");
+        tabela.Should().Contain("<th scope=\"col\">Situação</th>").And.Contain("<span class=\"aj-so-leitor\">Ações</span>")
+            .And.MatchRegex("<tr>\\s*<td class=\"aj-tabela__principal\">Trabalhista</td>\\s*<td>Ativa</td>")
+            .And.MatchRegex("<tr class=\"aj-tabela__linha--inativa\">\\s*<td class=\"aj-tabela__principal\">Previdenciário</td>\\s*<td>Inativa</td>")
+            .And.MatchRegex("<td class=\"aj-tabela__acao aj-tabela__acao--varias\"><button type=\"button\" class=\"aj-botao aj-botao--fantasma aj-botao--menor\"[^>]*>Renomear</button><button type=\"button\" class=\"aj-botao aj-botao--fantasma aj-botao--menor\"[^>]*>Ativar</button></td>");
+
+        var linhas = BlocoDeVisao.De(html, "aj-tablet-mobile");
+        linhas.Should().MatchRegex("<section class=\"aj-painel aj-painel--principal aj-painel--lista\">\\s*<h2>Áreas</h2>")
+            .And.MatchRegex("<div class=\"aj-linha aj-linha--inativa\">\\s*<div class=\"aj-linha__texto\"><span class=\"aj-linha__titulo\">Previdenciário</span><span class=\"aj-ajuda\">Inativa</span></div>")
+            .And.MatchRegex("(?s)aria-label=\"Ações de Trabalhista\".*?<button type=\"button\" class=\"aj-menu-acoes__item\"[^>]*>Renomear</button>\\s*<button type=\"button\" class=\"aj-menu-acoes__item\"[^>]*>Inativar</button>");
+        linhas.Should().NotContain("<table");
+    }
+
+    [Fact]
+    public async Task Falha_na_consulta_das_areas_mostra_o_erro_no_lugar_da_lista_e_mantem_o_formulario()
+    {
+        var diretora = new UsuarioAutenticado(Guid.NewGuid(), "Diana Diretora", TipoPerfil.Diretoria, Guid.NewGuid(), null);
+        var despachante = new DespachanteCombinado()
+            .Responde<ObterMeuAcesso, UsuarioAutenticado?>(diretora)
+            .Responde<ListarAreasAtuacao, Resultado<IReadOnlyList<AreaAtuacaoResumo>>>(
+                Resultado<IReadOnlyList<AreaAtuacaoResumo>>.Falha(TipoErro.Validacao, "Falha de teste."));
+
+        var html = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarComAsync<TelaAreas>(despachante, new()));
+
+        html.Should().MatchRegex("<div class=\"aj-aviso aj-aviso--erro aj-aviso--com-acoes\"[^>]*role=\"alert\"")
+            .And.Contain("Falha de teste.").And.Contain(">Tentar de novo</button>").And.Contain("<h2>Nova área</h2>");
+        html.Should().NotContain("Nenhuma área.").And.NotContain("<table").And.NotContain("aj-subtitulo\">0");
     }
 
     [Fact]
@@ -103,7 +145,8 @@ public class AreasWebTests(BancoFixture banco) : IAsyncLifetime
         var cliente = await _app.ClienteAutenticadoAsync(AplicacaoDeTeste.EmailDoPedro, AplicacaoDeTeste.SenhaDoPedro);
 
         WebUtility.HtmlDecode(await cliente.GetStringAsync("/areas"))
-            .Should().Contain("Acesso negado").And.NotContain("Nova área");
+            .Should().Contain("<h1 class=\"aj-titulo\">Áreas de atuação</h1>").And.Contain("Acesso negado.")
+            .And.NotContain("Nova área").And.NotContain("<table");
         (await cliente.GetStringAsync("/")).Should().NotContain("href=\"/areas\"");
     }
 }

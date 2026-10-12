@@ -169,7 +169,6 @@ public class LayoutWebTests(BancoFixture banco) : IAsyncLifetime
     [InlineData("/agenda")]
     [InlineData("/clientes")]
     [InlineData("/processos")]
-    [InlineData("/areas")]
     [InlineData("/usuarios")]
     [InlineData("/produtores")]
     [InlineData("/perfis")]

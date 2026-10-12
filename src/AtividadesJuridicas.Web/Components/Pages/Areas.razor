@@ -4,67 +4,107 @@
 
 <PageTitle>Áreas de atuação</PageTitle>
 
-<h1>Áreas de atuação</h1>
+<CabecalhoDePagina Titulo="Áreas de atuação" Subtitulo="@Subtitulo" />
 
 @if (!_carregado)
 {
-    <p>Carregando…</p>
+    <p class="aj-subtitulo" role="status">Carregando…</p>
 }
 else if (!_autorizado)
 {
-    <p class="erro">Acesso negado.</p>
+    <Aviso Tipo="TipoDeAviso.Erro">Acesso negado.</Aviso>
 }
 else
 {
     @if (_mensagem is not null)
     {
-        <p class="@(_falhou ? "erro" : "ok")" role="status">@_mensagem</p>
+        <Aviso Tipo="@(_falhou ? TipoDeAviso.Erro : TipoDeAviso.Sucesso)">@_mensagem</Aviso>
     }
 
-    <table>
-        <thead>
-            <tr><th>Nome</th><th>Situação</th><th></th></tr>
-        </thead>
-        <tbody>
-            @foreach (var area in _areas)
-            {
-                <tr class="@(area.Ativo ? null : "inativo")" @key="area.Id">
-                    <td>@area.Nome</td>
-                    <td>@(area.Ativo ? "Ativa" : "Inativa")</td>
-                    <td class="acoes">
-                        <button type="button" class="secundario" @onclick="() => Editar(area)">Renomear</button>
-                        <button type="button" class="secundario" @onclick="() => AlternarAtivoAsync(area)">
-                            @(area.Ativo ? "Inativar" : "Ativar")
-                        </button>
-                    </td>
-                </tr>
-            }
-        </tbody>
-    </table>
-
-    <h2>@(_form.Id is null ? "Nova área" : "Renomear área")</h2>
-
-    <EditForm Model="_form" OnValidSubmit="SalvarAsync" FormName="area" class="formulario">
-        <DataAnnotationsValidator />
-        <label>
-            Nome
-            <InputText @bind-Value="_form.Nome" />
-            <ValidationMessage For="() => _form.Nome" />
-        </label>
-        <div class="acoes">
-            <button type="submit">Salvar</button>
-            <button type="button" class="secundario" @onclick="Limpar">Cancelar</button>
+    <div class="aj-lado-a-lado">
+        <div class="aj-so-desktop">
+            <div class="aj-lado-a-lado__lista">
+                <EstadoDaLista Erro="@_erroDaLista" Vazio="@(_areas.Count == 0)" TextoDeVazio="Nenhuma área." TentarDeNovo="TentarDeNovoAsync">
+                    <div class="aj-tabela-caixa">
+                        <table class="aj-tabela">
+                            <thead><tr><th scope="col">Nome</th><th scope="col">Situação</th><th scope="col"><span class="aj-so-leitor">Ações</span></th></tr></thead>
+                            <tbody>
+                                @foreach (var area in _areas)
+                                {
+                                    <tr class="@ClasseDaLinha(area)" @key="area.Id">
+                                        <td class="aj-tabela__principal">@area.Nome</td>
+                                        <td>@Situacao(area)</td>
+                                        @* Os dois botões colados: o espaço entre eles seria desenhado. *@
+                                        <td class="aj-tabela__acao aj-tabela__acao--varias"><button type="button" class="aj-botao aj-botao--fantasma aj-botao--menor" @onclick="() => Editar(area)">Renomear</button><button type="button" class="aj-botao aj-botao--fantasma aj-botao--menor" disabled="@_salvando" @onclick="() => AlternarAtivoAsync(area)">@Alternar(area)</button></td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </EstadoDaLista>
+            </div>
         </div>
-    </EditForm>
+
+        <EditForm Model="_form" OnValidSubmit="SalvarAsync" FormName="area" class="aj-painel aj-lado-a-lado__painel">
+            <DataAnnotationsValidator />
+            <h2>@TituloDoPainel</h2>
+            <div class="aj-campo-com-botao">
+                <RotuloDeCampo Texto="Nome" Para="() => _form.Nome">
+                    <InputText @ref="_campoNome" @bind-Value="_form.Nome" class="aj-campo" />
+                </RotuloDeCampo>
+                <button type="submit" class="aj-botao aj-botao--primario" disabled="@_salvando">Salvar</button>
+                @if (_form.Id is not null)
+                {
+                    <button type="button" class="aj-botao aj-botao--fantasma" @onclick="Limpar">Cancelar</button>
+                }
+            </div>
+        </EditForm>
+
+        <div class="aj-tablet-mobile">
+            <EstadoDaLista Erro="@_erroDaLista" Vazio="@(_areas.Count == 0)" TextoDeVazio="Nenhuma área." TentarDeNovo="TentarDeNovoAsync">
+                <section class="aj-painel aj-painel--principal aj-painel--lista">
+                    <h2>Áreas</h2>
+                    @foreach (var area in _areas)
+                    {
+                        <div class="@ClasseDaLinhaNoPainel(area)" @key="area.Id">
+                            <div class="aj-linha__texto"><span class="aj-linha__titulo">@area.Nome</span><span class="aj-ajuda">@Situacao(area)</span></div>
+                            <MenuDeAcoes Rotulo="@($"Ações de {area.Nome}")">
+                                <button type="button" class="aj-menu-acoes__item" @onclick="() => Editar(area)">Renomear</button>
+                                <button type="button" class="aj-menu-acoes__item" disabled="@_salvando" @onclick="() => AlternarAtivoAsync(area)">@Alternar(area)</button>
+                            </MenuDeAcoes>
+                        </div>
+                    }
+                </section>
+            </EstadoDaLista>
+        </div>
+    </div>
 }
 
 @code {
     private bool _carregado;
     private bool _autorizado;
     private bool _falhou;
+    private bool _salvando;
+    private bool _focarNome;
     private string? _mensagem;
+    private string? _erroDaLista;
+    private InputText? _campoNome;
     private IReadOnlyList<AreaAtuacaoResumo> _areas = [];
     private Formulario _form = new();
+
+    private string? Subtitulo => _carregado && _autorizado && _erroDaLista is null && _areas.Count > 0
+        ? Contagem.ComInativos(_areas.Count, _areas.Count(a => !a.Ativo), "área", "áreas", "inativa", "inativas")
+        : null;
+
+    private string TituloDoPainel => _form.Id is null ? "Nova área" : "Renomear área";
+
+    private static string Situacao(AreaAtuacaoResumo area) => area.Ativo ? "Ativa" : "Inativa";
+
+    private static string Alternar(AreaAtuacaoResumo area) => area.Ativo ? "Inativar" : "Ativar";
+
+    private static string? ClasseDaLinha(AreaAtuacaoResumo area) => area.Ativo ? null : "aj-tabela__linha--inativa";
+
+    private static string ClasseDaLinhaNoPainel(AreaAtuacaoResumo area) => area.Ativo ? "aj-linha" : "aj-linha aj-linha--inativa";
 
     protected override async Task OnInitializedAsync()
     {
@@ -73,19 +113,32 @@ else
         _carregado = true;
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_focarNome) return;
+
+        _focarNome = false;
+        try
+        {
+            if (_campoNome?.Element is { } campo) await campo.FocusAsync();
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or JSException or JSDisconnectedException)
+        {
+            // Sem foco (circuito caindo, por exemplo) o painel continua preenchido e funcional.
+        }
+    }
+
     private async Task RecarregarAsync()
     {
         var resultado = await Despachante.EnviarAsync(new ListarAreasAtuacao());
         if (resultado.Erro == TipoErro.AcessoNegado) _autorizado = false;
         _areas = resultado.Valor ?? [];
 
-        // Falha que não é de acesso: mostra o motivo em vez de uma lista vazia sem explicação.
-        if (!resultado.Sucesso && resultado.Erro != TipoErro.AcessoNegado)
-        {
-            _falhou = true;
-            _mensagem = resultado.Mensagem;
-        }
+        // Falha que não é de acesso: o motivo aparece no lugar da lista, em vez de uma lista vazia sem explicação.
+        _erroDaLista = !resultado.Sucesso && resultado.Erro != TipoErro.AcessoNegado ? resultado.Mensagem : null;
     }
+
+    private Task TentarDeNovoAsync() => RecarregarAsync();
 
     private void Limpar()
     {
@@ -97,19 +150,41 @@ else
     {
         _mensagem = null;
         _form = new Formulario { Id = area.Id, Nome = area.Nome };
+        _focarNome = true;
     }
 
     private async Task SalvarAsync()
     {
-        var resultado = await Despachante.EnviarAsync(new SalvarAreaAtuacao(_form.Id, _form.Nome));
-        await ConcluirAsync(resultado, "Área salva.");
-        if (resultado.Sucesso) _form = new Formulario();
+        // Um segundo clique enquanto o primeiro não terminou recriaria a área e acusaria nome repetido.
+        if (_salvando) return;
+
+        _salvando = true;
+        try
+        {
+            var resultado = await Despachante.EnviarAsync(new SalvarAreaAtuacao(_form.Id, _form.Nome));
+            await ConcluirAsync(resultado, "Área salva.");
+            if (resultado.Sucesso) _form = new Formulario();
+        }
+        finally
+        {
+            _salvando = false;
+        }
     }
 
     private async Task AlternarAtivoAsync(AreaAtuacaoResumo area)
     {
-        var resultado = await Despachante.EnviarAsync(new DefinirAtivoAreaAtuacao(area.Id, !area.Ativo));
-        await ConcluirAsync(resultado, area.Ativo ? "Área inativada." : "Área ativada.");
+        if (_salvando) return;
+
+        _salvando = true;
+        try
+        {
+            var resultado = await Despachante.EnviarAsync(new DefinirAtivoAreaAtuacao(area.Id, !area.Ativo));
+            await ConcluirAsync(resultado, area.Ativo ? "Área inativada." : "Área ativada.");
+        }
+        finally
+        {
+            _salvando = false;
+        }
     }
 
     private async Task ConcluirAsync(Resultado resultado, string mensagemDeSucesso)
