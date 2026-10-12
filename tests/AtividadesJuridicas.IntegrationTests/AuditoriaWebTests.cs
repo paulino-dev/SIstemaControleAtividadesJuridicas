@@ -1,5 +1,12 @@
 using System.Net;
+using System.Reflection;
 using System.Text.RegularExpressions;
+using AtividadesJuridicas.Application.Auditoria;
+using AtividadesJuridicas.Application.Comum;
+using AtividadesJuridicas.Application.Identidade;
+using AtividadesJuridicas.Domain.Identidade;
+using AtividadesJuridicas.Web.Infra;
+using AuditoriaPagina = AtividadesJuridicas.Web.Components.Pages.Auditoria;
 
 namespace AtividadesJuridicas.IntegrationTests;
 
@@ -112,5 +119,87 @@ public class AuditoriaWebTests(BancoFixture banco) : IAsyncLifetime
 
         resposta.StatusCode.Should().Be(HttpStatusCode.Redirect);
         resposta.Headers.Location!.AbsolutePath.Should().Be("/conta/entrar");
+    }
+
+    // ---- Estados da tela, sem banco: o despachante devolve o que cada estado pede ----
+
+    private static readonly UsuarioAutenticado Diretora = new(Guid.NewGuid(), "Diana Diretora", TipoPerfil.Diretoria, Guid.NewGuid(), null);
+
+    private static DespachanteCombinado DespachanteDaAuditoria(Resultado<Pagina<RegistroAuditoriaResumo>> alteracoes) => new DespachanteCombinado()
+        .Responde<ObterMeuAcesso, UsuarioAutenticado?>(Diretora)
+        .Responde<ListarUsuarios, Resultado<IReadOnlyList<UsuarioResumo>>>(Resultado<IReadOnlyList<UsuarioResumo>>.Ok([]))
+        .Responde<ConsultarAuditoria, Resultado<Pagina<RegistroAuditoriaResumo>>>(alteracoes);
+
+    private static Resultado<Pagina<RegistroAuditoriaResumo>> SemRegistros() =>
+        Resultado<Pagina<RegistroAuditoriaResumo>>.Ok(new Pagina<RegistroAuditoriaResumo>([], 0, 1, 20));
+
+    private static Task ChamarAsync(AuditoriaPagina tela, string metodo)
+    {
+        var resultado = typeof(AuditoriaPagina).GetMethod(metodo, BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(tela, []);
+        return resultado as Task ?? Task.CompletedTask;
+    }
+
+    private static void Digitar(AuditoriaPagina tela, Action<FiltroDaTelaDeAuditoria> preencher) =>
+        preencher((FiltroDaTelaDeAuditoria)typeof(AuditoriaPagina).GetField("_filtro", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(tela)!);
+
+    [Fact]
+    public async Task Falha_na_consulta_mostra_o_erro_com_tentar_de_novo_e_nao_diz_que_nao_ha_registros()
+    {
+        var despachante = DespachanteDaAuditoria(Resultado<Pagina<RegistroAuditoriaResumo>>.Falha(TipoErro.Validacao, "Falha de teste."));
+
+        var html = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarComAsync<AuditoriaPagina>(despachante, new()));
+
+        html.Should().MatchRegex("(?s)class=\"aj-aviso aj-aviso--erro\".*?Falha de teste\\.")
+            .And.Contain(">Tentar de novo</button>").And.Contain("<h1 class=\"aj-titulo\">Auditoria</h1>");
+        html.Should().NotContain("no período").And.NotContain("Nenhum registro.").And.NotContain("<table").And.NotContain("Acesso negado");
+    }
+
+    [Fact]
+    public async Task Sem_registros_mostra_nenhum_registro_e_nao_a_contagem_zerada()
+    {
+        var despachante = DespachanteDaAuditoria(SemRegistros());
+
+        var html = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarComAsync<AuditoriaPagina>(despachante, new()));
+
+        html.Should().Contain("<strong>Nenhum registro.</strong>").And.Contain("<h1 class=\"aj-titulo\">Auditoria</h1>");
+        html.Should().NotContain("no período").And.NotContain("<table").And.NotContain("Tentar de novo");
+    }
+
+    [Fact]
+    public async Task Identificador_invalido_mostra_o_aviso_sem_lista_e_sem_contagem()
+    {
+        var despachante = DespachanteDaAuditoria(SemRegistros());
+
+        var html = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarEAgirAsync<AuditoriaPagina>(despachante, new(), tela =>
+        {
+            Digitar(tela, filtro => filtro.EntidadeId = "isto não é um identificador");
+            return ChamarAsync(tela, "FiltrarAsync");
+        }));
+
+        html.Should().MatchRegex("(?s)<p class=\"aj-aviso aj-aviso--erro\" role=\"alert\">.*?<span>Identificador inválido\\.</span>");
+        html.Should().NotContain("no período").And.NotContain("<table").And.NotContain("Nenhum registro.").And.NotContain("Tentar de novo");
+    }
+
+    [Fact]
+    public async Task Painel_de_filtros_fica_aberto_com_identificador_invalido_e_fecha_quando_o_filtro_se_aplica()
+    {
+        var despachante = DespachanteDaAuditoria(SemRegistros());
+
+        var invalido = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarEAgirAsync<AuditoriaPagina>(despachante, new(), async tela =>
+        {
+            await ChamarAsync(tela, "AlternarFiltros");
+            Digitar(tela, filtro => filtro.IdCorrelacao = "lixo");
+            await ChamarAsync(tela, "FiltrarDoPainelAsync");
+        }));
+        var valido = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarEAgirAsync<AuditoriaPagina>(despachante, new(), async tela =>
+        {
+            await ChamarAsync(tela, "AlternarFiltros");
+            await ChamarAsync(tela, "FiltrarDoPainelAsync");
+        }));
+
+        // Com o identificador inválido o campo a corrigir continua à vista, junto do aviso.
+        invalido.Should().Contain("Identificador inválido.").And.Contain("id=\"filtros-da-auditoria\"")
+            .And.MatchRegex("(?s)<form id=\"filtros-da-auditoria\".*?placeholder=\"Identificador de correlação\"");
+        valido.Should().Contain("Nenhum registro.").And.NotContain("id=\"filtros-da-auditoria\"");
     }
 }

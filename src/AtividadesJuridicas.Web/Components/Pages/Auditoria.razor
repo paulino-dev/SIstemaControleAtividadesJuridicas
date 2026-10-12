@@ -223,8 +223,8 @@ else
     private int Total => _aba == Aba.Alteracoes ? _alteracoes.Total : _acessos.Total;
     private int TotalDePaginas => _aba == Aba.Alteracoes ? _alteracoes.TotalDePaginas : _acessos.TotalDePaginas;
 
-    // Sem consulta respondida (carregando, falha, identificador inválido) não há total a mostrar.
-    private string? Subtitulo => _carregado && _autorizado && !_identificadorInvalido && _erro is null && _consultou
+    // Sem consulta respondida (carregando, falha, identificador inválido) ou sem nenhum registro não há total a mostrar.
+    private string? Subtitulo => _carregado && _autorizado && !_identificadorInvalido && _erro is null && _consultou && Total > 0
         ? $"{Contagem.De(Total, "registro", "registros")} no período"
         : null;
 
@@ -296,10 +296,10 @@ else
         }
     }
 
-    private Task FiltrarDoPainelAsync()
+    private async Task FiltrarDoPainelAsync()
     {
-        _filtrosAbertos = false;
-        return IrParaAsync(1);
+        // O painel só fecha quando o filtro foi aplicado: um identificador inválido ou uma consulta ignorada o deixam aberto.
+        if (await ConsultarPaginaAsync(1) == Carga.Feita) _filtrosAbertos = false;
     }
 
     // Os botões das linhas respondem "tudo sobre isto": os outros filtros saem (só o período fica).
@@ -315,12 +315,16 @@ else
         return IrParaAsync(1);
     }
 
-    private async Task IrParaAsync(int pagina)
+    private async Task IrParaAsync(int pagina) => await ConsultarPaginaAsync(pagina);
+
+    private async Task<Carga> ConsultarPaginaAsync(int pagina)
     {
         var anterior = _pagina;
         _pagina = pagina;
         // Com outra consulta em andamento, a página mostrada continua sendo a anterior.
-        if (await CarregarAsync() == Carga.EmAndamento) _pagina = anterior;
+        var carga = await CarregarAsync();
+        if (carga == Carga.EmAndamento) _pagina = anterior;
+        return carga;
     }
 
     private enum Carga { Feita, EmAndamento, IdentificadorInvalido }
