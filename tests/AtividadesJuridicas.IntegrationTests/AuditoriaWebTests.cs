@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.RegularExpressions;
 
 namespace AtividadesJuridicas.IntegrationTests;
 
@@ -19,9 +20,49 @@ public class AuditoriaWebTests(BancoFixture banco) : IAsyncLifetime
 
         var html = WebUtility.HtmlDecode(await cliente.GetStringAsync("/auditoria"));
 
-        html.Should().Contain("Auditoria").And.Contain("login_sucesso").And.Contain("pedro@x.com");
-        html.Should().Contain("Diana Diretora");
+        html.Should().MatchRegex("<p class=\"aj-subtitulo\">\\d+ registros? no período</p>")
+            .And.Contain("login_sucesso").And.Contain("pedro@x.com").And.Contain("Diana Diretora")
+            .And.MatchRegex("<span class=\"aj-subtitulo\">Página 1 de \\d+ · \\d+ registros?</span>");
         html.Should().NotContain("pbkdf2-sha256");
+
+        var tabela = BlocoDeVisao.De(html, "aj-so-desktop");
+        tabela.Should().Contain("<th scope=\"col\">Correlação</th>")
+            .And.MatchRegex("<code class=\"aj-dados\">[^<]*: pedro@x.com[^<]*</code>")
+            .And.MatchRegex("<button type=\"button\" class=\"aj-botao aj-botao--fantasma aj-identificador\" title=\"Ver tudo deste registro\"[^>]*>[0-9a-f]{8}…</button>");
+        // Dados resumidos: nada de JSON cru na tela.
+        tabela.Should().NotContain("{\"");
+
+        var cartoes = BlocoDeVisao.De(html, "aj-tablet-mobile");
+        cartoes.Should().MatchRegex("<div class=\"aj-painel aj-painel--registro\">\\s*<span class=\"aj-registro__titulo\">Criação · Usuario</span>")
+            .And.MatchRegex(">Gravação [0-9a-f]{8}…</button>");
+    }
+
+    [Fact]
+    public async Task Diretor_ve_o_controle_segmentado_e_os_filtros_de_cada_visao()
+    {
+        var cliente = await _app.ClienteAutenticadoAsync();
+
+        var html = WebUtility.HtmlDecode(await cliente.GetStringAsync("/auditoria"));
+
+        // O mesmo controle no cabeçalho (desktop e tablet) e na barra do mobile.
+        Regex.Matches(html, "<div class=\"aj-segmentado aj-segmentado--recuado\" role=\"group\" aria-label=\"O que consultar\">").Count.Should().Be(2);
+        html.Should().MatchRegex("<button type=\"button\" class=\"aj-segmentado__opcao\" aria-pressed=\"true\"[^>]*>Alterações e eventos</button>");
+
+        var desktop = BlocoDeVisao.De(html, "aj-so-desktop");
+        desktop.Should().MatchRegex("<form[^>]*class=\"aj-barra-filtros\"[^>]*role=\"search\"")
+            .And.Contain("placeholder=\"Identificador do registro\"").And.Contain("placeholder=\"Identificador de correlação\"")
+            .And.Contain("placeholder=\"Usuario, Perfil…\"")
+            .And.MatchRegex("<button type=\"submit\" class=\"aj-botao aj-botao--secundario\"[^>]*>Filtrar</button>");
+        // A ordem do quadro: Operação vem antes de Entidade.
+        desktop.IndexOf("<span>Operação</span>", StringComparison.Ordinal).Should().BeLessThan(desktop.IndexOf("<span>Entidade</span>", StringComparison.Ordinal));
+
+        var linha = BlocoDeVisao.De(html, "aj-tablet-mobile");
+        linha.Should().MatchRegex("<form[^>]*class=\"aj-linha-filtros\"[^>]*role=\"search\"")
+            .And.Contain("aria-controls=\"filtros-da-auditoria\"").And.Contain("aria-expanded=\"false\"");
+        BlocoDeVisao.De(html, "aj-so-tablet").Should().MatchRegex("(?s)<button type=\"button\" class=\"aj-botao aj-botao--secundario aj-botao--com-icone\"[^>]*>.*?Usuário, operação</button>");
+        BlocoDeVisao.De(html, "aj-so-mobile").Should().Contain("aria-label=\"Mais filtros\"");
+        // O painel de filtros só aparece aberto.
+        html.Should().NotContain("aj-painel--filtros").And.NotContain("Identificador inválido.");
     }
 
     [Fact]
@@ -45,8 +86,8 @@ public class AuditoriaWebTests(BancoFixture banco) : IAsyncLifetime
 
         var html = WebUtility.HtmlDecode(await cliente.GetStringAsync("/auditoria"));
 
-        html.Should().Contain("Acesso negado");
-        html.Should().NotContain("login_sucesso").And.NotContain("diana@x.com");
+        html.Should().Contain("Acesso negado").And.Contain("<h1 class=\"aj-titulo\">Auditoria</h1>");
+        html.Should().NotContain("login_sucesso").And.NotContain("diana@x.com").And.NotContain("aj-segmentado");
     }
 
     [Fact]

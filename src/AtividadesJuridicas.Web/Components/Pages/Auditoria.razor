@@ -4,139 +4,197 @@
 
 <PageTitle>Auditoria</PageTitle>
 
-<h1>Auditoria</h1>
+<CabecalhoDePagina Titulo="Auditoria" Subtitulo="@Subtitulo">
+    <Complemento>@if (_autorizado) { @Segmentado }</Complemento>
+    <LinhaDoMobile>@if (_autorizado) { @Segmentado }</LinhaDoMobile>
+</CabecalhoDePagina>
 
 @if (!_carregado)
 {
-    <p>Carregando…</p>
+    <p class="aj-subtitulo" role="status">Carregando…</p>
 }
 else if (!_autorizado)
 {
-    <p class="erro">Acesso negado.</p>
+    <Aviso Tipo="TipoDeAviso.Erro">Acesso negado.</Aviso>
 }
 else
 {
-    <div class="acoes" role="tablist">
-        <button type="button" class="@(_aba == Aba.Alteracoes ? null : "secundario")"
-                @onclick="() => TrocarAbaAsync(Aba.Alteracoes)">Alterações e eventos</button>
-        <button type="button" class="@(_aba == Aba.Acessos ? null : "secundario")"
-                @onclick="() => TrocarAbaAsync(Aba.Acessos)">Consultas</button>
-    </div>
-
-    <EditForm Model="_filtro" OnSubmit="FiltrarAsync" FormName="filtro-auditoria" class="formulario filtros">
-        <label>De <InputDate @bind-Value="_filtro.De" /></label>
-        <label>Até <InputDate @bind-Value="_filtro.Ate" /></label>
-        <label>
-            Usuário
-            <InputSelect @bind-Value="_filtro.UsuarioId">
-                <option value="">Todos</option>
-                @foreach (var usuario in _usuarios)
-                {
-                    <option value="@usuario.Id">@usuario.Nome</option>
-                }
-            </InputSelect>
-        </label>
-
+    <div class="aj-so-desktop">
         @if (_aba == Aba.Alteracoes)
         {
-            <label>Entidade <InputText @bind-Value="_filtro.Entidade" placeholder="Usuario, Perfil…" /></label>
-            <label>Registro <InputText @bind-Value="_filtro.EntidadeId" placeholder="Identificador do registro" /></label>
-            <label>Gravação <InputText @bind-Value="_filtro.IdCorrelacao" placeholder="Identificador de correlação" /></label>
-            <label>
-                Operação
-                <InputSelect @bind-Value="_filtro.Operacao">
-                    <option value="">Todas</option>
-                    <option value="@OperacaoAuditada.Criacao">Criação</option>
-                    <option value="@OperacaoAuditada.Alteracao">Alteração</option>
-                    <option value="@OperacaoAuditada.Exclusao">Exclusão</option>
-                    <option value="@OperacaoAuditada.Evento">Evento</option>
-                </InputSelect>
-            </label>
+            <form class="aj-barra-filtros" role="search" @onsubmit="FiltrarAsync" @onsubmit:preventDefault>
+                <label class="aj-campo-filtro aj-campo-filtro--data"><span>De</span><input type="date" class="aj-campo-filtro__controle" @bind="_filtro.De" /></label>
+                <label class="aj-campo-filtro aj-campo-filtro--data"><span>Até</span><input type="date" class="aj-campo-filtro__controle" @bind="_filtro.Ate" /></label>
+                <label class="aj-campo-filtro"><span>Usuário</span><select class="aj-campo-filtro__controle" @bind="_filtro.UsuarioId"><option value="">Todos</option>@foreach (var usuario in _usuarios) { <option value="@usuario.Id">@usuario.Nome</option> }</select></label>
+                <label class="aj-campo-filtro"><span>Operação</span><select class="aj-campo-filtro__controle" @bind="_filtro.Operacao"><option value="">Todas</option><option value="@OperacaoAuditada.Criacao">Criação</option><option value="@OperacaoAuditada.Alteracao">Alteração</option><option value="@OperacaoAuditada.Exclusao">Exclusão</option><option value="@OperacaoAuditada.Evento">Evento</option></select></label>
+                <label class="aj-campo-filtro aj-campo-filtro--texto"><span>Entidade</span><input type="text" class="aj-campo-filtro__controle" placeholder="Usuario, Perfil…" @bind="_filtro.Entidade" /></label>
+                <label class="aj-campo-filtro aj-campo-filtro--identificador"><span>Registro</span><input type="text" class="aj-campo-filtro__controle" placeholder="Identificador do registro" @bind="_filtro.EntidadeId" /></label>
+                <label class="aj-campo-filtro aj-campo-filtro--identificador"><span>Gravação</span><input type="text" class="aj-campo-filtro__controle" placeholder="Identificador de correlação" @bind="_filtro.IdCorrelacao" /></label>
+                <button type="submit" class="aj-botao aj-botao--secundario">Filtrar</button>
+            </form>
         }
         else
         {
-            <label>Recurso <InputText @bind-Value="_filtro.TipoRecurso" placeholder="Usuario, RegistroAuditoria…" /></label>
-            <label>
-                Ação
-                <InputSelect @bind-Value="_filtro.Acao">
-                    <option value="">Todas</option>
-                    <option value="@AcaoDeAcesso.Listou">Listou</option>
-                    <option value="@AcaoDeAcesso.Visualizou">Visualizou</option>
-                    <option value="@AcaoDeAcesso.Baixou">Baixou</option>
-                </InputSelect>
-            </label>
+            <form class="aj-barra-filtros" role="search" @onsubmit="FiltrarAsync" @onsubmit:preventDefault>
+                <label class="aj-campo-filtro aj-campo-filtro--data"><span>De</span><input type="date" class="aj-campo-filtro__controle" @bind="_filtro.De" /></label>
+                <label class="aj-campo-filtro aj-campo-filtro--data"><span>Até</span><input type="date" class="aj-campo-filtro__controle" @bind="_filtro.Ate" /></label>
+                <label class="aj-campo-filtro"><span>Usuário</span><select class="aj-campo-filtro__controle" @bind="_filtro.UsuarioId"><option value="">Todos</option>@foreach (var usuario in _usuarios) { <option value="@usuario.Id">@usuario.Nome</option> }</select></label>
+                <label class="aj-campo-filtro"><span>Ação</span><select class="aj-campo-filtro__controle" @bind="_filtro.Acao"><option value="">Todas</option><option value="@AcaoDeAcesso.Listou">Listou</option><option value="@AcaoDeAcesso.Visualizou">Visualizou</option><option value="@AcaoDeAcesso.Baixou">Baixou</option></select></label>
+                <label class="aj-campo-filtro aj-campo-filtro--texto"><span>Recurso</span><input type="text" class="aj-campo-filtro__controle" placeholder="Usuario, RegistroAuditoria…" @bind="_filtro.TipoRecurso" /></label>
+                <button type="submit" class="aj-botao aj-botao--secundario">Filtrar</button>
+            </form>
         }
+    </div>
 
-        <button type="submit">Filtrar</button>
-    </EditForm>
+    <div class="aj-tablet-mobile">
+        <form class="aj-linha-filtros" role="search" @onsubmit="FiltrarAsync" @onsubmit:preventDefault>
+            <label class="aj-campo-filtro aj-campo-filtro--data"><span>De</span><input type="date" class="aj-campo-filtro__controle" @bind="_filtro.De" /></label>
+            <label class="aj-campo-filtro aj-campo-filtro--data"><span>Até</span><input type="date" class="aj-campo-filtro__controle" @bind="_filtro.Ate" /></label>
+            <div class="aj-so-tablet"><button type="button" class="aj-botao aj-botao--secundario aj-botao--com-icone" aria-expanded="@(_filtrosAbertos ? "true" : "false")" aria-controls="filtros-da-auditoria" @onclick="AlternarFiltros"><Icone Nome="filtros" />@RotuloDosFiltros</button></div>
+            <div class="aj-so-mobile"><button type="button" class="aj-botao aj-botao--secundario aj-botao--icone" aria-label="Mais filtros" aria-expanded="@(_filtrosAbertos ? "true" : "false")" aria-controls="filtros-da-auditoria" @onclick="AlternarFiltros"><Icone Nome="filtros" /></button></div>
+        </form>
 
-    @if (_erro is not null)
-    {
-        <p class="erro" role="alert">@_erro</p>
-    }
-
-    @if (_aba == Aba.Alteracoes)
-    {
-        <table>
-            <thead>
-                <tr><th>Quando</th><th>Quem</th><th>Operação</th><th>Sobre</th><th>Dados</th><th>IP</th><th>Correlação</th></tr>
-            </thead>
-            <tbody>
-                @foreach (var registro in _alteracoes.Itens)
+        @if (_filtrosAbertos)
+        {
+            <form id="filtros-da-auditoria" class="aj-painel aj-painel--filtros" @onsubmit="FiltrarDoPainelAsync" @onsubmit:preventDefault>
+                <label class="aj-campo-filtro"><span>Usuário</span><select class="aj-campo-filtro__controle" @bind="_filtro.UsuarioId"><option value="">Todos</option>@foreach (var usuario in _usuarios) { <option value="@usuario.Id">@usuario.Nome</option> }</select></label>
+                @if (_aba == Aba.Alteracoes)
                 {
-                    <tr @key="registro.Id">
-                        <td>@Fuso.Formatar(registro.DataHora)</td>
-                        <td>@(registro.UsuarioNome ?? (registro.UsuarioId is null ? "Sistema" : "—"))</td>
-                        <td>@(registro.Evento ?? Rotulo(registro.Operacao))</td>
-                        <td>
-                            @registro.Entidade
-                            @if (registro.EntidadeId is { } entidadeId)
-                            {
-                                <button type="button" class="secundario" title="Ver tudo deste registro"
-                                        disabled="@_ocupado" @onclick="() => FiltrarPorRegistroAsync(entidadeId)">@entidadeId</button>
-                            }
-                        </td>
-                        <td><code>@registro.Dados</code></td>
-                        <td>@registro.Ip</td>
-                        <td>
-                            @if (registro.IdCorrelacao is { } correlacao)
-                            {
-                                <button type="button" class="secundario" title="Ver o que foi gravado junto"
-                                        disabled="@_ocupado" @onclick="() => FiltrarPorCorrelacaoAsync(correlacao)">@correlacao</button>
-                            }
-                        </td>
-                    </tr>
+                    <label class="aj-campo-filtro"><span>Operação</span><select class="aj-campo-filtro__controle" @bind="_filtro.Operacao"><option value="">Todas</option><option value="@OperacaoAuditada.Criacao">Criação</option><option value="@OperacaoAuditada.Alteracao">Alteração</option><option value="@OperacaoAuditada.Exclusao">Exclusão</option><option value="@OperacaoAuditada.Evento">Evento</option></select></label>
+                    <label class="aj-campo-filtro"><span>Entidade</span><input type="text" class="aj-campo-filtro__controle" placeholder="Usuario, Perfil…" @bind="_filtro.Entidade" /></label>
+                    <label class="aj-campo-filtro"><span>Registro</span><input type="text" class="aj-campo-filtro__controle" placeholder="Identificador do registro" @bind="_filtro.EntidadeId" /></label>
+                    <label class="aj-campo-filtro"><span>Gravação</span><input type="text" class="aj-campo-filtro__controle" placeholder="Identificador de correlação" @bind="_filtro.IdCorrelacao" /></label>
                 }
-            </tbody>
-        </table>
+                else
+                {
+                    <label class="aj-campo-filtro"><span>Ação</span><select class="aj-campo-filtro__controle" @bind="_filtro.Acao"><option value="">Todas</option><option value="@AcaoDeAcesso.Listou">Listou</option><option value="@AcaoDeAcesso.Visualizou">Visualizou</option><option value="@AcaoDeAcesso.Baixou">Baixou</option></select></label>
+                    <label class="aj-campo-filtro"><span>Recurso</span><input type="text" class="aj-campo-filtro__controle" placeholder="Usuario, RegistroAuditoria…" @bind="_filtro.TipoRecurso" /></label>
+                }
+                <div class="aj-painel__acoes">
+                    <button type="button" class="aj-botao aj-botao--fantasma" @onclick="LimparFiltros">Limpar</button>
+                    <button type="submit" class="aj-botao aj-botao--primario">Filtrar</button>
+                </div>
+            </form>
+        }
+    </div>
+
+    @if (_identificadorInvalido)
+    {
+        <Aviso Tipo="TipoDeAviso.Erro">Identificador inválido.</Aviso>
     }
     else
     {
-        <table>
-            <thead>
-                <tr><th>Quando</th><th>Quem</th><th>Ação</th><th>Recurso</th><th>Detalhe</th><th>IP</th></tr>
-            </thead>
-            <tbody>
-                @foreach (var registro in _acessos.Itens)
-                {
-                    <tr @key="registro.Id">
-                        <td>@Fuso.Formatar(registro.DataHora)</td>
-                        <td>@(registro.UsuarioNome ?? "—")</td>
-                        <td>@registro.Acao</td>
-                        <td>@registro.TipoRecurso @registro.RecursoId</td>
-                        <td><code>@registro.Detalhe</code></td>
-                        <td>@registro.Ip</td>
-                    </tr>
-                }
-            </tbody>
-        </table>
+        <EstadoDaLista Erro="@_erro" Vazio="@(Total == 0)" TextoDeVazio="Nenhum registro." TentarDeNovo="TentarDeNovoAsync">
+            @if (_aba == Aba.Alteracoes)
+            {
+                <div class="aj-so-desktop">
+                    <div class="aj-tabela-caixa">
+                        <table class="aj-tabela">
+                            <thead><tr><th scope="col">Quando</th><th scope="col">Quem</th><th scope="col">Operação</th><th scope="col">Sobre</th><th scope="col">Dados</th><th scope="col">IP</th><th scope="col">Correlação</th></tr></thead>
+                            <tbody>
+                                @foreach (var registro in _alteracoes.Itens)
+                                {
+                                    <tr @key="registro.Id">
+                                        <td class="aj-tabela__data">@Fuso.Formatar(registro.DataHora)</td>
+                                        <td>@Quem(registro)</td>
+                                        <td class="aj-tabela__principal">@Operacao(registro)</td>
+                                        <td class="aj-tabela__sem-quebra">@registro.Entidade @if (registro.EntidadeId is { } entidadeId)
+                                        {
+                                            <button type="button" class="aj-botao aj-botao--fantasma aj-identificador" title="Ver tudo deste registro" disabled="@_ocupado" @onclick="() => FiltrarPorRegistroAsync(entidadeId)">@IdentificadorCurto.De(entidadeId)</button>
+                                        }</td>
+                                        <td><code class="aj-dados">@ResumoDeAuditoria.De(registro.Dados, Fuso)</code></td>
+                                        <td class="aj-tabela__data">@Ou(registro.Ip)</td>
+                                        <td>@if (registro.IdCorrelacao is { } correlacao)
+                                        {
+                                            <button type="button" class="aj-botao aj-botao--fantasma aj-identificador" title="Ver o que foi gravado junto" disabled="@_ocupado" @onclick="() => FiltrarPorCorrelacaoAsync(correlacao)">@IdentificadorCurto.De(correlacao)</button>
+                                        }</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="aj-tablet-mobile">
+                    <div class="aj-grade">
+                        @foreach (var registro in _alteracoes.Itens)
+                        {
+                            <div class="aj-painel aj-painel--registro" @key="registro.Id">
+                                <span class="aj-registro__titulo">@($"{Operacao(registro)} · {registro.Entidade}")</span>
+                                <span class="aj-ajuda">@Meta(Quem(registro), registro.DataHora, registro.Ip)</span>
+                                @if (!string.IsNullOrWhiteSpace(registro.Dados))
+                                {
+                                    <code class="aj-dados">@ResumoDeAuditoria.De(registro.Dados, Fuso)</code>
+                                }
+                                @if (registro.EntidadeId is not null || registro.IdCorrelacao is not null)
+                                {
+                                    <span class="aj-registro__ids">
+                                        @if (registro.EntidadeId is { } entidadeId)
+                                        {
+                                            <button type="button" class="aj-botao aj-botao--fantasma aj-identificador" title="Ver tudo deste registro" disabled="@_ocupado" @onclick="() => FiltrarPorRegistroAsync(entidadeId)">@($"Registro {IdentificadorCurto.De(entidadeId)}")</button>
+                                        }
+                                        @if (registro.IdCorrelacao is { } correlacao)
+                                        {
+                                            <button type="button" class="aj-botao aj-botao--fantasma aj-identificador" title="Ver o que foi gravado junto" disabled="@_ocupado" @onclick="() => FiltrarPorCorrelacaoAsync(correlacao)">@($"Gravação {IdentificadorCurto.De(correlacao)}")</button>
+                                        }
+                                    </span>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="aj-so-desktop">
+                    <div class="aj-tabela-caixa">
+                        <table class="aj-tabela">
+                            <thead><tr><th scope="col">Quando</th><th scope="col">Quem</th><th scope="col">Ação</th><th scope="col">Recurso</th><th scope="col">Detalhe</th><th scope="col">IP</th></tr></thead>
+                            <tbody>
+                                @foreach (var registro in _acessos.Itens)
+                                {
+                                    <tr @key="registro.Id">
+                                        <td class="aj-tabela__data">@Fuso.Formatar(registro.DataHora)</td>
+                                        <td>@(registro.UsuarioNome ?? "—")</td>
+                                        <td class="aj-tabela__principal">@registro.Acao</td>
+                                        <td>@registro.TipoRecurso @if (registro.RecursoId is { } recursoId)
+                                        {
+                                            <code class="aj-dados">@recursoId</code>
+                                        }</td>
+                                        <td><code class="aj-dados">@Ou(registro.Detalhe)</code></td>
+                                        <td class="aj-tabela__data">@Ou(registro.Ip)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="aj-tablet-mobile">
+                    <div class="aj-grade">
+                        @foreach (var registro in _acessos.Itens)
+                        {
+                            <div class="aj-painel aj-painel--registro" @key="registro.Id">
+                                <span class="aj-registro__titulo">@($"{registro.Acao} · {registro.TipoRecurso}")</span>
+                                <span class="aj-ajuda">@Meta(registro.UsuarioNome ?? "—", registro.DataHora, registro.Ip)</span>
+                                @if (!string.IsNullOrWhiteSpace(registro.Detalhe))
+                                {
+                                    <code class="aj-dados">@registro.Detalhe</code>
+                                }
+                                @if (registro.RecursoId is { } recursoId)
+                                {
+                                    <code class="aj-dados">@recursoId</code>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        </EstadoDaLista>
     }
 
-    <div class="acoes">
-        <button type="button" class="secundario" disabled="@(_pagina <= 1)" @onclick="() => IrParaAsync(_pagina - 1)">Anterior</button>
-        <span>Página @_pagina de @TotalDePaginas (@Total registros)</span>
-        <button type="button" class="secundario" disabled="@(_pagina >= TotalDePaginas)" @onclick="() => IrParaAsync(_pagina + 1)">Próxima</button>
-    </div>
+    <Paginacao Numero="_pagina" TotalDePaginas="TotalDePaginas" Total="Total" Singular="registro" Plural="registros"
+               SempreVisivel="true" Ocupado="_ocupado" IrPara="IrParaAsync" />
 }
 
 @code {
@@ -148,6 +206,9 @@ else
     private bool _carregado;
     private bool _autorizado;
     private bool _ocupado;
+    private bool _consultou;
+    private bool _filtrosAbertos;
+    private bool _identificadorInvalido;
     private string? _erro;
     private Aba _aba = Aba.Alteracoes;
     private int _pagina = 1;
@@ -158,6 +219,31 @@ else
 
     private int Total => _aba == Aba.Alteracoes ? _alteracoes.Total : _acessos.Total;
     private int TotalDePaginas => _aba == Aba.Alteracoes ? _alteracoes.TotalDePaginas : _acessos.TotalDePaginas;
+
+    // Sem consulta respondida (carregando, falha, identificador inválido) não há total a mostrar.
+    private string? Subtitulo => _carregado && _autorizado && !_identificadorInvalido && _erro is null && _consultou
+        ? $"{Contagem.De(Total, "registro", "registros")} no período"
+        : null;
+
+    private string RotuloDosFiltros => _aba == Aba.Alteracoes ? "Usuário, operação" : "Usuário, ação";
+
+    private string Pressionado(Aba aba) => _aba == aba ? "true" : "false";
+
+    private static string Quem(RegistroAuditoriaResumo registro) =>
+        registro.UsuarioNome ?? (registro.UsuarioId is null ? "Sistema" : "—");
+
+    private static string Operacao(RegistroAuditoriaResumo registro) => registro.Evento ?? Rotulo(registro.Operacao);
+
+    private string Meta(string quem, DateTime quando, string? ip) =>
+        $"{(quem == "—" ? "Usuário não identificado" : quem)} · {Fuso.Formatar(quando)}{(string.IsNullOrWhiteSpace(ip) ? "" : $" · IP {ip}")}";
+
+    private static string Ou(string? valor) => string.IsNullOrWhiteSpace(valor) ? "—" : valor;
+
+    // O mesmo controle vai ao cabeçalho (desktop e tablet) e à barra superior do mobile.
+    private RenderFragment Segmentado => @<div class="aj-segmentado aj-segmentado--recuado" role="group" aria-label="O que consultar">
+        <button type="button" class="aj-segmentado__opcao" aria-pressed="@Pressionado(Aba.Alteracoes)" @onclick="() => TrocarAbaAsync(Aba.Alteracoes)">Alterações e eventos</button>
+        <button type="button" class="aj-segmentado__opcao" aria-pressed="@Pressionado(Aba.Acessos)" @onclick="() => TrocarAbaAsync(Aba.Acessos)">Consultas</button>
+    </div>;
 
     protected override async Task OnInitializedAsync()
     {
@@ -182,6 +268,34 @@ else
     }
 
     private Task FiltrarAsync() => IrParaAsync(1);
+
+    private Task TentarDeNovoAsync() => IrParaAsync(_pagina);
+
+    private void AlternarFiltros() => _filtrosAbertos = !_filtrosAbertos;
+
+    // Esvazia os campos que o painel da aba atual traz; o período, que fica na linha, não sai.
+    private void LimparFiltros()
+    {
+        _filtro.UsuarioId = null;
+        if (_aba == Aba.Alteracoes)
+        {
+            _filtro.Operacao = null;
+            _filtro.Entidade = null;
+            _filtro.EntidadeId = null;
+            _filtro.IdCorrelacao = null;
+        }
+        else
+        {
+            _filtro.Acao = null;
+            _filtro.TipoRecurso = null;
+        }
+    }
+
+    private Task FiltrarDoPainelAsync()
+    {
+        _filtrosAbertos = false;
+        return IrParaAsync(1);
+    }
 
     // Os botões das linhas respondem "tudo sobre isto": os outros filtros saem (só o período fica).
     private Task FiltrarPorRegistroAsync(Guid entidadeId)
@@ -210,6 +324,7 @@ else
     {
         if (_ocupado) return Carga.EmAndamento;
         _erro = null;
+        _identificadorInvalido = false;
 
         // Um identificador que não é um Guid não consulta nada.
         Guid? entidadeId = null, idCorrelacao = null;
@@ -219,7 +334,7 @@ else
             {
                 // Sem consulta não há linhas para mostrar: as da consulta anterior saem e a página volta à primeira, para
                 // que o número da página nunca fique sobre linhas de outra consulta.
-                _erro = "Identificador inválido.";
+                _identificadorInvalido = true;
                 _alteracoes = SemAlteracoes;
                 _pagina = 1;
                 return Carga.IdentificadorInvalido;
@@ -268,6 +383,8 @@ else
             _acessos = resultado.Valor ?? SemAcessos;
             Concluir(resultado);
         }
+
+        _consultou = _erro is null && _autorizado;
     }
 
     private void Concluir(Resultado resultado)
