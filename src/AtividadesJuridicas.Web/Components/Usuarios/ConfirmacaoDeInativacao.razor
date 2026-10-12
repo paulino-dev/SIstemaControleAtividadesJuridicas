@@ -1,0 +1,60 @@
+@inject IDespachante Despachante
+
+@* A confirmação de inativar um usuário, com o que ele deixa pendente. Aparece no topo da tela; a pergunta é o
+   título, as pendências são o texto, e "Cancelar" vem antes do verbo. *@
+@if (_carregado)
+{
+    <Aviso Tipo="TipoDeAviso.Atencao" Rotulo="Confirmar inativação" Titulo="@TextosDaInativacao.Pergunta(Nome)">
+        <ChildContent>@_pendencias</ChildContent>
+        <Acoes><button type="button" class="aj-botao aj-botao--secundario" disabled="@_enviando" @onclick="CancelarAsync">Cancelar</button><button type="button" class="aj-botao aj-botao--primario" disabled="@_enviando" @onclick="ConfirmarAsync">Confirmar inativação</button></Acoes>
+    </Aviso>
+}
+
+@code {
+    [Parameter, EditorRequired] public Guid UsuarioId { get; set; }
+    [Parameter, EditorRequired] public string Nome { get; set; } = string.Empty;
+
+    /// <summary>O resultado da inativação, para a tela decidir o aviso e o que recarregar.</summary>
+    [Parameter] public EventCallback<Resultado> OnConcluido { get; set; }
+
+    [Parameter] public EventCallback OnCancelar { get; set; }
+
+    /// <summary>A consulta das pendências respondeu acesso negado.</summary>
+    [Parameter] public EventCallback OnAcessoEncerrado { get; set; }
+
+    private bool _carregado;
+    private bool _enviando;
+    private string? _pendencias;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var pendencias = await Despachante.EnviarAsync(new ObterPendenciasDoUsuario(UsuarioId));
+        if (pendencias.Erro == TipoErro.AcessoNegado)
+        {
+            await OnAcessoEncerrado.InvokeAsync();
+            return;
+        }
+
+        // Sem a contagem, a confirmação continua disponível e diz que não verificou.
+        _pendencias = pendencias.Sucesso
+            ? TextosDaInativacao.Pendencias(Nome, pendencias.Valor!)
+            : "Não foi possível verificar as pendências deste usuário.";
+        _carregado = true;
+    }
+
+    private async Task ConfirmarAsync()
+    {
+        if (_enviando) return;
+        _enviando = true;
+        try
+        {
+            await OnConcluido.InvokeAsync(await Despachante.EnviarAsync(new DefinirAtivoUsuario(UsuarioId, false)));
+        }
+        finally
+        {
+            _enviando = false;
+        }
+    }
+
+    private Task CancelarAsync() => OnCancelar.InvokeAsync();
+}

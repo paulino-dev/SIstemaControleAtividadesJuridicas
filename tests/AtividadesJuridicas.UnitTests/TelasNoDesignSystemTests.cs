@@ -38,6 +38,8 @@ public partial class TelasNoDesignSystemTests
         "Components/Pages/MinhaSenha.razor",
         "Components/Pages/NaoEncontrada.razor",
         "Components/Pages/Perfis.razor",
+        "Components/Pages/UsuarioFormulario.razor",
+        "Components/Usuarios/ConfirmacaoDeInativacao.razor",
     ];
 
     [GeneratedRegex("\\sstyle\\s*=\\s*[\"']")]

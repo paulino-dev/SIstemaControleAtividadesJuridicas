@@ -1,0 +1,396 @@
+@page "/usuarios/novo"
+@page "/usuarios/{Id:guid}/editar"
+@using System.ComponentModel.DataAnnotations
+@inject IDespachante Despachante
+@inject NavigationManager Navegacao
+@inject Recados Recados
+
+<PageTitle>@Titulo</PageTitle>
+
+<CabecalhoDeDetalhe Titulo="@Titulo" Subtitulo="Escolha o perfil. Para um usuário de cliente, indique o cliente."
+                    VoltarPara="/usuarios" Origem="Usuários" />
+
+@if (!_carregado)
+{
+    <p class="aj-subtitulo" role="status">Carregando…</p>
+}
+else if (!_autorizado)
+{
+    <Aviso Tipo="TipoDeAviso.Erro">Acesso negado.</Aviso>
+}
+else if (_naoEncontrado)
+{
+    <Aviso Tipo="TipoDeAviso.Erro">Usuário não encontrado.</Aviso>
+}
+else
+{
+    @if (_mensagem is not null)
+    {
+        <Aviso Tipo="TipoDeAviso.Erro">@_mensagem</Aviso>
+    }
+
+    @if (_inativando)
+    {
+        <ConfirmacaoDeInativacao @key="Id" UsuarioId="Id!.Value" Nome="@_form.Nome" OnConcluido="AoInativar"
+                                 OnCancelar="() => _inativando = false" OnAcessoEncerrado="() => _autorizado = false" />
+    }
+
+    <EditForm Model="_form" OnValidSubmit="SalvarAsync" FormName="usuario" class="aj-painel aj-painel--formulario">
+        <DataAnnotationsValidator />
+        <h2>Usuário</h2>
+        <div class="aj-grade-campos">
+            <RotuloDeCampo Texto="Nome" Para="() => _form.Nome">
+                <InputText @bind-Value="_form.Nome" class="aj-campo" />
+            </RotuloDeCampo>
+            <RotuloDeCampo Texto="E-mail" Para="() => _form.Email">
+                <InputText @bind-Value="_form.Email" type="email" class="aj-campo" />
+            </RotuloDeCampo>
+            <RotuloDeCampo Texto="Perfil" Para="() => _form.PerfilId">
+                <InputSelect Value="_form.PerfilId" ValueExpression="() => _form.PerfilId" ValueChanged="(Guid? id) => AoMudarPerfil(id)" class="aj-campo">
+                    @if (_form.PerfilId is null)
+                    {
+                        <option value="">Selecione…</option>
+                    }
+                    @if (_perfilInativoAtual is { } inativo)
+                    {
+                        <option value="@inativo.Id">@Rotulo(inativo)</option>
+                    }
+                    @foreach (var perfil in _perfis.Where(p => p.Ativo && PodeEscolher(p)))
+                    {
+                        <option value="@perfil.Id">@Rotulo(perfil)</option>
+                    }
+                </InputSelect>
+                @if (_perfilInativoAtual is { } atual && _form.PerfilId == atual.Id)
+                {
+                    <span class="aj-ajuda">O perfil atual está inativo. Escolha um perfil ativo para poder reativar o usuário.</span>
+                }
+            </RotuloDeCampo>
+            @if (!PerfilEscolhidoEhDeCliente)
+            {
+                <label class="aj-rotulo"><span>Número da OAB <small>(opcional)</small></span><InputText @bind-Value="_form.NumeroOab" class="aj-campo" /></label>
+            }
+            @if (Id is null)
+            {
+                <label class="aj-rotulo">Senha<InputText @bind-Value="_form.Senha" type="password" autocomplete="new-password" class="aj-campo" /></label>
+            }
+            else
+            {
+                <label class="aj-rotulo"><span>Nova senha <small>(deixe em branco para manter)</small></span><InputText @bind-Value="_form.Senha" type="password" autocomplete="new-password" class="aj-campo" /></label>
+            }
+            @if (PerfilEscolhidoEhDeCliente)
+            {
+                <div class="aj-vinculo aj-grade-campos__inteiro">
+                    <span class="@(_erroDoCliente is null ? "aj-rotulo" : "aj-rotulo aj-rotulo--erro")">Cliente</span>
+                    @if (_form.ClienteId is not null)
+                    {
+                        <div class="aj-vinculo__escolhido"><span class="aj-vinculo__nome">@_form.ClienteNome</span><button type="button" class="aj-botao aj-botao--fantasma" @onclick="TrocarCliente">Trocar</button></div>
+                    }
+                    else
+                    {
+                        @* O Enter na busca envia o formulário "busca-de-cliente", declarado depois deste, e não o do usuário. *@
+                        <label class="aj-campo-icone"><Icone Nome="buscar" /><span class="aj-so-leitor">Buscar cliente</span><input type="text" class="aj-campo-icone__controle" form="busca-de-cliente" placeholder="Buscar cliente: nome, CPF ou CNPJ" @bind="_buscaDeCliente" @bind:event="oninput" /></label>
+                        @if (_clientesEncontrados.Count > 0)
+                        {
+                            <ul class="aj-resultados">
+                                @foreach (var candidato in _clientesEncontrados)
+                                {
+                                    <li @key="candidato.Id"><button type="button" class="aj-resultados__item" @onclick="() => EscolherCliente(candidato)"><span class="aj-resultados__texto"><span class="aj-resultados__titulo">@candidato.Nome</span><span class="aj-resultados__meta">@candidato.Documento</span></span><span class="aj-resultados__acao">Escolher</span></button></li>
+                                }
+                            </ul>
+                        }
+                        @if (_nenhumCliente)
+                        {
+                            <span class="aj-ajuda">Nenhum cliente encontrado.</span>
+                        }
+                        @if (_clientesTruncados)
+                        {
+                            <span class="aj-ajuda">Mostrando os primeiros resultados. Refine a busca para ver outros.</span>
+                        }
+                    }
+                    @if (_erroDoCliente is not null)
+                    {
+                        <span class="aj-campo-erro">@_erroDoCliente</span>
+                    }
+                    <span class="aj-ajuda">O usuário entra no portal e vê só o que é deste cliente.</span>
+                </div>
+            }
+        </div>
+
+        <div class="aj-so-desktop">
+            <div class="aj-acoes aj-acoes--formulario"><a href="/usuarios" class="aj-botao aj-botao--fantasma">Cancelar</a><button type="submit" class="aj-botao aj-botao--primario aj-botao--com-icone" disabled="@_salvando"><Icone Nome="confirmar" />Salvar usuário</button></div>
+        </div>
+        <div class="aj-so-tablet">
+            <div class="aj-acoes aj-acoes--fixa"><a href="/usuarios" class="aj-botao aj-botao--secundario">Cancelar</a><button type="submit" class="aj-botao aj-botao--primario aj-botao--com-icone" disabled="@_salvando"><Icone Nome="confirmar" />Salvar usuário</button></div>
+        </div>
+        <div class="aj-so-mobile">
+            <div class="aj-acoes aj-acoes--fixa"><a href="/usuarios" class="aj-botao aj-botao--secundario">Cancelar</a><button type="submit" class="aj-botao aj-botao--primario aj-botao--com-icone" disabled="@_salvando"><Icone Nome="confirmar" />Salvar</button></div>
+        </div>
+    </EditForm>
+
+    @if (Id is not null)
+    {
+        <div class="aj-tablet-mobile">
+            <section class="aj-painel">
+                <h2>Situação</h2>
+                <span class="aj-ajuda">@(_ativo ? "Ativo" : "Inativo")</span>
+                <div class="aj-painel__acoes"><button type="button" class="aj-botao aj-botao--secundario" disabled="@(_salvando || _inativando)" @onclick="AlternarAtivoAsync">@(_ativo ? "Inativar usuário" : "Ativar usuário")</button></div>
+            </section>
+        </div>
+    }
+
+    <form id="busca-de-cliente" hidden @onsubmit="BuscarClientesAsync" @onsubmit:preventDefault></form>
+}
+
+@code {
+    [Parameter] public Guid? Id { get; set; }
+
+    private bool _carregado;
+    private bool _autorizado;
+    private bool _naoEncontrado;
+    private bool _salvando;
+    private bool _inativando;
+    private bool _ativo = true;
+    private string? _mensagem;
+    private IReadOnlyList<PerfilDetalhe> _perfis = [];
+    private PerfilDetalhe? _perfilInativoAtual;
+    private Formulario _form = new();
+
+    // O tipo do perfil do usuário em edição: um usuário de cliente só troca entre perfis de cliente, e a equipe, entre os internos.
+    private TipoPerfil? _tipoOriginal;
+    private string? _buscaDeCliente;
+    private IReadOnlyList<ClienteResumo> _clientesEncontrados = [];
+    private bool _nenhumCliente;
+    private bool _clientesTruncados;
+    private string? _erroDoCliente;
+    private bool _buscando;
+
+    private string Titulo => Id is null ? "Novo usuário" : "Editar usuário";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _autorizado = await Despachante.EnviarAsync(new ObterMeuAcesso()) is { EhDiretoria: true };
+        if (_autorizado)
+        {
+            var perfis = await Despachante.EnviarAsync(new ListarPerfis());
+            if (perfis.Erro == TipoErro.AcessoNegado) _autorizado = false;
+            _perfis = perfis.Valor ?? [];
+        }
+
+        if (_autorizado)
+        {
+            if (Id is null) Limpar();
+            else await CarregarAsync(Id.Value);
+        }
+        _carregado = true;
+    }
+
+    // Não há consulta de um só usuário: ele vem da lista.
+    private async Task CarregarAsync(Guid id)
+    {
+        var lista = await Despachante.EnviarAsync(new ListarUsuarios());
+        if (lista.Erro == TipoErro.AcessoNegado)
+        {
+            _autorizado = false;
+            return;
+        }
+
+        if (lista.Valor?.FirstOrDefault(u => u.Id == id) is not { } usuario)
+        {
+            _naoEncontrado = true;
+            return;
+        }
+
+        _perfilInativoAtual = _perfis.FirstOrDefault(p => p.Id == usuario.PerfilId && !p.Ativo);
+        _tipoOriginal = usuario.TipoPerfil;
+        _ativo = usuario.Ativo;
+        LimparBuscaDeCliente();
+        _form = new Formulario
+        {
+            Nome = usuario.Nome,
+            Email = usuario.Email,
+            PerfilId = usuario.PerfilId,
+            NumeroOab = usuario.NumeroOab,
+            ClienteId = usuario.ClienteId,
+            ClienteNome = usuario.ClienteNome,
+        };
+    }
+
+    // Usuário novo começa em um perfil de Produção; sem nenhum, nada é escolhido por ele.
+    private void Limpar()
+    {
+        _perfilInativoAtual = null;
+        _tipoOriginal = null;
+        LimparBuscaDeCliente();
+        _form = new Formulario { PerfilId = _perfis.FirstOrDefault(p => p.Ativo && p.Tipo == TipoPerfil.Producao)?.Id };
+    }
+
+    private static string Rotulo(PerfilDetalhe perfil) =>
+        $"{perfil.Nome} ({RotulosDePerfil.DoTipo(perfil.Tipo)}{(perfil.Ativo ? "" : " — inativo")})";
+
+    private bool PerfilEscolhidoEhDeCliente =>
+        _perfis.FirstOrDefault(p => p.Id == _form.PerfilId)?.Tipo == TipoPerfil.Cliente;
+
+    private bool PodeEscolher(PerfilDetalhe perfil) =>
+        _tipoOriginal is not { } original || (original == TipoPerfil.Cliente) == (perfil.Tipo == TipoPerfil.Cliente);
+
+    private void AoMudarPerfil(Guid? perfilId)
+    {
+        _form.PerfilId = perfilId;
+        // Fora do perfil de cliente o bloco do cliente some, e o cliente escolhido não vale mais.
+        if (!PerfilEscolhidoEhDeCliente) TrocarCliente();
+        _erroDoCliente = null;
+    }
+
+    private void TrocarCliente()
+    {
+        _form.ClienteId = null;
+        _form.ClienteNome = null;
+        LimparBuscaDeCliente();
+    }
+
+    private void LimparBuscaDeCliente()
+    {
+        _buscaDeCliente = null;
+        _clientesEncontrados = [];
+        _nenhumCliente = false;
+        _clientesTruncados = false;
+        _erroDoCliente = null;
+    }
+
+    private async Task BuscarClientesAsync()
+    {
+        // Dois Enter seguidos não disparam duas consultas.
+        if (_buscando) return;
+        _buscando = true;
+        try
+        {
+            _erroDoCliente = null;
+            var resultado = await Despachante.EnviarAsync(new ListarClientes(_buscaDeCliente));
+            if (resultado.Erro == TipoErro.AcessoNegado)
+            {
+                _autorizado = false;
+                return;
+            }
+
+            var itens = resultado.Valor?.Itens ?? [];
+            _clientesEncontrados = itens;
+            // Os avisos valem só para uma busca que deu certo; uma falha mostra o erro no lugar deles.
+            _nenhumCliente = resultado.Sucesso && itens.Count == 0;
+            _clientesTruncados = resultado.Sucesso && resultado.Valor!.Total > itens.Count;
+            if (!resultado.Sucesso) _erroDoCliente = resultado.Mensagem ?? "Não foi possível consultar os clientes.";
+        }
+        finally
+        {
+            _buscando = false;
+        }
+    }
+
+    private void EscolherCliente(ClienteResumo cliente)
+    {
+        _form.ClienteId = cliente.Id;
+        _form.ClienteNome = cliente.Nome;
+        LimparBuscaDeCliente();
+    }
+
+    private async Task SalvarAsync()
+    {
+        if (_salvando) return;
+
+        // Só o usuário de cliente tem cliente (e não tem OAB); para a equipe, o ClienteId vai nulo.
+        var ehDeCliente = PerfilEscolhidoEhDeCliente;
+        if (ehDeCliente && _form.ClienteId is null)
+        {
+            _erroDoCliente = "Informe o cliente do usuário.";
+            return;
+        }
+
+        _salvando = true;
+        try
+        {
+            _erroDoCliente = null;
+            _mensagem = null;
+            var clienteId = ehDeCliente ? _form.ClienteId : null;
+            var oab = ehDeCliente ? null : _form.NumeroOab;
+
+            Resultado resultado;
+            if (Id is { } id)
+            {
+                resultado = await Despachante.EnviarAsync(
+                    new EditarUsuario(id, _form.Nome, _form.Email, _form.PerfilId!.Value, oab, clienteId));
+                if (resultado.Sucesso && !string.IsNullOrEmpty(_form.Senha))
+                    resultado = await Despachante.EnviarAsync(new RedefinirSenhaUsuario(id, _form.Senha));
+            }
+            else
+            {
+                resultado = await Despachante.EnviarAsync(
+                    new CriarUsuario(_form.Nome, _form.Email, _form.Senha ?? string.Empty, _form.PerfilId!.Value, oab, clienteId));
+            }
+
+            if (resultado.Sucesso) VoltarParaALista("Usuário salvo.");
+            else _mensagem = resultado.Mensagem;
+        }
+        finally
+        {
+            _salvando = false;
+        }
+    }
+
+    // Ativar é um clique. Inativar é em dois: o primeiro mostra o que o usuário deixa pendente.
+    private async Task AlternarAtivoAsync()
+    {
+        if (_salvando || Id is not { } id) return;
+
+        _mensagem = null;
+        if (_ativo)
+        {
+            _inativando = true;
+            return;
+        }
+
+        _salvando = true;
+        try
+        {
+            var resultado = await Despachante.EnviarAsync(new DefinirAtivoUsuario(id, true));
+            if (resultado.Sucesso) VoltarParaALista("Usuário ativado.");
+            else _mensagem = resultado.Mensagem;
+        }
+        finally
+        {
+            _salvando = false;
+        }
+    }
+
+    private void AoInativar(Resultado resultado)
+    {
+        if (resultado.Sucesso)
+        {
+            VoltarParaALista("Usuário inativado.");
+            return;
+        }
+
+        _inativando = false;
+        _mensagem = resultado.Mensagem;
+    }
+
+    private void VoltarParaALista(string recado)
+    {
+        Recados.Deixar(recado);
+        Navegacao.NavigateTo("/usuarios");
+    }
+
+    private sealed class Formulario
+    {
+        [Required(ErrorMessage = "Informe o nome.")]
+        public string Nome { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Informe o e-mail.")]
+        public string Email { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Selecione o perfil.")]
+        public Guid? PerfilId { get; set; }
+        public string? NumeroOab { get; set; }
+        public Guid? ClienteId { get; set; }
+        public string? ClienteNome { get; set; }
+        public string? Senha { get; set; }
+    }
+}
