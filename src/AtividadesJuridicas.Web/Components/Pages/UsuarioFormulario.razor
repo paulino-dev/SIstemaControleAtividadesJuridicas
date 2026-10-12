@@ -7,7 +7,7 @@
 
 <PageTitle>@Titulo</PageTitle>
 
-<CabecalhoDeDetalhe Titulo="@Titulo" Subtitulo="Escolha o perfil. Para um usuário de cliente, indique o cliente."
+<CabecalhoDeDetalhe Titulo="@Titulo" Subtitulo="@SubtituloDoFormulario"
                     VoltarPara="/usuarios" Origem="Usuários" />
 
 @if (!_carregado)
@@ -17,6 +17,10 @@
 else if (!_autorizado)
 {
     <Aviso Tipo="TipoDeAviso.Erro">Acesso negado.</Aviso>
+}
+else if (_erroDosPerfis is not null)
+{
+    <Aviso Tipo="TipoDeAviso.Erro">@_erroDosPerfis</Aviso>
 }
 else if (_erroDaConsulta is not null)
 {
@@ -92,7 +96,7 @@ else
                     else
                     {
                         @* O Enter na busca envia o formulário "busca-de-cliente", declarado depois deste, e não o do usuário. *@
-                        <label class="aj-campo-icone"><Icone Nome="buscar" /><span class="aj-so-leitor">Buscar cliente</span><input type="text" class="aj-campo-icone__controle" form="busca-de-cliente" placeholder="Buscar cliente: nome, CPF ou CNPJ" @bind="_buscaDeCliente" @bind:event="oninput" /></label>
+                        <label class="aj-campo-icone"><Icone Nome="buscar" /><span class="aj-so-leitor">Buscar cliente</span><input type="text" class="aj-campo-icone__controle" form="busca-de-cliente" placeholder="Buscar cliente: nome, CPF ou CNPJ" aria-invalid="@(_erroDoCliente == ErroDeClienteObrigatorio ? "true" : null)" @bind="_buscaDeCliente" @bind:event="oninput" /></label>
                         @if (_clientesEncontrados.Count > 0)
                         {
                             <ul class="aj-resultados">
@@ -152,6 +156,9 @@ else
     private bool _autorizado;
     private bool _naoEncontrado;
     private string? _erroDaConsulta;
+    private string? _erroDosPerfis;
+    private Guid? _idCarregado;
+    private bool _usuarioCarregado;
     private string _nomeCarregado = string.Empty;
     private bool _salvando;
     private bool _inativando;
@@ -170,7 +177,15 @@ else
     private string? _erroDoCliente;
     private bool _buscando;
 
+    private const string ErroDeClienteObrigatorio = "Informe o cliente do usuário.";
+
     private string Titulo => Id is null ? "Novo usuário" : "Editar usuário";
+
+    // O subtítulo só acompanha o formulário: sobre "Acesso negado.", "Usuário não encontrado." ou um erro de consulta ele sobra.
+    private string? SubtituloDoFormulario =>
+        _carregado && _autorizado && _erroDosPerfis is null && _erroDaConsulta is null && !_naoEncontrado
+            ? "Escolha o perfil. Para um usuário de cliente, indique o cliente."
+            : null;
 
     protected override async Task OnInitializedAsync()
     {
@@ -179,11 +194,24 @@ else
         {
             var perfis = await Despachante.EnviarAsync(new ListarPerfis());
             if (perfis.Erro == TipoErro.AcessoNegado) _autorizado = false;
+            else if (!perfis.Sucesso) _erroDosPerfis = perfis.Mensagem ?? "Não foi possível consultar os perfis.";
             _perfis = perfis.Valor ?? [];
         }
+    }
 
-        if (_autorizado)
+    // O usuário vem da rota: se o Id mudar com a página montada, a tela carrega o novo, não grava um sobre os dados do outro.
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_usuarioCarregado && Id == _idCarregado) return;
+
+        _usuarioCarregado = true;
+        _idCarregado = Id;
+        if (_autorizado && _erroDosPerfis is null)
         {
+            _naoEncontrado = false;
+            _erroDaConsulta = null;
+            _mensagem = null;
+            _inativando = false;
             if (Id is null) Limpar();
             else await CarregarAsync(Id.Value);
         }
@@ -231,6 +259,8 @@ else
     // Usuário novo começa em um perfil de Produção; sem nenhum, nada é escolhido por ele.
     private void Limpar()
     {
+        _ativo = true;
+        _nomeCarregado = string.Empty;
         _perfilInativoAtual = null;
         _tipoOriginal = null;
         LimparBuscaDeCliente();
@@ -313,7 +343,7 @@ else
         var ehDeCliente = PerfilEscolhidoEhDeCliente;
         if (ehDeCliente && _form.ClienteId is null)
         {
-            _erroDoCliente = "Informe o cliente do usuário.";
+            _erroDoCliente = ErroDeClienteObrigatorio;
             return;
         }
 
@@ -337,6 +367,12 @@ else
             {
                 resultado = await Despachante.EnviarAsync(
                     new CriarUsuario(_form.Nome, _form.Email, _form.Senha ?? string.Empty, _form.PerfilId!.Value, oab, clienteId));
+            }
+
+            if (resultado.Erro == TipoErro.AcessoNegado)
+            {
+                _autorizado = false;
+                return;
             }
 
             if (resultado.Sucesso) VoltarParaALista("Usuário salvo.");
@@ -364,6 +400,12 @@ else
         try
         {
             var resultado = await Despachante.EnviarAsync(new DefinirAtivoUsuario(id, true));
+            if (resultado.Erro == TipoErro.AcessoNegado)
+            {
+                _autorizado = false;
+                return;
+            }
+
             if (resultado.Sucesso) VoltarParaALista("Usuário ativado.");
             else _mensagem = resultado.Mensagem;
         }
@@ -375,6 +417,12 @@ else
 
     private void AoInativar(Resultado resultado)
     {
+        if (resultado.Erro == TipoErro.AcessoNegado)
+        {
+            _autorizado = false;
+            return;
+        }
+
         if (resultado.Sucesso)
         {
             VoltarParaALista("Usuário inativado.");

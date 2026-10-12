@@ -93,7 +93,7 @@ public class UsuariosWebTests(BancoFixture banco) : IAsyncLifetime
 
         html.Should().Contain("Usuário não encontrado.").And.MatchRegex("<a href=\"/usuarios\" class=\"aj-voltar\">")
             .And.MatchRegex("<h1 class=\"aj-titulo\">Editar usuário</h1>");
-        html.Should().NotContain("<h2>Usuário</h2>").And.NotContain("Salvar usuário");
+        html.Should().NotContain("<h2>Usuário</h2>").And.NotContain("Salvar usuário").And.NotContain("Escolha o perfil.");
     }
 
     [Fact]
@@ -104,7 +104,7 @@ public class UsuariosWebTests(BancoFixture banco) : IAsyncLifetime
         var html = WebUtility.HtmlDecode(await pedro.GetStringAsync("/usuarios/novo"));
 
         html.Should().Contain("Acesso negado.").And.MatchRegex("<h1 class=\"aj-titulo\">Novo usuário</h1>");
-        html.Should().NotContain("<h2>Usuário</h2>").And.NotContain("diana@x.com");
+        html.Should().NotContain("<h2>Usuário</h2>").And.NotContain("diana@x.com").And.NotContain("Escolha o perfil.");
     }
 
     [Fact]
@@ -156,7 +156,69 @@ public class UsuariosWebTests(BancoFixture banco) : IAsyncLifetime
         html.Should().MatchRegex("(?s)class=\"aj-aviso aj-aviso--erro\".*?Falha de teste\\.")
             .And.MatchRegex("<h1 class=\"aj-titulo\">Editar usuário</h1>")
             .And.MatchRegex("<a href=\"/usuarios\" class=\"aj-voltar\">");
-        html.Should().NotContain("Usuário não encontrado.").And.NotContain("<h2>Usuário</h2>").And.NotContain("Salvar usuário");
+        html.Should().NotContain("Usuário não encontrado.").And.NotContain("<h2>Usuário</h2>").And.NotContain("Salvar usuário")
+            .And.NotContain("Escolha o perfil.");
+    }
+
+    private static readonly UsuarioAutenticado Diretora = new(Guid.NewGuid(), "Diana Diretora", TipoPerfil.Diretoria, Guid.NewGuid(), null);
+    private static readonly PerfilDetalhe PerfilProducao = new(Guid.NewGuid(), "Produção", TipoPerfil.Producao, true, 0);
+    private static readonly PerfilDetalhe PerfilCliente = new(Guid.NewGuid(), "Cliente", TipoPerfil.Cliente, true, 0);
+
+    private static DespachanteCombinado DespachanteDoFormulario() => new DespachanteCombinado()
+        .Responde<ObterMeuAcesso, UsuarioAutenticado?>(Diretora)
+        .Responde<ListarPerfis, Resultado<IReadOnlyList<PerfilDetalhe>>>(
+            Resultado<IReadOnlyList<PerfilDetalhe>>.Ok([PerfilProducao, PerfilCliente]));
+
+    private static Task ChamarAsync(UsuarioFormularioPagina tela, string metodo, params object?[] argumentos) =>
+        (Task)typeof(UsuarioFormularioPagina).GetMethod(metodo, BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(tela, argumentos)!;
+
+    [Fact]
+    public async Task Salvar_com_acesso_negado_encerra_a_tela_em_vez_de_deixar_o_formulario()
+    {
+        var despachante = DespachanteDoFormulario()
+            .Responde<CriarUsuario, Resultado<Guid>>(Resultado<Guid>.Falha(TipoErro.AcessoNegado, "Acesso negado."));
+
+        var html = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarEAgirAsync<UsuarioFormularioPagina>(
+            despachante, new(), tela => ChamarAsync(tela, "SalvarAsync")));
+
+        html.Should().Contain("Acesso negado.").And.MatchRegex("<h1 class=\"aj-titulo\">Novo usuário</h1>");
+        html.Should().NotContain("<h2>Usuário</h2>").And.NotContain("Salvar usuário").And.NotContain("Escolha o perfil.");
+    }
+
+    [Fact]
+    public async Task Falha_na_consulta_dos_perfis_mostra_o_erro_no_lugar_do_formulario()
+    {
+        var despachante = new DespachanteCombinado()
+            .Responde<ObterMeuAcesso, UsuarioAutenticado?>(Diretora)
+            .Responde<ListarPerfis, Resultado<IReadOnlyList<PerfilDetalhe>>>(
+                Resultado<IReadOnlyList<PerfilDetalhe>>.Falha(TipoErro.Validacao, "Falha de teste."));
+
+        var html = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarComAsync<UsuarioFormularioPagina>(despachante, new()));
+
+        html.Should().MatchRegex("(?s)class=\"aj-aviso aj-aviso--erro\".*?Falha de teste\\.")
+            .And.MatchRegex("<h1 class=\"aj-titulo\">Novo usuário</h1>");
+        html.Should().NotContain("Acesso negado").And.NotContain("<h2>Usuário</h2>").And.NotContain("Salvar usuário")
+            .And.NotContain("Escolha o perfil.");
+    }
+
+    [Fact]
+    public async Task Cliente_nao_informado_marca_a_busca_como_invalida_so_nesse_estado()
+    {
+        var despachante = DespachanteDoFormulario();
+
+        var antes = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarEAgirAsync<UsuarioFormularioPagina>(
+            despachante, new(), tela => ChamarAsync(tela, "AoMudarPerfil", (Guid?)PerfilCliente.Id)));
+        var depois = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarEAgirAsync<UsuarioFormularioPagina>(
+            despachante, new(), async tela =>
+            {
+                await ChamarAsync(tela, "AoMudarPerfil", (Guid?)PerfilCliente.Id);
+                await ChamarAsync(tela, "SalvarAsync");
+            }));
+
+        antes.Should().MatchRegex("<input[^>]*placeholder=\"Buscar cliente: nome, CPF ou CNPJ\"");
+        antes.Should().NotContain("aria-invalid").And.NotContain("Informe o cliente do usuário.");
+        depois.Should().Contain("Informe o cliente do usuário.")
+            .And.MatchRegex("<input[^>]*placeholder=\"Buscar cliente: nome, CPF ou CNPJ\"[^>]*aria-invalid=\"true\"");
     }
 
     [Fact]
