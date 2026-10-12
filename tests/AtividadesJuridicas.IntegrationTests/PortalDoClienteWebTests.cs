@@ -480,8 +480,9 @@ public class PortalDoClienteWebTests(BancoFixture banco) : IAsyncLifetime
 
         var html = Decodificado(await admin.GetStringAsync("/perfis"));
 
-        var linha = Regex.Matches(html, "<tr[^>]*>.*?</tr>", RegexOptions.Singleline)
-            .Select(m => m.Value).Single(l => Regex.IsMatch(l, "<td>Cliente</td>.*<td>Cliente</td>", RegexOptions.Singleline));
+        var linha = Regex.Matches(BlocoDeVisao.De(html, "aj-so-desktop"), "<tr[^>]*>.*?</tr>", RegexOptions.Singleline)
+            .Select(m => m.Value)
+            .Single(l => Regex.IsMatch(l, "<td class=\"aj-tabela__principal\">Cliente</td>\\s*<td>Cliente</td>"));
         linha.Should().Contain("Renomear");
         var select = Regex.Match(html, "<select[^>]*>.*?</select>", RegexOptions.Singleline).Value;
         select.Should().Contain(">Produção</option>").And.Contain(">Diretoria</option>").And.NotContain("Cliente");
