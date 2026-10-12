@@ -205,9 +205,14 @@ public class ProdutoresWebTests(BancoFixture banco) : IAsyncLifetime
             .Responde<ObterMeuAcesso, UsuarioAutenticado?>(diretora)
             .Responde<ListarUsuarios, Resultado<IReadOnlyList<UsuarioResumo>>>(
                 Resultado<IReadOnlyList<UsuarioResumo>>.Falha(TipoErro.Validacao, "Falha de teste."));
-        var parametros = new Dictionary<string, object?> { [nameof(ProdutoresPagina.ProdutorNoEndereco)] = pedro.Id.ToString() };
 
-        var html = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarComAsync<ProdutoresPagina>(despachante, parametros));
+        // O produtor do endereço (?produtor=) chega por um valor em cascata que o desenho estático não tem: o teste o põe
+        // na propriedade e deixa a tela ler o endereço de novo, como ao mudar o parâmetro.
+        var html = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarEAgirAsync<ProdutoresPagina>(despachante, [], tela =>
+        {
+            tela.ProdutorNoEndereco = pedro.Id.ToString();
+            return TelaDeTeste.ChamarAsync(tela, "OnParametersSet");
+        }));
 
         html.Should().Contain("Falha de teste.").And.Contain(">Tentar de novo</button>").And.Contain("<h1 class=\"aj-titulo\">Produtores</h1>");
         html.Should().NotContain("Acesso negado").And.NotContain("Nenhum produtor.").And.NotContain("<table")

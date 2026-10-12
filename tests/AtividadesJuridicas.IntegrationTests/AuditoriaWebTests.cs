@@ -143,7 +143,7 @@ public class AuditoriaWebTests(BancoFixture banco) : IAsyncLifetime
 
         var html = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarComAsync<AuditoriaPagina>(despachante, new()));
 
-        html.Should().MatchRegex("(?s)class=\"aj-aviso aj-aviso--erro\".*?Falha de teste\\.")
+        html.Should().MatchRegex("(?s)<div class=\"aj-aviso aj-aviso--erro aj-aviso--com-acoes\"[^>]*role=\"alert\".*?Falha de teste\\.")
             .And.Contain(">Tentar de novo</button>").And.Contain("<h1 class=\"aj-titulo\">Auditoria</h1>");
         html.Should().NotContain("no período").And.NotContain("Nenhum registro.").And.NotContain("<table").And.NotContain("Acesso negado");
     }
