@@ -24,7 +24,7 @@ else
 
     @if (_inativando is { } alvo)
     {
-        <ConfirmacaoDeInativacao @key="alvo.Id" UsuarioId="alvo.Id" Nome="@alvo.Nome" OnConcluido="AoInativarAsync"
+        <ConfirmacaoDeInativacao @key="alvo.Id" UsuarioId="alvo.Id" Nome="@alvo.Nome" OnConcluido="(Resultado resultado) => AoInativarAsync(alvo, resultado)"
                                  OnCancelar="CancelarInativacao" OnAcessoEncerrado="() => _autorizado = false" />
     }
 
@@ -175,9 +175,10 @@ else
         }
     }
 
-    private async Task AoInativarAsync(Resultado resultado)
+    private async Task AoInativarAsync(UsuarioResumo alvo, Resultado resultado)
     {
-        _inativando = null;
+        // Os botões das linhas seguem ativos durante o envio: se outra confirmação foi aberta nesse intervalo, ela fica.
+        if (_inativando?.Id == alvo.Id) _inativando = null;
         await ConcluirAsync(resultado, "Usuário inativado.");
     }
 
