@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.Net;
-using System.Reflection;
 using System.Text.RegularExpressions;
 using AtividadesJuridicas.Application.Atividades;
 using AtividadesJuridicas.Application.Auditoria;
@@ -218,8 +217,7 @@ public class ProdutoresWebTests(BancoFixture banco) : IAsyncLifetime
         var depois = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarEAgirAsync<ProdutoresPagina>(despachante, [], async tela =>
         {
             despachante.Responde<ListarUsuarios, Resultado<IReadOnlyList<UsuarioResumo>>>(Resultado<IReadOnlyList<UsuarioResumo>>.Ok([pedro]));
-            await (Task)typeof(ProdutoresPagina).GetMethod("TentarDeNovoAsync", BindingFlags.NonPublic | BindingFlags.Instance)!
-                .Invoke(tela, [])!;
+            await TelaDeTeste.ChamarAsync(tela, "TentarDeNovoAsync");
         }));
 
         depois.Should().Contain("<p class=\"aj-subtitulo\">1 produtor</p>").And.Contain("Pedro Produção");

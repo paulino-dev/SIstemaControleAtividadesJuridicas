@@ -1,5 +1,4 @@
 using System.Net;
-using System.Reflection;
 using System.Text.RegularExpressions;
 using AtividadesJuridicas.Application.Comum;
 using AtividadesJuridicas.Application.Identidade;
@@ -184,9 +183,6 @@ public class UsuariosWebTests(BancoFixture banco) : IAsyncLifetime
         .Responde<ListarPerfis, Resultado<IReadOnlyList<PerfilDetalhe>>>(
             Resultado<IReadOnlyList<PerfilDetalhe>>.Ok([PerfilProducao, PerfilCliente]));
 
-    private static Task ChamarAsync(UsuarioFormularioPagina tela, string metodo, params object?[] argumentos) =>
-        (Task)typeof(UsuarioFormularioPagina).GetMethod(metodo, BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(tela, argumentos)!;
-
     [Fact]
     public async Task Salvar_com_acesso_negado_encerra_a_tela_em_vez_de_deixar_o_formulario()
     {
@@ -194,7 +190,7 @@ public class UsuariosWebTests(BancoFixture banco) : IAsyncLifetime
             .Responde<CriarUsuario, Resultado<Guid>>(Resultado<Guid>.Falha(TipoErro.AcessoNegado, "Acesso negado."));
 
         var html = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarEAgirAsync<UsuarioFormularioPagina>(
-            despachante, new(), tela => ChamarAsync(tela, "SalvarAsync")));
+            despachante, new(), tela => TelaDeTeste.ChamarAsync(tela, "SalvarAsync")));
 
         html.Should().Contain("Acesso negado.").And.MatchRegex("<h1 class=\"aj-titulo\">Novo usuário</h1>");
         html.Should().NotContain("<h2>Usuário</h2>").And.NotContain("Salvar usuário").And.NotContain("Escolha o perfil.");
@@ -222,12 +218,12 @@ public class UsuariosWebTests(BancoFixture banco) : IAsyncLifetime
         var despachante = DespachanteDoFormulario();
 
         var antes = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarEAgirAsync<UsuarioFormularioPagina>(
-            despachante, new(), tela => ChamarAsync(tela, "AoMudarPerfil", (Guid?)PerfilCliente.Id)));
+            despachante, new(), tela => TelaDeTeste.ChamarAsync(tela, "AoMudarPerfil", (Guid?)PerfilCliente.Id)));
         var depois = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarEAgirAsync<UsuarioFormularioPagina>(
             despachante, new(), async tela =>
             {
-                await ChamarAsync(tela, "AoMudarPerfil", (Guid?)PerfilCliente.Id);
-                await ChamarAsync(tela, "SalvarAsync");
+                await TelaDeTeste.ChamarAsync(tela, "AoMudarPerfil", (Guid?)PerfilCliente.Id);
+                await TelaDeTeste.ChamarAsync(tela, "SalvarAsync");
             }));
 
         antes.Should().MatchRegex("<input[^>]*placeholder=\"Buscar cliente: nome, CPF ou CNPJ\"");
@@ -308,8 +304,7 @@ public class UsuariosWebTests(BancoFixture banco) : IAsyncLifetime
             // A ativação dá certo, mas a consulta que a segue falha.
             despachante.Responde<ListarUsuarios, Resultado<IReadOnlyList<UsuarioResumo>>>(
                 Resultado<IReadOnlyList<UsuarioResumo>>.Falha(TipoErro.Validacao, "Falha de teste."));
-            await (Task)typeof(UsuariosPagina).GetMethod("AlternarAtivoAsync", BindingFlags.NonPublic | BindingFlags.Instance)!
-                .Invoke(tela, [inativo])!;
+            await TelaDeTeste.ChamarAsync(tela, "AlternarAtivoAsync", inativo);
         }));
 
         html.Should().MatchRegex("(?s)<p class=\"aj-aviso aj-aviso--erro\" role=\"alert\">.*?<span>Usuário ativado, mas não foi possível atualizar a lista.</span>")

@@ -1,5 +1,4 @@
 using System.Net;
-using System.Reflection;
 using AtividadesJuridicas.Application.Comum;
 using AtividadesJuridicas.Application.Identidade;
 using AtividadesJuridicas.Domain.Identidade;
@@ -68,6 +67,7 @@ public class PerfisWebTests(BancoFixture banco) : IAsyncLifetime
             .And.Contain("Falha de teste.").And.Contain(">Tentar de novo</button>").And.Contain("<h2>Novo perfil</h2>");
         html.Should().NotContain("Nenhum perfil.").And.NotContain("<table").And.NotContain("aj-subtitulo\">0");
     }
+
     [Fact]
     public async Task Producao_nao_ve_a_gestao_de_perfis()
     {
@@ -95,8 +95,7 @@ public class PerfisWebTests(BancoFixture banco) : IAsyncLifetime
             // A ativação dá certo, mas a consulta que a segue falha.
             despachante.Responde<ListarPerfis, Resultado<IReadOnlyList<PerfilDetalhe>>>(
                 Resultado<IReadOnlyList<PerfilDetalhe>>.Falha(TipoErro.Validacao, "Falha de teste."));
-            await (Task)typeof(TelaPerfis).GetMethod("AlternarAtivoAsync", BindingFlags.NonPublic | BindingFlags.Instance)!
-                .Invoke(tela, [inativo])!;
+            await TelaDeTeste.ChamarAsync(tela, "AlternarAtivoAsync", inativo);
         }));
 
         html.Should().MatchRegex("(?s)<p class=\"aj-aviso aj-aviso--erro\" role=\"alert\">.*?<span>Perfil ativado, mas não foi possível atualizar a lista.</span>")

@@ -91,6 +91,7 @@ else
         </EditForm>
     </div>
 }
+
 @code {
     private bool _carregado;
     private bool _autorizado;
@@ -175,6 +176,7 @@ else
     }
 
     private Task TentarDeNovoAsync() => RecarregarAsync();
+
     private void Limpar()
     {
         _form = new Formulario();

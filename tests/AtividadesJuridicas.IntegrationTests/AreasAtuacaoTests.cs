@@ -1,5 +1,4 @@
 using System.Net;
-using System.Reflection;
 using System.Text.Json.Nodes;
 using AtividadesJuridicas.Application.Cadastros;
 using AtividadesJuridicas.Application.Comum;
@@ -166,8 +165,7 @@ public class AreasWebTests(BancoFixture banco) : IAsyncLifetime
             // A ativação dá certo, mas a consulta que a segue falha.
             despachante.Responde<ListarAreasAtuacao, Resultado<IReadOnlyList<AreaAtuacaoResumo>>>(
                 Resultado<IReadOnlyList<AreaAtuacaoResumo>>.Falha(TipoErro.Validacao, "Falha de teste."));
-            await (Task)typeof(TelaAreas).GetMethod("AlternarAtivoAsync", BindingFlags.NonPublic | BindingFlags.Instance)!
-                .Invoke(tela, [inativa])!;
+            await TelaDeTeste.ChamarAsync(tela, "AlternarAtivoAsync", inativa);
         }));
 
         html.Should().MatchRegex("(?s)<p class=\"aj-aviso aj-aviso--erro\" role=\"alert\">.*?<span>Área ativada, mas não foi possível atualizar a lista.</span>")

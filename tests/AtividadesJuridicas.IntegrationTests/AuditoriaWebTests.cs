@@ -133,12 +133,6 @@ public class AuditoriaWebTests(BancoFixture banco) : IAsyncLifetime
     private static Resultado<Pagina<RegistroAuditoriaResumo>> SemRegistros() =>
         Resultado<Pagina<RegistroAuditoriaResumo>>.Ok(new Pagina<RegistroAuditoriaResumo>([], 0, 1, 20));
 
-    private static Task ChamarAsync(AuditoriaPagina tela, string metodo)
-    {
-        var resultado = typeof(AuditoriaPagina).GetMethod(metodo, BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(tela, []);
-        return resultado as Task ?? Task.CompletedTask;
-    }
-
     private static void Digitar(AuditoriaPagina tela, Action<FiltroDaTelaDeAuditoria> preencher) =>
         preencher((FiltroDaTelaDeAuditoria)typeof(AuditoriaPagina).GetField("_filtro", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(tela)!);
 
@@ -173,7 +167,7 @@ public class AuditoriaWebTests(BancoFixture banco) : IAsyncLifetime
         var html = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarEAgirAsync<AuditoriaPagina>(despachante, new(), tela =>
         {
             Digitar(tela, filtro => filtro.EntidadeId = "isto não é um identificador");
-            return ChamarAsync(tela, "FiltrarAsync");
+            return TelaDeTeste.ChamarAsync(tela, "FiltrarAsync");
         }));
 
         html.Should().MatchRegex("(?s)<p class=\"aj-aviso aj-aviso--erro\" role=\"alert\">.*?<span>Identificador inválido\\.</span>");
@@ -187,14 +181,14 @@ public class AuditoriaWebTests(BancoFixture banco) : IAsyncLifetime
 
         var invalido = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarEAgirAsync<AuditoriaPagina>(despachante, new(), async tela =>
         {
-            await ChamarAsync(tela, "AlternarFiltros");
+            await TelaDeTeste.ChamarAsync(tela, "AlternarFiltros");
             Digitar(tela, filtro => filtro.IdCorrelacao = "lixo");
-            await ChamarAsync(tela, "FiltrarDoPainelAsync");
+            await TelaDeTeste.ChamarAsync(tela, "FiltrarDoPainelAsync");
         }));
         var valido = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarEAgirAsync<AuditoriaPagina>(despachante, new(), async tela =>
         {
-            await ChamarAsync(tela, "AlternarFiltros");
-            await ChamarAsync(tela, "FiltrarDoPainelAsync");
+            await TelaDeTeste.ChamarAsync(tela, "AlternarFiltros");
+            await TelaDeTeste.ChamarAsync(tela, "FiltrarDoPainelAsync");
         }));
 
         // Com o identificador inválido o campo a corrigir continua à vista, junto do aviso.
