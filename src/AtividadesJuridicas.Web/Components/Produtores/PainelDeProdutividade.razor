@@ -64,15 +64,15 @@
                     </div>
                 }
             }
-
-            @if (_atividadeAberta is { } id)
-            {
-                @* A ficha da atividade (marcação antiga até a 9E), como hoje. O que mudar nela muda os números. *@
-                <FichaDaAtividade @key="id" AtividadeId="id" OnMudou="RecarregarAsync" OnAcessoEncerrado="EncerrarAcessoAsync"
-                                  OnFechar="() => FecharFicha(id)" />
-            }
         }
     </EstadoDaLista>
+
+    @if (_atividadeAberta is { } id)
+    {
+        @* A ficha da atividade (marcação antiga até a 9E), como hoje. Fica fora da lista: se a recarga que ela provoca falhar, a ficha continua aberta. *@
+        <FichaDaAtividade @key="id" AtividadeId="id" OnMudou="RecarregarAsync" OnAcessoEncerrado="EncerrarAcessoAsync"
+                          OnFechar="() => FecharFicha(id)" />
+    }
 </section>
 
 @code {
