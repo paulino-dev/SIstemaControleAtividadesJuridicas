@@ -455,10 +455,11 @@ public class PortalDoClienteWebTests(BancoFixture banco) : IAsyncLifetime
 
         var html = Decodificado(await admin.GetStringAsync("/usuarios"));
 
-        html.Should().Contain("Cliente (Cliente)").And.Contain("<th>Cliente</th>");
-        var linha = Regex.Matches(html, "<tr[^>]*>.*?</tr>", RegexOptions.Singleline)
+        html.Should().Contain("Cliente (Cliente)").And.Contain("<th scope=\"col\">Cliente</th>");
+        var linha = Regex.Matches(BlocoDeVisao.De(html, "aj-so-desktop"), "<tr[^>]*>.*?</tr>", RegexOptions.Singleline)
             .Select(m => m.Value).Single(l => l.Contains("Carla Cliente"));
         linha.Should().Contain("Maria Silva");
+        BlocoDeVisao.De(html, "aj-tablet-mobile").Should().Contain("Cliente (Cliente) · Maria Silva");
     }
 
     [Fact]
@@ -472,6 +473,8 @@ public class PortalDoClienteWebTests(BancoFixture banco) : IAsyncLifetime
 
         var html = Decodificado(await admin.GetStringAsync("/usuarios"));
         html.Should().Contain("Maria Silva (inativo — sem acesso ao portal)");
+        BlocoDeVisao.De(html, "aj-so-desktop").Should().Contain("Maria Silva (inativo — sem acesso ao portal)");
+        BlocoDeVisao.De(html, "aj-tablet-mobile").Should().Contain("Maria Silva (inativo — sem acesso ao portal)");
     }
 
     [Fact]

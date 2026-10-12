@@ -39,6 +39,7 @@ public partial class TelasNoDesignSystemTests
         "Components/Pages/NaoEncontrada.razor",
         "Components/Pages/Perfis.razor",
         "Components/Pages/UsuarioFormulario.razor",
+        "Components/Pages/Usuarios.razor",
         "Components/Usuarios/ConfirmacaoDeInativacao.razor",
     ];
 

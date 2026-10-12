@@ -4,7 +4,9 @@ using AtividadesJuridicas.Application.Comum;
 using AtividadesJuridicas.Application.Identidade;
 using AtividadesJuridicas.Domain.Identidade;
 using AtividadesJuridicas.Web.Components.Usuarios;
+using AtividadesJuridicas.Web.Infra;
 using UsuarioFormularioPagina = AtividadesJuridicas.Web.Components.Pages.UsuarioFormulario;
+using UsuariosPagina = AtividadesJuridicas.Web.Components.Pages.Usuarios;
 
 namespace AtividadesJuridicas.IntegrationTests;
 
@@ -154,5 +156,60 @@ public class UsuariosWebTests(BancoFixture banco) : IAsyncLifetime
             .And.MatchRegex("<h1 class=\"aj-titulo\">Editar usuário</h1>")
             .And.MatchRegex("<a href=\"/usuarios\" class=\"aj-voltar\">");
         html.Should().NotContain("Usuário não encontrado.").And.NotContain("<h2>Usuário</h2>").And.NotContain("Salvar usuário");
+    }
+
+    [Fact]
+    public async Task Lista_traz_a_tabela_no_desktop_e_os_cartoes_no_tablet_e_no_mobile()
+    {
+        (await _app.ExecutarAsync(_admin, new DefinirAtivoUsuario(_pedro, false))).Sucesso.Should().BeTrue();
+
+        var html = await PaginaAsync("/usuarios");
+
+        html.Should().Contain("<p class=\"aj-subtitulo\">3 usuários · 1 inativo</p>")
+            .And.MatchRegex("<a href=\"/usuarios/novo\" class=\"aj-botao aj-botao--primario aj-botao--com-icone\"")
+            .And.MatchRegex("<a href=\"/usuarios/novo\" class=\"aj-fab\" aria-label=\"Novo usuário\"");
+        html.Should().NotContain("<h2>Novo usuário</h2>").And.NotContain("Senha");
+
+        var tabela = BlocoDeVisao.De(html, "aj-so-desktop");
+        tabela.Should().Contain("<th scope=\"col\">Último acesso</th>")
+            .And.MatchRegex("<tr class=\"aj-tabela__linha--inativa\">\\s*<td class=\"aj-tabela__principal\">Pedro Produção</td>\\s*<td class=\"aj-tabela__secundaria\">pedro@x.com</td>")
+            .And.MatchRegex($"<td class=\"aj-tabela__acao aj-tabela__acao--varias\"><a href=\"/usuarios/{_pedro}/editar\" class=\"aj-botao aj-botao--fantasma aj-botao--menor\">Editar</a><button type=\"button\" class=\"aj-botao aj-botao--fantasma aj-botao--menor\"[^>]*>Ativar</button></td>");
+
+        var cartoes = BlocoDeVisao.De(html, "aj-tablet-mobile");
+        cartoes.Should().MatchRegex($"<a href=\"/usuarios/{_pedro}/editar\" class=\"aj-cartao aj-cartao--inativo\">\\s*<span class=\"aj-cartao__titulo\">Pedro Produção</span>")
+            .And.MatchRegex("<span class=\"aj-cartao__meta\">pedro@x.com<br\\s*/?>Produção \\(Produção\\)</span>")
+            .And.Contain("<span class=\"aj-cartao__situacao\">Inativo</span>")
+            .And.MatchRegex("<span class=\"aj-cartao__nota\">(Último acesso \\d{2}/\\d{2}/\\d{4} \\d{2}:\\d{2}|Sem acesso registrado)</span>");
+        cartoes.Should().NotContain(">Inativar</button>").And.NotContain(">Ativar</button>");
+    }
+
+    [Fact]
+    public async Task Recado_do_formulario_aparece_uma_vez_na_lista()
+    {
+        var recados = new Recados();
+        recados.Deixar("Usuário salvo.");
+
+        var html = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarAsync<UsuariosPagina>(_app, _admin, new(), recados));
+        var depois = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarAsync<UsuariosPagina>(_app, _admin, new(), recados));
+
+        html.Should().MatchRegex("(?s)<p class=\"aj-aviso aj-aviso--sucesso\" role=\"status\">.*?<span>Usuário salvo.</span>");
+        // A segunda vez a lista vem (com a diretora) e o recado não: ele é entregue uma vez só.
+        depois.Should().Contain("Diana Diretora").And.NotContain("Usuário salvo.");
+    }
+
+    [Fact]
+    public async Task Falha_na_consulta_dos_usuarios_mostra_o_erro_e_nao_acesso_negado()
+    {
+        var diretora = new UsuarioAutenticado(Guid.NewGuid(), "Diana Diretora", TipoPerfil.Diretoria, Guid.NewGuid(), null);
+        var despachante = new DespachanteCombinado()
+            .Responde<ObterMeuAcesso, UsuarioAutenticado?>(diretora)
+            .Responde<ListarPerfis, Resultado<IReadOnlyList<PerfilDetalhe>>>(Resultado<IReadOnlyList<PerfilDetalhe>>.Ok([]))
+            .Responde<ListarUsuarios, Resultado<IReadOnlyList<UsuarioResumo>>>(
+                Resultado<IReadOnlyList<UsuarioResumo>>.Falha(TipoErro.Validacao, "Falha de teste."));
+
+        var html = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarComAsync<UsuariosPagina>(despachante, new()));
+
+        html.Should().Contain("Falha de teste.").And.Contain(">Tentar de novo</button>").And.Contain("Novo usuário");
+        html.Should().NotContain("Acesso negado").And.NotContain("Nenhum usuário.").And.NotContain("<table");
     }
 }
