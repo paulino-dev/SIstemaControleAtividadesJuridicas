@@ -1,8 +1,10 @@
 using System.Globalization;
 using System.Net;
+using System.Reflection;
 using System.Text.RegularExpressions;
 using AtividadesJuridicas.Application.Atividades;
 using AtividadesJuridicas.Application.Auditoria;
+using AtividadesJuridicas.Application.Comum;
 using AtividadesJuridicas.Application.Identidade;
 using AtividadesJuridicas.Domain.Auditoria;
 using AtividadesJuridicas.Domain.Identidade;
@@ -11,6 +13,7 @@ using AtividadesJuridicas.Web.Components.Produtores;
 using AtividadesJuridicas.Web.Infra;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using ProdutoresPagina = AtividadesJuridicas.Web.Components.Pages.Produtores;
 
 namespace AtividadesJuridicas.IntegrationTests;
 
@@ -191,6 +194,36 @@ public class ProdutoresWebTests(BancoFixture banco) : IAsyncLifetime
         html.Should().Contain("<h1 class=\"aj-titulo\">Produtores</h1>").And.Contain("Acesso negado").And.NotContain("Acompanhar");
         (await _app.EventosAsync(EventosDeSeguranca.AcessoNegado)).Should().BeEmpty(
             "a página confere o perfil antes de pedir a lista de usuários");
+    }
+
+    [Fact]
+    public async Task Falha_na_consulta_dos_usuarios_mostra_o_erro_com_tentar_de_novo_e_nao_acesso_negado()
+    {
+        var diretora = new UsuarioAutenticado(Guid.NewGuid(), "Diana Diretora", TipoPerfil.Diretoria, Guid.NewGuid(), null);
+        var pedro = new UsuarioResumo(Guid.NewGuid(), "Pedro Produção", "pedro@x.com", Guid.NewGuid(), "Produção",
+            TipoPerfil.Producao, null, true, null);
+        var despachante = new DespachanteCombinado()
+            .Responde<ObterMeuAcesso, UsuarioAutenticado?>(diretora)
+            .Responde<ListarUsuarios, Resultado<IReadOnlyList<UsuarioResumo>>>(
+                Resultado<IReadOnlyList<UsuarioResumo>>.Falha(TipoErro.Validacao, "Falha de teste."));
+        var parametros = new Dictionary<string, object?> { [nameof(ProdutoresPagina.ProdutorNoEndereco)] = pedro.Id.ToString() };
+
+        var html = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarComAsync<ProdutoresPagina>(despachante, parametros));
+
+        html.Should().Contain("Falha de teste.").And.Contain(">Tentar de novo</button>").And.Contain("<h1 class=\"aj-titulo\">Produtores</h1>");
+        html.Should().NotContain("Acesso negado").And.NotContain("Nenhum produtor.").And.NotContain("<table")
+            .And.NotContain("<select").And.NotContain("aj-subtitulo\">").And.NotContain("Produtividade —");
+
+        // O "Tentar de novo" refaz a consulta da lista: com a resposta certa, a lista aparece no lugar do erro.
+        var depois = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarEAgirAsync<ProdutoresPagina>(despachante, [], async tela =>
+        {
+            despachante.Responde<ListarUsuarios, Resultado<IReadOnlyList<UsuarioResumo>>>(Resultado<IReadOnlyList<UsuarioResumo>>.Ok([pedro]));
+            await (Task)typeof(ProdutoresPagina).GetMethod("TentarDeNovoAsync", BindingFlags.NonPublic | BindingFlags.Instance)!
+                .Invoke(tela, [])!;
+        }));
+
+        depois.Should().Contain("<p class=\"aj-subtitulo\">1 produtor</p>").And.Contain("Pedro Produção");
+        depois.Should().NotContain("Falha de teste.").And.NotContain("Tentar de novo");
     }
 
     [Fact]

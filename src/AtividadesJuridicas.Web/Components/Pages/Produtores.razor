@@ -14,9 +14,9 @@ else if (!_autorizado)
 {
     <Aviso Tipo="TipoDeAviso.Erro">Acesso negado.</Aviso>
 }
-else if (_produtores.Count == 0)
+else if (_erroDaLista is not null || _produtores.Count == 0)
 {
-    <EstadoDaLista Vazio="true" TextoDeVazio="Nenhum produtor." />
+    <EstadoDaLista Erro="@_erroDaLista" Vazio="true" TextoDeVazio="Nenhum produtor." TentarDeNovo="TentarDeNovoAsync" />
 }
 else
 {
@@ -75,8 +75,9 @@ else
     private bool _autorizado;
     private IReadOnlyList<UsuarioResumo> _produtores = [];
     private UsuarioResumo? _escolhido;
+    private string? _erroDaLista;
 
-    private string? Subtitulo => _carregado && _autorizado && _produtores.Count > 0
+    private string? Subtitulo => _carregado && _autorizado && _erroDaLista is null && _produtores.Count > 0
         ? Contagem.De(_produtores.Count, "produtor", "produtores")
         : null;
 
@@ -101,19 +102,44 @@ else
         _autorizado = await Despachante.EnviarAsync(new ObterMeuAcesso()) is { EhDiretoria: true };
         if (_autorizado)
         {
-            var resultado = await Despachante.EnviarAsync(new ListarUsuarios());
-            _autorizado = resultado.Sucesso;
-
-            // Produtor é quem tem hoje um perfil de Produção. Os inativos ficam, para a consulta de meses passados.
-            _produtores = [.. (resultado.Valor ?? [])
-                .Where(u => u.TipoPerfil == TipoPerfil.Producao)
-                .OrderBy(u => u.Nome, StringComparer.CurrentCultureIgnoreCase)];
+            await CarregarAsync();
         }
 
         _carregado = true;
     }
 
-    protected override void OnParametersSet()
+    // Acesso negado encerra a tela; outra falha toma o lugar da lista, com o "Tentar de novo".
+    private async Task CarregarAsync()
+    {
+        var resultado = await Despachante.EnviarAsync(new ListarUsuarios());
+        if (resultado.Erro == TipoErro.AcessoNegado)
+        {
+            _autorizado = false;
+            return;
+        }
+
+        if (!resultado.Sucesso || resultado.Valor is not { } usuarios)
+        {
+            _erroDaLista = resultado.Mensagem;
+            return;
+        }
+
+        // Produtor é quem tem hoje um perfil de Produção. Os inativos ficam, para a consulta de meses passados.
+        _erroDaLista = null;
+        _produtores = [.. usuarios
+            .Where(u => u.TipoPerfil == TipoPerfil.Producao)
+            .OrderBy(u => u.Nome, StringComparer.CurrentCultureIgnoreCase)];
+    }
+
+    private async Task TentarDeNovoAsync()
+    {
+        await CarregarAsync();
+        EscolherDoEndereco();
+    }
+
+    protected override void OnParametersSet() => EscolherDoEndereco();
+
+    private void EscolherDoEndereco()
     {
         // Só vale quem está na lista de produtores: o resto do endereço não abre painel nem consulta.
         _escolhido = Guid.TryParse(ProdutorNoEndereco, out var id)
