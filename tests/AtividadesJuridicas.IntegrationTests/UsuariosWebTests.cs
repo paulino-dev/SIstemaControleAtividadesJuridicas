@@ -51,6 +51,11 @@ public class UsuariosWebTests(BancoFixture banco) : IAsyncLifetime
             "<div class=\"aj-acoes aj-acoes--fixa\">\\s*<a href=\"/usuarios\" class=\"aj-botao aj-botao--secundario\">Cancelar</a>");
         BlocoDeVisao.De(html, "aj-so-mobile").Should().MatchRegex("(?s)<div class=\"aj-acoes aj-acoes--fixa\">.*?Salvar</button>")
             .And.NotContain("Salvar usuário");
+        // As barras de ação ficam fora do painel (no desktop, sobre o fundo da página, como no quadro) e enviam o
+        // formulário do usuário pelo atributo form.
+        var formulario = Regex.Match(html, "(?s)<form[^>]*id=\"formulario-do-usuario\".*?</form>").Value;
+        formulario.Should().Contain("<h2>Usuário</h2>").And.NotContain("aj-acoes");
+        Regex.Matches(html, "<button type=\"submit\"[^>]*form=\"formulario-do-usuario\"").Count.Should().Be(3);
         // O perfil inativo não é opção para usuário novo, e o escolhido de início é de Produção.
         var select = Regex.Match(html, "<select[^>]*>.*?</select>", RegexOptions.Singleline).Value;
         select.Should().Contain(">Diretor (Diretoria)</option>").And.Contain(">Cliente (Cliente)</option>");

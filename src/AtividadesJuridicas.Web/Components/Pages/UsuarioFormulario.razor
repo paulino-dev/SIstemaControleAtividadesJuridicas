@@ -43,7 +43,7 @@ else
                                  OnCancelar="() => _inativando = false" OnAcessoEncerrado="() => _autorizado = false" />
     }
 
-    <EditForm Model="_form" OnValidSubmit="SalvarAsync" FormName="usuario" class="aj-painel aj-painel--formulario">
+    <EditForm Model="_form" OnValidSubmit="SalvarAsync" FormName="usuario" id="formulario-do-usuario" class="aj-painel aj-painel--formulario">
         <DataAnnotationsValidator />
         <h2>Usuário</h2>
         <div class="aj-grade-campos">
@@ -123,17 +123,19 @@ else
                 </div>
             }
         </div>
-
-        <div class="aj-so-desktop">
-            <div class="aj-acoes aj-acoes--formulario"><a href="/usuarios" class="aj-botao aj-botao--fantasma">Cancelar</a><button type="submit" class="aj-botao aj-botao--primario aj-botao--com-icone" disabled="@_salvando"><Icone Nome="confirmar" />Salvar usuário</button></div>
-        </div>
-        <div class="aj-so-tablet">
-            <div class="aj-acoes aj-acoes--fixa"><a href="/usuarios" class="aj-botao aj-botao--secundario">Cancelar</a><button type="submit" class="aj-botao aj-botao--primario aj-botao--com-icone" disabled="@_salvando"><Icone Nome="confirmar" />Salvar usuário</button></div>
-        </div>
-        <div class="aj-so-mobile">
-            <div class="aj-acoes aj-acoes--fixa"><a href="/usuarios" class="aj-botao aj-botao--secundario">Cancelar</a><button type="submit" class="aj-botao aj-botao--primario aj-botao--com-icone" disabled="@_salvando"><Icone Nome="confirmar" />Salvar</button></div>
-        </div>
     </EditForm>
+
+    @* As barras de ação ficam fora do painel (no desktop, sobre o fundo da página, como no quadro) e enviam o
+       formulário do usuário pelo atributo form. *@
+    <div class="aj-so-desktop">
+        <div class="aj-acoes aj-acoes--formulario"><a href="/usuarios" class="aj-botao aj-botao--fantasma">Cancelar</a><button type="submit" class="aj-botao aj-botao--primario aj-botao--com-icone" form="formulario-do-usuario" disabled="@_salvando"><Icone Nome="confirmar" />Salvar usuário</button></div>
+    </div>
+    <div class="aj-so-tablet">
+        <div class="aj-acoes aj-acoes--fixa"><a href="/usuarios" class="aj-botao aj-botao--secundario">Cancelar</a><button type="submit" class="aj-botao aj-botao--primario aj-botao--com-icone" form="formulario-do-usuario" disabled="@_salvando"><Icone Nome="confirmar" />Salvar usuário</button></div>
+    </div>
+    <div class="aj-so-mobile">
+        <div class="aj-acoes aj-acoes--fixa"><a href="/usuarios" class="aj-botao aj-botao--secundario">Cancelar</a><button type="submit" class="aj-botao aj-botao--primario aj-botao--com-icone" form="formulario-do-usuario" disabled="@_salvando"><Icone Nome="confirmar" />Salvar</button></div>
+    </div>
 
     @if (Id is not null)
     {
