@@ -323,6 +323,15 @@ Como a fase 9B fez a conferência (emenda de 2026-10-11), além do que está aci
 - Zoom diferente entre abas faz a borda de 1px medir 1,11px: larguras de borda se comparam com folga. A moldura de 390px mostra barra de rolagem comum do desktop quando o conteúdo passa da altura, o que estreita o conteúdo em relação a um celular: o quadro desenhado na mesma moldura tem a mesma barra, e a comparação continua válida.
 - As credenciais de teste ficam num arquivo local que só a página lê; o ambiente, o arquivo e as abas são removidos antes da última rodada da suíte.
 
+Como a fase 9C fez a conferência (emenda de 2026-10-12), além do que está acima:
+
+- Sem a ferramenta do navegador na sessão, um Chrome sem janela, com perfil próprio, foi dirigido pelo protocolo DevTools por um condutor local; os roteiros da 9B rodaram iguais. Sem aba em segundo plano, nada é estrangulado e a chamada não expira em 45 s. Teclas reais vão à moldura depois de focá-la.
+- A barra de rolagem se esconde nos dois lados antes de medir (`::-webkit-scrollbar{width:0}` na moldura do sistema e na do quadro). Só um dos lados pode rolar (a coluna do quadro de Produtores rola no mobile, a do sistema não), e a barra comum do desktop tirava 15px de um deles. Isso corrige a observação da 9B sobre a mesma barra.
+- Quadro com ramos condicionais (`sc-if`) desenha os dois ramos fora do canvas: o formulário de usuário mostra o campo da OAB e o bloco do cliente juntos. Quadro com modelo (`{{ r.titulo }}`) desenha um cartão-modelo só. Nesses casos as medidas valem para os átomos casados e o resto se confere por captura lado a lado.
+- Quando a cópia dos textos do sistema muda a forma do quadro (dados longos na tabela da Auditoria), a comparação automática embaralha as colunas: a tela se confere por captura.
+- O ambiente recebe dados que o quadro não tem, para o Review Focus: nome e e-mail longos sem espaço, cliente inativo, linha inativa na mesma posição do quadro (a ordem alfabética decide: renomear o item é mais simples que reordenar).
+- Com o CSS da fase ainda fora do design system, a publicação descartável usa o `bundle.css` pendente: o `componentes.css` do worktree é trocado só durante o `dotnet publish` e restaurado em seguida, sem commit. O que a conferência pede de CSS muda no pendente, não no código.
+
 ## 12. Fases
 
 | Fase | Conteúdo |
@@ -434,3 +443,39 @@ Observações de desenho, sem ação nesta fase:
 - O campo de arquivo mede 42,7px no desktop, ao lado do campo de texto de 40px (no tablet e no mobile os dois medem 50px). É a regra do próprio design system para o campo de arquivo.
 - Os chips do Andamento rolam de lado no mobile quando os números crescem ("Em andamento · 15"): é o comportamento de `aj-chips`.
 - `Aviso` com `Rotulo` e sem `Acoes` sairia como diálogo de alerta sem nome e sem foco. Nenhuma tela usa a combinação.
+
+### Da fase 9C (emenda de 2026-10-12)
+
+O que a fase entregou além das telas da seção 7.3, e que as próximas reutilizam:
+
+- Peças compartilhadas: `CabecalhoDeDetalhe` (voltar acima do cabeçalho no desktop e no tablet, barra de voltar no mobile), os encaixes `Complemento` e `LinhaDoMobile` do `CabecalhoDePagina`, `Recados` (mensagem de uma tela para a seguinte, de escopo do circuito, lida uma vez), `ConfirmacaoDeInativacao`, `ResumoDeAuditoria`, `IdentificadorCurto`, `Contagem.ComInativos`. O `MenuDeAcoes` fechado pelo fundo devolve o foco ao botão.
+- Lista que sobrevive à recarga (Áreas, Perfis, Usuários): só a falha da primeira consulta vai ao `EstadoDaLista` com "Tentar de novo"; a recarga que falha depois de uma ação mantém a lista e o subtítulo e troca o aviso por "{mensagem}, mas não foi possível atualizar a lista.". Falha de consulta que não é de acesso nunca aparece como "Acesso negado." nem como "não encontrado". O trio (`RecarregarAsync`, `_listaCarregada`, a conclusão da ação) está repetido em três telas, já com formatos diferentes: extrair antes de a 9D copiá-lo uma quarta vez.
+- Formulário em tela própria (o primeiro de vários: cliente, processo, atividade, evento): o `EditForm` envolve só o painel; as barras de ação ficam fora dele (no desktop, sobre o fundo da página, como no quadro) e os botões de envio se associam pelo atributo `form`. A busca de um vínculo usa um formulário escondido próprio, também pelo atributo `form`, e o Enter na busca não envia o formulário principal. Gravação respondida com acesso negado encerra a tela. Salvar volta à lista com um recado. Identificador que não está na lista dá "não encontrado" com o voltar, sem formulário.
+- Formulário de filtros sem botão de envio à vista (a linha do tablet e do mobile): um botão de envio escondido, `class="aj-so-leitor" hidden`, faz o Enter filtrar. `aj-botao` não serve, porque o `display` dele anula o `hidden`.
+- Nos testes: `TelaDeTeste` tem um registro de serviços só, com um `NavigationManager` que não navega, e `RenderizarEAgirAsync`, que chama um método da tela por reflexão e desenha de novo — é como se testa, sem pacote novo, o que acontece depois de um clique (o teste quebra alto se o método mudar de nome).
+
+Pendente de publicação no design system (a conta dona do artifact só volta na quarta-feira, 2026-10-14). O `bundle.css` pronto está fora do repositório, em `design-system-pendente-9c`, e já leva as três pendências da 9B. Até ele ser publicado e copiado, o `componentes.css` do código não tem as classes desta fase: as telas estão certas na marcação e nos testes, mas sem a aparência final, e o branch não entra na `main` antes disso. Além do bloco da fase (Tarefa 1 do plano), a conferência pediu:
+
+- `.aj-barra-superior--voltar>h1` com `letter-spacing:normal`: o `h1 { letter-spacing }` do `app.css` (anotado na 9A) chegava ao título da barra de voltar.
+- `.aj-campo-filtro` com `gap:0`: o `label { gap: 8px }` do `app.css` afastava o nome do campo do controle.
+- `.aj-campo-filtro select{width:0;min-width:100%}`: a opção mais longa (um nome de 60 letras no filtro "Usuário") alargava o campo e desmontava a barra de filtros.
+- `.aj-dados` com `word-break:normal`: o `td code { word-break: break-all }` do `app.css` partia as palavras dos dados da auditoria no meio.
+- `overflow-wrap:anywhere` em `.aj-cartao__titulo`, `.aj-cartao__meta` e `.aj-tabela__secundaria`: um e-mail longo sem espaço passava do cartão a 390px (e o conteúdo rolava de lado) e, no desktop, empurrava a coluna "Ações" para fora da caixa da tabela.
+- Os READMEs e as prévias dos componentes novos e dos que ganharam modificador (Tarefa 1, passo 4) ainda estão por escrever.
+
+Na quarta: publicar, copiar para o `componentes.css`, conferir de novo as seis telas com o CSS do código (a ferramenta guardada faz isso em minutos) e rodar a suíte.
+
+Para a 9G, junto da revisão de teclado e de leitor de tela:
+
+- Auditoria: depois de "Filtrar" no painel o foco cai no `body` (o painel sai da página com o botão focado); "Tentar de novo" não recarrega a lista de usuários do filtro; enquanto a aba nova carrega, a paginação mostra os números da anterior.
+- O erro de uma gravação aparece no topo do formulário sem foco nem rolagem: num formulário mais alto que a tela do celular ele fica fora da vista.
+- O Enter pelo botão de envio escondido só foi conferido no Chrome; conferir num WebKit.
+- Formulário de usuário: uma carga lenta do usuário A pode sobrescrever o B se o identificador da rota mudar durante a espera (hoje nenhum link leva de uma edição a outra). Na lista, se a inativação do primeiro usuário falhar com a confirmação do segundo já aberta, o aviso de erro do primeiro aparece no topo ao lado dela.
+- Células sem classe dentro de `aj-tabela` herdam o `box-sizing` do `app.css` (sem efeito visível, porque a altura delas é automática): entra com os outros ajustes globais.
+
+Observações de desenho, sem ação nesta fase:
+
+- No quadro do mobile de Produtores o campo "Produtor" encolhe para 36,8px (tem `flex: 1 1 auto` numa coluna); o "Mês" ao lado tem os 42px do token. Mantido o token no sistema.
+- O título do painel de produtividade encolhe ao texto no tablet e no mobile, porque o cabeçalho do painel é flex; não se vê diferença.
+- As linhas da lista em painel usam algarismos tabulares na ajuda (regra anterior a esta fase); os quadros não. Sem efeito em "Ativa" e "Inativa".
+- A Auditoria abre sem período preenchido, como antes; o quadro mostra um período de exemplo.
