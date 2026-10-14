@@ -3,6 +3,7 @@ using AtividadesJuridicas.Application.Atividades;
 using AtividadesJuridicas.Application.Identidade;
 using AtividadesJuridicas.Domain.Auditoria;
 using AtividadesJuridicas.Domain.Identidade;
+using AtividadesJuridicas.Web.Components.Layout;
 using AtividadesJuridicas.Web.Infra;
 
 namespace AtividadesJuridicas.IntegrationTests;
@@ -328,5 +329,70 @@ public class ContagemTests
     public void Contagem_usa_o_singular_so_para_um(int quantidade, string esperado)
     {
         Contagem.De(quantidade, "documento", "documentos").Should().Be(esperado);
+    }
+
+    [Theory]
+    [InlineData(5, 1, "5 áreas · 1 inativa")]
+    [InlineData(5, 0, "5 áreas")]
+    [InlineData(1, 1, "1 área · 1 inativa")]
+    [InlineData(7, 2, "7 áreas · 2 inativas")]
+    public void Contagem_com_inativos_so_fala_deles_quando_ha(int total, int inativos, string esperado)
+    {
+        Contagem.ComInativos(total, inativos, "área", "áreas", "inativa", "inativas").Should().Be(esperado);
+    }
+}
+
+public class IdentificadorCurtoTests
+{
+    [Fact]
+    public void Identificador_curto_traz_os_oito_primeiros_caracteres_e_reticencias()
+    {
+        IdentificadorCurto.De(Guid.Parse("0199a3f2-7c1e-7000-8000-000000000001")).Should().Be("0199a3f2…");
+    }
+}
+
+public class RecadosTests
+{
+    [Fact]
+    public void Recado_e_entregue_uma_vez_so_e_vale_o_ultimo()
+    {
+        var recados = new Recados();
+        recados.Retirar().Should().BeNull();
+
+        recados.Deixar("Usuário salvo.");
+        recados.Deixar("Usuário inativado.", TipoDeAviso.Sucesso);
+
+        recados.Retirar().Should().Be(new Recado("Usuário inativado.", TipoDeAviso.Sucesso));
+        recados.Retirar().Should().BeNull();
+    }
+}
+
+public class ResumoDeAuditoriaTests
+{
+    private readonly FusoDoEscritorio _fuso = new("America/Sao_Paulo");
+
+    [Theory]
+    [InlineData("{\"Status\":{\"de\":\"Feita\",\"para\":\"Concluida\"}}", "Status: Feita → Concluida")]
+    [InlineData("{\"De\":\"Feita\",\"Para\":\"Concluida\"}", "De: Feita · Para: Concluida")]
+    [InlineData("{\"ConcluidoEm\":{\"de\":null,\"para\":\"2026-10-08T21:11:00Z\"}}", "ConcluidoEm: null → 08/10/2026 18:11")]
+    [InlineData("{\"email\":\"desconhecido@correio.example\"}", "email: desconhecido@correio.example")]
+    [InlineData("{\"DataEntrega\":\"2090-06-15\",\"Complexidade\":2,\"Ativo\":true}", "DataEntrega: 15/06/2090 · Complexidade: 2 · Ativo: true")]
+    [InlineData("{\"Partes\":[1,2],\"Endereco\":{\"Cidade\":\"Maceió\"}}", "Partes: [1,2] · Endereco: {\"Cidade\":\"Maceió\"}")]
+    [InlineData("{\"Quando\":\"2026-10-08T21:11:00\"}", "Quando: 08/10/2026 18:11")]
+    public void Resumo_le_os_campos_gravados(string dados, string esperado)
+    {
+        ResumoDeAuditoria.De(dados, _fuso).Should().Be(esperado);
+    }
+
+    [Theory]
+    [InlineData(null, "—")]
+    [InlineData("", "—")]
+    [InlineData("{}", "—")]
+    [InlineData("texto solto", "texto solto")]
+    [InlineData("[1,2]", "[1,2]")]
+    [InlineData("{\"quebrado\":", "{\"quebrado\":")]
+    public void Resumo_de_dados_fora_da_forma_mostra_o_que_veio(string? dados, string esperado)
+    {
+        ResumoDeAuditoria.De(dados, _fuso).Should().Be(esperado);
     }
 }

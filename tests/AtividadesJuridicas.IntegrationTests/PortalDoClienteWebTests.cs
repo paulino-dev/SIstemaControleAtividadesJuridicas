@@ -393,6 +393,7 @@ public class PortalDoClienteWebTests(BancoFixture banco) : IAsyncLifetime
     [InlineData("/agenda")]
     [InlineData("/areas")]
     [InlineData("/usuarios")]
+    [InlineData("/usuarios/novo")]
     [InlineData("/produtores")]
     [InlineData("/perfis")]
     [InlineData("/auditoria")]
@@ -454,10 +455,11 @@ public class PortalDoClienteWebTests(BancoFixture banco) : IAsyncLifetime
 
         var html = Decodificado(await admin.GetStringAsync("/usuarios"));
 
-        html.Should().Contain("Cliente (Cliente)").And.Contain("<th>Cliente</th>");
-        var linha = Regex.Matches(html, "<tr[^>]*>.*?</tr>", RegexOptions.Singleline)
+        html.Should().Contain("Cliente (Cliente)").And.Contain("<th scope=\"col\">Cliente</th>");
+        var linha = Regex.Matches(BlocoDeVisao.De(html, "aj-so-desktop"), "<tr[^>]*>.*?</tr>", RegexOptions.Singleline)
             .Select(m => m.Value).Single(l => l.Contains("Carla Cliente"));
         linha.Should().Contain("Maria Silva");
+        BlocoDeVisao.De(html, "aj-tablet-mobile").Should().Contain("Cliente (Cliente) · Maria Silva");
     }
 
     [Fact]
@@ -471,6 +473,8 @@ public class PortalDoClienteWebTests(BancoFixture banco) : IAsyncLifetime
 
         var html = Decodificado(await admin.GetStringAsync("/usuarios"));
         html.Should().Contain("Maria Silva (inativo — sem acesso ao portal)");
+        BlocoDeVisao.De(html, "aj-so-desktop").Should().Contain("Maria Silva (inativo — sem acesso ao portal)");
+        BlocoDeVisao.De(html, "aj-tablet-mobile").Should().Contain("Maria Silva (inativo — sem acesso ao portal)");
     }
 
     [Fact]
@@ -480,8 +484,9 @@ public class PortalDoClienteWebTests(BancoFixture banco) : IAsyncLifetime
 
         var html = Decodificado(await admin.GetStringAsync("/perfis"));
 
-        var linha = Regex.Matches(html, "<tr[^>]*>.*?</tr>", RegexOptions.Singleline)
-            .Select(m => m.Value).Single(l => Regex.IsMatch(l, "<td>Cliente</td>.*<td>Cliente</td>", RegexOptions.Singleline));
+        var linha = Regex.Matches(BlocoDeVisao.De(html, "aj-so-desktop"), "<tr[^>]*>.*?</tr>", RegexOptions.Singleline)
+            .Select(m => m.Value)
+            .Single(l => Regex.IsMatch(l, "<td class=\"aj-tabela__principal\">Cliente</td>\\s*<td>Cliente</td>"));
         linha.Should().Contain("Renomear");
         var select = Regex.Match(html, "<select[^>]*>.*?</select>", RegexOptions.Singleline).Value;
         select.Should().Contain(">Produção</option>").And.Contain(">Diretoria</option>").And.NotContain("Cliente");

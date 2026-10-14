@@ -1,13 +1,14 @@
 @using Microsoft.JSInterop
 
 @* O menu que o botão de três pontos abre, com as ações da linha (a destrutiva por último).
-   Fecha ao escolher (o clique do item sobe até a lista), ao tocar fora e com Esc. *@
+   Fecha ao escolher (o clique do item sobe até a lista), ao tocar fora e com Esc; tocar fora e Esc devolvem o foco
+   ao botão do menu, escolher um item não (o que a ação abre decide). *@
 <div class="aj-menu-acoes" @onkeydown="AoTeclarAsync">
     <button type="button" class="aj-botao aj-botao--fantasma aj-botao--icone" aria-label="@Rotulo"
             aria-expanded="@(_aberto ? "true" : "false")" @ref="_gatilho" @onclick="Alternar"><Icone Nome="mais" /></button>
     @if (_aberto)
     {
-        <button type="button" class="aj-menu-acoes__fundo" tabindex="-1" aria-hidden="true" @onclick="Fechar"></button>
+        <button type="button" class="aj-menu-acoes__fundo" tabindex="-1" aria-hidden="true" @onclick="FecharPeloFundoAsync"></button>
     }
     <div class="aj-menu-acoes__lista" hidden="@(!_aberto)" tabindex="-1" @ref="_lista" @onclick="Fechar">@ChildContent</div>
 </div>
@@ -30,6 +31,12 @@
     }
 
     private void Fechar() => _aberto = false;
+
+    private async Task FecharPeloFundoAsync()
+    {
+        _aberto = false;
+        await FocarAsync(_gatilho);
+    }
 
     private async Task AoTeclarAsync(KeyboardEventArgs e)
     {

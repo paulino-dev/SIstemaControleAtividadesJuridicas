@@ -43,6 +43,7 @@ builder.Services.Configure<WebEncoderOptions>(opcoes =>
     opcoes.TextEncoderSettings = new TextEncoderSettings(UnicodeRanges.All));
 builder.Services.AddScoped<IDespachante, Despachante>();
 builder.Services.AddScoped<OrigemDaConexao>();
+builder.Services.AddScoped<Recados>();
 builder.Services.AddSingleton(new FusoDoEscritorio(fusoHorarioDoEscritorio));
 
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();

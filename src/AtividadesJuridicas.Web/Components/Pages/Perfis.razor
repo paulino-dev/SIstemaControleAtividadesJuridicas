@@ -4,76 +4,92 @@
 
 <PageTitle>Perfis</PageTitle>
 
-<h1>Perfis</h1>
+<CabecalhoDePagina Titulo="Perfis" Subtitulo="@Subtitulo" />
 
 @if (!_carregado)
 {
-    <p>Carregando…</p>
+    <p class="aj-subtitulo" role="status">Carregando…</p>
 }
 else if (!_autorizado)
 {
-    <p class="erro">Acesso negado.</p>
+    <Aviso Tipo="TipoDeAviso.Erro">Acesso negado.</Aviso>
 }
 else
 {
     @if (_mensagem is not null)
     {
-        <p class="@(_falhou ? "erro" : "ok")" role="status">@_mensagem</p>
+        <Aviso Tipo="@(_falhou ? TipoDeAviso.Erro : TipoDeAviso.Sucesso)">@_mensagem</Aviso>
     }
 
-    <table>
-        <thead>
-            <tr><th>Nome</th><th>Tipo</th><th>Usuários ativos</th><th>Situação</th><th></th></tr>
-        </thead>
-        <tbody>
-            @foreach (var perfil in _perfis)
-            {
-                <tr class="@(perfil.Ativo ? null : "inativo")" @key="perfil.Id">
-                    <td>@perfil.Nome</td>
-                    <td>@RotulosDePerfil.DoTipo(perfil.Tipo)</td>
-                    <td>@perfil.UsuariosAtivos</td>
-                    <td>@(perfil.Ativo ? "Ativo" : "Inativo")</td>
-                    <td class="acoes">
-                        <button type="button" class="secundario" @onclick="() => Editar(perfil)">Renomear</button>
-                        <button type="button" class="secundario" disabled="@_salvando" @onclick="() => AlternarAtivoAsync(perfil)">
-                            @(perfil.Ativo ? "Inativar" : "Ativar")
-                        </button>
-                    </td>
-                </tr>
-            }
-        </tbody>
-    </table>
-
-    <h2>@(_form.Id is null ? "Novo perfil" : "Renomear perfil")</h2>
-
-    <EditForm Model="_form" OnValidSubmit="SalvarAsync" FormName="perfil" class="formulario">
-        <DataAnnotationsValidator />
-        <label>
-            Nome
-            <InputText @bind-Value="_form.Nome" />
-            <ValidationMessage For="() => _form.Nome" />
-        </label>
-        <label>
-            Tipo
-            <InputSelect @bind-Value="_form.Tipo" disabled="@(_form.Id is not null)">
-                <option value="@TipoPerfil.Producao">Produção</option>
-                <option value="@TipoPerfil.Diretoria">Diretoria</option>
-                @if (_form.Tipo == TipoPerfil.Cliente)
-                {
-                    @* Só ao renomear o perfil de cliente, para o campo (desabilitado) mostrar o tipo dele. *@
-                    <option value="@TipoPerfil.Cliente">Cliente</option>
-                }
-            </InputSelect>
-        </label>
-        @if (_form.Id is null)
-        {
-            <p>O tipo não pode ser mudado depois. Um perfil novo passa a acessar todos os Documentos Gerais já existentes; um perfil de Diretoria acessa tudo, inclusive os Contratos de Honorários.</p>
-        }
-        <div class="acoes">
-            <button type="submit" disabled="@_salvando">Salvar</button>
-            <button type="button" class="secundario" @onclick="Limpar">Cancelar</button>
+    <div class="aj-lado-a-lado">
+        <div class="aj-so-desktop">
+            <div class="aj-lado-a-lado__lista">
+                <EstadoDaLista Erro="@_erroDaLista" Vazio="@(_perfis.Count == 0)" TextoDeVazio="Nenhum perfil." TentarDeNovo="TentarDeNovoAsync">
+                    <div class="aj-tabela-caixa">
+                        <table class="aj-tabela">
+                            <thead><tr><th scope="col">Nome</th><th scope="col">Tipo</th><th scope="col">Usuários ativos</th><th scope="col">Situação</th><th scope="col"><span class="aj-so-leitor">Ações</span></th></tr></thead>
+                            <tbody>
+                                @foreach (var perfil in _perfis)
+                                {
+                                    <tr class="@ClasseDaLinha(perfil)" @key="perfil.Id">
+                                        <td class="aj-tabela__principal">@perfil.Nome</td>
+                                        <td>@RotulosDePerfil.DoTipo(perfil.Tipo)</td>
+                                        <td>@perfil.UsuariosAtivos</td>
+                                        <td>@Situacao(perfil)</td>
+                                        @* Os dois botões colados: o espaço entre eles seria desenhado. *@
+                                        <td class="aj-tabela__acao aj-tabela__acao--varias"><button type="button" class="aj-botao aj-botao--fantasma aj-botao--menor" @onclick="() => Editar(perfil)">Renomear</button><button type="button" class="aj-botao aj-botao--fantasma aj-botao--menor" disabled="@_salvando" @onclick="() => AlternarAtivoAsync(perfil)">@Alternar(perfil)</button></td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </EstadoDaLista>
+            </div>
         </div>
-    </EditForm>
+
+        <div class="aj-tablet-mobile">
+            <EstadoDaLista Erro="@_erroDaLista" Vazio="@(_perfis.Count == 0)" TextoDeVazio="Nenhum perfil." TentarDeNovo="TentarDeNovoAsync">
+                <section class="aj-painel aj-painel--principal aj-painel--lista">
+                    <h2>Perfis</h2>
+                    @foreach (var perfil in _perfis)
+                    {
+                        <div class="@ClasseDaLinhaNoPainel(perfil)" @key="perfil.Id">
+                            <div class="aj-linha__texto"><span class="aj-linha__titulo">@perfil.Nome</span><span class="aj-ajuda">@Resumo(perfil)</span></div>
+                            <MenuDeAcoes Rotulo="@($"Ações de {perfil.Nome}")">
+                                <button type="button" class="aj-menu-acoes__item" @onclick="() => Editar(perfil)">Renomear</button>
+                                <button type="button" class="aj-menu-acoes__item" disabled="@_salvando" @onclick="() => AlternarAtivoAsync(perfil)">@Alternar(perfil)</button>
+                            </MenuDeAcoes>
+                        </div>
+                    }
+                </section>
+            </EstadoDaLista>
+        </div>
+
+        <EditForm Model="_form" OnValidSubmit="SalvarAsync" FormName="perfil" class="aj-painel aj-lado-a-lado__painel">
+            <DataAnnotationsValidator />
+            <h2>@TituloDoPainel</h2>
+            <RotuloDeCampo Texto="Nome" Para="() => _form.Nome">
+                <InputText @ref="_campoNome" @bind-Value="_form.Nome" class="aj-campo" />
+            </RotuloDeCampo>
+            <label class="aj-rotulo">
+                Tipo
+                <InputSelect @bind-Value="_form.Tipo" disabled="@(_form.Id is not null)" class="aj-campo">
+                    <option value="@TipoPerfil.Producao">Produção</option>
+                    <option value="@TipoPerfil.Diretoria">Diretoria</option>
+                    @if (_form.Tipo == TipoPerfil.Cliente)
+                    {
+                        @* Só ao renomear o perfil de cliente, para o campo (desabilitado) mostrar o tipo dele. *@
+                        <option value="@TipoPerfil.Cliente">Cliente</option>
+                    }
+                </InputSelect>
+            </label>
+            @if (_form.Id is null)
+            {
+                <span class="aj-ajuda">O tipo não pode ser mudado depois. Um perfil novo passa a acessar todos os Documentos Gerais já existentes; um perfil de Diretoria acessa tudo, inclusive os Contratos de Honorários.</span>
+            }
+            <div class="aj-painel__acoes"><button type="button" class="aj-botao aj-botao--fantasma" @onclick="Limpar">Cancelar</button><button type="submit" class="aj-botao aj-botao--primario" disabled="@_salvando">Salvar</button></div>
+        </EditForm>
+    </div>
 }
 
 @code {
@@ -81,9 +97,30 @@ else
     private bool _autorizado;
     private bool _falhou;
     private bool _salvando;
+    private bool _focarNome;
+    private bool _listaCarregada;
     private string? _mensagem;
+    private string? _erroDaLista;
+    private InputText? _campoNome;
     private IReadOnlyList<PerfilDetalhe> _perfis = [];
     private Formulario _form = new();
+
+    private string? Subtitulo => _carregado && _autorizado && _erroDaLista is null && _perfis.Count > 0
+        ? Contagem.ComInativos(_perfis.Count, _perfis.Count(p => !p.Ativo), "perfil", "perfis", "inativo", "inativos")
+        : null;
+
+    private string TituloDoPainel => _form.Id is null ? "Novo perfil" : "Renomear perfil";
+
+    private static string Situacao(PerfilDetalhe perfil) => perfil.Ativo ? "Ativo" : "Inativo";
+
+    private static string Resumo(PerfilDetalhe perfil) =>
+        $"{RotulosDePerfil.DoTipo(perfil.Tipo)} · {Contagem.De(perfil.UsuariosAtivos, "usuário ativo", "usuários ativos")} · {Situacao(perfil)}";
+
+    private static string Alternar(PerfilDetalhe perfil) => perfil.Ativo ? "Inativar" : "Ativar";
+
+    private static string? ClasseDaLinha(PerfilDetalhe perfil) => perfil.Ativo ? null : "aj-tabela__linha--inativa";
+
+    private static string ClasseDaLinhaNoPainel(PerfilDetalhe perfil) => perfil.Ativo ? "aj-linha" : "aj-linha aj-linha--inativa";
 
     protected override async Task OnInitializedAsync()
     {
@@ -92,7 +129,22 @@ else
         _carregado = true;
     }
 
-    // Falso quando a recarga falhou; a mensagem do motivo já ficou na tela.
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_focarNome) return;
+
+        _focarNome = false;
+        try
+        {
+            if (_campoNome?.Element is { } campo) await campo.FocusAsync();
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or JSException or JSDisconnectedException)
+        {
+            // Sem foco (circuito caindo, por exemplo) o painel continua preenchido e funcional.
+        }
+    }
+
+    // Falso quando a recarga falhou; o motivo já ficou na tela (no lugar da lista, se ainda não havia lista).
     private async Task<bool> RecarregarAsync()
     {
         var resultado = await Despachante.EnviarAsync(new ListarPerfis());
@@ -106,13 +158,24 @@ else
         if (resultado.Sucesso && resultado.Valor is { } lista)
         {
             _perfis = lista;
+            _listaCarregada = true;
+            _erroDaLista = null;
             return true;
+        }
+
+        // Só a falha da primeira consulta (nada na tela ainda) toma o lugar da lista.
+        if (!_listaCarregada)
+        {
+            _erroDaLista = resultado.Mensagem;
+            return false;
         }
 
         _falhou = true;
         _mensagem = resultado.Mensagem;
         return false;
     }
+
+    private Task TentarDeNovoAsync() => RecarregarAsync();
 
     private void Limpar()
     {
@@ -124,6 +187,7 @@ else
     {
         _mensagem = null;
         _form = new Formulario { Id = perfil.Id, Nome = perfil.Nome, Tipo = perfil.Tipo };
+        _focarNome = true;
     }
 
     private async Task SalvarAsync()

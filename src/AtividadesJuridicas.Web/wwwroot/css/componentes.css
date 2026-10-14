@@ -165,7 +165,7 @@ textarea.aj-campo{padding:9px var(--espaco-12);resize:vertical}
 .aj-campo-icone svg{flex:0 0 auto;width:18px;height:18px;fill:none;stroke:var(--tinta-apagada);stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .aj-campo-icone input{flex:1 1 auto;min-width:0;padding:0;border:0;outline:none;background:transparent;color:var(--tinta);font:400 var(--aj-fonte-campo)/1.5 var(--font-sans)}
 .aj-campo-icone:focus-within,.aj-campo-filtro:focus-within{border-color:var(--verde);box-shadow:var(--sombra-foco)}
-.aj-campo-filtro{display:flex;flex-direction:column;justify-content:center;min-width:150px;height:var(--campo-filtro);padding:0 var(--espaco-10) 0 var(--espaco-14);border:1px solid var(--borda-campo-suave);border-radius:var(--raio-12);background:var(--superficie-campo)}
+.aj-campo-filtro{display:flex;flex-direction:column;justify-content:center;gap:0;min-width:150px;height:var(--campo-filtro);padding:0 var(--espaco-10) 0 var(--espaco-14);border:1px solid var(--borda-campo-suave);border-radius:var(--raio-12);background:var(--superficie-campo)}
 .aj-campo-filtro>span{font:600 11.5px/1.2 var(--font-sans);color:var(--tinta-apagada)}
 .aj-campo-filtro select,.aj-campo-filtro input{width:100%;margin:0 0 0 -4px;padding:0;border:0;outline:none;background:transparent;color:var(--tinta);font:400 14.5px/1.3 var(--font-sans)}
 .aj-campo-filtro input{margin-left:0}
@@ -226,7 +226,7 @@ textarea.aj-campo{padding:9px var(--espaco-12);resize:vertical}
 .aj-tabela tbody tr:last-child td{border-bottom:0}
 .aj-tabela tbody tr:hover td{background:var(--superficie-hover)}
 .aj-tabela__principal{font-weight:600}
-.aj-tabela__secundaria{color:var(--tinta-secundaria)}
+.aj-tabela__secundaria{color:var(--tinta-secundaria);overflow-wrap:anywhere}
 .aj-tabela__data{white-space:nowrap;font-variant-numeric:tabular-nums}
 .aj-tabela__data--atrasada{font-weight:600;color:var(--erro)}
 .aj-tabela td.aj-tabela__acao{padding:0 var(--espaco-6);text-align:right}
@@ -247,8 +247,8 @@ textarea.aj-campo{padding:9px var(--espaco-12);resize:vertical}
 .aj-cartao{display:flex;flex-direction:column;gap:var(--espaco-8);min-width:0;padding:var(--aj-cartao-padding);border:1px solid var(--borda);border-radius:var(--aj-raio-cartao);background:var(--superficie);color:var(--tinta);font:400 15px/1.5 var(--font-sans);text-decoration:none;box-shadow:var(--sombra-1);transition:box-shadow .15s}
 .aj-cartao:hover{box-shadow:var(--sombra-cartao-hover)}
 .aj-cartao__etiquetas{display:flex;flex-wrap:wrap;gap:var(--espaco-6)}
-.aj-cartao__titulo{font-size:16px;font-weight:600;line-height:1.3}
-.aj-cartao__meta{flex:1 1 auto;font-size:13.5px;line-height:1.45;color:var(--tinta-suave)}
+.aj-cartao__titulo{font-size:16px;font-weight:600;line-height:1.3;overflow-wrap:anywhere}
+.aj-cartao__meta{flex:1 1 auto;font-size:13.5px;line-height:1.45;color:var(--tinta-suave);overflow-wrap:anywhere}
 .aj-cartao__rodape{display:flex;align-items:center;justify-content:space-between;gap:var(--espaco-8);padding-top:var(--espaco-10);border-top:1px solid var(--borda-suave)}
 .aj-cartao__data{display:inline-flex;align-items:center;gap:var(--espaco-6);font-size:13.5px;font-weight:600;color:var(--tinta-secundaria);font-variant-numeric:tabular-nums}
 .aj-cartao__data--atrasada{color:var(--erro)}
@@ -329,7 +329,7 @@ textarea.aj-campo{padding:9px var(--espaco-12);resize:vertical}
 .aj-barra-superior--voltar{flex-direction:row;align-items:center;gap:var(--espaco-4);padding:var(--espaco-8)}
 .aj-barra-superior--voltar>.aj-botao{flex:0 0 auto;width:var(--alvo-toque);min-height:var(--alvo-toque)}
 .aj-barra-superior--voltar>.aj-botao svg{width:22px;height:22px}
-.aj-barra-superior--voltar>h1{flex:1 1 auto;min-width:0;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:700 17px/1.3 var(--font-sans);text-align:center}
+.aj-barra-superior--voltar>h1{flex:1 1 auto;min-width:0;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:700 17px/1.3 var(--font-sans);letter-spacing:normal;text-align:center}
 .aj-barra-superior__vazio{flex:0 0 var(--alvo-toque)}
 
 /* ---------- Cabeçalho: menu escondido e texto folgado ---------- */
@@ -445,6 +445,9 @@ textarea.aj-campo{padding:9px var(--espaco-12);resize:vertical}
 
 /* Tabela: célula de ação com mais de um botão não quebra entre eles. */
 .aj-tabela td.aj-tabela__acao--varias{white-space:nowrap}
+/* Tabela: o link dentro dela (o nome que baixa o arquivo) usa a cor da marca, sem depender da folha da página. */
+:where(.aj-tabela a){color:var(--verde)}
+:where(.aj-tabela a:hover){color:var(--tinta)}
 
 /* Ícone preenchido: os três pontos de "mais ações". */
 .aj-app svg.aj-icone-cheio,svg.aj-icone-cheio{fill:currentColor;stroke:none}
@@ -463,11 +466,13 @@ textarea.aj-campo{padding:9px var(--espaco-12);resize:vertical}
 
 /* Painel usado como cartão de leitura, sem link: blocos mais próximos. */
 .aj-painel--cartao{gap:var(--espaco-8)}
+/* Painel: título com um nome sem espaços (um arquivo) quebra em vez de alargar a tela. */
+.aj-painel h2{overflow-wrap:anywhere}
 .aj-cartao__meta--tabular{font-variant-numeric:tabular-nums}
 
 /* Aviso com ações: confirmação e erro com nova tentativa. */
 .aj-aviso--com-acoes{flex-wrap:wrap;align-items:flex-start}
-.aj-aviso__texto{flex:1 1 320px;min-width:0}
+.aj-aviso__texto{flex:1 1 320px;min-width:0;overflow-wrap:anywhere}
 .aj-aviso__texto strong{display:block;font-weight:700}
 .aj-aviso__acoes{display:flex;gap:var(--espaco-8)}
 .aj-aviso--com-acoes:focus-visible{outline:2px solid currentColor;outline-offset:2px}
@@ -486,3 +491,137 @@ textarea.aj-campo{padding:9px var(--espaco-12);resize:vertical}
 .aj-menu-acoes__item:focus-visible{outline:2px solid var(--verde);outline-offset:-2px}
 .aj-menu-acoes__item--perigo{color:var(--erro)}
 .aj-menu-acoes__item--perigo:hover{background:var(--erro-fundo)}
+.aj-menu-acoes__item:disabled{opacity:.55;cursor:not-allowed}
+.aj-menu-acoes__item:disabled:hover{background:transparent}
+
+/* ---------- Administração (fase 9C) ---------- */
+/* Lado a lado (desktop): a lista e o painel dela na mesma linha. Em tablet e mobile o invólucro some e os blocos
+   empilham na ordem da marcação. Os filhos do invólucro não encolhem na coluna que rola. */
+.aj-lado-a-lado{display:contents}
+.aj-lado-a-lado>*,.aj-lado-a-lado>*>*{flex-shrink:0}
+@media (min-width:1200px){
+  .aj-lado-a-lado{display:flex;align-items:flex-start;gap:var(--espaco-14)}
+  .aj-lado-a-lado__lista{flex:1.8 1 0;min-width:0}
+  .aj-lado-a-lado__painel{flex:1 1 0}
+  .aj-lado-a-lado--painel-largo .aj-lado-a-lado__lista{flex:1 1 0}
+  .aj-lado-a-lado--painel-largo .aj-lado-a-lado__painel{flex:1.5 1 0}
+}
+[data-visao="desktop"] .aj-lado-a-lado{display:flex;align-items:flex-start;gap:var(--espaco-14)}
+[data-visao="desktop"] .aj-lado-a-lado__lista{flex:1.8 1 0;min-width:0}
+[data-visao="desktop"] .aj-lado-a-lado__painel{flex:1 1 0}
+[data-visao="desktop"] .aj-lado-a-lado--painel-largo .aj-lado-a-lado__lista{flex:1 1 0}
+[data-visao="desktop"] .aj-lado-a-lado--painel-largo .aj-lado-a-lado__painel{flex:1.5 1 0}
+[data-visao="tablet"] .aj-lado-a-lado,[data-visao="mobile"] .aj-lado-a-lado{display:contents}
+[data-visao="tablet"] .aj-lado-a-lado__lista,[data-visao="tablet"] .aj-lado-a-lado__painel,
+[data-visao="mobile"] .aj-lado-a-lado__lista,[data-visao="mobile"] .aj-lado-a-lado__painel{flex:0 0 auto}
+
+/* Tabela: linha inativa (texto apagado, menos a coluna secundária), linha selecionada (o item em acompanhamento),
+   marca de estado na coluna de ações, célula que não quebra e caixa sem sombra (tabela dentro de painel). */
+.aj-tabela tr.aj-tabela__linha--inativa td:not(.aj-tabela__secundaria){color:var(--tinta-apagada)}
+.aj-tabela tr.aj-tabela__linha--selecionada td,.aj-tabela tbody tr.aj-tabela__linha--selecionada:hover td{background:var(--selecao-fundo)}
+.aj-tabela__marca{padding:0 var(--espaco-12);font-size:13px;font-weight:600;color:var(--sucesso)}
+.aj-tabela__sem-quebra{white-space:nowrap}
+.aj-tabela-caixa--plana{box-shadow:none}
+
+/* Botão com seta (Acompanhar, Abrir): texto de 14px e a seta depois dele. */
+.aj-botao--seta{padding:0 var(--espaco-12);gap:var(--espaco-4);font-size:14px}
+.aj-botao--seta svg{width:16px;height:16px}
+/* Identificador: o começo de um identificador longo, em fonte de código, num botão fantasma baixo. */
+.aj-identificador{min-height:28px;padding:0 var(--espaco-8);font:500 12.5px/1.4 ui-monospace,Consolas,monospace}
+/* Dados de um registro, em fonte de código. */
+.aj-dados{font:500 12.5px/1.4 ui-monospace,Consolas,monospace;color:var(--tinta-secundaria);word-break:normal;overflow-wrap:anywhere}
+
+/* Campo com botão ao lado (Nova área): o botão alinha com a base do campo e tem a altura dele. */
+.aj-campo-com-botao{display:flex;align-items:flex-end;gap:var(--espaco-8)}
+.aj-campo-com-botao>.aj-rotulo{flex:1 1 auto}
+.aj-campo-com-botao>.aj-botao{min-height:var(--aj-campo)}
+
+/* Lista em painel com título: cada linha tem borda em cima, a primeira também. Linhas encostadas (sem o espaço
+   do painel entre elas). Linha inteira clicável, que abre o item. Linha de item inativo. */
+.aj-painel--lista .aj-linha{padding:var(--espaco-8) 0;border-top:1px solid var(--borda-suave)}
+.aj-linhas{display:flex;flex-direction:column}
+.aj-linhas>.aj-linha{padding:var(--espaco-8) 0;border-top:1px solid var(--borda-suave)}
+.aj-linha--botao{width:100%;margin:0;border:0;background:transparent;color:var(--tinta);font:inherit;text-align:left;cursor:pointer}
+.aj-linha--botao:focus-visible{outline:2px solid var(--verde);outline-offset:2px}
+.aj-linha--inativa .aj-linha__titulo{color:var(--tinta-apagada)}
+
+/* Painel: título de segundo nível, cabeçalho com um controle à direita, formulário largo, painel de filtros e
+   cartão de registro de auditoria. */
+.aj-painel h3{margin:var(--espaco-6) 0 0;font:700 14.5px/1.4 var(--font-sans)}
+.aj-painel__cabecalho{display:flex;align-items:center;justify-content:space-between;gap:var(--espaco-12)}
+.aj-painel--formulario{max-width:760px;box-shadow:var(--aj-painel-estreito-sombra)}
+.aj-acoes--formulario{max-width:760px}
+.aj-painel--filtros{gap:var(--espaco-8)}
+.aj-painel--filtros .aj-campo-filtro{min-width:0}
+.aj-painel--registro{gap:var(--espaco-6)}
+.aj-painel--registro .aj-ajuda{font-variant-numeric:tabular-nums}
+.aj-registro__titulo{font-size:15.5px;font-weight:600;line-height:1.3;overflow-wrap:anywhere}
+.aj-registro__ids{display:flex;flex-wrap:wrap;gap:var(--espaco-4);padding-top:var(--espaco-6);border-top:1px solid var(--borda-suave)}
+.aj-registro__ids .aj-identificador{min-height:36px}
+
+/* Formulário em grade: dois campos por linha (um no mobile); o bloco que ocupa a linha toda. */
+.aj-grade-campos{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--espaco-10) var(--espaco-12)}
+.aj-grade-campos__inteiro{grid-column:1/-1}
+@media (max-width:760px){.aj-grade-campos{grid-template-columns:minmax(0,1fr)}}
+[data-visao="desktop"] .aj-grade-campos,[data-visao="tablet"] .aj-grade-campos{grid-template-columns:repeat(2,minmax(0,1fr))}
+[data-visao="mobile"] .aj-grade-campos{grid-template-columns:minmax(0,1fr)}
+
+/* Vínculo (o cliente de um usuário): o escolhido, com "Trocar", ou a busca e os resultados com "Escolher". */
+.aj-vinculo{display:flex;flex-direction:column;gap:var(--espaco-8)}
+.aj-vinculo__escolhido{display:flex;align-items:center;gap:var(--espaco-8);padding:var(--espaco-6) var(--espaco-6) var(--espaco-6) var(--espaco-12);border:1px solid var(--sucesso-borda);border-radius:var(--raio-12);background:var(--sucesso-fundo)}
+.aj-vinculo__nome{flex:1 1 auto;min-width:0;font-weight:600;overflow-wrap:anywhere}
+.aj-campo-icone__controle{min-width:0}
+.aj-resultados{display:flex;flex-direction:column;gap:var(--espaco-2);margin:0;padding:var(--espaco-6);list-style:none;border:1px solid var(--borda);border-radius:var(--raio-14);background:var(--superficie);box-shadow:var(--sombra-flutuante)}
+.aj-resultados__item{display:flex;align-items:center;justify-content:space-between;gap:var(--espaco-12);width:100%;min-height:var(--alvo-toque);padding:var(--espaco-8) var(--espaco-12);border:0;border-radius:var(--raio-10);background:transparent;color:var(--tinta);font:inherit;text-align:left;cursor:pointer}
+.aj-resultados__item:hover{background:var(--superficie-recuada)}
+.aj-resultados__item:focus-visible{outline:2px solid var(--verde);outline-offset:-2px}
+.aj-resultados__texto{display:flex;flex-direction:column;gap:1px;min-width:0}
+.aj-resultados__titulo{font-weight:600;overflow-wrap:anywhere}
+.aj-resultados__meta{font-size:13px;color:var(--tinta-suave)}
+.aj-resultados__acao{flex:0 0 auto;font-size:13.5px;font-weight:600;color:var(--verde)}
+
+/* Blocos de total (produtividade): o nome e o número em destaque; o total, marcado. Quatro por linha, dois no mobile. */
+.aj-blocos{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--espaco-8)}
+@media (max-width:760px){.aj-blocos{grid-template-columns:repeat(2,minmax(0,1fr))}}
+[data-visao="desktop"] .aj-blocos,[data-visao="tablet"] .aj-blocos{grid-template-columns:repeat(4,minmax(0,1fr))}
+[data-visao="mobile"] .aj-blocos{grid-template-columns:repeat(2,minmax(0,1fr))}
+.aj-bloco{display:flex;flex-direction:column;gap:var(--espaco-2);padding:var(--espaco-10) var(--espaco-14);border:1px solid var(--borda);border-radius:var(--raio-12);background:var(--superficie-suave)}
+.aj-bloco b{font:600 20px/1.2 var(--font-sans);font-variant-numeric:tabular-nums}
+.aj-bloco--destaque{border-color:var(--selecao-borda);background:var(--selecao-fundo)}
+
+/* Filtros: linha de campos fora da barra (tablet e mobile), controle dentro do campo e medidas de campo. */
+.aj-linha-filtros{display:flex;gap:var(--espaco-8)}
+.aj-linha-filtros .aj-campo-filtro{background:var(--superficie)}
+.aj-linha-filtros .aj-botao{flex:0 0 auto;min-height:var(--campo-filtro)}
+@media (max-width:760px){.aj-linha-filtros--empilha{flex-direction:column;gap:var(--aj-pagina-gap)}}
+[data-visao="mobile"] .aj-linha-filtros--empilha{flex-direction:column;gap:var(--aj-pagina-gap)}
+.aj-campo-filtro__controle{min-width:0}
+/* A lista de um campo de filtro (Usuário) não alarga o campo: a largura vem do campo, não da opção mais longa. */
+.aj-campo-filtro select{width:0;min-width:100%}
+.aj-campo-filtro--largo{flex:1 1 auto}
+.aj-campo-filtro--data{min-width:140px}
+.aj-linha-filtros .aj-campo-filtro--data{flex:1 1 0}
+.aj-campo-filtro--texto{flex:1 1 140px}
+.aj-campo-filtro--identificador{flex:1 1 170px}
+.aj-barra-filtros>.aj-botao{min-height:var(--campo-desktop)}
+
+/* Controle segmentado sobre fundo recuado (no cabeçalho) e na segunda linha da barra superior, com as opções
+   dividindo a largura. */
+.aj-segmentado--recuado{background:var(--superficie-recuada)}
+.aj-segmentado__opcao{white-space:nowrap}
+.aj-barra-superior>.aj-segmentado{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr)}
+
+/* Cartão de usuário: inativo apagado; rodapé com o último acesso e a situação. */
+.aj-cartao--inativo .aj-cartao__titulo,.aj-cartao--inativo .aj-cartao__situacao{color:var(--tinta-apagada)}
+.aj-cartao__nota{min-width:0;font-size:13px;color:var(--tinta-secundaria);font-variant-numeric:tabular-nums}
+.aj-cartao__situacao{flex:0 0 auto;font-size:13px;font-weight:600;color:var(--tinta)}
+
+/* Formulário com barra de ações fixa no tablet (e no mobile): o conteúdo começa mais perto do topo e deixa espaço
+   para a barra. Vale quando a barra fixa está à vista no tablet. */
+:root{--aj-pagina-padding-acoes:18px var(--espaco-24) var(--espaco-28)}
+@media (max-width:1199px){:root{--aj-pagina-padding-acoes:var(--espaco-16) var(--espaco-24) 110px}}
+@media (max-width:760px){:root{--aj-pagina-padding-acoes:var(--espaco-16) var(--espaco-16) 112px}}
+[data-visao="desktop"]{--aj-pagina-padding-acoes:18px var(--espaco-24) var(--espaco-28)}
+[data-visao="tablet"]{--aj-pagina-padding-acoes:var(--espaco-16) var(--espaco-24) 110px}
+[data-visao="mobile"]{--aj-pagina-padding-acoes:var(--espaco-16) var(--espaco-16) 112px}
+.aj-app:has(:is(.aj-so-tablet,.aj-tablet-mobile)>.aj-acoes--fixa) .aj-app__conteudo{padding:var(--aj-pagina-padding-acoes)}

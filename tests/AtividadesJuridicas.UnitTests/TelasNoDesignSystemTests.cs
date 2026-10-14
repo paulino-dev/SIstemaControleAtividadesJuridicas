@@ -19,6 +19,7 @@ public partial class TelasNoDesignSystemTests
         "Components/Documentos/DocumentosComunsDaDiretoria.razor",
         "Components/Documentos/DocumentosParaBaixar.razor",
         "Components/Layout/Aviso.razor",
+        "Components/Layout/CabecalhoDeDetalhe.razor",
         "Components/Layout/CabecalhoDePagina.razor",
         "Components/Layout/CartaoAtalho.razor",
         "Components/Layout/EstadoDaLista.razor",
@@ -28,6 +29,8 @@ public partial class TelasNoDesignSystemTests
         "Components/Layout/Paginacao.razor",
         "Components/Layout/RotuloDeCampo.razor",
         "Components/Pages/Andamento.razor",
+        "Components/Pages/Areas.razor",
+        "Components/Pages/Auditoria.razor",
         "Components/Pages/Conta/Entrar.razor",
         "Components/Pages/DocumentosComuns.razor",
         "Components/Pages/Erro.razor",
@@ -35,6 +38,12 @@ public partial class TelasNoDesignSystemTests
         "Components/Pages/MeusDocumentos.razor",
         "Components/Pages/MinhaSenha.razor",
         "Components/Pages/NaoEncontrada.razor",
+        "Components/Pages/Perfis.razor",
+        "Components/Pages/Produtores.razor",
+        "Components/Pages/UsuarioFormulario.razor",
+        "Components/Pages/Usuarios.razor",
+        "Components/Produtores/PainelDeProdutividade.razor",
+        "Components/Usuarios/ConfirmacaoDeInativacao.razor",
     ];
 
     [GeneratedRegex("\\sstyle\\s*=\\s*[\"']")]
