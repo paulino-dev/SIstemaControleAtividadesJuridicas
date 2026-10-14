@@ -12,7 +12,7 @@ public static partial class ValorEmReais
 {
     private static readonly CultureInfo Cultura = CultureInfo.GetCultureInfo("pt-BR");
 
-    [GeneratedRegex("^(\\d{1,3}(\\.\\d{3})+|\\d+)(,\\d{1,2})?$")]
+    [GeneratedRegex("^([0-9]{1,3}(\\.[0-9]{3})+|[0-9]+)(,[0-9]{1,2})?$")]
     private static partial Regex Formato();
 
     public static bool TentarLer(string? texto, out decimal? valor)
@@ -23,7 +23,11 @@ public static partial class ValorEmReais
         var limpo = texto.Trim();
         if (!Formato().IsMatch(limpo)) return false;
 
-        valor = decimal.Parse(limpo, NumberStyles.AllowThousands | NumberStyles.AllowDecimalPoint, Cultura);
+        // TryParse: uma sequência longa demais para o decimal é recusa, não exceção.
+        if (!decimal.TryParse(limpo, NumberStyles.AllowThousands | NumberStyles.AllowDecimalPoint, Cultura, out var lido))
+            return false;
+
+        valor = lido;
         return true;
     }
 

@@ -502,9 +502,18 @@ public class ValorEmReaisTests
     [InlineData("abc")]
     [InlineData("-10")]
     [InlineData("10,555")]
+    [InlineData("٣")]
+    [InlineData("８４.０００,００")]
     public void Recusa_o_que_nao_e_o_formato_brasileiro(string texto)
     {
         ValorEmReais.TentarLer(texto, out _).Should().BeFalse();
+    }
+
+    [Fact]
+    public void Recusa_sem_lancar_o_que_estoura_o_decimal()
+    {
+        ValorEmReais.TentarLer(new string('1', 30), out var valor).Should().BeFalse();
+        valor.Should().BeNull();
     }
 
     [Fact]
