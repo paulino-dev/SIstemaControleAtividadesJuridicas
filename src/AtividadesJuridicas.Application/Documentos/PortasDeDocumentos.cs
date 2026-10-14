@@ -30,6 +30,14 @@ public interface IDocumentoRepositorio
         Guid clienteId, CategoriaDocumento categoria, FiltroDeAcesso? acesso, int pagina, int tamanho, CancellationToken ct);
 
     /// <summary>
+    /// Quantos documentos do cliente (sem os comuns) o usuário lê em cada área, com o mesmo filtro de acesso de
+    /// <see cref="ListarDoClienteAsync"/>. Área que ele não lê não aparece; as lidas e vazias vêm com zero: as quatro
+    /// do cliente sem <paramref name="acesso"/> (Diretoria), só geral e atividade com ele.
+    /// </summary>
+    Task<IReadOnlyDictionary<CategoriaDocumento, int>> ContarDoClienteAsync(
+        Guid clienteId, FiltroDeAcesso? acesso, CancellationToken ct);
+
+    /// <summary>
     /// Os documentos do cliente (categoria <see cref="CategoriaDocumento.DocumentoDoCliente"/>) daquele cliente,
     /// do mais recente para o mais antigo, sem autor. Quem chama já decidiu que o usuário é o cliente.
     /// </summary>
@@ -70,6 +78,12 @@ public interface IResponsaveisDeAtividade
 public sealed record DocumentoResumo(
     Guid Id, string Nome, string NomeArquivoOriginal, long TamanhoBytes, CategoriaDocumento Categoria,
     DateTime EnviadoEm, string? EnviadoPor, Guid? AtividadeId, string? AtividadeTitulo);
+
+/// <summary><paramref name="PorCategoria"/>: quantos documentos o usuário lê em cada área do cliente.</summary>
+public sealed record PaginaDeDocumentos(
+    IReadOnlyList<DocumentoResumo> Itens, int Total, int Numero, int Tamanho,
+    IReadOnlyDictionary<CategoriaDocumento, int> PorCategoria)
+    : Pagina<DocumentoResumo>(Itens, Total, Numero, Tamanho);
 
 /// <summary>
 /// A linha de documento que o portal mostra: sem nome de arquivo original nem categoria.

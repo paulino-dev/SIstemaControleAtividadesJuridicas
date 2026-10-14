@@ -63,7 +63,7 @@ public class DocumentosDeAtividadeTests
         new ListarDocumentosDaAtividadeManipulador(_c.Como(ator), _c.Atividades, _c.Documentos, _c.Auditoria)
             .ManipularAsync(new ListarDocumentosDaAtividade(atividade, pagina), default);
 
-    private Task<Resultado<Pagina<DocumentoResumo>>> ListarDoCliente(Usuario? ator, Guid cliente,
+    private Task<Resultado<PaginaDeDocumentos>> ListarDoCliente(Usuario? ator, Guid cliente,
         CategoriaDocumento categoria = CategoriaDocumento.DocumentoAtividade) =>
         new ListarDocumentosDoClienteManipulador(_c.Como(ator), _c.Documentos)
             .ManipularAsync(new ListarDocumentosDoCliente(cliente, categoria), default);

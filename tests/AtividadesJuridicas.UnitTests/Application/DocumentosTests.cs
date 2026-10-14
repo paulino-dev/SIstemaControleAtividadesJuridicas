@@ -42,7 +42,7 @@ public class DocumentosTests
         return _c.Documentos.Itens.Single(d => d.Id == resultado.Valor);
     }
 
-    private Task<Resultado<Pagina<DocumentoResumo>>> Listar(Usuario? ator,
+    private Task<Resultado<PaginaDeDocumentos>> Listar(Usuario? ator,
         CategoriaDocumento categoria = CategoriaDocumento.DocumentoGeral, int pagina = 1) =>
         new ListarDocumentosDoClienteManipulador(_c.Como(ator), _c.Documentos)
             .ManipularAsync(new ListarDocumentosDoCliente(_maria.Id, categoria, pagina), default);

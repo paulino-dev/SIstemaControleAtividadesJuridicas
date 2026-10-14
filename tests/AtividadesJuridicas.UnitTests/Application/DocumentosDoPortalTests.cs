@@ -42,7 +42,7 @@ public class DocumentosDoPortalTests
     private Task<Resultado<Pagina<DocumentoDoPortal>>> Comuns(Usuario? ator) =>
         new ListarDocumentosComunsManipulador(_c.Como(ator), _c.Documentos).ManipularAsync(new ListarDocumentosComuns(), default);
 
-    private Task<Resultado<Pagina<DocumentoResumo>>> NaFicha(Usuario? ator, CategoriaDocumento categoria) =>
+    private Task<Resultado<PaginaDeDocumentos>> NaFicha(Usuario? ator, CategoriaDocumento categoria) =>
         new ListarDocumentosDoClienteManipulador(_c.Como(ator), _c.Documentos)
             .ManipularAsync(new ListarDocumentosDoCliente(_maria.Id, categoria), default);
 

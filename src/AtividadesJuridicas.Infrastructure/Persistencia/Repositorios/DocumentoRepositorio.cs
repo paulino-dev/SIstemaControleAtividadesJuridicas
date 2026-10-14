@@ -18,26 +18,51 @@ public sealed class DocumentoRepositorio(AppDbContext db) : IDocumentoRepositori
     {
         var consulta = db.Documentos.AsNoTracking().Where(d => d.ClienteId == clienteId && d.Categoria == categoria);
 
-        if (acesso is not null)
-        {
-            // A mesma regra de Documento.PodeSerAcessadoPor para quem não é da Diretoria, aplicada no banco.
-            // O documento de atividade não olha as listas: é do responsável de hoje de uma atividade viva. As
-            // consultas passam pelas entidades mapeadas para que a exclusão lógica da atividade e da entrada
-            // de responsável valha aqui também.
-            var perfilId = acesso.PerfilId;
-            var usuarioId = acesso.UsuarioId;
-            consulta = consulta.Where(d =>
-                d.Categoria != CategoriaDocumento.ContratoHonorarios &&
-                d.Categoria != CategoriaDocumento.DocumentoDoCliente &&
-                d.Categoria != CategoriaDocumento.DocumentoComum &&
-                ((d.Categoria != CategoriaDocumento.DocumentoAtividade &&
-                  (d.PerfisComAcesso.Any(a => a.PerfilId == perfilId) ||
-                   d.UsuariosComAcesso.Any(a => a.UsuarioId == usuarioId))) ||
-                 (d.Categoria == CategoriaDocumento.DocumentoAtividade &&
-                  db.Atividades.Any(at => at.Id == d.AtividadeId && at.Responsaveis.Any(r => r.UsuarioId == usuarioId)))));
-        }
+        consulta = ComAcesso(consulta, acesso);
 
         return await PaginaAsync(consulta, pagina, tamanho, ct);
+    }
+
+    public async Task<IReadOnlyDictionary<CategoriaDocumento, int>> ContarDoClienteAsync(
+        Guid clienteId, FiltroDeAcesso? acesso, CancellationToken ct)
+    {
+        var consulta = ComAcesso(db.Documentos.AsNoTracking().Where(d => d.ClienteId == clienteId), acesso)
+            .Where(d => d.Categoria != CategoriaDocumento.DocumentoComum);
+
+        var contagem = await consulta.GroupBy(d => d.Categoria)
+            .Select(g => new { Categoria = g.Key, Total = g.Count() })
+            .ToDictionaryAsync(g => g.Categoria, g => g.Total, ct);
+
+        // As áreas que o usuário lê e estão vazias aparecem com zero.
+        CategoriaDocumento[] lidas = acesso is null
+            ? [CategoriaDocumento.DocumentoGeral, CategoriaDocumento.ContratoHonorarios,
+                CategoriaDocumento.DocumentoAtividade, CategoriaDocumento.DocumentoDoCliente]
+            : [CategoriaDocumento.DocumentoGeral, CategoriaDocumento.DocumentoAtividade];
+
+        return lidas.ToDictionary(categoria => categoria, categoria => contagem.GetValueOrDefault(categoria));
+    }
+
+    // A mesma regra de Documento.PodeSerAcessadoPor para quem não é da Diretoria, aplicada no banco; a lista e a contagem usam esta.
+    private IQueryable<Documento> ComAcesso(IQueryable<Documento> consulta, FiltroDeAcesso? acesso)
+    {
+        if (acesso is null) return consulta;
+
+        // O documento de atividade não olha as listas: é do responsável de hoje de uma atividade viva. As
+        // consultas passam pelas entidades mapeadas para que a exclusão lógica da atividade e da entrada
+        // de responsável valha aqui também.
+        var perfilId = acesso.PerfilId;
+        var usuarioId = acesso.UsuarioId;
+        consulta = consulta.Where(d =>
+            d.Categoria != CategoriaDocumento.ContratoHonorarios &&
+            d.Categoria != CategoriaDocumento.DocumentoDoCliente &&
+            d.Categoria != CategoriaDocumento.DocumentoComum &&
+            ((d.Categoria != CategoriaDocumento.DocumentoAtividade &&
+              (d.PerfisComAcesso.Any(a => a.PerfilId == perfilId) ||
+               d.UsuariosComAcesso.Any(a => a.UsuarioId == usuarioId))) ||
+             (d.Categoria == CategoriaDocumento.DocumentoAtividade &&
+              db.Atividades.Any(at => at.Id == d.AtividadeId && at.Responsaveis.Any(r => r.UsuarioId == usuarioId)))));
+
+        return consulta;
     }
 
     // As consultas do portal não usam FiltroDeAcesso: a categoria e o cliente já dizem o que o portal mostra.

@@ -46,6 +46,9 @@ public sealed class ClienteRepositorio(AppDbContext db) : IClienteRepositorio
         return new Pagina<Cliente>(itens, total, pagina, tamanho);
     }
 
+    public async Task<ContagemDeClientes> ContarAsync(CancellationToken ct) =>
+        new(await db.Clientes.CountAsync(ct), await db.Clientes.CountAsync(c => !c.Ativo, ct));
+
     public void Adicionar(Cliente cliente) => db.Clientes.Add(cliente);
 
     public async Task<IReadOnlyList<Cliente>> ObterVariosAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct) =>

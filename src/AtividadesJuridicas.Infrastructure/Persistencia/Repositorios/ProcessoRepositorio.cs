@@ -16,6 +16,31 @@ public sealed class ProcessoRepositorio(AppDbContext db) : IProcessoRepositorio
     public async Task<Pagina<ProcessoResumo>> ListarAsync(
         FiltroDeProcessos filtro, int pagina, int tamanho, CancellationToken ct)
     {
+        var consulta = ConsultaDe(filtro);
+        var total = await consulta.CountAsync(ct);
+        var processos = await consulta
+            .OrderBy(p => p.Titulo).ThenBy(p => p.Id)
+            .Skip((pagina - 1) * tamanho).Take(tamanho)
+            .Include(p => p.Clientes)
+            .ToListAsync(ct);
+
+        var areas = await NomesDasAreasAsync(processos.Select(p => p.AreaAtuacaoId), ct);
+        var clientes = await ClientesAsync(processos.SelectMany(p => p.Clientes).Select(v => v.ClienteId), ct);
+
+        var itens = processos.Select(p => new ProcessoResumo(
+            p.Id, p.NumeroCnj?.Formatado, p.Titulo, areas.GetValueOrDefault(p.AreaAtuacaoId, string.Empty), p.Status,
+            [.. p.Clientes.Select(v => clientes[v.ClienteId].Nome).Order(StringComparer.CurrentCultureIgnoreCase)],
+            p.ParteContraria)).ToList();
+
+        return new Pagina<ProcessoResumo>(itens, total, pagina, tamanho);
+    }
+
+    public Task<int> ContarAsync(FiltroDeProcessos filtro, CancellationToken ct) =>
+        ConsultaDe(filtro).CountAsync(ct);
+
+    // A busca, o cliente e a situação do filtro, sem página nem vínculos: servem à lista e à contagem.
+    private IQueryable<Processo> ConsultaDe(FiltroDeProcessos filtro)
+    {
         var consulta = db.Processos.AsNoTracking();
 
         if (filtro.Status is { } status) consulta = consulta.Where(p => p.Status == status);
@@ -35,22 +60,7 @@ public sealed class ProcessoRepositorio(AppDbContext db) : IProcessoRepositorio
                  EF.Functions.ILike(EF.Functions.Unaccent(p.ParteContraria), EF.Functions.Unaccent(padrao), "\\")));
         }
 
-        var total = await consulta.CountAsync(ct);
-        var processos = await consulta
-            .OrderBy(p => p.Titulo).ThenBy(p => p.Id)
-            .Skip((pagina - 1) * tamanho).Take(tamanho)
-            .Include(p => p.Clientes)
-            .ToListAsync(ct);
-
-        var areas = await NomesDasAreasAsync(processos.Select(p => p.AreaAtuacaoId), ct);
-        var clientes = await ClientesAsync(processos.SelectMany(p => p.Clientes).Select(v => v.ClienteId), ct);
-
-        var itens = processos.Select(p => new ProcessoResumo(
-            p.Id, p.NumeroCnj?.Formatado, p.Titulo, areas.GetValueOrDefault(p.AreaAtuacaoId, string.Empty), p.Status,
-            [.. p.Clientes.Select(v => clientes[v.ClienteId].Nome).Order(StringComparer.CurrentCultureIgnoreCase)],
-            p.ParteContraria)).ToList();
-
-        return new Pagina<ProcessoResumo>(itens, total, pagina, tamanho);
+        return consulta;
     }
 
     public async Task<ProcessoDetalhe?> ObterDetalheAsync(Guid id, CancellationToken ct)

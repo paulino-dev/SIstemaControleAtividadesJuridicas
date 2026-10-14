@@ -77,7 +77,7 @@ public class DocumentosDeAtividadeTests(BancoFixture banco) : TesteComBanco(banc
     private async Task<IReadOnlyList<Guid>> DaAtividadeAsync(Guid usuario, Guid atividade) =>
         [.. (await ExecutarAsync(usuario, new ListarDocumentosDaAtividade(atividade))).Valor?.Itens.Select(d => d.Id) ?? []];
 
-    private Task<Resultado<Pagina<DocumentoResumo>>> DoClienteAsync(Guid usuario, Guid? cliente = null,
+    private Task<Resultado<PaginaDeDocumentos>> DoClienteAsync(Guid usuario, Guid? cliente = null,
         CategoriaDocumento categoria = CategoriaDocumento.DocumentoAtividade) =>
         ExecutarAsync(usuario, new ListarDocumentosDoCliente(cliente ?? _maria, categoria));
 

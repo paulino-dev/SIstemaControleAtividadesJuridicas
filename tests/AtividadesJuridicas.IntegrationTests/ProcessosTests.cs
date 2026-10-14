@@ -63,6 +63,24 @@ public class ProcessosTests(BancoFixture banco) : TesteComBanco(banco)
             .Where(v => v.ProcessoId == processoId).OrderBy(v => v.CriadoEm).ThenBy(v => v.Id).ToListAsync());
 
     [Fact]
+    public async Task Listar_processos_traz_o_total_de_todas_as_situacoes_com_a_busca()
+    {
+        // "Cobrança" acha dois processos, um ativo e um suspenso; o terceiro não é achado.
+        var cobrancaA = await CriarAsync(Dados("Cobrança A", cnj: null));
+        var cobrancaB = await CriarAsync(Dados("Cobrança B", cnj: null));
+        await CriarAsync(Dados("Inventário", cnj: null));
+        (await ExecutarAsync(_admin, new AlterarStatusProcesso(cobrancaB, StatusProcesso.Suspenso))).Sucesso.Should().BeTrue();
+        var pedroId = await ProducaoAsync();
+
+        var suspensos = (await ExecutarAsync(pedroId, new ListarProcessos("Cobrança", Status: StatusProcesso.Suspenso))).Valor!;
+        var todos = (await ExecutarAsync(_admin, new ListarProcessos())).Valor!;
+
+        suspensos.Itens.Select(p => p.Id).Should().Equal(cobrancaB);
+        suspensos.TodasAsSituacoes.Should().Be(2);
+        todos.TodasAsSituacoes.Should().Be(3);
+        cobrancaA.Should().NotBe(Guid.Empty);
+    }
+    [Fact]
     public async Task Processo_vai_e_volta_do_banco_inteiro_com_os_clientes()
     {
         var id = await CriarAsync();

@@ -20,11 +20,24 @@ public interface IClienteRepositorio
     /// </summary>
     Task<Pagina<Cliente>> ListarAsync(string? busca, bool incluirInativos, int pagina, int tamanho, CancellationToken ct);
 
+    /// <summary>Quantos clientes há no cadastro, ativos e inativos, e quantos deles estão inativos.</summary>
+    Task<ContagemDeClientes> ContarAsync(CancellationToken ct);
+
     void Adicionar(Cliente cliente);
 
     /// <summary>Os clientes com os Ids informados; os inexistentes simplesmente não vêm.</summary>
     Task<IReadOnlyList<Cliente>> ObterVariosAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct);
 }
+
+public sealed record ContagemDeClientes(int Total, int Inativos);
+
+/// <summary>
+/// <paramref name="NoCadastro"/> são todos os clientes, ativos e inativos, e <paramref name="Inativos"/> os
+/// inativos; nenhum dos dois olha a busca nem o filtro de inativos.
+/// </summary>
+public sealed record PaginaDeClientes(
+    IReadOnlyList<ClienteResumo> Itens, int Total, int Numero, int Tamanho, int NoCadastro, int Inativos)
+    : Pagina<ClienteResumo>(Itens, Total, Numero, Tamanho);
 
 public sealed record EnderecoEntrada(
     string? Logradouro = null, string? Numero = null, string? Complemento = null, string? Bairro = null,

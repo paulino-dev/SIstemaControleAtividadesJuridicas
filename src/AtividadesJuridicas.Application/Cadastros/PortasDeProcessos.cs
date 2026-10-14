@@ -24,6 +24,9 @@ public interface IProcessoRepositorio
     /// </summary>
     Task<Pagina<ProcessoResumo>> ListarAsync(FiltroDeProcessos filtro, int pagina, int tamanho, CancellationToken ct);
 
+    /// <summary>Quantos processos a busca e o cliente do filtro encontram; quem chama zera a situação para contar todas.</summary>
+    Task<int> ContarAsync(FiltroDeProcessos filtro, CancellationToken ct);
+
     Task<ProcessoDetalhe?> ObterDetalheAsync(Guid id, CancellationToken ct);
 
     void Adicionar(Processo processo);
@@ -52,6 +55,11 @@ public sealed record ClienteDoProcessoEntrada(Guid ClienteId, PoloProcessual Pol
 public sealed record ProcessoResumo(
     Guid Id, string? NumeroCnj, string Titulo, string AreaNome, StatusProcesso Status,
     IReadOnlyList<string> Clientes, string? ParteContraria);
+
+/// <summary><paramref name="TodasAsSituacoes"/>: quantos processos a busca e o cliente encontram, em qualquer situação.</summary>
+public sealed record PaginaDeProcessos(
+    IReadOnlyList<ProcessoResumo> Itens, int Total, int Numero, int Tamanho, int TodasAsSituacoes)
+    : Pagina<ProcessoResumo>(Itens, Total, Numero, Tamanho);
 
 /// <summary><paramref name="Documento"/> vem formatado (CPF ou CNPJ).</summary>
 public sealed record ClienteDoProcessoDetalhe(Guid ClienteId, string Nome, string Documento, PoloProcessual Polo, bool Ativo);
