@@ -267,6 +267,64 @@ public class ComponentesDoDesignSystemTests
     }
 
     [Fact]
+    public async Task Cabecalho_de_ficha_traz_o_painel_com_as_acoes_no_desktop_e_o_bloco_de_titulo_no_mobile()
+    {
+        RenderFragment acoes = c => c.AddMarkupContent(0, "<a href=\"/clientes/1/editar\" class=\"aj-botao aj-botao--secundario\">Editar</a>");
+
+        var html = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarSemDadosAsync<ComBarraSuperior<CabecalhoDeFicha>>(new()
+        {
+            ["Titulo"] = "Transportes Litoral Ltda.", ["Subtitulo"] = "Pessoa jurídica · CNPJ 00.000.000/0002-00 · Ativo",
+            ["Resumo"] = "Pessoa jurídica · Ativo", ["TituloDaBarra"] = "Cliente", ["VoltarPara"] = "/clientes",
+            ["Origem"] = "Clientes", ["Acoes"] = acoes,
+        }));
+
+        var desktopETablet = BlocoDeVisao.De(html, "aj-desktop-tablet");
+        desktopETablet.Should().MatchRegex("(?s)<div>\\s*<a href=\"/clientes\" class=\"aj-voltar\">\\s*<svg[^>]*>.*?</svg>\\s*Clientes</a>\\s*</div>")
+            .And.MatchRegex("(?s)<header class=\"aj-painel aj-painel--principal aj-painel--cabecalho\">\\s*<div class=\"aj-cabecalho__texto aj-cabecalho__texto--folgado\">\\s*<h1 class=\"aj-titulo\">Transportes Litoral Ltda.</h1>\\s*<p class=\"aj-subtitulo\">Pessoa jurídica · CNPJ 00.000.000/0002-00 · Ativo</p>\\s*</div>")
+            .And.MatchRegex("(?s)<div class=\"aj-so-desktop\">\\s*<div class=\"aj-painel__botoes\">\\s*<a href=\"/clientes/1/editar\"");
+        BlocoDeVisao.De(html, "aj-so-mobile").Should().MatchRegex(
+            "(?s)<div class=\"aj-titulo-da-ficha\">\\s*<span class=\"aj-ajuda\">Pessoa jurídica · Ativo</span>\\s*<h2 class=\"aj-titulo\">Transportes Litoral Ltda.</h2>");
+        html.Should().MatchRegex(
+            "(?s)<header class=\"aj-barra-superior aj-barra-superior--voltar\">\\s*<a href=\"/clientes\" class=\"aj-botao aj-botao--fantasma aj-botao--icone\" aria-label=\"Voltar para Clientes\">.*?<h1>Cliente</h1>");
+    }
+
+    [Fact]
+    public async Task Cabecalho_de_ficha_sem_acoes_nao_emite_o_grupo_de_botoes()
+    {
+        var html = await TelaDeTeste.RenderizarSemDadosAsync<ComBarraSuperior<CabecalhoDeFicha>>(new()
+        {
+            ["Titulo"] = "Litoral — reclamação trabalhista", ["TituloDaBarra"] = "Processo", ["VoltarPara"] = "/processos", ["Origem"] = "Processos",
+        });
+
+        html.Should().Contain("aj-painel--cabecalho").And.NotContain("aj-painel__botoes").And.NotContain("aj-subtitulo");
+    }
+
+    [Fact]
+    public async Task Abas_marcam_a_escolhida_e_trazem_o_contador()
+    {
+        var html = await TelaDeTeste.RenderizarSemDadosAsync<Abas>(new()
+        {
+            ["Rotulo"] = "Assuntos do cliente", ["Ativa"] = "dados",
+            ["Itens"] = new List<Aba> { new("dados", "Dados"), new("processos", "Processos", 2) },
+        });
+
+        html.Should().MatchRegex(
+            "(?s)<div class=\"aj-abas\" role=\"tablist\" aria-label=\"Assuntos do cliente\">\\s*<button type=\"button\" role=\"tab\" class=\"aj-abas__aba\" aria-selected=\"true\"[^>]*>Dados</button>\\s*<button type=\"button\" role=\"tab\" class=\"aj-abas__aba\" aria-selected=\"false\"[^>]*>Processos<span class=\"aj-abas__contador\">2</span></button>");
+    }
+
+    [Fact]
+    public async Task Rotulo_de_campo_leva_a_classe_de_posicao()
+    {
+        var html = await TelaDeTeste.RenderizarSemDadosAsync<RotuloDeCampo<string>>(new()
+        {
+            ["Texto"] = "Logradouro", ["Para"] = (System.Linq.Expressions.Expression<Func<string>>)(() => "x"),
+            ["Classe"] = "aj-grade-endereco__logradouro",
+        });
+
+        html.Should().Contain("<label class=\"aj-rotulo aj-grade-endereco__logradouro\">");
+    }
+
+    [Fact]
     public async Task Desenho_estatico_aceita_formulario_com_nome()
     {
         var html = await TelaDeTeste.RenderizarComAsync<ComFormularioNomeado>(new DespachanteCombinado(), new());

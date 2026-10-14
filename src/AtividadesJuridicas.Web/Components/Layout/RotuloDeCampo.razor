@@ -5,7 +5,7 @@
 @* Rótulo de campo do design system: em erro, o rótulo muda de cor e a mensagem aparece sob o campo.
    A mensagem é escrita aqui, em <span>, como no canvas: o ValidationMessage emite <div>, que não cabe num <label>. *@
 @{ var mensagens = Mensagens(); }
-<label class="@(mensagens.Count > 0 ? "aj-rotulo aj-rotulo--erro" : "aj-rotulo")">
+<label class="@ClasseDoRotulo(mensagens.Count > 0)">
     @Texto
     @ChildContent
     @foreach (var mensagem in mensagens)
@@ -25,6 +25,12 @@
     [Parameter, EditorRequired] public Expression<Func<TValor>> Para { get; set; } = default!;
 
     [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Classe de posição do rótulo no formulário (uma célula da grade de endereço, por exemplo).</summary>
+    [Parameter] public string? Classe { get; set; }
+
+    private string ClasseDoRotulo(bool erro) =>
+        string.Join(" ", new[] { "aj-rotulo", erro ? "aj-rotulo--erro" : null, Classe }.Where(c => c is not null));
 
     // Fora de um EditForm não há o que validar: o rótulo aparece sem erro.
     private List<string> Mensagens() =>

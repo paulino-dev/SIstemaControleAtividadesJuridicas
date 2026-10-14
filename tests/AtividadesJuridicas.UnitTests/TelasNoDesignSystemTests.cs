@@ -18,8 +18,11 @@ public partial class TelasNoDesignSystemTests
     [
         "Components/Documentos/DocumentosComunsDaDiretoria.razor",
         "Components/Documentos/DocumentosParaBaixar.razor",
+        "Components/Layout/Abas.razor",
         "Components/Layout/Aviso.razor",
+        "Components/Layout/BarraDeVoltar.razor",
         "Components/Layout/CabecalhoDeDetalhe.razor",
+        "Components/Layout/CabecalhoDeFicha.razor",
         "Components/Layout/CabecalhoDePagina.razor",
         "Components/Layout/CartaoAtalho.razor",
         "Components/Layout/EstadoDaLista.razor",
