@@ -168,4 +168,7 @@
     protected override CategoriaDocumento CategoriaDosDocumentos => Categoria;
     protected override Guid? ClienteDosDocumentos => ClienteId;
     protected override ValueTask FocarAvisoDeEnvioAsync() => _avisoDeEnvio.FocusAsync();
+
+    // Este componente mantém o campo de envio sempre à vista: nada a fechar ao concluir (a Tarefa 7 o substitui).
+    protected override void AoConcluirEnvio() { }
 }

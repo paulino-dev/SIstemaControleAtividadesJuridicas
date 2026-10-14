@@ -396,3 +396,24 @@ public class ResumoDeAuditoriaTests
         ResumoDeAuditoria.De(dados, _fuso).Should().Be(esperado);
     }
 }
+
+public class TextosDeDocumentoTests
+{
+    private readonly FusoDoEscritorio _fuso = new("America/Sao_Paulo");
+
+    [Fact]
+    public void Endereco_leva_ao_download()
+    {
+        TextosDeDocumento.Endereco(Guid.Parse("0199a3f2-7c1e-7000-8000-000000000001"))
+            .Should().Be("/documentos/0199a3f2-7c1e-7000-8000-000000000001/baixar");
+    }
+
+    [Fact]
+    public void Detalhe_junta_tamanho_data_e_autor_sem_separador_solto()
+    {
+        var quando = new DateTime(2026, 9, 2, 13, 14, 0, DateTimeKind.Utc);
+
+        TextosDeDocumento.Detalhe(412 * 1024, quando, "Marina Couto", _fuso).Should().Be("412 KB · 02/09/2026 10:14 · Marina Couto");
+        TextosDeDocumento.Detalhe(412 * 1024, quando, null, _fuso).Should().Be("412 KB · 02/09/2026 10:14");
+    }
+}

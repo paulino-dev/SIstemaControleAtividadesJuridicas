@@ -34,8 +34,6 @@ public abstract class GestaoDeDocumentos : ComponentBase
     /// <summary>Leva o foco ao aviso de confirmação do envio, que cada tela desenha do seu jeito.</summary>
     protected abstract ValueTask FocarAvisoDeEnvioAsync();
 
-    /// <summary>Um envio acabou de dar certo: a tela fecha o que abriu para ele.</summary>
-    protected virtual void AoConcluirEnvio() { }
 
     /// <summary>Documentos de Atividades: coluna "Atividade", sem envio e sem editor de acesso.</summary>
     protected bool DeAtividades => CategoriaDosDocumentos == CategoriaDocumento.DocumentoAtividade;
@@ -43,6 +41,7 @@ public abstract class GestaoDeDocumentos : ComponentBase
     protected bool _carregado;
     protected bool _falhou;
     protected bool _enviando;
+    protected bool _envioAberto;
     protected bool _removendo;
     protected int _paginaPedida = 1;
     protected string? _mensagem;
@@ -53,6 +52,11 @@ public abstract class GestaoDeDocumentos : ComponentBase
     // quando a categoria já chegou.
     protected EnvioComConfirmacao _confirmacao = new(exigeConfirmacao: false);
     private bool _focarAviso;
+
+    // Um painel acabou de abrir e o campo dele ainda espera o foco: pedido uma vez por abertura, não a cada desenho.
+    private bool _focarPainel;
+
+    protected IReadOnlyDictionary<CategoriaDocumento, int> _porCategoria = new Dictionary<CategoriaDocumento, int>();
 
     protected IBrowserFile? _arquivo;
     protected string? _nomeDoEnvio;
@@ -115,6 +119,7 @@ public abstract class GestaoDeDocumentos : ComponentBase
         {
             var doCliente = await Despachante.EnviarAsync(new ListarDocumentosDoCliente(ClienteDosDocumentos!.Value, CategoriaDosDocumentos, pagina));
             resultado = doCliente;
+            if (doCliente.Valor is PaginaDeDocumentos lidos) _porCategoria = lidos.PorCategoria;
             lida = doCliente.Valor is { } p
                 ? new Pagina<Linha>([.. p.Itens.Select(d => new Linha(d.Id, d.Nome, d.TamanhoBytes, d.EnviadoEm, d.EnviadoPor, d.AtividadeTitulo))],
                     p.Total, p.Numero, p.Tamanho)
@@ -130,6 +135,8 @@ public abstract class GestaoDeDocumentos : ComponentBase
         // A página ficou além do fim (por exemplo, ao excluir o único item dela): volta à última.
         if (resultado.Sucesso && _pagina.Itens.Count == 0 && _pagina.Total > 0 && _pagina.Numero > _pagina.TotalDePaginas)
             await CarregarAsync(_pagina.TotalDePaginas);
+
+        if (resultado.Sucesso) await AoCarregarAsync();
     }
 
     private async Task<bool> EncerradoAsync(Resultado resultado)
@@ -178,16 +185,28 @@ public abstract class GestaoDeDocumentos : ComponentBase
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!_focarAviso) return;
+        if (_focarAviso)
+        {
+            _focarAviso = false;
+            await TentarFocarAsync(FocarAvisoDeEnvioAsync);
+        }
 
-        _focarAviso = false;
+        if (_focarPainel)
+        {
+            _focarPainel = false;
+            await TentarFocarAsync(FocarPainelAbertoAsync);
+        }
+    }
+
+    // Sem foco (circuito caindo, por exemplo) o que abriu continua visível e funcional.
+    private static async Task TentarFocarAsync(Func<ValueTask> focar)
+    {
         try
         {
-            await FocarAvisoDeEnvioAsync();
+            await focar();
         }
         catch (Exception ex) when (ex is InvalidOperationException or JSException or JSDisconnectedException)
         {
-            // Sem foco (circuito caindo, por exemplo) o aviso continua visível e funcional.
         }
     }
 
@@ -202,6 +221,71 @@ public abstract class GestaoDeDocumentos : ComponentBase
 
     // O arquivo e o nome escolhidos ficam: o usuário pode enviar depois.
     protected void CancelarEnvio() => _confirmacao.Cancelar();
+
+    // No máximo uma coisa aberta por vez entre o envio, o renomear, o acesso e a confirmação de exclusão: cada abertura
+    // fecha as outras. Com um envio ou uma exclusão em curso nada se abre, para não desmontar o que a ação usa.
+    protected bool Ocupada => _enviando || _removendo;
+
+    protected void AbrirEnvio()
+    {
+        if (Ocupada) return;
+
+        CancelarExclusao();
+        _mensagem = null;
+        _renomeando = null;
+        _acesso = null;
+        _envioAberto = true;
+        _focarPainel = true;
+    }
+
+    protected void RenomearLinha(Linha documento)
+    {
+        if (Ocupada) return;
+
+        CancelarExclusao();
+        if (_envioAberto) DescartarEnvio();
+        AbrirRenomear(documento);   // já fecha o acesso
+        _focarPainel = true;
+    }
+
+    protected void ExcluirLinha(Guid id)
+    {
+        if (Ocupada) return;
+
+        if (_envioAberto) DescartarEnvio();
+        FecharRenomear();
+        FecharAcesso();
+        PedirExclusao(id);
+    }
+
+    protected async Task AbrirAcessoDaLinhaAsync(Guid id)
+    {
+        if (Ocupada) return;
+
+        CancelarExclusao();
+        if (_envioAberto) DescartarEnvio();
+        await AbrirAcessoAsync(id);   // já fecha o renomear
+        if (_acesso is not null) _focarPainel = true;
+    }
+
+    // O arquivo escolhido não é guardado: reabrir o envio começa do zero.
+    protected void DescartarEnvio()
+    {
+        _confirmacao.Cancelar();
+        _arquivo = null;
+        _nomeDoEnvio = null;
+        _versaoDoCampo++;
+        _envioAberto = false;
+    }
+
+    /// <summary>Leva o foco ao campo do painel que acabou de abrir. As telas que têm campo a focar sobrescrevem.</summary>
+    protected virtual ValueTask FocarPainelAbertoAsync() => ValueTask.CompletedTask;
+
+    /// <summary>Chamado no fim de cada leitura bem-sucedida da lista.</summary>
+    protected virtual Task AoCarregarAsync() => Task.CompletedTask;
+
+    /// <summary>Um envio acabou de dar certo: fecha limpando (outro arquivo escolhido enquanto este subia não fica).</summary>
+    protected virtual void AoConcluirEnvio() => DescartarEnvio();
 
     private async Task EnviarArquivoAsync(bool confirmou)
     {
