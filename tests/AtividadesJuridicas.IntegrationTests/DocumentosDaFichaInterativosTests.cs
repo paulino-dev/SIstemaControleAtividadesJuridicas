@@ -51,6 +51,11 @@ public class DocumentosDaFichaInterativosTests : TelaInterativa
         BlocoDeVisao.De(ficha.Markup, "aj-so-desktop").Should().Contain("<th scope=\"col\">Atividade</th>")
             .And.Contain("Contestação — cobrança de ISS");
         ficha.FindAll(".aj-painel__cabecalho button").Should().BeEmpty();   // De atividades não tem envio
+        // Com gestão a linha renomeia e exclui, mas não tem editor de acesso (só os Gerais têm).
+        var botoes = ficha.FindAll("table.aj-tabela tbody button").Select(b => b.TextContent).ToList();
+        botoes.Should().Contain("Renomear").And.Contain("Excluir").And.NotContain("Acesso");
+        var menu = ficha.FindAll(".aj-menu-acoes__item").Select(b => b.TextContent).ToList();
+        menu.Should().Contain("Renomear").And.Contain("Excluir").And.NotContain("Acesso");
         total.Should().Be(10);
     }
 
