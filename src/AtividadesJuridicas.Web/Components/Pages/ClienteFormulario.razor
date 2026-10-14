@@ -1,0 +1,238 @@
+@page "/clientes/novo"
+@page "/clientes/{Id:guid}/editar"
+@using System.ComponentModel.DataAnnotations
+@inject IDespachante Despachante
+@inject NavigationManager Navegacao
+@inject Recados Recados
+
+<PageTitle>@Titulo</PageTitle>
+
+<CabecalhoDeDetalhe Titulo="@Titulo" Subtitulo="@SubtituloDoFormulario" VoltarPara="@VoltarDoCabecalho" Origem="@OrigemDoCabecalho" />
+
+@if (!_carregado)
+{
+    <p class="aj-subtitulo" role="status">Carregando…</p>
+}
+else if (!_autorizado)
+{
+    <Aviso Tipo="TipoDeAviso.Erro">Acesso negado.</Aviso>
+}
+else if (_naoEncontrado)
+{
+    <Aviso Tipo="TipoDeAviso.Erro">Cliente não encontrado.</Aviso>
+}
+else if (_erroDaConsulta is not null)
+{
+    <Aviso Tipo="TipoDeAviso.Erro">@_erroDaConsulta</Aviso>
+}
+else
+{
+    @if (_mensagem is not null)
+    {
+        <Aviso Tipo="TipoDeAviso.Erro">@_mensagem</Aviso>
+    }
+
+    <div class="aj-so-mobile">
+        <div class="aj-segmentado aj-segmentado--recuado aj-segmentado--largo" role="group" aria-label="Tipo de cliente">@OpcoesDeTipo</div>
+        <p class="aj-ajuda">Só o nome e o CPF ou CNPJ são obrigatórios.</p>
+    </div>
+
+    <EditForm Model="_form" OnValidSubmit="SalvarAsync" FormName="cliente" id="formulario-do-cliente" class="aj-lado-a-lado aj-lado-a-lado--formulario">
+        <DataAnnotationsValidator />
+        <section class="aj-painel aj-painel--principal aj-lado-a-lado__lista">
+            <div class="aj-painel__cabecalho">
+                <h2>Identificação e contato</h2>
+                <div class="aj-desktop-tablet">
+                    <div class="aj-segmentado" role="group" aria-label="Tipo de cliente">@OpcoesDeTipo</div>
+                </div>
+            </div>
+            <div class="aj-grade-campos aj-grade-campos--tablet-folgada">
+                @if (_form.Tipo == TipoCliente.PessoaFisica)
+                {
+                    <RotuloDeCampo Texto="Nome completo" Para="() => _form.Nome" Classe="aj-grade-campos__inteiro"><InputText @bind-Value="_form.Nome" class="aj-campo" /></RotuloDeCampo>
+                    <RotuloDeCampo Texto="CPF" Para="() => _form.Documento"><InputText @bind-Value="_form.Documento" inputmode="numeric" placeholder="000.000.000-00" class="aj-campo" /></RotuloDeCampo>
+                    <label class="aj-rotulo">RG<InputText @bind-Value="_form.Rg" class="aj-campo" /></label>
+                    <label class="aj-rotulo">Data de nascimento<InputDate @bind-Value="_form.DataNascimento" class="aj-campo" /></label>
+                }
+                else
+                {
+                    <RotuloDeCampo Texto="Razão social" Para="() => _form.Nome" Classe="aj-grade-campos__inteiro"><InputText @bind-Value="_form.Nome" class="aj-campo" /></RotuloDeCampo>
+                    <RotuloDeCampo Texto="CNPJ" Para="() => _form.Documento"><InputText @bind-Value="_form.Documento" inputmode="numeric" placeholder="00.000.000/0000-00" class="aj-campo" /></RotuloDeCampo>
+                    <label class="aj-rotulo">Nome fantasia<InputText @bind-Value="_form.NomeFantasia" class="aj-campo" /></label>
+                    <label class="aj-rotulo">Responsável<InputText @bind-Value="_form.NomeResponsavel" class="aj-campo" /></label>
+                    <label class="aj-rotulo">Inscrição estadual<InputText @bind-Value="_form.InscricaoEstadual" class="aj-campo" /></label>
+                    <label class="aj-rotulo">Inscrição municipal<InputText @bind-Value="_form.InscricaoMunicipal" class="aj-campo" /></label>
+                }
+                <label class="aj-rotulo">E-mail<InputText @bind-Value="_form.Email" type="email" class="aj-campo" /></label>
+                <label class="aj-rotulo">Telefone<InputText @bind-Value="_form.Telefone" type="tel" class="aj-campo" /></label>
+            </div>
+        </section>
+
+        <div class="aj-lado-a-lado__painel aj-pilha">
+            <section class="aj-painel">
+                <h2>Endereço</h2>
+                <div class="aj-grade-endereco">
+                    <label class="aj-rotulo aj-grade-endereco__logradouro">Logradouro<InputText @bind-Value="_form.Logradouro" class="aj-campo" /></label>
+                    <label class="aj-rotulo aj-grade-endereco__numero">Número<InputText @bind-Value="_form.Numero" class="aj-campo" /></label>
+                    <label class="aj-rotulo aj-grade-endereco__complemento">Complemento<InputText @bind-Value="_form.Complemento" class="aj-campo" /></label>
+                    <label class="aj-rotulo aj-grade-endereco__bairro">Bairro<InputText @bind-Value="_form.Bairro" class="aj-campo" /></label>
+                    <label class="aj-rotulo aj-grade-endereco__cidade">Cidade<InputText @bind-Value="_form.Cidade" class="aj-campo" /></label>
+                    <label class="aj-rotulo aj-grade-endereco__uf">UF<InputText @bind-Value="_form.Uf" maxlength="2" class="aj-campo aj-campo--curto" /></label>
+                    <label class="aj-rotulo aj-grade-endereco__cep">CEP<InputText @bind-Value="_form.Cep" inputmode="numeric" class="aj-campo" /></label>
+                </div>
+            </section>
+            <section class="aj-painel">
+                <h2>Observações</h2>
+                <label class="aj-rotulo"><span class="aj-so-leitor">Observações</span><InputTextArea @bind-Value="_form.Observacoes" rows="4" class="aj-campo" /></label>
+            </section>
+        </div>
+    </EditForm>
+
+    @* As barras de ação ficam fora do formulário e o enviam pelo atributo form. *@
+    <div class="aj-so-desktop">
+        <div class="aj-acoes aj-acoes--fixa"><a href="@Voltar" class="aj-botao aj-botao--fantasma">Cancelar</a><button type="submit" class="aj-botao aj-botao--primario aj-botao--com-icone" form="formulario-do-cliente" disabled="@_salvando"><Icone Nome="confirmar" />Salvar cliente</button></div>
+    </div>
+    <div class="aj-so-tablet">
+        <div class="aj-acoes aj-acoes--fixa"><a href="@Voltar" class="aj-botao aj-botao--secundario">Cancelar</a><button type="submit" class="aj-botao aj-botao--primario aj-botao--com-icone" form="formulario-do-cliente" disabled="@_salvando"><Icone Nome="confirmar" />Salvar cliente</button></div>
+    </div>
+    <div class="aj-so-mobile">
+        <div class="aj-acoes aj-acoes--fixa"><a href="@Voltar" class="aj-botao aj-botao--secundario">Cancelar</a><button type="submit" class="aj-botao aj-botao--primario aj-botao--com-icone" form="formulario-do-cliente" disabled="@_salvando"><Icone Nome="confirmar" />Salvar</button></div>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid? Id { get; set; }
+
+    private bool _carregado;
+    private bool _autorizado;
+    private bool _naoEncontrado;
+    private bool _salvando;
+    private string? _erroDaConsulta;
+    private string? _mensagem;
+    private Formulario _form = new();
+
+    private string Titulo => Id is null ? "Novo cliente" : "Editar cliente";
+    private string Voltar => Id is null ? "/clientes" : $"/clientes/{Id}";
+    private string Origem => Id is null ? "Clientes" : "Cliente";
+
+    // Sem o cliente para voltar a ele, o voltar vai para a lista.
+    private string VoltarDoCabecalho => _naoEncontrado ? "/clientes" : Voltar;
+    private string OrigemDoCabecalho => _naoEncontrado ? "Clientes" : Origem;
+
+    // O subtítulo só acompanha o formulário: sobre "Acesso negado." ou "Cliente não encontrado." ele sobra.
+    private string? SubtituloDoFormulario =>
+        _carregado && _autorizado && !_naoEncontrado && _erroDaConsulta is null
+            ? "Só o nome e o CPF ou CNPJ são obrigatórios."
+            : null;
+
+    private RenderFragment OpcoesDeTipo => @<text><button type="button" class="aj-segmentado__opcao" aria-pressed="@Marcado(TipoCliente.PessoaFisica)" disabled="@TipoTravado(TipoCliente.PessoaFisica)" @onclick="() => _form.Tipo = TipoCliente.PessoaFisica">Pessoa física</button><button type="button" class="aj-segmentado__opcao" aria-pressed="@Marcado(TipoCliente.PessoaJuridica)" disabled="@TipoTravado(TipoCliente.PessoaJuridica)" @onclick="() => _form.Tipo = TipoCliente.PessoaJuridica">Pessoa jurídica</button></text>;
+
+    private string Marcado(TipoCliente tipo) => _form.Tipo == tipo ? "true" : "false";
+
+    // Na edição o tipo não troca: o backend não muda um cliente de pessoa física para jurídica.
+    private bool TipoTravado(TipoCliente tipo) => Id is not null && _form.Tipo != tipo;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _autorizado = await Despachante.EnviarAsync(new ObterMeuAcesso()) is { EhDiretoria: true };
+        if (_autorizado && Id is { } id) await CarregarAsync(id);
+        _carregado = true;
+    }
+
+    private async Task CarregarAsync(Guid id)
+    {
+        var resultado = await Despachante.EnviarAsync(new ObterCliente(id));
+        if (resultado.Erro == TipoErro.AcessoNegado)
+        {
+            _autorizado = false;
+            return;
+        }
+
+        if (resultado.Valor is not { } c)
+        {
+            if (resultado.Erro == TipoErro.NaoEncontrado) _naoEncontrado = true;
+            else _erroDaConsulta = resultado.Mensagem ?? "Não foi possível consultar o cliente.";
+            return;
+        }
+
+        _form = new Formulario
+        {
+            Id = c.Id, Tipo = c.Tipo, Nome = c.Nome, Email = c.Email, Telefone = c.Telefone,
+            Documento = c.Cpf ?? c.Cnpj ?? string.Empty, Rg = c.Rg, DataNascimento = c.DataNascimento,
+            NomeFantasia = c.NomeFantasia, NomeResponsavel = c.NomeResponsavel,
+            InscricaoEstadual = c.InscricaoEstadual, InscricaoMunicipal = c.InscricaoMunicipal,
+            Logradouro = c.Logradouro, Numero = c.Numero, Complemento = c.Complemento, Bairro = c.Bairro,
+            Cidade = c.Cidade, Uf = c.Uf, Cep = c.Cep, Observacoes = c.Observacoes,
+        };
+    }
+
+    private async Task SalvarAsync()
+    {
+        if (_salvando) return;
+
+        _salvando = true;
+        try
+        {
+            _mensagem = null;
+            var f = _form;
+            var dados = new DadosDoClienteEntrada(
+                f.Nome, f.Email, f.Telefone,
+                new EnderecoEntrada(f.Logradouro, f.Numero, f.Complemento, f.Bairro, f.Cidade, f.Uf, f.Cep),
+                f.Observacoes);
+
+            Resultado resultado = f.Tipo == TipoCliente.PessoaFisica
+                ? await Despachante.EnviarAsync(new SalvarClientePessoaFisica(f.Id, dados, f.Documento, f.Rg, f.DataNascimento))
+                : await Despachante.EnviarAsync(new SalvarClientePessoaJuridica(
+                    f.Id, dados, f.Documento, f.NomeFantasia, f.NomeResponsavel, f.InscricaoEstadual, f.InscricaoMunicipal));
+
+            if (resultado.Erro == TipoErro.AcessoNegado)
+            {
+                _autorizado = false;
+                return;
+            }
+
+            if (!resultado.Sucesso)
+            {
+                // O formulário permanece com o que foi digitado.
+                _mensagem = resultado.Mensagem;
+                return;
+            }
+
+            Recados.Deixar("Cliente salvo.");
+            Navegacao.NavigateTo(Voltar);
+        }
+        finally
+        {
+            _salvando = false;
+        }
+    }
+
+    private sealed class Formulario
+    {
+        public Guid? Id { get; set; }
+        public TipoCliente Tipo { get; set; } = TipoCliente.PessoaFisica;
+
+        [Required(ErrorMessage = "Informe o nome.")]
+        public string Nome { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Informe o documento.")]
+        public string Documento { get; set; } = string.Empty;
+
+        public string? Email { get; set; }
+        public string? Telefone { get; set; }
+        public string? Rg { get; set; }
+        public DateOnly? DataNascimento { get; set; }
+        public string? NomeFantasia { get; set; }
+        public string? NomeResponsavel { get; set; }
+        public string? InscricaoEstadual { get; set; }
+        public string? InscricaoMunicipal { get; set; }
+        public string? Logradouro { get; set; }
+        public string? Numero { get; set; }
+        public string? Complemento { get; set; }
+        public string? Bairro { get; set; }
+        public string? Cidade { get; set; }
+        public string? Uf { get; set; }
+        public string? Cep { get; set; }
+        public string? Observacoes { get; set; }
+    }
+}
