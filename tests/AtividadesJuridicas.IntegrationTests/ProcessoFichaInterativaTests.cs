@@ -3,7 +3,9 @@ using AtividadesJuridicas.Application.Comum;
 using AtividadesJuridicas.Application.Identidade;
 using AtividadesJuridicas.Domain.Cadastros;
 using AtividadesJuridicas.Web.Components.Pages;
+using AtividadesJuridicas.Web.Infra;
 using Bunit;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace AtividadesJuridicas.IntegrationTests;
 
@@ -52,5 +54,20 @@ public class ProcessoFichaInterativaTests : TelaInterativa
 
         ficha.Find(".aj-abas button[aria-selected=true]").TextContent.Should().Be("Situação");
         ficha.Markup.Should().MatchRegex("<div class=\"aj-aba-painel\">\\s*<section class=\"aj-painel\">\\s*<h2>Situação</h2>");
+    }
+
+    [Fact]
+    public void Alterar_a_situacao_some_com_o_recado_que_veio_de_outra_tela()
+    {
+        Services.GetRequiredService<Recados>().Deixar("Processo salvo.");
+        var ficha = Ficha();
+        ficha.Markup.Should().Contain("Processo salvo.");
+        var formulario = ficha.FindAll("form.aj-campo-com-botao")[0];
+
+        formulario.QuerySelector("select")!.Change(nameof(StatusProcesso.Encerrado));
+        formulario.Submit();
+
+        ficha.WaitForAssertion(() => ficha.Markup.Should().Contain("Situação alterada para Encerrado."));
+        ficha.Markup.Should().NotContain("Processo salvo.");
     }
 }

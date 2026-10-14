@@ -5,7 +5,9 @@ using AtividadesJuridicas.Application.Identidade;
 using AtividadesJuridicas.Domain.Cadastros;
 using AtividadesJuridicas.Domain.Documentos;
 using AtividadesJuridicas.Web.Components.Pages;
+using AtividadesJuridicas.Web.Infra;
 using Bunit;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace AtividadesJuridicas.IntegrationTests;
 
@@ -88,5 +90,34 @@ public class ClienteFichaInterativaTests : TelaInterativa
         Despachante.Recebidas.OfType<ListarDocumentosDoCliente>().Should()
             .OnlyContain(r => r.Categoria == CategoriaDocumento.DocumentoGeral || r.Categoria == CategoriaDocumento.DocumentoAtividade);
         ficha.FindAll(".aj-abas button").Select(b => b.TextContent).Should().Equal("Dados", "Processos0", "Documentos7");
+    }
+
+    [Fact]
+    public void Consulta_que_falha_nao_mostra_zero_nos_contadores_das_abas_de_processos_e_usuarios()
+    {
+        Combinar();
+        Despachante
+            .Responde<ListarProcessos, Resultado<PaginaDeProcessos>>(Resultado<PaginaDeProcessos>.Falha(TipoErro.Validacao, "Falha."))
+            .Responde<ListarUsuariosDoCliente, Resultado<IReadOnlyList<UsuarioDoCliente>>>(
+                Resultado<IReadOnlyList<UsuarioDoCliente>>.Falha(TipoErro.Validacao, "Falha."));
+
+        var ficha = Ficha();
+
+        ficha.FindAll(".aj-abas button").Select(b => b.TextContent).Should().Equal("Dados", "Processos", "Documentos7", "Usuários");
+    }
+
+    [Fact]
+    public void Ativar_some_com_o_recado_que_veio_de_outra_tela()
+    {
+        Combinar(ativo: false);
+        Despachante.Responde<DefinirAtivoCliente, Resultado>(Resultado.Ok());
+        Services.GetRequiredService<Recados>().Deixar("Cliente salvo.");
+        var ficha = Ficha();
+        ficha.Markup.Should().Contain("Cliente salvo.");
+
+        ficha.FindAll(".aj-painel__botoes button").Single(b => b.TextContent == "Ativar").Click();
+
+        ficha.WaitForAssertion(() => ficha.Markup.Should().Contain("Cliente ativado."));
+        ficha.Markup.Should().NotContain("Cliente salvo.");
     }
 }

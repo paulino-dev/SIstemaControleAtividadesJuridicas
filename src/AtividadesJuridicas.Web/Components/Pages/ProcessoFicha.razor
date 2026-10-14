@@ -203,7 +203,7 @@ else
                 ("Órgão", Ou(p.Orgao)),
                 ("Comarca", Ou(p.Comarca)),
                 ("Parte contrária", Ou(p.ParteContraria)),
-                ("Distribuição", p.DataDistribuicao is { } data ? data.ToString("dd/MM/yyyy") : "—"),
+                ("Distribuição", p.DataDistribuicao is { } data ? data.ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture) : "—"),
                 ("Valor da causa", p.ValorCausa is { } valor ? valor.ToString("C", System.Globalization.CultureInfo.GetCultureInfo("pt-BR")) : "—"),
             ];
         }
@@ -266,6 +266,7 @@ else
         if (_alterando || _processo is null) return;
 
         _alterando = true;
+        _recado = null;
         _mensagem = null;
         try
         {

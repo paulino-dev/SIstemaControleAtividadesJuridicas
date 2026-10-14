@@ -171,6 +171,7 @@ else
         if (_salvando) return;
 
         _salvando = true;
+        var navegou = false;
         try
         {
             _mensagem = null;
@@ -199,11 +200,13 @@ else
             }
 
             Recados.Deixar("Cliente salvo.");
+            navegou = true;
             Navegacao.NavigateTo(Voltar);
         }
         finally
         {
-            _salvando = false;
+            // Depois do sucesso a página vai embora: o botão fica travado para um clique tardio não salvar de novo.
+            if (!navegou) _salvando = false;
         }
     }
 

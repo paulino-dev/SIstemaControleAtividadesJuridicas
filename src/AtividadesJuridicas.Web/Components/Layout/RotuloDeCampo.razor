@@ -30,7 +30,7 @@
     [Parameter] public string? Classe { get; set; }
 
     private string ClasseDoRotulo(bool erro) =>
-        string.Join(" ", new[] { "aj-rotulo", erro ? "aj-rotulo--erro" : null, Classe }.Where(c => c is not null));
+        string.Join(" ", new[] { "aj-rotulo", erro ? "aj-rotulo--erro" : null, Classe }.Where(c => !string.IsNullOrEmpty(c)));
 
     // Fora de um EditForm não há o que validar: o rótulo aparece sem erro.
     private List<string> Mensagens() =>

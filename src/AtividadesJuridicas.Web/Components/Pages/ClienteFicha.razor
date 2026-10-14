@@ -314,7 +314,7 @@ else
                 [
                     ("CPF", Ou(c.Cpf)),
                     ("RG", Ou(c.Rg)),
-                    ("Data de nascimento", c.DataNascimento is { } nascimento ? nascimento.ToString("dd/MM/yyyy") : "—"),
+                    ("Data de nascimento", c.DataNascimento is { } nascimento ? nascimento.ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture) : "—"),
                     ("E-mail", Ou(c.Email)),
                     ("Telefone", Ou(c.Telefone)),
                     ("Endereço", endereco),
@@ -340,10 +340,10 @@ else
             List<Aba> abas =
             [
                 new("dados", "Dados"),
-                new("processos", "Processos", _processos.Total),
+                new("processos", "Processos", _erroDosProcessos is null ? _processos.Total : null),
                 new("documentos", "Documentos", _totalDeDocumentos),
             ];
-            if (Diretoria) abas.Add(new("usuarios", "Usuários", _usuarios.Count));
+            if (Diretoria) abas.Add(new("usuarios", "Usuários", _erroDosUsuarios is null ? _usuarios.Count : null));
             return abas;
         }
     }
@@ -359,6 +359,7 @@ else
     {
         if (_alterando || _cliente is null) return;
 
+        _recado = null;
         _mensagem = null;
         if (_cliente.Ativo)
         {

@@ -72,7 +72,6 @@
         ? Contagem.De(_pagina.Total, "documento", "documentos")
         : null;
 
-
     private string Detalhe(DocumentoDoPortal documento) =>
         $"{TamanhoDeArquivo.Formatar(documento.TamanhoBytes)} · {Fuso.Formatar(documento.EnviadoEm)}";
 

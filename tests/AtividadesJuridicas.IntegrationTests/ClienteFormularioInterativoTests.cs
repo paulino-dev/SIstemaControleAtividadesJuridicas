@@ -59,4 +59,23 @@ public class ClienteFormularioInterativoTests : TelaInterativa
         tela.Markup.Should().MatchRegex("<input[^>]*value=\"Helena Barros Lima\"");
         Services.GetRequiredService<NavigationManager>().Uri.Should().NotEndWith("/clientes");
     }
+
+    [Fact]
+    public void Depois_de_salvar_com_sucesso_um_novo_envio_nao_dispara_outro_salvamento()
+    {
+        var resposta = new TaskCompletionSource<Resultado<Guid>>();
+        Despachante
+            .Responde<ObterMeuAcesso, UsuarioAutenticado?>(AtorDaDiretoria)
+            .RespondeDepois<SalvarClientePessoaFisica, Resultado<Guid>>(resposta.Task);
+        var tela = Desenhar<ClienteFormulario>();
+        tela.FindAll("label.aj-rotulo").Single(l => l.TextContent.StartsWith("Nome completo")).QuerySelector("input")!.Change("Helena Barros Lima");
+        tela.FindAll("label.aj-rotulo").Single(l => l.TextContent.StartsWith("CPF")).QuerySelector("input")!.Change("529.982.247-25");
+
+        tela.Find("form#formulario-do-cliente").Submit();
+        resposta.SetResult(Resultado<Guid>.Ok(Guid.NewGuid()));
+        tela.WaitForAssertion(() => Services.GetRequiredService<NavigationManager>().Uri.Should().EndWith("/clientes"));
+        tela.Find("form#formulario-do-cliente").Submit();
+
+        Despachante.Recebidas.OfType<SalvarClientePessoaFisica>().Should().ContainSingle();
+    }
 }

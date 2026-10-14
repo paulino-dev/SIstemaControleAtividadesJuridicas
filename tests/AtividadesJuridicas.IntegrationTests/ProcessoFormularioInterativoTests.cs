@@ -76,4 +76,21 @@ public class ProcessoFormularioInterativoTests : TelaInterativa
         Services.GetRequiredService<NavigationManager>().Uri.Should().EndWith("/processos");
         Services.GetRequiredService<Recados>().Retirar()!.Texto.Should().Be("Processo salvo.");
     }
+
+    [Fact]
+    public void Depois_de_salvar_com_sucesso_um_novo_envio_nao_dispara_outro_salvamento()
+    {
+        var resposta = new TaskCompletionSource<Resultado<Guid>>();
+        var tela = Formulario();
+        Despachante.RespondeDepois<SalvarProcesso, Resultado<Guid>>(resposta.Task);
+        Digitar(tela, "Título", "Litoral × Seguradora — indenização");
+        tela.Find("select.aj-campo").Change(Area.ToString());
+
+        tela.Find("form#formulario-do-processo").Submit();
+        resposta.SetResult(Resultado<Guid>.Ok(Guid.NewGuid()));
+        tela.WaitForAssertion(() => Services.GetRequiredService<NavigationManager>().Uri.Should().EndWith("/processos"));
+        tela.Find("form#formulario-do-processo").Submit();
+
+        Despachante.Recebidas.OfType<SalvarProcesso>().Should().ContainSingle();
+    }
 }
