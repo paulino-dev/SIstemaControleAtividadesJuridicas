@@ -59,6 +59,7 @@ public partial class AutenticacaoWebTests(BancoFixture banco) : IAsyncLifetime
     [Theory]
     [InlineData("/")]
     [InlineData("/usuarios")]
+    [InlineData("/clientes/0199a3f2-7c1e-7000-8000-000000000001")]
     [InlineData("/perfis")]
     [InlineData("/minha-senha")]
     [InlineData("/rota-que-nao-existe")]
