@@ -1,0 +1,296 @@
+@page "/processos/{Id:guid}"
+@inject IDespachante Despachante
+@inject Recados Recados
+
+<PageTitle>@(_processo?.Titulo ?? "Processo")</PageTitle>
+
+@if (!_carregado || _ator is null || _processo is null)
+{
+    <CabecalhoDeDetalhe Titulo="Processo" VoltarPara="/processos" Origem="Processos" />
+    @if (!_carregado)
+    {
+        <p class="aj-subtitulo" role="status">Carregando…</p>
+    }
+    else if (_ator is null)
+    {
+        <Aviso Tipo="TipoDeAviso.Erro">Seu acesso foi encerrado. Entre novamente.</Aviso>
+    }
+    else if (_naoEncontrado)
+    {
+        <Aviso Tipo="TipoDeAviso.Erro">Processo não encontrado.</Aviso>
+    }
+    else
+    {
+        <EstadoDaLista Erro="@(_erro ?? "Não foi possível consultar o processo.")" TextoDeVazio="" TentarDeNovo="CarregarAsync" />
+    }
+}
+else
+{
+    var p = _processo;
+    <CabecalhoDeFicha Titulo="@p.Titulo" Subtitulo="@Subtitulo" Resumo="@Resumo" TituloDaBarra="Processo" VoltarPara="/processos" Origem="Processos"
+                      Acoes="@(Diretoria ? EditarDoDesktop : null)" />
+
+    @if (_recado is { } recado)
+    {
+        <Aviso Tipo="@recado.Tipo">@recado.Texto</Aviso>
+    }
+    @if (_mensagem is not null)
+    {
+        <Aviso Tipo="@(_falhou ? TipoDeAviso.Erro : TipoDeAviso.Sucesso)">@_mensagem</Aviso>
+    }
+
+    <div class="aj-so-desktop">
+        <div class="aj-lado-a-lado aj-lado-a-lado--ficha">
+            <div class="aj-lado-a-lado__lista aj-pilha">
+                <section class="aj-painel">
+                    <h2>Clientes do processo</h2>
+                    <div class="aj-tabela-caixa aj-tabela-caixa--plana">
+                        <table class="aj-tabela">
+                            <thead><tr><th scope="col">Cliente</th><th scope="col">Documento</th><th scope="col">Polo</th><th scope="col"><span class="aj-so-leitor">Ações</span></th></tr></thead>
+                            <tbody>
+                                @foreach (var cliente in p.Clientes)
+                                {
+                                    <tr @key="cliente.ClienteId">
+                                        <td class="aj-tabela__principal">@cliente.Nome</td>
+                                        <td class="aj-tabela__data">@cliente.Documento</td>
+                                        <td>@RotulosDeProcesso.Polo(cliente.Polo)</td>
+                                        <td class="aj-tabela__acao"><a href="@($"/clientes/{cliente.ClienteId}")" class="aj-botao aj-botao--fantasma aj-botao--seta">Abrir<Icone Nome="avancar" /></a></td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+                @Observacoes
+            </div>
+            <div class="aj-lado-a-lado__painel aj-pilha">
+                @Dados
+                @if (Diretoria)
+                {
+                    @Situacao
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="aj-tablet-mobile">
+        <div class="aj-so-mobile">
+            <Abas Rotulo="Assuntos do processo" Itens="@AbasDaFicha" Ativa="@_aba" AoEscolher="(string aba) => _aba = aba" />
+        </div>
+        <div class="@ClasseDaAba("dados")">@Dados</div>
+        <div class="@ClasseDaAba("clientes")">
+            <section class="aj-painel">
+                <h2>Clientes do processo</h2>
+                <div class="aj-linhas aj-linhas--folgadas">
+                    @foreach (var cliente in p.Clientes)
+                    {
+                        <a href="@($"/clientes/{cliente.ClienteId}")" class="aj-linha aj-linha--link" @key="cliente.ClienteId"><span class="aj-linha__texto"><span class="aj-linha__titulo">@cliente.Nome</span><span class="aj-ajuda">@DocumentoEPolo(cliente)</span></span><Icone Nome="avancar" Classe="aj-cartao__seta" /></a>
+                    }
+                </div>
+            </section>
+        </div>
+        <div class="@ClasseDaAba("dados")">@Observacoes</div>
+        @if (Diretoria)
+        {
+            <div class="@ClasseDaAba("situacao")">@Situacao</div>
+        }
+    </div>
+
+    @if (Diretoria)
+    {
+        <div class="aj-so-tablet">
+            <div class="aj-acoes aj-acoes--fixa"><a href="@Edicao" class="aj-botao aj-botao--primario">Editar</a></div>
+        </div>
+        <div class="aj-so-mobile">
+            <div class="aj-acoes aj-acoes--fixa"><button type="button" class="aj-botao aj-botao--secundario" @onclick="AbrirSituacao">Alterar situação</button><a href="@Edicao" class="aj-botao aj-botao--primario">Editar</a></div>
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private bool _carregado;
+    private UsuarioAutenticado? _ator;
+    private ProcessoDetalhe? _processo;
+    private bool _naoEncontrado;
+    private string? _erro;
+    private string _aba = "dados";
+    private StatusProcesso _novaSituacao;
+    private bool _alterando;
+    private string? _mensagem;
+    private bool _falhou;
+    private Recado? _recado;
+    private Guid? _idCarregado;
+
+    private bool Diretoria => _ator?.EhDiretoria == true;
+    private string Edicao => $"/processos/{Id}/editar";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_idCarregado == Id) return;
+
+        var primeira = _idCarregado is null;
+        _idCarregado = Id;
+        if (primeira) _recado = Recados.Retirar();
+        await CarregarAsync();
+    }
+
+    private async Task CarregarAsync()
+    {
+        _carregado = false;
+        _processo = null;
+        _naoEncontrado = false;
+        _erro = null;
+        _aba = "dados";
+        _mensagem = null;
+
+        _ator = await Despachante.EnviarAsync(new ObterMeuAcesso());
+        if (_ator is null)
+        {
+            _carregado = true;
+            return;
+        }
+
+        var resultado = await Despachante.EnviarAsync(new ObterProcesso(Id));
+        if (resultado.Erro == TipoErro.AcessoNegado)
+        {
+            EncerrarAcesso();
+        }
+        else if (resultado.Erro == TipoErro.NaoEncontrado)
+        {
+            _naoEncontrado = true;
+        }
+        else if (!resultado.Sucesso || resultado.Valor is null)
+        {
+            _erro = resultado.Mensagem ?? "Não foi possível consultar o processo.";
+        }
+        else
+        {
+            _processo = resultado.Valor;
+            _novaSituacao = OutrasSituacoes.First();
+        }
+
+        _carregado = true;
+    }
+
+    private void EncerrarAcesso()
+    {
+        _ator = null;
+        _processo = null;
+    }
+
+    private string Subtitulo =>
+        $"{RotulosDeProcesso.Numero(_processo!.NumeroCnj)} · {_processo.AreaNome} · {RotulosDeProcesso.Situacao(_processo.Status)}";
+
+    private string Resumo => $"{RotulosDeProcesso.Numero(_processo!.NumeroCnj)} · {RotulosDeProcesso.Situacao(_processo.Status)}";
+
+    private static string Ou(string? valor) => string.IsNullOrWhiteSpace(valor) ? "—" : valor;
+
+    // O ClienteDoProcessoDetalhe não traz o tipo do cliente: o CNPJ formatado tem "/", o CPF não.
+    private static string DocumentoEPolo(ClienteDoProcessoDetalhe cliente) =>
+        $"{(cliente.Documento.Contains('/') ? "CNPJ" : "CPF")} {cliente.Documento} · polo {RotulosDeProcesso.Polo(cliente.Polo).ToLowerInvariant()}";
+
+    private IReadOnlyList<(string Termo, string Valor)> Detalhes
+    {
+        get
+        {
+            var p = _processo!;
+            return
+            [
+                ("Número", RotulosDeProcesso.Numero(p.NumeroCnj)),
+                ("Área", Ou(p.AreaNome)),
+                ("Órgão", Ou(p.Orgao)),
+                ("Comarca", Ou(p.Comarca)),
+                ("Parte contrária", Ou(p.ParteContraria)),
+                ("Distribuição", p.DataDistribuicao is { } data ? data.ToString("dd/MM/yyyy") : "—"),
+                ("Valor da causa", p.ValorCausa is { } valor ? valor.ToString("C", System.Globalization.CultureInfo.GetCultureInfo("pt-BR")) : "—"),
+            ];
+        }
+    }
+
+    private IReadOnlyList<Aba> AbasDaFicha
+    {
+        get
+        {
+            List<Aba> abas = [new("dados", "Dados"), new("clientes", "Clientes", _processo!.Clientes.Count)];
+            if (Diretoria) abas.Add(new("situacao", "Situação"));
+            return abas;
+        }
+    }
+
+    private string ClasseDaAba(string aba) => aba == _aba ? "aj-aba-painel" : "aj-aba-painel aj-aba-painel--oculta";
+
+    private IEnumerable<StatusProcesso> OutrasSituacoes => Enum.GetValues<StatusProcesso>().Where(s => s != _processo!.Status);
+
+    private void AbrirSituacao() => _aba = "situacao";
+
+    private RenderFragment EditarDoDesktop =>
+        @<a href="@Edicao" class="aj-botao aj-botao--secundario">Editar</a>;
+
+    private RenderFragment Dados =>
+        @<section class="aj-painel">
+            <h2>Dados</h2>
+            <dl class="aj-detalhes">
+                @foreach (var (termo, valor) in Detalhes)
+                {
+                    <div><dt>@termo</dt><dd>@valor</dd></div>
+                }
+            </dl>
+        </section>;
+
+    private RenderFragment Observacoes =>
+        @<text>
+            @if (!string.IsNullOrWhiteSpace(_processo!.Observacoes))
+            {
+                <section class="aj-painel">
+                    <h2>Observações</h2>
+                    <p>@_processo.Observacoes</p>
+                </section>
+            }
+        </text>;
+
+    private RenderFragment Situacao =>
+        @<section class="aj-painel">
+            <h2>Situação</h2>
+            <span class="aj-ajuda">Situação atual: <strong>@RotulosDeProcesso.Situacao(_processo!.Status)</strong></span>
+            <form class="aj-campo-com-botao" @onsubmit="AlterarSituacaoAsync" @onsubmit:preventDefault>
+                <label class="aj-rotulo">Nova situação<select class="aj-campo" @bind="_novaSituacao">@foreach (var situacao in OutrasSituacoes)
+                    {<option value="@situacao">@RotulosDeProcesso.Situacao(situacao)</option>}</select></label>
+                <button type="submit" class="aj-botao aj-botao--secundario" disabled="@_alterando">Alterar</button>
+            </form>
+        </section>;
+
+    private async Task AlterarSituacaoAsync()
+    {
+        if (_alterando || _processo is null) return;
+
+        _alterando = true;
+        _mensagem = null;
+        try
+        {
+            var resultado = await Despachante.EnviarAsync(new AlterarStatusProcesso(Id, _novaSituacao));
+            if (resultado.Erro == TipoErro.AcessoNegado)
+            {
+                EncerrarAcesso();
+                return;
+            }
+
+            _falhou = !resultado.Sucesso;
+            if (resultado.Sucesso)
+            {
+                _processo = _processo with { Status = _novaSituacao };
+                _novaSituacao = OutrasSituacoes.First();
+                _mensagem = $"Situação alterada para {RotulosDeProcesso.Situacao(_processo.Status)}.";
+            }
+            else
+            {
+                _mensagem = resultado.Mensagem ?? "Não foi possível alterar a situação.";
+            }
+        }
+        finally
+        {
+            _alterando = false;
+        }
+    }
+}
