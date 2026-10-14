@@ -1,6 +1,5 @@
 using System.Net;
 using System.Text;
-using AtividadesJuridicas.Application.Atividades;
 using AtividadesJuridicas.Application.Documentos;
 using AtividadesJuridicas.Domain.Documentos;
 using AtividadesJuridicas.Web.Components.Documentos;
@@ -8,14 +7,14 @@ using AtividadesJuridicas.Web.Components.Documentos;
 namespace AtividadesJuridicas.IntegrationTests;
 
 /// <summary>
-/// A lista de documentos da ficha do cliente, que só abre por clique e ainda tem a marcação antiga. Fixa o que
-/// ela desenha, para a lógica poder mudar de arquivo sem mudar a tela.
+/// O painel "Documentos" da ficha do cliente, no primeiro desenho (a ficha abre em "Gerais"). O que o clique
+/// faz (trocar de área, enviar, acesso, foco) está em <see cref="DocumentosDaFichaInterativosTests"/>.
 /// </summary>
 [Collection(ColecaoBanco.Nome)]
 public class DocumentosDaFichaTests(BancoFixture banco) : IAsyncLifetime
 {
     private readonly AplicacaoDeTeste _app = new(banco);
-    private Guid _admin, _maria, _documento;
+    private Guid _admin, _maria;
 
     public async Task InitializeAsync()
     {
@@ -25,75 +24,64 @@ public class DocumentosDaFichaTests(BancoFixture banco) : IAsyncLifetime
             CategoriaDocumento.DocumentoDoCliente, _maria, null, "procuracao.pdf", "application/pdf",
             new MemoryStream(Encoding.UTF8.GetBytes("conteúdo"))));
         enviado.Sucesso.Should().BeTrue(enviado.Mensagem);
-        _documento = enviado.Valor;
     }
 
     public async Task DisposeAsync() => await _app.DisposeAsync();
 
     private static MemoryStream Conteudo() => new(Encoding.UTF8.GetBytes("conteúdo"));
 
-    private async Task<string> FichaAsync(bool podeGerenciar,
-        CategoriaDocumento categoria = CategoriaDocumento.DocumentoDoCliente, string titulo = "Documentos do cliente") =>
-        WebUtility.HtmlDecode(await TelaDeTeste.RenderizarAsync<DocumentosDoCliente>(_app, _admin, new()
+    private async Task<string> FichaAsync(Guid usuario, bool podeGerenciar) =>
+        WebUtility.HtmlDecode(await TelaDeTeste.RenderizarAsync<DocumentosDaFicha>(_app, usuario, new()
         {
-            ["ClienteId"] = _maria, ["Categoria"] = categoria, ["Titulo"] = titulo, ["PodeGerenciar"] = podeGerenciar,
+            ["ClienteId"] = _maria, ["PodeGerenciar"] = podeGerenciar,
         }));
 
     [Fact]
-    public async Task Ficha_lista_o_documento_com_o_autor_as_acoes_e_o_envio()
+    public async Task Diretoria_ve_os_quatro_chips_com_a_contagem_e_o_envio()
     {
-        var html = await FichaAsync(podeGerenciar: true);
+        // O documento do InitializeAsync é "Do cliente"; a ficha abre em "Gerais", vazia.
+        var html = await FichaAsync(_admin, podeGerenciar: true);
 
-        html.Should().Contain("<h3>Documentos do cliente</h3>")
-            .And.Contain($"href=\"/documentos/{_documento}/baixar\"").And.Contain("procuracao.pdf")
-            .And.Contain("<th>Por</th>").And.Contain("<td>Diana Diretora</td>")
-            .And.Contain(">Renomear</button>").And.Contain(">Excluir</button>")
-            .And.Contain("Enviar documento").And.Contain("Arquivo (até 50 MB)").And.Contain("Nome (opcional)");
-        // Documento do cliente não pede confirmação de envio nem tem editor de acesso. O editor é dos Documentos
-        // Gerais: o teste de lá é o controle positivo.
-        html.Should().NotContain("Confirmar envio").And.NotContain(">Acesso</button>").And.NotContain("Carregando");
+        html.Should().MatchRegex("(?s)<section class=\"aj-painel\">\\s*<div class=\"aj-painel__cabecalho\">\\s*<h2>Documentos</h2>\\s*<button type=\"button\" class=\"aj-botao aj-botao--secundario aj-botao--com-icone\"[^>]*>\\s*<svg[^>]*>.*?</svg>\\s*Enviar documento</button>")
+            .And.MatchRegex("(?s)<div class=\"aj-chips\" role=\"group\" aria-label=\"Área de documentos\">\\s*<button type=\"button\" class=\"aj-chip\" aria-pressed=\"true\"[^>]*>Gerais · 0</button>\\s*<button type=\"button\" class=\"aj-chip\" aria-pressed=\"false\"[^>]*>Contratos de honorários · 0</button>\\s*<button type=\"button\" class=\"aj-chip\" aria-pressed=\"false\"[^>]*>De atividades · 0</button>\\s*<button type=\"button\" class=\"aj-chip\" aria-pressed=\"false\"[^>]*>Do cliente · 1</button>")
+            .And.Contain("Nenhum documento.");
     }
 
     [Fact]
-    public async Task Ficha_de_documentos_gerais_com_gestao_tem_o_editor_de_acesso()
+    public async Task Diretoria_em_gerais_ve_a_tabela_com_as_acoes_o_acesso_e_a_ajuda()
     {
         var geral = await _app.ExecutarAsync(_admin, new EnviarDocumento(
-            CategoriaDocumento.DocumentoGeral, _maria, null, "parecer.pdf", "application/pdf", Conteudo()));
+            CategoriaDocumento.DocumentoGeral, _maria, null, "procuracao-geral.pdf", "application/pdf", Conteudo()));
         geral.Sucesso.Should().BeTrue(geral.Mensagem);
 
-        var html = await FichaAsync(podeGerenciar: true, CategoriaDocumento.DocumentoGeral, "Documentos Gerais");
+        var html = await FichaAsync(_admin, podeGerenciar: true);
 
-        html.Should().Contain("<h3>Documentos Gerais</h3>")
-            .And.Contain($"href=\"/documentos/{geral.Valor}/baixar\"").And.Contain("parecer.pdf")
-            .And.Contain(">Renomear</button>").And.Contain(">Acesso</button>").And.Contain(">Excluir</button>");
+        var desktop = BlocoDeVisao.De(html, "aj-so-desktop");
+        desktop.Should().Contain("<div class=\"aj-tabela-caixa aj-tabela-caixa--plana\">")
+            .And.MatchRegex($"<td class=\"aj-tabela__principal\"><a href=\"/documentos/{geral.Valor}/baixar\" download data-enhance-nav=\"false\">procuracao-geral.pdf</a></td>")
+            .And.Contain("<td>Diana Diretora</td>")
+            .And.MatchRegex("<td class=\"aj-tabela__acao aj-tabela__acao--varias\"><button type=\"button\" class=\"aj-botao aj-botao--fantasma aj-botao--menor\"[^>]*>Renomear</button><button type=\"button\" class=\"aj-botao aj-botao--fantasma aj-botao--menor\"[^>]*>Acesso</button><button type=\"button\" class=\"aj-botao aj-botao--perigo aj-botao--menor\"[^>]*>Excluir</button></td>")
+            .And.Contain("A Diretoria acessa sempre. Em “Acesso” você escolhe os perfis e os usuários que também veem cada documento geral.");
+        var linhas = BlocoDeVisao.De(html, "aj-tablet-mobile");
+        linhas.Should().MatchRegex($"(?s)<div class=\"aj-linhas\">\\s*<div class=\"aj-linha\">\\s*<div class=\"aj-linha__texto\">\\s*<a href=\"/documentos/{geral.Valor}/baixar\" download data-enhance-nav=\"false\" class=\"aj-linha__titulo\">procuracao-geral.pdf</a>")
+            .And.Contain("aria-label=\"Ações de procuracao-geral.pdf\"").And.Contain(">Acesso</button>");
     }
 
     [Fact]
-    public async Task Ficha_de_documentos_de_atividades_tem_a_coluna_da_atividade_e_nao_tem_envio()
+    public async Task Producao_ve_so_gerais_e_de_atividades_sem_envio_nem_acoes()
     {
-        var atividade = await _app.ExecutarAsync(_admin, new SalvarAtividade(
-            null, "Contestação trabalhista", "Prazo de 15 dias.", new DateOnly(2090, 6, 15), _maria, null, null, 1));
-        atividade.Sucesso.Should().BeTrue(atividade.Mensagem);
-        var anexado = await _app.ExecutarAsync(_admin, new EnviarDocumentoDaAtividade(
-            atividade.Valor, null, "peticao.pdf", "application/pdf", Conteudo()));
-        anexado.Sucesso.Should().BeTrue(anexado.Mensagem);
+        var pedro = await _app.CriarPedroAsync();
+        // Um documento geral nasce aberto a todos os perfis ativos (Documento.CriarGeral): a Produção o vê sem
+        // DefinirAcessoDoDocumento.
+        var geral = await _app.ExecutarAsync(_admin, new EnviarDocumento(
+            CategoriaDocumento.DocumentoGeral, _maria, null, "geral-do-pedro.pdf", "application/pdf", Conteudo()));
+        geral.Sucesso.Should().BeTrue(geral.Mensagem);
 
-        var html = await FichaAsync(podeGerenciar: true, CategoriaDocumento.DocumentoAtividade, "Documentos de Atividades");
+        var html = await FichaAsync(pedro, podeGerenciar: false);
 
-        html.Should().Contain("<h3>Documentos de Atividades</h3>")
-            .And.Contain($"href=\"/documentos/{anexado.Valor}/baixar\"").And.Contain("peticao.pdf")
-            .And.Contain("<th>Atividade</th>").And.Contain("<td>Contestação trabalhista</td>")
-            .And.Contain(">Renomear</button>").And.Contain(">Excluir</button>");
-        // Documento de atividade só nasce na ficha da atividade: mesmo com gestão, aqui não há envio.
-        html.Should().NotContain("Enviar documento").And.NotContain("Arquivo (até");
-    }
-
-    [Fact]
-    public async Task Ficha_sem_gestao_so_lista()
-    {
-        var html = await FichaAsync(podeGerenciar: false);
-
-        html.Should().Contain("procuracao.pdf").And.Contain($"href=\"/documentos/{_documento}/baixar\"");
-        html.Should().NotContain("Renomear").And.NotContain("Excluir").And.NotContain("Enviar documento");
+        html.Should().Contain(">Gerais · 1</button>").And.Contain(">De atividades · 0</button>").And.Contain("geral-do-pedro.pdf");
+        html.Should().NotContain("Contratos de honorários").And.NotContain("Do cliente ·").And.NotContain("Enviar documento")
+            .And.NotContain(">Renomear</button>").And.NotContain(">Excluir</button>").And.NotContain("aj-menu-acoes")
+            .And.NotContain("Seu acesso foi encerrado");
     }
 }
