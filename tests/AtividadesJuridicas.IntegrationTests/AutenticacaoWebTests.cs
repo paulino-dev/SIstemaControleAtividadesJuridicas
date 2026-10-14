@@ -63,6 +63,8 @@ public partial class AutenticacaoWebTests(BancoFixture banco) : IAsyncLifetime
     [InlineData("/clientes/novo")]
     [InlineData("/clientes/0199a3f2-7c1e-7000-8000-000000000001/editar")]
     [InlineData("/processos/0199a3f2-7c1e-7000-8000-000000000001")]
+    [InlineData("/processos/novo")]
+    [InlineData("/processos/0199a3f2-7c1e-7000-8000-000000000001/editar")]
     [InlineData("/perfis")]
     [InlineData("/minha-senha")]
     [InlineData("/rota-que-nao-existe")]

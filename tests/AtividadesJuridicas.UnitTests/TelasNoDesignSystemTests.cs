@@ -47,6 +47,7 @@ public partial class TelasNoDesignSystemTests
         "Components/Pages/NaoEncontrada.razor",
         "Components/Pages/Perfis.razor",
         "Components/Pages/ProcessoFicha.razor",
+        "Components/Pages/ProcessoFormulario.razor",
         "Components/Pages/Processos.razor",
         "Components/Pages/Produtores.razor",
         "Components/Pages/UsuarioFormulario.razor",

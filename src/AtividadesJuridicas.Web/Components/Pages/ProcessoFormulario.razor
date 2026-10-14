@@ -1,0 +1,274 @@
+@page "/processos/novo"
+@page "/processos/{Id:guid}/editar"
+@using System.ComponentModel.DataAnnotations
+@inject IDespachante Despachante
+@inject NavigationManager Navegacao
+@inject Recados Recados
+
+<PageTitle>@Titulo</PageTitle>
+
+<CabecalhoDeDetalhe Titulo="@Titulo" Subtitulo="@SubtituloDoFormulario" VoltarPara="@VoltarDoCabecalho" Origem="@OrigemDoCabecalho" />
+
+@if (!_carregado)
+{
+    <p class="aj-subtitulo" role="status">Carregando…</p>
+}
+else if (!_autorizado)
+{
+    <Aviso Tipo="TipoDeAviso.Erro">Acesso negado.</Aviso>
+}
+else if (_naoEncontrado)
+{
+    <Aviso Tipo="TipoDeAviso.Erro">Processo não encontrado.</Aviso>
+}
+else if (_erroDaConsulta is not null)
+{
+    <Aviso Tipo="TipoDeAviso.Erro">@_erroDaConsulta</Aviso>
+}
+else
+{
+    @if (_mensagem is not null)
+    {
+        <Aviso Tipo="TipoDeAviso.Erro">@_mensagem</Aviso>
+    }
+
+    <EditForm Model="_form" OnValidSubmit="SalvarAsync" FormName="processo" id="formulario-do-processo" class="aj-lado-a-lado aj-lado-a-lado--formulario">
+        <DataAnnotationsValidator />
+        <section class="aj-painel aj-painel--principal aj-lado-a-lado__lista">
+            <h2>Processo</h2>
+            <div class="aj-grade-campos">
+                <RotuloDeCampo Texto="Título" Para="() => _form.Titulo" Classe="aj-grade-campos__inteiro"><InputText @bind-Value="_form.Titulo" class="aj-campo" /></RotuloDeCampo>
+                <label class="aj-rotulo">Número CNJ<InputText @bind-Value="_form.NumeroCnj" inputmode="numeric" placeholder="0000000-00.0000.0.00.0000" class="aj-campo" /></label>
+                <label class="aj-rotulo">Área de atuação<InputSelect @bind-Value="_form.AreaAtuacaoId" class="aj-campo"><option value="@Guid.Empty">Selecione…</option>@foreach (var area in _areas)
+                    {<option value="@area.Id">@(area.Ativo ? area.Nome : $"{area.Nome} (inativa)")</option>}</InputSelect></label>
+                <label class="aj-rotulo">Órgão<InputText @bind-Value="_form.Orgao" class="aj-campo" /></label>
+                <label class="aj-rotulo">Comarca<InputText @bind-Value="_form.Comarca" class="aj-campo" /></label>
+                <label class="aj-rotulo">Parte contrária<InputText @bind-Value="_form.ParteContraria" class="aj-campo" /></label>
+                <label class="aj-rotulo">Data de distribuição<InputDate @bind-Value="_form.DataDistribuicao" class="aj-campo" /></label>
+                <RotuloDeCampo Texto="Valor da causa" Para="() => _form.ValorCausa"><InputText @bind-Value="_form.ValorCausa" inputmode="decimal" placeholder="0,00" class="aj-campo" /></RotuloDeCampo>
+                <label class="aj-rotulo aj-grade-campos__inteiro">Observações<InputTextArea @bind-Value="_form.Observacoes" rows="3" class="aj-campo" /></label>
+            </div>
+        </section>
+
+        <section class="aj-painel aj-lado-a-lado__painel">
+            <h2>Clientes do processo</h2>
+            @if (_form.Clientes.Count == 0)
+            {
+                <span class="aj-ajuda">Nenhum cliente vinculado.</span>
+            }
+            @foreach (var vinculo in _form.Clientes)
+            {
+                <div class="aj-vinculo__escolhido" @key="vinculo.ClienteId"><span class="aj-vinculo__nome">@vinculo.Nome</span><label class="aj-campo-filtro aj-campo-filtro--polo"><span>Polo</span><select class="aj-campo-filtro__controle" @bind="vinculo.Polo">@foreach (var polo in Enum.GetValues<PoloProcessual>())
+                    {<option value="@polo">@RotulosDeProcesso.Polo(polo)</option>}</select></label><button type="button" class="aj-botao aj-botao--fantasma aj-botao--icone" aria-label="@($"Remover {vinculo.Nome}")" @onclick="() => Desvincular(vinculo)"><Icone Nome="fechar" /></button></div>
+            }
+            @* O Enter na busca envia o formulário "busca-de-cliente", que fica no fim da tela, e não o do processo. *@
+            <label class="aj-campo-icone"><Icone Nome="buscar" /><span class="aj-so-leitor">Adicionar cliente (nome, CPF ou CNPJ)</span><input type="search" class="aj-campo-icone__controle" form="busca-de-cliente" placeholder="Adicionar cliente por nome, CPF ou CNPJ" @bind="_buscaDeCliente" @bind:event="oninput" /></label>
+            @foreach (var candidato in _candidatos)
+            {
+                <div class="aj-candidato" @key="candidato.Id"><span class="aj-candidato__texto"><span class="aj-candidato__titulo">@candidato.Nome</span><span class="aj-ajuda">@TextosDoCliente.Documento(candidato.Tipo, candidato.Documento)</span></span><button type="button" class="aj-botao aj-botao--secundario" @onclick="() => Vincular(candidato)">Adicionar</button></div>
+            }
+            @if (_nenhumClienteEncontrado)
+            {
+                <span class="aj-ajuda">Nenhum cliente encontrado.</span>
+            }
+            @if (_clientesTruncados)
+            {
+                <span class="aj-ajuda">Mostrando os primeiros resultados. Refine a busca para ver outros.</span>
+            }
+            <span class="aj-ajuda">O cliente entra no polo ativo. Troque o polo ao lado do nome.</span>
+        </section>
+    </EditForm>
+
+    @* As barras de ação ficam fora do formulário e o enviam pelo atributo form. *@
+    <div class="aj-so-desktop">
+        <div class="aj-acoes aj-acoes--fixa"><a href="@Voltar" class="aj-botao aj-botao--fantasma">Cancelar</a><button type="submit" class="aj-botao aj-botao--primario aj-botao--com-icone" form="formulario-do-processo" disabled="@_salvando"><Icone Nome="confirmar" />Salvar processo</button></div>
+    </div>
+    <div class="aj-so-tablet">
+        <div class="aj-acoes aj-acoes--fixa"><a href="@Voltar" class="aj-botao aj-botao--secundario">Cancelar</a><button type="submit" class="aj-botao aj-botao--primario aj-botao--com-icone" form="formulario-do-processo" disabled="@_salvando"><Icone Nome="confirmar" />Salvar processo</button></div>
+    </div>
+    <div class="aj-so-mobile">
+        <div class="aj-acoes aj-acoes--fixa"><a href="@Voltar" class="aj-botao aj-botao--secundario">Cancelar</a><button type="submit" class="aj-botao aj-botao--primario aj-botao--com-icone" form="formulario-do-processo" disabled="@_salvando"><Icone Nome="confirmar" />Salvar</button></div>
+    </div>
+
+    <form id="busca-de-cliente" hidden @onsubmit="ProcurarClientesAsync" @onsubmit:preventDefault></form>
+}
+
+@code {
+    [Parameter] public Guid? Id { get; set; }
+
+    private bool _carregado;
+    private bool _autorizado;
+    private bool _naoEncontrado;
+    private bool _salvando;
+    private string? _erroDaConsulta;
+    private string? _mensagem;
+    private Formulario _form = new();
+    private IReadOnlyList<AreaAtuacaoResumo> _areas = [];
+    private string? _buscaDeCliente;
+    private bool _nenhumClienteEncontrado;
+    private bool _clientesTruncados;
+    private IReadOnlyList<ClienteResumo> _candidatos = [];
+
+    private string Titulo => Id is null ? "Novo processo" : "Editar processo";
+    private string Voltar => Id is null ? "/processos" : $"/processos/{Id}";
+    private string Origem => Id is null ? "Processos" : "Processo";
+
+    // Sem o processo para voltar a ele, o voltar vai para a lista.
+    private string VoltarDoCabecalho => _naoEncontrado ? "/processos" : Voltar;
+    private string OrigemDoCabecalho => _naoEncontrado ? "Processos" : Origem;
+
+    // O subtítulo só acompanha o formulário: sobre "Acesso negado." ou "Processo não encontrado." ele sobra.
+    private string? SubtituloDoFormulario =>
+        _carregado && _autorizado && !_naoEncontrado && _erroDaConsulta is null
+            ? "Preencha os dados e vincule os clientes do processo."
+            : null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _autorizado = await Despachante.EnviarAsync(new ObterMeuAcesso()) is { EhDiretoria: true };
+        if (_autorizado) await CarregarAsync();
+        _carregado = true;
+    }
+
+    private async Task CarregarAsync()
+    {
+        Guid? areaAtual = null;
+        if (Id is { } id)
+        {
+            var resultado = await Despachante.EnviarAsync(new ObterProcesso(id));
+            if (resultado.Erro == TipoErro.AcessoNegado)
+            {
+                _autorizado = false;
+                return;
+            }
+
+            if (resultado.Valor is not { } p)
+            {
+                if (resultado.Erro == TipoErro.NaoEncontrado) _naoEncontrado = true;
+                else _erroDaConsulta = resultado.Mensagem ?? "Não foi possível consultar o processo.";
+                return;
+            }
+
+            areaAtual = p.AreaAtuacaoId;
+            _form = new Formulario
+            {
+                Id = p.Id, Titulo = p.Titulo, NumeroCnj = p.NumeroCnj, AreaAtuacaoId = p.AreaAtuacaoId,
+                Orgao = p.Orgao, Comarca = p.Comarca, ParteContraria = p.ParteContraria,
+                DataDistribuicao = p.DataDistribuicao, ValorCausa = ValorEmReais.Escrever(p.ValorCausa),
+                Observacoes = p.Observacoes,
+                Clientes = [.. p.Clientes.Select(c => new Vinculo { ClienteId = c.ClienteId, Nome = c.Nome, Polo = c.Polo })],
+            };
+        }
+
+        // Áreas ativas, mais a área atual do processo quando ela está inativa.
+        var areas = await Despachante.EnviarAsync(new ListarAreasAtuacao());
+        if (areas.Erro == TipoErro.AcessoNegado)
+        {
+            _autorizado = false;
+            return;
+        }
+
+        if (!areas.Sucesso)
+        {
+            _erroDaConsulta = areas.Mensagem ?? "Não foi possível consultar as áreas de atuação.";
+            return;
+        }
+
+        _areas = [.. areas.Valor!.Where(a => a.Ativo || a.Id == areaAtual)];
+    }
+
+    private async Task ProcurarClientesAsync()
+    {
+        var resultado = await Despachante.EnviarAsync(new ListarClientes(_buscaDeCliente));
+        if (resultado.Erro == TipoErro.AcessoNegado)
+        {
+            _autorizado = false;
+            return;
+        }
+
+        var jaVinculados = _form.Clientes.Select(c => c.ClienteId).ToHashSet();
+        var itens = resultado.Valor?.Itens ?? [];
+        _candidatos = [.. itens.Where(c => !jaVinculados.Contains(c.Id))];
+
+        // Os avisos valem só para uma busca que deu certo; uma falha mostra o erro no lugar deles.
+        _nenhumClienteEncontrado = resultado.Sucesso && itens.Count == 0;
+        _clientesTruncados = resultado.Sucesso && itens.Count >= ClientesOpcoes.TamanhoDaPagina;
+        _mensagem = resultado.Sucesso ? null : resultado.Mensagem;
+    }
+
+    private void Vincular(ClienteResumo cliente)
+    {
+        if (_form.Clientes.All(c => c.ClienteId != cliente.Id))
+            _form.Clientes.Add(new Vinculo { ClienteId = cliente.Id, Nome = cliente.Nome, Polo = PoloProcessual.Ativo });
+        _candidatos = [.. _candidatos.Where(c => c.Id != cliente.Id)];
+    }
+
+    private void Desvincular(Vinculo vinculo) => _form.Clientes.Remove(vinculo);
+
+    private async Task SalvarAsync()
+    {
+        if (_salvando) return;
+
+        _salvando = true;
+        try
+        {
+            _mensagem = null;
+            var f = _form;
+            // O texto já passou pela validação do campo: aqui só se converte.
+            ValorEmReais.TentarLer(f.ValorCausa, out var valor);
+            var resultado = await Despachante.EnviarAsync(new SalvarProcesso(
+                f.Id,
+                new DadosDoProcessoEntrada(f.NumeroCnj, f.Titulo, f.AreaAtuacaoId, f.Orgao, f.Comarca, f.ParteContraria,
+                    f.DataDistribuicao, valor, f.Observacoes),
+                [.. f.Clientes.Select(c => new ClienteDoProcessoEntrada(c.ClienteId, c.Polo))]));
+
+            if (resultado.Erro == TipoErro.AcessoNegado)
+            {
+                _autorizado = false;
+                return;
+            }
+
+            if (!resultado.Sucesso)
+            {
+                // O formulário permanece com o que foi digitado.
+                _mensagem = resultado.Mensagem;
+                return;
+            }
+
+            Recados.Deixar("Processo salvo.");
+            Navegacao.NavigateTo(Voltar);
+        }
+        finally
+        {
+            _salvando = false;
+        }
+    }
+
+    private sealed class Vinculo
+    {
+        public Guid ClienteId { get; set; }
+        public string Nome { get; set; } = string.Empty;
+        public PoloProcessual Polo { get; set; }
+    }
+
+    private sealed class Formulario
+    {
+        public Guid? Id { get; set; }
+
+        [Required(ErrorMessage = "Informe o título.")]
+        public string Titulo { get; set; } = string.Empty;
+
+        public string? NumeroCnj { get; set; }
+        public Guid AreaAtuacaoId { get; set; }
+        public string? Orgao { get; set; }
+        public string? Comarca { get; set; }
+        public string? ParteContraria { get; set; }
+        public DateOnly? DataDistribuicao { get; set; }
+
+        [ValorEmReaisValido]
+        public string? ValorCausa { get; set; }
+
+        public string? Observacoes { get; set; }
+        public List<Vinculo> Clientes { get; set; } = [];
+    }
+}
