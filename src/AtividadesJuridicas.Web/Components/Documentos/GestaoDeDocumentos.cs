@@ -34,7 +34,6 @@ public abstract class GestaoDeDocumentos : ComponentBase
     /// <summary>Leva o foco ao aviso de confirmação do envio, que cada tela desenha do seu jeito.</summary>
     protected abstract ValueTask FocarAvisoDeEnvioAsync();
 
-
     /// <summary>Documentos de Atividades: coluna "Atividade", sem envio e sem editor de acesso.</summary>
     protected bool DeAtividades => CategoriaDosDocumentos == CategoriaDocumento.DocumentoAtividade;
 
