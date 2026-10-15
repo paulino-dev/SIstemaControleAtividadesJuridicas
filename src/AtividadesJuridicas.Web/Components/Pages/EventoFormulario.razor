@@ -1,0 +1,731 @@
+@page "/agenda/novo"
+@page "/agenda/{Id:guid}/editar"
+@using System.ComponentModel.DataAnnotations
+@using System.Globalization
+@inject IDespachante Despachante
+@inject FusoDoEscritorio Fuso
+@inject NavigationManager Navegacao
+@inject Recados Recados
+
+<PageTitle>@Titulo</PageTitle>
+
+@* No mobile, o voltar é o X "Fechar sem salvar" (o quadro); o subtítulo é só do desktop. *@
+<CabecalhoDeDetalhe Titulo="@Titulo" Subtitulo="@SubtituloDoFormulario" SubtituloSoNoDesktop="true" VoltarPara="@Voltar"
+                    Origem="@OrigemDoCabecalho" RotuloDoVoltarNoMobile="Fechar sem salvar" IconeDoVoltarNoMobile="fechar" />
+
+<CargaDoFormulario Estado="_estado" Erro="@_erroDaCarga" TextoNaoEncontrado="Evento não encontrado." TentarDeNovo="CarregarAsync">
+    @if (!_podeEditar)
+    {
+        @* Quem vê o evento mas não o gerencia (o participante que não o criou): o aviso, sem formulário. *@
+        <Aviso Tipo="TipoDeAviso.Atencao">Só a Diretoria e quem criou o evento podem editá-lo.</Aviso>
+    }
+    else
+    {
+        @if (_mensagem is not null)
+        {
+            <Aviso Tipo="TipoDeAviso.Erro">@_mensagem</Aviso>
+        }
+
+        @* Um formulário só. Os trechos que mudam de controle ou de lugar por visão vão em invólucros de visão e ligam-se ao
+           mesmo estado (os campos repetidos mostram o mesmo valor e o mesmo erro). Linhas de campos ficam inteiras dentro
+           de um invólucro: a aj-linha-de-campos dá a largura aos filhos diretos, e o invólucro (display: contents) os
+           afastaria dela. *@
+        <EditForm EditContext="_contexto" OnSubmit="EnviarAsync" FormName="evento" id="formulario-do-evento" class="aj-lado-a-lado aj-lado-a-lado--painel-medio">
+            <DataAnnotationsValidator />
+            <section class="aj-painel aj-painel--principal aj-painel--solto-no-mobile aj-lado-a-lado__lista">
+                <div class="aj-desktop-tablet"><h2>Evento</h2></div>
+                @* Desktop: Título e Tipo (lista) numa linha; Data, Hora e Duração em minutos na outra; a ajuda do fuso. *@
+                <div class="aj-so-desktop">
+                    <div class="aj-linha-de-campos">
+                        <RotuloDeCampo Texto="Título" Para="() => _form.Titulo" Classe="aj-linha-de-campos__largo"><InputText @bind-Value="_form.Titulo" maxlength="@Evento.TamanhoMaximoTitulo" class="aj-campo" /></RotuloDeCampo>
+                        <label class="aj-rotulo aj-linha-de-campos__medio">Tipo<InputSelect @bind-Value="_form.Tipo" class="aj-campo">@foreach (var tipo in Tipos)
+                            {<option value="@tipo">@RotulosDeAgenda.Tipo(tipo)</option>}</InputSelect></label>
+                    </div>
+                    <div class="aj-linha-de-campos">
+                        <RotuloDeCampo Texto="Data" Para="() => _form.Data"><InputDate @bind-Value="_form.Data" min="@DataMinima" max="@DataMaxima" class="aj-campo" /></RotuloDeCampo>
+                        <RotuloDeCampo Texto="Hora" Para="() => _form.Hora" Classe="aj-linha-de-campos__curto"><InputDate Type="InputDateType.Time" @bind-Value="_form.Hora" class="aj-campo" /></RotuloDeCampo>
+                        <RotuloDeCampo Texto="Duração (minutos)" Para="() => _form.Duracao"><InputNumber @bind-Value="_form.Duracao" min="1" max="@Evento.DuracaoMaximaMinutos" class="aj-campo" /></RotuloDeCampo>
+                    </div>
+                    <p class="aj-ajuda aj-ajuda--com-icone aj-ajuda--colada"><Icone Nome="auditoria" />Data e hora no horário do escritório.</p>
+                </div>
+                @* Tablet e mobile: o Título sozinho, o Tipo em ladrilhos e a Duração em lista (o texto da opção de 90 minutos
+                   muda entre os dois quadros), com "Outra duração" para os minutos livres (o domínio aceita de 1 a 10080). *@
+                <div class="aj-tablet-mobile">
+                    <RotuloDeCampo Texto="Título" Para="() => _form.Titulo"><InputText @bind-Value="_form.Titulo" maxlength="@Evento.TamanhoMaximoTitulo" class="aj-campo" /></RotuloDeCampo>
+                    <fieldset class="aj-conjunto"><legend class="aj-rotulo">Tipo</legend><div class="aj-escolha">@foreach (var tipo in Tipos)
+                        {<label class="aj-escolha__opcao" @key="tipo"><input type="radio" class="aj-opcao__caixa" name="tipo-do-evento" value="@tipo" checked="@(_form.Tipo == tipo)" @onchange="() => EscolherTipo(tipo)" />@RotulosDeAgenda.Tipo(tipo)</label>}</div></fieldset>
+                    <div class="aj-linha-de-campos">
+                        <RotuloDeCampo Texto="Data" Para="() => _form.Data"><InputDate @bind-Value="_form.Data" min="@DataMinima" max="@DataMaxima" class="aj-campo" /></RotuloDeCampo>
+                        <RotuloDeCampo Texto="Hora" Para="() => _form.Hora"><InputDate Type="InputDateType.Time" @bind-Value="_form.Hora" class="aj-campo" /></RotuloDeCampo>
+                        <div class="aj-so-tablet">
+                            <label class="aj-rotulo">Duração<select class="aj-campo" value="@OpcaoDaDuracao" @onchange="EscolherDuracao"><option value="30">30 minutos</option><option value="60">1 hora</option><option value="90">1h30</option><option value="120">2 horas</option><option value="outra">Outra duração</option></select></label>
+                        </div>
+                        <div class="aj-so-mobile">
+                            <label class="aj-rotulo aj-linha-de-campos__inteiro-no-mobile">Duração<select class="aj-campo" value="@OpcaoDaDuracao" @onchange="EscolherDuracao"><option value="30">30 minutos</option><option value="60">1 hora</option><option value="90">1 hora e 30 minutos</option><option value="120">2 horas</option><option value="outra">Outra duração</option></select></label>
+                        </div>
+                        @if (OutraDuracao)
+                        {
+                            <RotuloDeCampo Texto="Duração (minutos)" Para="() => _form.Duracao" Classe="aj-linha-de-campos__inteiro-no-mobile"><InputNumber @bind-Value="_form.Duracao" min="1" max="@Evento.DuracaoMaximaMinutos" class="aj-campo" /></RotuloDeCampo>
+                        }
+                    </div>
+                </div>
+                <label class="aj-rotulo">Local<InputText @bind-Value="_form.Local" maxlength="@Evento.TamanhoMaximoLocal" class="aj-campo" /></label>
+                @* A descrição fecha o painel no desktop (5 linhas) e no tablet (3); no mobile ela é o último campo (abaixo). *@
+                <div class="aj-so-desktop">
+                    <RotuloDeCampo Texto="Descrição" Complemento="(opcional)" Para="() => _form.Descricao"><InputTextArea @bind-Value="_form.Descricao" rows="5" maxlength="@Evento.TamanhoMaximoDescricao" class="aj-campo" /></RotuloDeCampo>
+                </div>
+                <div class="aj-so-tablet">
+                    <RotuloDeCampo Texto="Descrição" Complemento="(opcional)" Para="() => _form.Descricao"><InputTextArea @bind-Value="_form.Descricao" rows="3" maxlength="@Evento.TamanhoMaximoDescricao" class="aj-campo" /></RotuloDeCampo>
+                </div>
+            </section>
+
+            <div class="aj-lado-a-lado__painel aj-pilha">
+                <section class="aj-painel aj-painel--folgado aj-painel--solto-no-mobile">
+                    <div class="aj-desktop-tablet"><h2>Vínculos</h2></div>
+                    @* Cliente, processo e atividade são independentes na tela: o servidor recusa o cliente que não é do processo.
+                       O Enter nas buscas envia os formulários escondidos do fim da tela, e não o do evento. *@
+                    <div class="aj-vinculo aj-vinculo--rotulado" role="group" aria-labelledby="rotulo-do-cliente">
+                        <span class="aj-vinculo__rotulo" id="rotulo-do-cliente">Cliente</span>
+                        @if (_clienteId is not null)
+                        {
+                            <div class="aj-vinculo__escolhido aj-vinculo__escolhido--com-avatar"><span class="aj-vinculo__avatar" aria-hidden="true">@AvatarDePessoa.Sigla(_clienteNome ?? string.Empty)</span><strong class="aj-vinculo__nome">@_clienteNome</strong><button type="button" class="aj-botao aj-botao--fantasma aj-botao--icone" aria-label="Remover cliente" disabled="@_salvando" @onclick="RemoverCliente"><Icone Nome="fechar" /></button></div>
+                            @* Com cliente, só o desktop tem a busca para trocá-lo (o quadro); no tablet e no mobile, remover e escolher. *@
+                            <div class="aj-so-desktop">
+                                <label class="aj-campo-icone"><Icone Nome="buscar" /><span class="aj-so-leitor">Trocar cliente</span><input type="search" class="aj-campo-icone__controle" form="busca-de-cliente" placeholder="Trocar cliente: nome, CPF ou CNPJ" @bind="_buscaDeCliente" @bind:event="oninput" /></label>
+                            </div>
+                        }
+                        else
+                        {
+                            <label class="aj-campo-icone"><Icone Nome="buscar" /><span class="aj-so-leitor">Escolher cliente (nome, CPF ou CNPJ)</span><input type="search" class="aj-campo-icone__controle" form="busca-de-cliente" placeholder="Escolher cliente: nome, CPF ou CNPJ" @bind="_buscaDeCliente" @bind:event="oninput" /></label>
+                        }
+                        @if (_clientesEncontrados.Count > 0)
+                        {
+                            <ul class="aj-resultados">@foreach (var candidato in _clientesEncontrados)
+                                {<li @key='("cliente", candidato.Id)'><button type="button" class="aj-resultados__item" disabled="@_salvando" @onclick="() => EscolherCliente(candidato)"><span class="aj-resultados__texto"><span class="aj-resultados__titulo">@candidato.Nome</span><span class="aj-resultados__meta">@TextosDoCliente.Documento(candidato.Tipo, candidato.Documento)</span></span><span class="aj-resultados__acao">Escolher</span></button></li>}</ul>
+                        }
+                        @if (_nenhumCliente)
+                        {
+                            <span class="aj-ajuda">Nenhum cliente encontrado.</span>
+                        }
+                        @if (_clientesTruncados)
+                        {
+                            <span class="aj-ajuda">Mostrando os primeiros resultados. Refine a busca para ver outros.</span>
+                        }
+                    </div>
+
+                    <div class="aj-vinculo aj-vinculo--rotulado" role="group" aria-labelledby="rotulo-do-processo">
+                        @* O "(opcional)" só nos quadros do tablet e do mobile. O espaço antes do invólucro fica no texto: dentro
+                           dele, o compilador do Razor o apararia. *@
+                        <span class="aj-vinculo__rotulo" id="rotulo-do-processo">Processo <span class="aj-tablet-mobile"><small>(opcional)</small></span></span>
+                        @if (_processoId is not null)
+                        {
+                            <div class="aj-vinculo__escolhido aj-vinculo__escolhido--com-avatar"><strong class="aj-vinculo__nome">@_processoTitulo</strong><button type="button" class="aj-botao aj-botao--fantasma aj-botao--icone" aria-label="Remover processo" disabled="@_salvando" @onclick="RemoverProcesso"><Icone Nome="fechar" /></button></div>
+                        }
+                        else
+                        {
+                            @* O exemplo muda entre os quadros: "parte contrária" no desktop, "parte" no tablet e no mobile. *@
+                            <div class="aj-so-desktop">
+                                <label class="aj-campo-icone"><Icone Nome="buscar" /><span class="aj-so-leitor">Escolher processo (título, parte contrária ou número CNJ)</span><input type="search" class="aj-campo-icone__controle" form="busca-de-processo" placeholder="Título, parte contrária ou número CNJ" @bind="_buscaDeProcesso" @bind:event="oninput" /></label>
+                            </div>
+                            <div class="aj-tablet-mobile">
+                                <label class="aj-campo-icone"><Icone Nome="buscar" /><span class="aj-so-leitor">Escolher processo (título, parte contrária ou número CNJ)</span><input type="search" class="aj-campo-icone__controle" form="busca-de-processo" placeholder="Título, parte ou número CNJ" @bind="_buscaDeProcesso" @bind:event="oninput" /></label>
+                            </div>
+                            @if (_processosEncontrados.Count > 0)
+                            {
+                                <ul class="aj-resultados">@foreach (var candidato in _processosEncontrados)
+                                    {<li @key='("processo", candidato.Id)'><button type="button" class="aj-resultados__item" disabled="@_salvando" @onclick="() => EscolherProcesso(candidato)"><span class="aj-resultados__texto"><span class="aj-resultados__titulo">@candidato.Titulo</span><span class="aj-resultados__meta">@MetaDoProcesso(candidato)</span></span><span class="aj-resultados__acao">Escolher</span></button></li>}</ul>
+                            }
+                            @if (_nenhumProcesso)
+                            {
+                                <span class="aj-ajuda">Nenhum processo encontrado.</span>
+                            }
+                            @if (_processosTruncados)
+                            {
+                                <span class="aj-ajuda">Mostrando os primeiros resultados. Refine a busca para ver outros.</span>
+                            }
+                        }
+                    </div>
+
+                    <div class="aj-vinculo aj-vinculo--rotulado" role="group" aria-labelledby="rotulo-da-atividade">
+                        <span class="aj-vinculo__rotulo" id="rotulo-da-atividade">Atividade <small>(opcional)</small></span>
+                        @if (_atividadeId is not null)
+                        {
+                            <div class="aj-vinculo__escolhido aj-vinculo__escolhido--com-avatar"><strong class="aj-vinculo__nome">@RotulosDeAgenda.Atividade(_atividadeTitulo, _atividadeExcluida)</strong><button type="button" class="aj-botao aj-botao--fantasma aj-botao--icone" aria-label="Remover atividade" disabled="@_salvando" @onclick="RemoverAtividade"><Icone Nome="fechar" /></button></div>
+                        }
+                        else
+                        {
+                            <label class="aj-campo-icone"><Icone Nome="buscar" /><span class="aj-so-leitor">Escolher atividade (título)</span><input type="search" class="aj-campo-icone__controle" form="busca-de-atividade" placeholder="Buscar atividade pelo título" @bind="_buscaDeAtividade" @bind:event="oninput" /></label>
+                            @if (_atividadesEncontradas.Count > 0)
+                            {
+                                <ul class="aj-resultados">@foreach (var candidata in _atividadesEncontradas)
+                                    {<li @key='("atividade", candidata.Id)'><button type="button" class="aj-resultados__item" disabled="@_salvando" @onclick="() => EscolherAtividade(candidata)"><span class="aj-resultados__texto"><span class="aj-resultados__titulo">@candidata.Titulo</span></span><span class="aj-resultados__acao">Escolher</span></button></li>}</ul>
+                            }
+                            @if (_nenhumaAtividade)
+                            {
+                                <span class="aj-ajuda">Nenhuma atividade encontrada.</span>
+                            }
+                            @if (_atividadesTruncadas)
+                            {
+                                <span class="aj-ajuda">Mostrando os primeiros resultados. Refine a busca para ver outras.</span>
+                            }
+                        }
+                    </div>
+                </section>
+
+                <section class="aj-painel aj-painel--folgado aj-painel--solto-no-mobile">
+                    <div class="aj-desktop-tablet"><h2 id="titulo-dos-participantes">Participantes</h2></div>
+                    @* Três marcações do mesmo conjunto de marcados: caixas no desktop, chips com o nome inteiro no tablet, chips
+                       com o primeiro nome no mobile (com a legenda, porque o h2 do painel some). Cada lista tem o seu pai; as
+                       chaves ainda assim levam o tipo da linha. *@
+                    <div class="aj-so-desktop">
+                        <div class="aj-opcoes" role="group" aria-labelledby="titulo-dos-participantes">@foreach (var pessoa in _pessoas)
+                            {<label class="aj-opcao" @key='("opcao", pessoa.Id)'><input type="checkbox" class="aj-opcao__caixa" checked="@Marcado(pessoa)" disabled="@Travado(pessoa)" @onchange="e => Marcar(pessoa, e)" />@pessoa.Rotulo@if (NotaDe(pessoa) is { } nota)
+                                {<span class="aj-opcao__nota aj-opcao__nota--menor">@nota</span>}</label>}</div>
+                        @if (_semParticipantes)
+                        {
+                            <span class="aj-campo-erro">Marque ao menos um participante.</span>
+                        }
+                    </div>
+                    <div class="aj-so-tablet">
+                        <div class="aj-opcoes" role="group" aria-labelledby="titulo-dos-participantes">@foreach (var pessoa in _pessoas)
+                            {<label class="aj-chip aj-chip--pessoa" @key='("chip", pessoa.Id)'><input type="checkbox" class="aj-opcao__caixa" checked="@Marcado(pessoa)" disabled="@Travado(pessoa)" @onchange="e => Marcar(pessoa, e)" /><span class="@ClasseDoAvatar(pessoa)" aria-hidden="true">@SiglaDe(pessoa)</span>@NomeNoTablet(pessoa)</label>}</div>
+                        @if (_semParticipantes)
+                        {
+                            <span class="aj-campo-erro">Marque ao menos um participante.</span>
+                        }
+                    </div>
+                    <div class="aj-so-mobile">
+                        <fieldset class="aj-conjunto"><legend class="@ClasseDaLegenda">Participantes</legend><div class="aj-opcoes">@foreach (var pessoa in _pessoas)
+                            {<label class="aj-chip aj-chip--pessoa" @key='("chip-curto", pessoa.Id)'><input type="checkbox" class="aj-opcao__caixa" checked="@Marcado(pessoa)" disabled="@Travado(pessoa)" @onchange="e => Marcar(pessoa, e)" /><span class="@ClasseDoAvatar(pessoa)" aria-hidden="true">@SiglaDe(pessoa)</span>@NomeNoMobile(pessoa)</label>}</div>@if (_semParticipantes)
+                            {<span class="aj-campo-erro">Marque ao menos um participante.</span>}</fieldset>
+                    </div>
+                    @if (Id is null)
+                    {
+                        @* No evento novo, quem cria está marcado e travado; na edição ele pode sair, e a frase não valeria. *@
+                        <div class="aj-desktop-tablet"><p class="aj-ajuda">Quem cria o evento sempre participa.</p></div>
+                    }
+                </section>
+            </div>
+
+            @* Mobile: sem painéis, a descrição é o último campo (o quadro). *@
+            <div class="aj-so-mobile">
+                <RotuloDeCampo Texto="Descrição" Complemento="(opcional)" Para="() => _form.Descricao"><InputTextArea @bind-Value="_form.Descricao" rows="3" maxlength="@Evento.TamanhoMaximoDescricao" class="aj-campo" /></RotuloDeCampo>
+            </div>
+        </EditForm>
+
+        @* As barras de ação ficam fora do formulário e o enviam pelo atributo form. No mobile, só "Salvar evento": o X da
+           barra superior é o cancelar. *@
+        <div class="aj-so-desktop">
+            <div class="aj-acoes aj-acoes--fixa"><a href="@Voltar" class="aj-botao aj-botao--fantasma">Cancelar</a><button type="submit" class="aj-botao aj-botao--primario aj-botao--com-icone" form="formulario-do-evento" disabled="@_salvando"><Icone Nome="confirmar" />Salvar evento</button></div>
+        </div>
+        <div class="aj-so-tablet">
+            <div class="aj-acoes aj-acoes--fixa"><a href="@Voltar" class="aj-botao aj-botao--secundario">Cancelar</a><button type="submit" class="aj-botao aj-botao--primario aj-botao--com-icone" form="formulario-do-evento" disabled="@_salvando"><Icone Nome="confirmar" />Salvar evento</button></div>
+        </div>
+        <div class="aj-so-mobile">
+            <div class="aj-acoes aj-acoes--fixa"><button type="submit" class="aj-botao aj-botao--primario aj-botao--com-icone" form="formulario-do-evento" disabled="@_salvando"><Icone Nome="confirmar" />Salvar evento</button></div>
+        </div>
+
+        <form id="busca-de-cliente" hidden @onsubmit="ProcurarClientesAsync" @onsubmit:preventDefault></form>
+        <form id="busca-de-processo" hidden @onsubmit="ProcurarProcessosAsync" @onsubmit:preventDefault></form>
+        <form id="busca-de-atividade" hidden @onsubmit="ProcurarAtividadesAsync" @onsubmit:preventDefault></form>
+    }
+</CargaDoFormulario>
+
+@code {
+    private const string CampoObrigatorio = "Campo obrigatório";
+
+    private static readonly TipoEvento[] Tipos = Enum.GetValues<TipoEvento>();
+
+    // As quatro durações dos quadros do tablet e do mobile; qualquer outra fica em "Outra duração".
+    private static readonly int[] DuracoesDosQuadros = [30, 60, 90, 120];
+
+    private static readonly string DataMinima = $"{Evento.AnoMinimoDeInicio}-01-01";
+    private static readonly string DataMaxima = $"{Evento.AnoMaximoDeInicio}-12-31";
+
+    [Parameter] public Guid? Id { get; set; }
+
+    /// <summary>A visão da agenda de onde se veio (<c>?visao=</c>): o voltar, o Cancelar e o destino depois de salvar.</summary>
+    [SupplyParameterFromQuery(Name = "visao")] public string? VisaoDeOrigem { get; set; }
+
+    /// <summary>A data da agenda de onde se veio (<c>?data=</c>).</summary>
+    [SupplyParameterFromQuery(Name = "data")] public string? DataDeOrigem { get; set; }
+
+    private EstadoDeCarga _estado = EstadoDeCarga.Carregando;
+    private string? _erroDaCarga;
+    private bool _podeEditar = true;
+    private bool _salvando;
+    private string? _mensagem;
+
+    private Formulario _form = new();
+    private EditContext? _contexto;
+    private uint? _versao;
+    private string? _tituloDoEvento;
+    private bool _outraDuracao;
+    private bool _semParticipantes;
+
+    // Quem está na tela, e quem fica marcado e travado (só no evento novo: quem cria sempre participa).
+    private Guid _euId;
+    private Guid? _criadorTravado;
+
+    // Todas as pessoas que o formulário mostra; só as marcadas são enviadas.
+    private IReadOnlyList<Pessoa> _pessoas = [];
+    private HashSet<Guid> _marcados = [];
+
+    private Guid? _clienteId;
+    private string? _clienteNome;
+    private Guid? _processoId;
+    private string? _processoTitulo;
+    private Guid? _atividadeId;
+    private string? _atividadeTitulo;
+    private bool _atividadeExcluida;
+
+    private string? _buscaDeCliente;
+    private IReadOnlyList<ClienteResumo> _clientesEncontrados = [];
+    private bool _nenhumCliente;
+    private bool _clientesTruncados;
+
+    private string? _buscaDeProcesso;
+    private IReadOnlyList<ProcessoResumo> _processosEncontrados = [];
+    private bool _nenhumProcesso;
+    private bool _processosTruncados;
+
+    private string? _buscaDeAtividade;
+    private IReadOnlyList<AtividadeResumo> _atividadesEncontradas = [];
+    private bool _nenhumaAtividade;
+    private bool _atividadesTruncadas;
+
+    private string Titulo => Id is null ? "Novo evento" : "Editar evento";
+
+    // A origem recebida, só com o que a agenda aceitaria ("" sem origem).
+    private string ConsultaRecebida => PeriodoDaAgenda.ConsultaDeOrigem(VisaoDeOrigem, DataDeOrigem);
+
+    // O voltar, o X do mobile e o Cancelar: a agenda de onde se veio (novo) ou a ficha do evento, com a origem (edição).
+    private string Voltar => Id is { } id ? PeriodoDaAgenda.Ficha(id, ConsultaRecebida) : $"/agenda{ConsultaRecebida}";
+
+    // Antes da carga e no evento não encontrado, a edição diz só "Evento".
+    private string OrigemDoCabecalho => Id is null ? "Agenda" : _tituloDoEvento ?? "Evento";
+
+    // O subtítulo só acompanha o formulário: sobre os avisos (acesso, não encontrado, não gerencia) ele sobra.
+    private string? SubtituloDoFormulario => _estado == EstadoDeCarga.Pronto && _podeEditar
+        ? "Preencha os dados e escolha quem participa."
+        : null;
+
+    // "Hoje" no fuso do escritório, numa função só.
+    private DateOnly Hoje() => DateOnly.FromDateTime(Fuso.ParaLocal(DateTime.UtcNow));
+
+    protected override Task OnInitializedAsync() => CarregarAsync();
+
+    // A carga inteira, também a do "Tentar de novo": quem está na tela, o evento (edição) e a equipe.
+    private async Task CarregarAsync()
+    {
+        _estado = EstadoDeCarga.Carregando;
+        _erroDaCarga = null;
+        _mensagem = null;
+        _podeEditar = true;
+        _form = new Formulario();
+        _contexto = null;
+        _versao = null;
+        _tituloDoEvento = null;
+        _outraDuracao = false;
+        _semParticipantes = false;
+        _euId = Guid.Empty;
+        _criadorTravado = null;
+        _pessoas = [];
+        _marcados = [];
+        _clienteId = null;
+        _clienteNome = null;
+        _processoId = null;
+        _processoTitulo = null;
+        _atividadeId = null;
+        _atividadeTitulo = null;
+        _atividadeExcluida = false;
+        LimparBuscaDeCliente();
+        LimparBuscaDeProcesso();
+        LimparBuscaDeAtividade();
+
+        if (await Despachante.EnviarAsync(new ObterMeuAcesso()) is not { } eu)
+        {
+            _estado = EstadoDeCarga.AcessoNegado;
+            return;
+        }
+
+        _euId = eu.Id;
+
+        EventoDetalhe? atual = null;
+        if (Id is { } id)
+        {
+            var evento = await Despachante.EnviarAsync(new ObterEvento(id));
+            if (evento.Valor is not { } e)
+            {
+                Falhar(evento, "Não foi possível consultar o evento.", doEvento: true);
+                return;
+            }
+
+            _tituloDoEvento = e.Titulo;
+            // Quem vê mas não gerencia: o aviso, sem formulário e sem consultar a equipe (a tela decide pelas ações do
+            // evento, nunca pelo perfil).
+            if (!e.Acoes.Editar)
+            {
+                _podeEditar = false;
+                _estado = EstadoDeCarga.Pronto;
+                return;
+            }
+
+            atual = e;
+        }
+
+        var usuarios = await Despachante.EnviarAsync(new ListarUsuariosParaAgenda());
+        if (usuarios.Valor is not { } ativos)
+        {
+            Falhar(usuarios, "Não foi possível consultar os usuários.");
+            return;
+        }
+
+        var pessoas = ativos.Select(u => new Pessoa(u.Id, u.Nome, true)).ToList();
+        if (atual is not null)
+        {
+            var inicio = Fuso.ParaLocal(atual.InicioEm);
+            _form = new Formulario
+            {
+                Titulo = atual.Titulo,
+                Tipo = atual.Tipo,
+                Data = DateOnly.FromDateTime(inicio),
+                Hora = TimeOnly.FromDateTime(inicio),
+                Duracao = atual.DuracaoEstimadaMinutos,
+                Local = atual.Local ?? string.Empty,
+                Descricao = atual.Descricao ?? string.Empty,
+            };
+            _versao = atual.Versao;
+            _clienteId = atual.ClienteId;
+            _clienteNome = atual.ClienteId is null ? null : atual.ClienteNome ?? "Cliente indisponível";
+            _processoId = atual.ProcessoId;
+            _processoTitulo = atual.ProcessoId is null ? null : atual.ProcessoTitulo ?? "Processo indisponível";
+            _atividadeId = atual.AtividadeId;
+            _atividadeTitulo = atual.AtividadeTitulo;   // nulo: a atividade foi excluída ou o usuário não a vê
+            _atividadeExcluida = atual.AtividadeExcluida;
+
+            // Na edição a lista enviada é a que vale: os participantes atuais (inclusive os inativos e os que não são mais
+            // encontrados, que a lista de ativos não traz) aparecem marcados; os demais ativos, desmarcados. Ninguém trava.
+            foreach (var participante in atual.Participantes)
+            {
+                pessoas.RemoveAll(p => p.Id == participante.UsuarioId);
+                pessoas.Add(new Pessoa(participante.UsuarioId, participante.Nome, participante.Ativo));
+            }
+
+            _marcados = [.. atual.Participantes.Select(p => p.UsuarioId)];
+        }
+        else
+        {
+            // Evento novo: hoje, às 09:00, uma hora, Reunião (os padrões do formulário de antes da fase).
+            _form = new Formulario { Data = Hoje(), Hora = new TimeOnly(9, 0) };
+
+            // O servidor sempre inclui quem cria; o formulário já mostra isso, marcado e travado.
+            if (pessoas.All(p => p.Id != eu.Id)) pessoas.Add(new Pessoa(eu.Id, eu.Nome, true));
+            _marcados = [eu.Id];
+            _criadorTravado = eu.Id;
+        }
+
+        _pessoas = [.. pessoas.OrderBy(p => p.Rotulo, StringComparer.CurrentCultureIgnoreCase)];
+        _contexto = new EditContext(_form);
+        _estado = EstadoDeCarga.Pronto;
+    }
+
+    // Acesso negado encerra a tela; "não encontrado" só quando é o próprio evento; o resto, a mensagem com "Tentar de novo".
+    private void Falhar(Resultado resultado, string padrao, bool doEvento = false)
+    {
+        if (resultado.Erro == TipoErro.AcessoNegado)
+            _estado = EstadoDeCarga.AcessoNegado;
+        else if (doEvento && resultado.Erro == TipoErro.NaoEncontrado)
+            _estado = EstadoDeCarga.NaoEncontrado;
+        else
+        {
+            _estado = EstadoDeCarga.Falhou;
+            _erroDaCarga = resultado.Mensagem ?? padrao;
+        }
+    }
+
+    // Perder o acesso no meio do uso encerra a tela.
+    private bool Encerrou(Resultado resultado)
+    {
+        if (resultado.Erro != TipoErro.AcessoNegado) return false;
+
+        _estado = EstadoDeCarga.AcessoNegado;
+        return true;
+    }
+
+    private void EscolherTipo(TipoEvento tipo) => _form.Tipo = tipo;
+
+    // "Outra duração": escolhida na lista, ou a duração não é uma das quatro (a edição de um evento de 45 minutos).
+    private bool OutraDuracao => _outraDuracao || _form.Duracao is not { } minutos || !DuracoesDosQuadros.Contains(minutos);
+
+    private string OpcaoDaDuracao => OutraDuracao ? "outra" : _form.Duracao!.Value.ToString(CultureInfo.InvariantCulture);
+
+    private void EscolherDuracao(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), NumberStyles.None, CultureInfo.InvariantCulture, out var minutos))
+        {
+            _outraDuracao = false;
+            _form.Duracao = minutos;
+            // Revalida o campo: um "Campo obrigatório" dos minutos sai com a escolha.
+            _contexto?.NotifyFieldChanged(FieldIdentifier.Create(() => _form.Duracao));
+        }
+        else
+        {
+            // "Outra duração": os minutos atuais ficam no número, para quem quiser mudá-los.
+            _outraDuracao = true;
+        }
+    }
+
+    private bool Marcado(Pessoa pessoa) => _marcados.Contains(pessoa.Id);
+
+    private bool Travado(Pessoa pessoa) => _salvando || pessoa.Id == _criadorTravado;
+
+    private void Marcar(Pessoa pessoa, ChangeEventArgs e)
+    {
+        if (Travado(pessoa)) return;
+
+        if (e.Value is true) _marcados.Add(pessoa.Id);
+        else _marcados.Remove(pessoa.Id);
+        if (_marcados.Count > 0) _semParticipantes = false;
+    }
+
+    private bool EhVoce(Pessoa pessoa) => pessoa.Id == _euId;
+
+    // A nota da caixa do desktop; no tablet ela vai no mesmo texto do chip.
+    // Quem não é mais encontrado fica só com o rótulo "Usuário não encontrado": sem nome, "inativo" não diz nada.
+    private string? NotaDe(Pessoa pessoa) => EhVoce(pessoa) ? "(você)" : pessoa.Ativo || pessoa.Nome is null ? null : "(inativo)";
+
+    private string NomeNoTablet(Pessoa pessoa) => NotaDe(pessoa) is { } nota ? $"{pessoa.Rotulo} {nota}" : pessoa.Rotulo;
+
+    // O mobile mostra o primeiro nome (o próprio usuário é "Você"); quem não é mais encontrado fica com o rótulo inteiro.
+    private string NomeNoMobile(Pessoa pessoa)
+    {
+        if (EhVoce(pessoa)) return "Você";
+        if (pessoa.Nome is not { } nome) return pessoa.Rotulo;
+
+        var primeiro = nome.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries) is [var parte, ..] ? parte : nome;
+        return pessoa.Ativo ? primeiro : $"{primeiro} (inativo)";
+    }
+
+    // O próprio usuário em dourado (o avatar sem modificador, como o do menu); os outros pela cor do nome. A regra é do AvatarDePessoa.
+    private string ClasseDoAvatar(Pessoa pessoa) =>
+        $"aj-avatar {AvatarDePessoa.Classe(pessoa.Nome ?? string.Empty, proprio: EhVoce(pessoa))}".TrimEnd();
+
+    private static string SiglaDe(Pessoa pessoa) => AvatarDePessoa.Sigla(pessoa.Nome ?? string.Empty);
+
+    private string ClasseDaLegenda => _semParticipantes ? "aj-rotulo aj-rotulo--erro" : "aj-rotulo";
+
+    private static string MetaDoProcesso(ProcessoResumo processo) =>
+        processo.Clientes.Count == 0 ? processo.AreaNome : $"{processo.AreaNome} · {string.Join(", ", processo.Clientes)}";
+
+    private async Task ProcurarClientesAsync()
+    {
+        if (_salvando) return;
+
+        _mensagem = null;
+        var resultado = await Despachante.EnviarAsync(new ListarClientes(_buscaDeCliente));
+        if (Encerrou(resultado)) return;
+
+        var itens = resultado.Valor?.Itens ?? [];
+        _clientesEncontrados = itens;
+        // Os avisos valem só para uma busca que deu certo; uma falha mostra o erro no lugar deles.
+        _nenhumCliente = resultado.Sucesso && itens.Count == 0;
+        _clientesTruncados = resultado.Sucesso && resultado.Valor!.Total > itens.Count;
+        if (!resultado.Sucesso) _mensagem = resultado.Mensagem;
+    }
+
+    private void EscolherCliente(ClienteResumo cliente)
+    {
+        if (_salvando) return;
+
+        _clienteId = cliente.Id;
+        _clienteNome = cliente.Nome;
+        LimparBuscaDeCliente();
+    }
+
+    private void RemoverCliente()
+    {
+        if (_salvando) return;
+
+        _clienteId = null;
+        _clienteNome = null;
+    }
+
+    private async Task ProcurarProcessosAsync()
+    {
+        if (_salvando) return;
+
+        _mensagem = null;
+        var resultado = await Despachante.EnviarAsync(new ListarProcessos(_buscaDeProcesso));
+        if (Encerrou(resultado)) return;
+
+        var itens = resultado.Valor?.Itens ?? [];
+        _processosEncontrados = itens;
+        _nenhumProcesso = resultado.Sucesso && itens.Count == 0;
+        _processosTruncados = resultado.Sucesso && resultado.Valor!.Total > itens.Count;
+        if (!resultado.Sucesso) _mensagem = resultado.Mensagem;
+    }
+
+    private void EscolherProcesso(ProcessoResumo processo)
+    {
+        if (_salvando) return;
+
+        // O cliente escolhido não é trocado aqui: se ele não é do processo, o servidor recusa e a mensagem aparece.
+        _processoId = processo.Id;
+        _processoTitulo = processo.Titulo;
+        LimparBuscaDeProcesso();
+    }
+
+    private void RemoverProcesso()
+    {
+        if (_salvando) return;
+
+        _processoId = null;
+        _processoTitulo = null;
+    }
+
+    private async Task ProcurarAtividadesAsync()
+    {
+        if (_salvando) return;
+
+        _mensagem = null;
+        // O servidor só devolve as atividades que o usuário pode ver.
+        var resultado = await Despachante.EnviarAsync(new ListarAtividades(Busca: _buscaDeAtividade));
+        if (Encerrou(resultado)) return;
+
+        var itens = resultado.Valor?.Itens ?? [];
+        _atividadesEncontradas = itens;
+        _nenhumaAtividade = resultado.Sucesso && itens.Count == 0;
+        _atividadesTruncadas = resultado.Sucesso && resultado.Valor!.Total > itens.Count;
+        if (!resultado.Sucesso) _mensagem = resultado.Mensagem;
+    }
+
+    private void EscolherAtividade(AtividadeResumo atividade)
+    {
+        if (_salvando) return;
+
+        _atividadeId = atividade.Id;
+        _atividadeTitulo = atividade.Titulo;
+        _atividadeExcluida = false;
+        LimparBuscaDeAtividade();
+    }
+
+    private void RemoverAtividade()
+    {
+        if (_salvando) return;
+
+        _atividadeId = null;
+        _atividadeTitulo = null;
+        _atividadeExcluida = false;
+    }
+
+    private void LimparBuscaDeCliente()
+    {
+        _clientesEncontrados = [];
+        _nenhumCliente = false;
+        _clientesTruncados = false;
+        _buscaDeCliente = null;
+    }
+
+    private void LimparBuscaDeProcesso()
+    {
+        _processosEncontrados = [];
+        _nenhumProcesso = false;
+        _processosTruncados = false;
+        _buscaDeProcesso = null;
+    }
+
+    private void LimparBuscaDeAtividade()
+    {
+        _atividadesEncontradas = [];
+        _nenhumaAtividade = false;
+        _atividadesTruncadas = false;
+        _buscaDeAtividade = null;
+    }
+
+    // O envio do formulário: os erros por campo (o EditContext), o grupo de participantes e o aviso do topo para data e
+    // hora; só sem nenhum deles o evento é salvo.
+    private async Task EnviarAsync()
+    {
+        if (_salvando || _contexto is null) return;
+
+        _mensagem = null;
+        var camposValidos = _contexto.Validate();
+        _semParticipantes = _marcados.Count == 0;
+        if (_form.Data is null || _form.Hora is null)
+            _mensagem = "Informe a data e a hora do evento.";
+        else if (_form.Data.Value.Year < Evento.AnoMinimoDeInicio || _form.Data.Value.Year > Evento.AnoMaximoDeInicio)
+            _mensagem = $"A data deve estar entre os anos {Evento.AnoMinimoDeInicio} e {Evento.AnoMaximoDeInicio}.";
+
+        if (!camposValidos || _semParticipantes || _mensagem is not null) return;
+
+        await SalvarAsync(_form.Data!.Value, _form.Hora!.Value);
+    }
+
+    private async Task SalvarAsync(DateOnly data, TimeOnly hora)
+    {
+        _salvando = true;
+        var navegou = false;
+        try
+        {
+            // Só o que está marcado na tela é enviado, na ordem da lista; na edição a lista enviada é a que vale.
+            IReadOnlyList<Guid> participantes = [.. _pessoas.Where(Marcado).Select(p => p.Id)];
+            var resultado = await Despachante.EnviarAsync(new SalvarEvento(
+                Id, _form.Titulo, _form.Descricao, _form.Local, _form.Tipo,
+                // Data e hora são do fuso do escritório; o servidor recebe UTC.
+                Fuso.ParaUtc(data.ToDateTime(hora)), _form.Duracao!.Value,
+                _clienteId, _processoId, _atividadeId, participantes,
+                // Na edição, a versão com que a tela carregou o evento; evento novo não tem.
+                Id is null ? null : _versao));
+
+            if (Encerrou(resultado)) return;
+
+            if (!resultado.Sucesso)
+            {
+                // O formulário permanece com o que foi digitado; conflito e "não encontrado" trazem a mensagem do servidor.
+                _mensagem = resultado.Mensagem;
+                return;
+            }
+
+            // A sobreposição é aviso, não impedimento: quem mostra o recado (a agenda ou a ficha) dá as três redações.
+            Recados.Deixar("Evento salvo.", TipoDeAviso.Sucesso, resultado.Valor!.Sobreposicoes);
+            navegou = true;
+            // O novo volta à agenda de origem na data do evento (para ele aparecer); a edição, à ficha, com a origem.
+            Navegacao.NavigateTo(Id is { } id
+                ? PeriodoDaAgenda.Ficha(id, ConsultaRecebida)
+                : PeriodoDaAgenda.Ler(VisaoDeOrigem, DataDeOrigem, Hoje()).ComData(data).Endereco);
+        }
+        finally
+        {
+            // Depois do sucesso a página vai embora: o botão fica travado para um clique tardio não salvar de novo.
+            if (!navegou) _salvando = false;
+        }
+    }
+
+    /// <summary>Uma pessoa da lista de participantes. <paramref name="Nome"/> é nulo quando o usuário não é mais encontrado.</summary>
+    private sealed record Pessoa(Guid Id, string? Nome, bool Ativo)
+    {
+        public string Rotulo => Nome ?? RotulosDeAgenda.UsuarioNaoEncontrado;
+    }
+
+    private sealed class Formulario
+    {
+        [Required(ErrorMessage = CampoObrigatorio)]
+        public string Titulo { get; set; } = string.Empty;
+
+        public TipoEvento Tipo { get; set; } = TipoEvento.Reuniao;
+
+        [Required(ErrorMessage = CampoObrigatorio)]
+        public DateOnly? Data { get; set; }
+
+        [Required(ErrorMessage = CampoObrigatorio)]
+        public TimeOnly? Hora { get; set; }
+
+        [Required(ErrorMessage = CampoObrigatorio)]
+        public int? Duracao { get; set; } = 60;
+
+        public string Local { get; set; } = string.Empty;
+
+        public string Descricao { get; set; } = string.Empty;
+    }
+}
