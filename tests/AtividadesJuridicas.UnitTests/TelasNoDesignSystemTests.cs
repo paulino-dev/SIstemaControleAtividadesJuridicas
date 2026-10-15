@@ -16,6 +16,16 @@ public partial class TelasNoDesignSystemTests
     // Caminhos a partir de src/AtividadesJuridicas.Web.
     private static readonly string[] Migradas =
     [
+        "Components/Agenda/AvisoDeEventoSalvo.razor",
+        "Components/Agenda/CartaoDeEvento.razor",
+        "Components/Agenda/DiaDaAgenda.razor",
+        "Components/Agenda/FaixaDeDias.razor",
+        "Components/Agenda/GradeCompactaDoMes.razor",
+        "Components/Agenda/ListaDoDia.razor",
+        "Components/Agenda/MesDaAgenda.razor",
+        "Components/Agenda/PontosDoDia.razor",
+        "Components/Agenda/SecaoDoDia.razor",
+        "Components/Agenda/SemanaDaAgenda.razor",
         "Components/Atividades/CabecalhoDaAtividade.razor",
         "Components/Atividades/ComentariosDaAtividade.razor",
         "Components/Atividades/DocumentosDaAtividade.razor",
@@ -38,6 +48,7 @@ public partial class TelasNoDesignSystemTests
         "Components/Layout/MenuDeAcoes.razor",
         "Components/Layout/Paginacao.razor",
         "Components/Layout/RotuloDeCampo.razor",
+        "Components/Pages/Agenda.razor",
         "Components/Pages/Andamento.razor",
         "Components/Pages/Areas.razor",
         "Components/Pages/Atividades.razor",
@@ -53,6 +64,8 @@ public partial class TelasNoDesignSystemTests
         "Components/Pages/Conta/Entrar.razor",
         "Components/Pages/DocumentosComuns.razor",
         "Components/Pages/Erro.razor",
+        "Components/Pages/EventoFicha.razor",
+        "Components/Pages/EventoFormulario.razor",
         "Components/Pages/Home.razor",
         "Components/Pages/MeusDocumentos.razor",
         "Components/Pages/MinhaSenha.razor",
@@ -131,6 +144,24 @@ public partial class TelasNoDesignSystemTests
 
         telas.Should().Contain("Components/Pages/Atividades.razor").And.Contain("Components/Atividades/EtiquetaDeSituacao.razor");
         telas.Should().BeSubsetOf(Migradas, "tela de atividade fora da trava pode voltar à marcação antiga");
+    }
+
+    // Toda tela da agenda fica na trava: os componentes de Components/Agenda, a página da agenda e as do evento.
+    // Um componente antigo que sobrou (marcação antiga, fora da lista) faz este teste falhar.
+    [Fact]
+    public void Toda_tela_da_agenda_esta_na_trava()
+    {
+        var web = Path.Combine(GravacoesPorForaTests.RaizDoRepositorio(), "src", "AtividadesJuridicas.Web");
+        var paginas = Path.Combine(web, "Components", "Pages");
+        var telas = Directory.GetFiles(Path.Combine(web, "Components", "Agenda"), "*.razor")
+            .Concat(Directory.GetFiles(paginas, "Agenda*.razor"))
+            .Concat(Directory.GetFiles(paginas, "Evento*.razor"))
+            .Select(caminho => Path.GetRelativePath(web, caminho).Replace('\\', '/'))
+            .ToList();
+
+        telas.Should().Contain("Components/Pages/Agenda.razor").And.Contain("Components/Pages/EventoFicha.razor")
+            .And.Contain("Components/Pages/EventoFormulario.razor").And.Contain("Components/Agenda/SemanaDaAgenda.razor");
+        telas.Should().BeSubsetOf(Migradas, "tela da agenda fora da trava pode voltar à marcação antiga");
     }
 
     // A própria trava: o que ela tem de reprovar e o que tem de deixar passar.

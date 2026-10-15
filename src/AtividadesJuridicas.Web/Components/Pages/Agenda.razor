@@ -1,156 +1,215 @@
 @page "/agenda"
 @inject IDespachante Despachante
 @inject FusoDoEscritorio Fuso
+@inject Recados Recados
+@inject NavigationManager Navegacao
 
 <PageTitle>Agenda</PageTitle>
 
-<h1>Agenda</h1>
+<CabecalhoDePagina Titulo="Agenda" Subtitulo="@Subtitulo" SubtituloMobile=""
+                   Acao="@(Pronto ? "Novo evento" : null)" AcaoHref="@(Pronto ? $"/agenda/novo{Periodo.Consulta}" : null)">
+    <AcaoDoMobile>
+        @if (Pronto)
+        {
+            <button type="button" class="aj-botao aj-botao--fantasma aj-botao--icone aj-barra-superior__acao" aria-label="Filtrar agenda" aria-expanded="@Expandido" aria-controls="filtros-da-agenda" @onclick="AlternarFiltros"><Icone Nome="filtros" /></button>
+        }
+    </AcaoDoMobile>
+    <LinhaDoMobile>
+        @if (Pronto)
+        {
+            <div class="aj-segmentado aj-segmentado--recuado aj-segmentado--claro" role="group" aria-label="Visualização">@Visoes(Periodo.NoMobile, semanaLarga: false)</div>
+            <div class="aj-barra-superior__periodo">
+                <strong>@RotulosDeAgenda.MesDoMobile(Periodo.Data)</strong>
+                <div class="aj-barra-superior__setas">
+                    <button type="button" class="aj-botao aj-botao--fantasma aj-botao--icone" aria-label="@RotuloDoAnterior(PassoNoMobile)" @onclick="() => IrPara(Periodo.Anterior(PassoNoMobile))"><Icone Nome="voltar" /></button>
+                    <button type="button" class="aj-botao aj-botao--fantasma aj-botao--icone" aria-label="@RotuloDoProximo(PassoNoMobile)" @onclick="() => IrPara(Periodo.Proximo(PassoNoMobile))"><Icone Nome="avancar" /></button>
+                </div>
+            </div>
+            @* No Dia e na Semana, a faixa de uma semana fica na barra. No Mês, a barra para na linha do mês: a grade
+               compacta é alta demais para a barra, que não rola, e vai no topo do MesDaAgenda. *@
+            @if (Periodo.NoMobile != VisaoDaAgenda.Mes)
+            {
+                <FaixaDeDias Periodo="Periodo" Eventos="_eventos" Hoje="_hoje" AoEscolher="EscolherNaFaixa" />
+            }
+        }
+    </LinhaDoMobile>
+</CabecalhoDePagina>
 
 @if (!_carregado)
 {
-    <p>Carregando…</p>
+    <p class="aj-subtitulo" role="status">Carregando…</p>
 }
 else if (_ator is null)
 {
-    <p class="erro">Seu acesso foi encerrado. Entre novamente.</p>
+    <Aviso Tipo="TipoDeAviso.Erro">Seu acesso foi encerrado. Entre novamente.</Aviso>
 }
 else
 {
-    <div class="acoes">
-        <button type="button" class="secundario" disabled="@_carregando" @onclick="SemanaAnteriorAsync">Semana anterior</button>
-        <button type="button" class="secundario" disabled="@_carregando" @onclick="IrParaHojeAsync">Hoje</button>
-        <button type="button" class="secundario" disabled="@_carregando" @onclick="ProximaSemanaAsync">Próxima semana</button>
-        <strong>Semana de @RotulosDeAgenda.Data(_segunda) a @RotulosDeAgenda.Data(_segunda.AddDays(6))</strong>
-    </div>
-
-    <EditForm Model="_filtro" OnSubmit="FiltrarAsync" FormName="filtro-agenda" class="formulario filtros">
-        <label>
-            Tipo
-            <InputSelect @bind-Value="_filtro.Tipo">
-                <option value="">Todos</option>
-                @foreach (var tipo in Enum.GetValues<TipoEvento>())
+    @* Desktop: a navegação de período e as visões num grupo; os filtros no outro, aplicados ao "Filtrar". *@
+    <div class="aj-so-desktop">
+        <div class="aj-barra-filtros aj-barra-filtros--dividida">
+            <div class="aj-barra-filtros__grupo">
+                <div class="aj-segmentado aj-segmentado--periodo">
+                    <button type="button" class="aj-segmentado__seta" aria-label="Período anterior" @onclick="() => IrPara(Periodo.Anterior(Periodo.NoDesktopETablet))"><Icone Nome="voltar" /></button>
+                    <button type="button" class="aj-segmentado__hoje" @onclick="IrParaHoje">Hoje</button>
+                    <button type="button" class="aj-segmentado__seta" aria-label="Próximo período" @onclick="() => IrPara(Periodo.Proximo(Periodo.NoDesktopETablet))"><Icone Nome="avancar" /></button>
+                </div>
+                <div class="aj-segmentado aj-segmentado--periodo" role="group" aria-label="Visualização da agenda">@Visoes(Periodo.NoDesktopETablet, semanaLarga: false)</div>
+            </div>
+            <form class="aj-barra-filtros__grupo" role="search" @onsubmit="FiltrarAsync" @onsubmit:preventDefault>
+                <label class="aj-campo-filtro aj-campo-filtro--tipo"><span>Tipo</span><select class="aj-campo-filtro__controle" @bind="_filtro.Tipo">@OpcoesDeTipo</select></label>
+                @if (_ator.EhDiretoria)
                 {
-                    <option value="@tipo">@RotulosDeAgenda.Tipo(tipo)</option>
+                    <label class="aj-campo-filtro aj-campo-filtro--pessoa"><span>Participante</span><select class="aj-campo-filtro__controle" @bind="_filtro.ParticipanteId">@OpcoesDeParticipante</select></label>
                 }
-            </InputSelect>
-        </label>
-        @if (_ator.EhDiretoria)
-        {
-            <label>
-                Participante
-                <InputSelect @bind-Value="_filtro.ParticipanteId">
-                    <option value="">Todos</option>
-                    @foreach (var usuario in _usuarios)
-                    {
-                        <option value="@usuario.Id">@usuario.Rotulo</option>
-                    }
-                </InputSelect>
-            </label>
-        }
-        <button type="submit" disabled="@_carregando">Filtrar</button>
-    </EditForm>
-
-    @if (_mensagem is not null)
-    {
-        <p class="@_classeDaMensagem" role="status">@_mensagem</p>
-    }
-
-    <div class="acoes">
-        <button type="button" @onclick="Novo">Novo evento</button>
+                <button type="submit" class="aj-botao aj-botao--secundario aj-botao--com-icone-pequeno"><Icone Nome="filtrar" />Filtrar</button>
+            </form>
+        </div>
     </div>
 
-    @if (_criando)
-    {
-        <FormularioDeEvento @key="_versaoDoFormulario" EventoId="null" OnSalvo="CriadoAsync"
-                            OnCancelado="CancelarCriacao" OnAcessoEncerrado="EncerrarAcesso" />
-    }
-
-    @if (_abertoId is { } id)
-    {
-        @* A semana é sempre recarregada; só fechar o painel depende de a ficha que avisou ainda ser a aberta. *@
-        <FichaDoEvento @key="id" EventoId="id" OnMudou="AtualizarListaAsync" OnExcluido="() => ExcluidoAsync(id)"
-                       OnAcessoEncerrado="EncerrarAcesso" OnFechar="() => FecharFicha(id)" />
-    }
-
-    @if (_erroDaLista is not null)
-    {
-        @* Falha na consulta não é "semana sem eventos": mostra o erro no lugar dos dias. *@
-        <p class="erro">@_erroDaLista</p>
-        <div class="acoes">
-            <button type="button" class="secundario" disabled="@_carregando" @onclick="TentarDeNovoAsync">Tentar de novo</button>
+    @* Tablet: as setas com o nome da visão, as visões e o botão que abre o painel de filtros. *@
+    <div class="aj-so-tablet">
+        <div class="aj-barra-filtros aj-barra-filtros--plana">
+            <div class="aj-segmentado aj-segmentado--periodo">
+                <button type="button" class="aj-segmentado__seta" aria-label="@RotuloDoAnterior(Periodo.NoDesktopETablet)" @onclick="() => IrPara(Periodo.Anterior(Periodo.NoDesktopETablet))"><Icone Nome="voltar" /></button>
+                <button type="button" class="aj-segmentado__hoje" @onclick="IrParaHoje">Hoje</button>
+                <button type="button" class="aj-segmentado__seta" aria-label="@RotuloDoProximo(Periodo.NoDesktopETablet)" @onclick="() => IrPara(Periodo.Proximo(Periodo.NoDesktopETablet))"><Icone Nome="avancar" /></button>
+            </div>
+            <div class="aj-segmentado aj-segmentado--periodo" role="group" aria-label="Visualização">@Visoes(Periodo.NoDesktopETablet, semanaLarga: true)</div>
+            <button type="button" class="aj-botao aj-botao--secundario aj-botao--com-icone aj-botao--ao-fim" aria-expanded="@Expandido" aria-controls="filtros-da-agenda" @onclick="AlternarFiltros"><Icone Nome="filtros" />Filtros</button>
         </div>
+    </div>
+
+    @* O painel abre logo abaixo da barra do tablet e, no mobile, no topo do conteúdo, sob a barra superior. *@
+    @if (_filtrosAbertos)
+    {
+        <div class="aj-tablet-mobile">
+            <form id="filtros-da-agenda" class="aj-painel aj-painel--filtros" @onsubmit="FiltrarDoPainelAsync" @onsubmit:preventDefault>
+                <label class="aj-campo-filtro"><span>Tipo</span><select class="aj-campo-filtro__controle" @bind="_filtro.Tipo" @ref="_tipoDoPainel">@OpcoesDeTipo</select></label>
+                @if (_ator.EhDiretoria)
+                {
+                    <label class="aj-campo-filtro"><span>Participante</span><select class="aj-campo-filtro__controle" @bind="_filtro.ParticipanteId">@OpcoesDeParticipante</select></label>
+                }
+                <div class="aj-painel__acoes">
+                    <button type="button" class="aj-botao aj-botao--fantasma" @onclick="LimparFiltros">Limpar</button>
+                    <button type="submit" class="aj-botao aj-botao--primario">Filtrar</button>
+                </div>
+            </form>
+        </div>
+    }
+
+    @if (_recado is { } recado)
+    {
+        <AvisoDeEventoSalvo Recado="recado" />
+    }
+    @if (_erroDosUsuarios is not null)
+    {
+        <Aviso Tipo="TipoDeAviso.Erro">@_erroDosUsuarios</Aviso>
+    }
+
+    @if (_erro is not null)
+    {
+        @* Falha na consulta não é "período sem eventos": o erro fica no lugar dos dias. *@
+        <Aviso Tipo="TipoDeAviso.Erro">
+            <ChildContent>@_erro</ChildContent>
+            <Acoes><button type="button" class="aj-botao aj-botao--secundario" @onclick="TentarDeNovoAsync">Tentar de novo</button></Acoes>
+        </Aviso>
+    }
+    else if (_carregando)
+    {
+        <p class="aj-subtitulo" role="status">Carregando…</p>
+    }
+    else if (Periodo.Visao is null)
+    {
+        @* Sem visão no endereço, cada largura mostra o seu padrão sobre os mesmos eventos: a Semana no desktop e no
+           tablet, o Dia no mobile. *@
+        <div class="aj-desktop-tablet"><SemanaDaAgenda Periodo="Periodo" Eventos="_eventos" Hoje="_hoje" /></div>
+        <div class="aj-so-mobile"><DiaDaAgenda Periodo="Periodo" Eventos="_eventos" Hoje="_hoje" /></div>
+    }
+    else if (Periodo.Visao == VisaoDaAgenda.Semana)
+    {
+        <SemanaDaAgenda Periodo="Periodo" Eventos="_eventos" Hoje="_hoje" />
+    }
+    else if (Periodo.Visao == VisaoDaAgenda.Dia)
+    {
+        <DiaDaAgenda Periodo="Periodo" Eventos="_eventos" Hoje="_hoje" />
     }
     else
     {
-        @foreach (var (dia, eventos) in _dias)
-        {
-            <section class="dia" @key="dia">
-                <h2>@RotulosDeAgenda.Dia(dia)</h2>
-                @if (eventos.Count == 0)
-                {
-                    <p>Sem eventos.</p>
-                }
-                else
-                {
-                    <table>
-                        <thead>
-                            <tr><th>Horário</th><th>Título</th><th>Tipo</th><th>Local</th><th>Cliente</th><th>Processo</th><th>Participantes</th><th></th></tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var evento in eventos)
-                            {
-                                <tr @key="evento.Id">
-                                    <td class="horario">@RotulosDeAgenda.Intervalo(Fuso, evento, dia)</td>
-                                    <td>@evento.Titulo</td>
-                                    <td>@RotulosDeAgenda.Tipo(evento.Tipo)</td>
-                                    <td>@evento.Local</td>
-                                    <td>@evento.ClienteNome</td>
-                                    <td>@evento.ProcessoTitulo</td>
-                                    <td>@string.Join(", ", evento.Participantes)</td>
-                                    <td class="acoes">
-                                        <button type="button" class="secundario" @onclick="() => Abrir(evento.Id)">Abrir</button>
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                }
-            </section>
-        }
+        <MesDaAgenda Periodo="Periodo" Eventos="_eventos" Hoje="_hoje" AoAbrirDia="AbrirDia" AoEscolherDia="EscolherNaGrade" />
     }
 }
 
 @code {
+    [SupplyParameterFromQuery(Name = "visao")] public string? VisaoDoEndereco { get; set; }
+
+    [SupplyParameterFromQuery(Name = "data")] public string? DataDoEndereco { get; set; }
+
     private bool _carregado;
     private bool _carregando;
-    private bool _criando;
-    private int _versaoDoFormulario;
+    private bool _filtrosAbertos;
+    private bool _focarPainel;
     private int _geracao;
-    private string? _mensagem;
-    private string _classeDaMensagem = "erro";
-    private string? _erroDaLista;
     private UsuarioAutenticado? _ator;
+    private PeriodoDaAgenda? _periodo;
+    private DateOnly _hoje;
+    private Pedido? _pedido;
+    private IReadOnlyList<EventoResumo> _eventos = [];
+    private string? _erro;
+    private string? _erroDosUsuarios;
+    private Recado? _recado;
     private readonly Filtro _filtro = new();
+    private FiltroAplicado _filtroAplicado = FiltroAplicado.Nenhum;
     private IReadOnlyList<OpcaoDeUsuario> _usuarios = [];
-    private DateOnly _segunda;
-    private IReadOnlyList<(DateOnly Dia, IReadOnlyList<EventoResumo> Eventos)> _dias = [];
-    private Guid? _abertoId;
+    private ElementReference _tipoDoPainel;
 
     protected override async Task OnInitializedAsync()
     {
-        _segunda = RotulosDeAgenda.SegundaDe(Hoje());
         _ator = await Despachante.EnviarAsync(new ObterMeuAcesso());
-        if (_ator is not null)
-        {
-            if (_ator.EhDiretoria) await CarregarUsuariosAsync();
-            if (_ator is not null) await CarregarAsync();
-        }
+        if (_ator is { EhDiretoria: true }) await CarregarUsuariosAsync();
+        if (_ator is not null) _recado = Recados.Retirar();
+    }
 
+    /// <summary>
+    /// O período mora no endereço: a cada troca de ?visao ou ?data (setas, "Hoje", visões, faixa, grade do mês) a
+    /// página relê o período e só consulta se o intervalo ou o filtro mudou. O redesenho que vem do layout (o menu,
+    /// por exemplo) também passa por aqui e não consulta de novo.
+    /// </summary>
+    protected override async Task OnParametersSetAsync()
+    {
+        _hoje = Hoje();
+        var periodo = PeriodoDaAgenda.Ler(VisaoDoEndereco, DataDoEndereco, _hoje);
+        // O recado de outra tela vale para o período em que se chegou: trocar de período o tira da tela.
+        if (_periodo is not null && periodo.Endereco != _periodo.Endereco) _recado = null;
+        _periodo = periodo;
+        if (_ator is not null) await ConsultarAsync();
         _carregado = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_focarPainel) return;
+
+        // O painel de filtros recebe o foco no primeiro campo quando abre.
+        _focarPainel = false;
+        try
+        {
+            await _tipoDoPainel.FocusAsync();
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or JSException or JSDisconnectedException)
+        {
+            // Sem foco (circuito caindo, painel já fechado) o painel continua funcional.
+        }
     }
 
     /// <summary>O dia de hoje no fuso do escritório.</summary>
     private DateOnly Hoje() => DateOnly.FromDateTime(Fuso.ParaLocal(DateTime.UtcNow));
+
+    // Lido do endereço no OnParametersSetAsync, antes de qualquer desenho que o use (todos dependem de Pronto).
+    private PeriodoDaAgenda Periodo =>
+        _periodo ?? throw new InvalidOperationException("O período é lido do endereço antes do primeiro desenho que o usa.");
+
+    private bool Pronto => _carregado && _ator is not null;
 
     /// <summary>
     /// O filtro de participante é da Diretoria, que precisa achar também os eventos de quem foi inativado: por isso vem
@@ -159,70 +218,63 @@ else
     private async Task CarregarUsuariosAsync()
     {
         var resultado = await Despachante.EnviarAsync(new ListarUsuarios());
-        if (AcessoEncerrado(resultado)) return;
+        if (resultado.Erro == TipoErro.AcessoNegado)
+        {
+            EncerrarAcesso();
+            return;
+        }
 
-        _usuarios = [.. (resultado.Valor ?? [])
+        if (!resultado.Sucesso || resultado.Valor is null)
+        {
+            _erroDosUsuarios = resultado.Mensagem ?? "Não foi possível consultar os usuários.";
+            return;
+        }
+
+        _usuarios = [.. resultado.Valor
             .Where(u => u.TipoPerfil != TipoPerfil.Cliente)
             .OrderBy(u => u.Nome, StringComparer.CurrentCultureIgnoreCase)
             .Select(u => new OpcaoDeUsuario(u.Id, u.Ativo ? u.Nome : $"{u.Nome} (inativo)"))];
-        if (!resultado.Sucesso) Avisar(resultado.Mensagem ?? "Não foi possível consultar os usuários.", "erro");
     }
 
-    private Task SemanaAnteriorAsync() => MudarSemanaAsync(_segunda.AddDays(-7));
-
-    private Task ProximaSemanaAsync() => MudarSemanaAsync(_segunda.AddDays(7));
-
-    private Task IrParaHojeAsync() => MudarSemanaAsync(RotulosDeAgenda.SegundaDe(Hoje()));
-
-    private Task FiltrarAsync() => MudarSemanaAsync(_segunda);
-
-    private Task TentarDeNovoAsync() => MudarSemanaAsync(_segunda);
-
-    /// <summary>Troca de semana, novo filtro ou nova tentativa: o aviso de uma ação anterior não vale mais.</summary>
-    private async Task MudarSemanaAsync(DateOnly segunda)
+    // Uma consulta por intervalo e filtro aplicado: o Dia, a Semana e o Mês do mesmo período usam os mesmos eventos.
+    // O que está nos campos e não foi aplicado não entra.
+    private async Task ConsultarAsync()
     {
-        if (_carregando) return;
+        var pedido = new Pedido(Periodo.InicioDaConsulta, Periodo.FimDaConsulta, _filtroAplicado.Tipo,
+            _ator?.EhDiretoria == true ? _filtroAplicado.ParticipanteId : null);
+        if (pedido == _pedido) return;
 
-        _mensagem = null;
-        _segunda = segunda;
-        await CarregarAsync();
+        _pedido = pedido;
+        await CarregarAsync(pedido);
     }
 
-    private enum Carga { Atualizada, Falhou, Superada }
-
-    /// <summary>
-    /// Consulta a semana atual. <see cref="Carga.Superada"/>: uma consulta mais nova foi pedida enquanto esta andava, e
-    /// é ela que decide o que a tela mostra (e se há erro a dizer).
-    /// </summary>
-    private async Task<Carga> CarregarAsync()
+    /// <summary>Consulta o intervalo pedido. Uma resposta que chega depois de outra consulta mais nova é descartada.</summary>
+    private async Task CarregarAsync(Pedido pedido)
     {
-        // Uma resposta que chega depois de outra consulta mais nova é descartada.
         var geracao = ++_geracao;
-        var segunda = _segunda;
         _carregando = true;
+        _erro = null;
         try
         {
             var resultado = await Despachante.EnviarAsync(new ListarEventos(
-                Fuso.InicioDoDiaEmUtc(segunda), Fuso.InicioDoDiaEmUtc(segunda.AddDays(7)),
-                _ator?.EhDiretoria == true ? _filtro.ParticipanteId : null, _filtro.Tipo));
-            if (geracao != _geracao) return Carga.Superada;
-            if (AcessoEncerrado(resultado)) return Carga.Falhou;
+                Fuso.InicioDoDiaEmUtc(pedido.Inicio), Fuso.InicioDoDiaEmUtc(pedido.Fim), pedido.ParticipanteId, pedido.Tipo));
+            if (geracao != _geracao) return;
+
+            if (resultado.Erro == TipoErro.AcessoNegado)
+            {
+                EncerrarAcesso();
+                return;
+            }
 
             if (resultado.Valor is not { } eventos)
             {
                 // Dados antigos não ficam na tela depois de uma falha.
-                _dias = [];
-                _erroDaLista = resultado.Mensagem ?? "Não foi possível consultar a agenda.";
-                return Carga.Falhou;
+                _eventos = [];
+                _erro = resultado.Mensagem ?? "Não foi possível consultar a agenda.";
+                return;
             }
 
-            _erroDaLista = null;
-            _dias = [.. Enumerable.Range(0, 7).Select(i =>
-            {
-                var dia = segunda.AddDays(i);
-                return (dia, (IReadOnlyList<EventoResumo>)[.. eventos.Where(e => RotulosDeAgenda.TocaODia(Fuso, e, dia))]);
-            })];
-            return Carga.Atualizada;
+            _eventos = eventos;
         }
         finally
         {
@@ -230,85 +282,132 @@ else
         }
     }
 
-    /// <summary>A ficha avisou que algo mudou: a semana é sempre recarregada, seja qual for a ficha que avisou.</summary>
-    private async Task AtualizarListaAsync() => await CarregarAsync();
+    // "Tentar de novo" repete o último pedido (o mesmo intervalo e o mesmo filtro), uma vez por clique.
+    private Task TentarDeNovoAsync() => _carregando || _pedido is null ? Task.CompletedTask : CarregarAsync(_pedido);
 
-    /// <summary>
-    /// Um evento foi excluído: a semana é recarregada e a mensagem aparece; fechar o painel é que depende de a ficha
-    /// que avisou ainda ser a aberta (isso é feito por <see cref="FecharFicha"/>).
-    /// </summary>
-    private async Task ExcluidoAsync(Guid idDaFicha)
+    // "Filtrar" (na barra do desktop e no painel) é o único lugar que grava o filtro aplicado.
+    private Task FiltrarAsync()
     {
-        var carga = await CarregarAsync();
-        if (_ator is null) return;
-
-        Avisar(carga == Carga.Falhou ? "Evento excluído. Não foi possível atualizar a agenda." : "Evento excluído.",
-            carga == Carga.Falhou ? "erro" : "ok");
+        _filtroAplicado = _filtro.Aplicar();
+        _recado = null;
+        return ConsultarAsync();
     }
 
-    private void Abrir(Guid id) => _abertoId = id;
-
-    private void FecharFicha(Guid idDaFicha)
+    private async Task FiltrarDoPainelAsync()
     {
-        if (_abertoId == idDaFicha) _abertoId = null;
+        _filtrosAbertos = false;
+        await FiltrarAsync();
     }
 
-    private void Novo()
+    // Volta os campos a "Todos" sem consultar: o filtro aplicado só muda no "Filtrar". Fechar o painel sem filtrar
+    // devolve aos campos o filtro aplicado.
+    private void LimparFiltros()
     {
-        _mensagem = null;
-        _versaoDoFormulario++;   // formulário novo, vazio, mesmo que o anterior ainda estivesse aberto
-        _criando = true;
+        _filtro.Tipo = null;
+        _filtro.ParticipanteId = null;
     }
 
-    private void CancelarCriacao() => _criando = false;
-
-    private async Task CriadoAsync(EventoGravado gravado)
+    // Abrir ou fechar o painel pelo botão ("Filtros", "Filtrar agenda") descarta o que se escolheu e não se aplicou: os
+    // campos voltam ao filtro aplicado, o que a agenda está mostrando.
+    private void AlternarFiltros()
     {
-        _criando = false;
-        _abertoId = gravado.Id;
-
-        // Mostra a semana em que o evento caiu, para quem criou vê-lo.
-        _segunda = RotulosDeAgenda.SegundaDe(DateOnly.FromDateTime(Fuso.ParaLocal(gravado.InicioEm)));
-        var carga = await CarregarAsync();
-        if (_ator is null) return;
-
-        // O evento foi gravado; a sobreposição é só um aviso. Consulta superada por outra mais nova não é falha.
-        var salvo = RotulosDeAgenda.MensagemDeSalvo(Fuso, gravado.Sobreposicoes);
-        if (carga == Carga.Falhou) Avisar($"{salvo} Não foi possível atualizar a agenda.", "erro");
-        else Avisar(salvo, gravado.Sobreposicoes.Count == 0 ? "ok" : "aviso");
+        _filtrosAbertos = !_filtrosAbertos;
+        _focarPainel = _filtrosAbertos;
+        _filtro.Voltar(_filtroAplicado);
     }
 
-    /// <summary>Uma resposta de acesso negado encerra a tela: nada do que estava aberto continua visível.</summary>
-    private bool AcessoEncerrado(Resultado resultado)
-    {
-        if (resultado.Erro != TipoErro.AcessoNegado) return false;
+    private void IrPara(PeriodoDaAgenda periodo) => Navegacao.NavigateTo(periodo.Endereco);
 
-        EncerrarAcesso();
-        return true;
-    }
+    private void IrParaHoje() => IrPara(Periodo.ParaHoje(Hoje()));
 
+    private void TrocarVisao(VisaoDaAgenda visao) => IrPara(Periodo.ComVisao(visao));
+
+    // Faixa do mobile: tocar num dia troca a data e mantém a visão; na Semana, leva ao Dia daquele dia.
+    private void EscolherNaFaixa(DateOnly dia) =>
+        IrPara(Periodo.Visao == VisaoDaAgenda.Semana ? Periodo.ComVisao(VisaoDaAgenda.Dia).ComData(dia) : Periodo.ComData(dia));
+
+    // Grade compacta do mês: tocar num dia troca a data e fica no Mês (a lista embaixo é desse dia).
+    private void EscolherNaGrade(DateOnly dia) => IrPara(Periodo.ComData(dia));
+
+    // O "+N" da célula do mês leva ao Dia daquela data.
+    private void AbrirDia(DateOnly dia) => IrPara(Periodo.ComVisao(VisaoDaAgenda.Dia).ComData(dia));
+
+    /// <summary>Uma resposta de acesso negado encerra a tela: nada do que estava à vista continua.</summary>
     private void EncerrarAcesso()
     {
         _ator = null;
-        _dias = [];
+        _eventos = [];
         _usuarios = [];
-        _erroDaLista = null;
-        _criando = false;
-        _abertoId = null;
-        _mensagem = null;
+        _erro = null;
+        _erroDosUsuarios = null;
+        _recado = null;
+        _filtrosAbertos = false;
     }
 
-    private void Avisar(string? mensagem, string classe)
+    // As setas do mobile andam a faixa de semana em semana no Dia e na Semana, e de mês em mês no Mês.
+    private VisaoDaAgenda PassoNoMobile => Periodo.NoMobile == VisaoDaAgenda.Mes ? VisaoDaAgenda.Mes : VisaoDaAgenda.Semana;
+
+    private static string RotuloDoAnterior(VisaoDaAgenda passo) => passo switch
     {
-        _mensagem = mensagem;
-        _classeDaMensagem = classe;
-    }
+        VisaoDaAgenda.Dia => "Dia anterior",
+        VisaoDaAgenda.Semana => "Semana anterior",
+        _ => "Mês anterior",
+    };
+
+    private static string RotuloDoProximo(VisaoDaAgenda passo) => passo switch
+    {
+        VisaoDaAgenda.Dia => "Próximo dia",
+        VisaoDaAgenda.Semana => "Próxima semana",
+        _ => "Próximo mês",
+    };
+
+    // O subtítulo do desktop e do tablet diz o período da visão daquelas larguras; o mobile não tem subtítulo.
+    private string? Subtitulo => !Pronto ? null : Periodo.NoDesktopETablet switch
+    {
+        VisaoDaAgenda.Dia => RotulosDeAgenda.SubtituloDoDia(Periodo.Data),
+        VisaoDaAgenda.Mes => RotulosDeAgenda.SubtituloDoMes(Periodo.Data),
+        _ => RotulosDeAgenda.SubtituloDaSemana(Periodo.Semana[0]),
+    };
+
+    private string Expandido => _filtrosAbertos ? "true" : "false";
+
+    private static string Pressionada(VisaoDaAgenda escolhida, VisaoDaAgenda visao) => escolhida == visao ? "true" : "false";
+
+    // As três visões do segmentado; no tablet o "Semana" é mais largo (o quadro).
+    private RenderFragment Visoes(VisaoDaAgenda escolhida, bool semanaLarga) => @<text><button type="button" class="aj-segmentado__opcao" aria-pressed="@Pressionada(escolhida, VisaoDaAgenda.Dia)" @onclick="() => TrocarVisao(VisaoDaAgenda.Dia)">Dia</button><button type="button" class="@(semanaLarga ? "aj-segmentado__opcao aj-segmentado__opcao--larga" : "aj-segmentado__opcao")" aria-pressed="@Pressionada(escolhida, VisaoDaAgenda.Semana)" @onclick="() => TrocarVisao(VisaoDaAgenda.Semana)">Semana</button><button type="button" class="aj-segmentado__opcao" aria-pressed="@Pressionada(escolhida, VisaoDaAgenda.Mes)" @onclick="() => TrocarVisao(VisaoDaAgenda.Mes)">Mês</button></text>;
+
+    private RenderFragment OpcoesDeTipo => @<text><option value="">Todos</option>@foreach (var tipo in Enum.GetValues<TipoEvento>())
+        {<option value="@tipo">@RotulosDeAgenda.Tipo(tipo)</option>}</text>;
+
+    private RenderFragment OpcoesDeParticipante => @<text><option value="">Todos</option>@foreach (var usuario in _usuarios)
+        {<option value="@usuario.Id">@usuario.Rotulo</option>}</text>;
+
+    /// <summary>O que a tela pediu ao servidor: o intervalo da visão e o filtro aplicado.</summary>
+    private sealed record Pedido(DateOnly Inicio, DateOnly Fim, TipoEvento? Tipo, Guid? ParticipanteId);
 
     private sealed record OpcaoDeUsuario(Guid Id, string Rotulo);
 
+    /// <summary>
+    /// O filtro em edição: a barra do desktop e o painel o mostram e o mudam. A consulta não o lê: lê o
+    /// <see cref="FiltroAplicado"/>, que só o "Filtrar" grava. Os dois sobrevivem à troca de período (não vão ao endereço).
+    /// </summary>
     private sealed class Filtro
     {
         public TipoEvento? Tipo { get; set; }
         public Guid? ParticipanteId { get; set; }
+
+        public FiltroAplicado Aplicar() => new(Tipo, ParticipanteId);
+
+        public void Voltar(FiltroAplicado aplicado)
+        {
+            Tipo = aplicado.Tipo;
+            ParticipanteId = aplicado.ParticipanteId;
+        }
+    }
+
+    /// <summary>O filtro do último "Filtrar", o que a agenda está mostrando.</summary>
+    private sealed record FiltroAplicado(TipoEvento? Tipo, Guid? ParticipanteId)
+    {
+        public static readonly FiltroAplicado Nenhum = new(null, null);
     }
 }

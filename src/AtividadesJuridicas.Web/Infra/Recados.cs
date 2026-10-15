@@ -1,3 +1,4 @@
+using AtividadesJuridicas.Application.Agenda;
 using AtividadesJuridicas.Web.Components.Layout;
 
 namespace AtividadesJuridicas.Web.Infra;
@@ -10,7 +11,13 @@ public sealed class Recados
 {
     private Recado? _pendente;
 
-    public void Deixar(string texto, TipoDeAviso tipo = TipoDeAviso.Sucesso) => _pendente = new Recado(texto, tipo);
+    /// <summary>
+    /// Deixa o recado para a próxima tela. <paramref name="sobreposicoes"/>: os conflitos de agenda do evento salvo, que
+    /// a agenda e a ficha do evento mostram numa redação por visão (<c>AvisoDeEventoSalvo</c>).
+    /// </summary>
+    public void Deixar(
+        string texto, TipoDeAviso tipo = TipoDeAviso.Sucesso, IReadOnlyList<SobreposicaoDeAgenda>? sobreposicoes = null) =>
+        _pendente = new Recado(texto, tipo, sobreposicoes);
 
     /// <summary>O recado deixado, uma vez só; nulo quando não há.</summary>
     public Recado? Retirar()
@@ -21,4 +28,4 @@ public sealed class Recados
     }
 }
 
-public sealed record Recado(string Texto, TipoDeAviso Tipo);
+public sealed record Recado(string Texto, TipoDeAviso Tipo, IReadOnlyList<SobreposicaoDeAgenda>? Sobreposicoes = null);

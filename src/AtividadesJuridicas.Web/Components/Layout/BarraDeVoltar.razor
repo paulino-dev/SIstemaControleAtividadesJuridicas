@@ -5,7 +5,7 @@
    inferior. *@
 <SectionContent SectionName="@Encaixes.BarraSuperior">
     <header class="aj-barra-superior aj-barra-superior--voltar">
-        <a href="@VoltarPara" class="aj-botao aj-botao--fantasma aj-botao--icone" aria-label="@Rotulo"><Icone Nome="voltar" /></a>
+        <a href="@VoltarPara" class="aj-botao aj-botao--fantasma aj-botao--icone" aria-label="@Rotulo"><Icone Nome="@Icone" /></a>
         <h1>@Titulo</h1>
         @if (Acao is not null)
         {
@@ -24,6 +24,9 @@
 
     /// <summary>O rótulo acessível do voltar: "Voltar para Clientes".</summary>
     [Parameter, EditorRequired] public string Rotulo { get; set; } = string.Empty;
+
+    /// <summary>O ícone do voltar: a seta (padrão) ou o X do formulário do mobile ("fechar").</summary>
+    [Parameter] public string Icone { get; set; } = "voltar";
 
     /// <summary>A ação à direita do título (um <c>MenuDeAcoes</c>). Sem ela, o vazio que centraliza o título.</summary>
     [Parameter] public RenderFragment? Acao { get; set; }

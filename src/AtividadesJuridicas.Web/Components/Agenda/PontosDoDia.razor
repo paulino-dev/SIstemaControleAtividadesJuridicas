@@ -1,0 +1,16 @@
+@* Os pontos de um dia nas faixas do mobile: um por evento, na cor do tipo, no máximo seis (o que cabe na coluna de
+   ≈ 49px). Recebe os eventos que tocam o dia, já na ordem de início; a fileira existe mesmo vazia, para os dias terem
+   a mesma altura. *@
+<span class="aj-pontos-evento" aria-hidden="true">
+    @foreach (var evento in Eventos.Take(MaximoDePontos))
+    {
+        <span class="@($"aj-ponto-evento aj-ponto-evento--{CartaoDeEvento.Sufixo(evento.Tipo)}")"></span>
+    }
+</span>
+
+@code {
+    private const int MaximoDePontos = 6;
+
+    /// <summary>Os eventos que tocam o dia, na ordem de início (vazio no dia de fora do mês).</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<EventoResumo> Eventos { get; set; } = [];
+}

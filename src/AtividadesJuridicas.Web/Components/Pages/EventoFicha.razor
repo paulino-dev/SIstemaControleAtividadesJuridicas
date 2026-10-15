@@ -1,0 +1,324 @@
+@page "/agenda/{Id:guid}"
+@inject IDespachante Despachante
+@inject FusoDoEscritorio Fuso
+@inject Recados Recados
+@inject NavigationManager Navegacao
+
+<PageTitle>@(_detalhe?.Titulo ?? "Evento")</PageTitle>
+
+@if (!_carregado || _ator is null || _detalhe is null)
+{
+    <CabecalhoDeDetalhe Titulo="Evento" VoltarPara="@Voltar" Origem="Agenda" />
+    @* A recusa de uma exclusão cuja recarga deixou a ficha fora da tela (a consulta falhou). *@
+    @if (_mensagem is not null)
+    {
+        <Aviso Tipo="TipoDeAviso.Erro">@_mensagem</Aviso>
+    }
+    @if (!_carregado)
+    {
+        <p class="aj-subtitulo" role="status">Carregando…</p>
+    }
+    else if (_ator is null)
+    {
+        <Aviso Tipo="TipoDeAviso.Erro">Seu acesso foi encerrado. Entre novamente.</Aviso>
+    }
+    else if (_naoEncontrado)
+    {
+        @* O evento foi excluído ou o usuário não o vê: o servidor responde igual nos dois casos. *@
+        <Aviso Tipo="TipoDeAviso.Erro">Evento não encontrado.</Aviso>
+    }
+    else
+    {
+        @* Falha ao consultar nunca vira uma ficha vazia nem deixa dados antigos na tela. *@
+        <EstadoDaLista Erro="@(_erro ?? "Não foi possível consultar o evento.")" TextoDeVazio="" TentarDeNovo="CarregarAsync" />
+    }
+}
+else
+{
+    var evento = _detalhe;
+    <CabecalhoDeFicha Titulo="@evento.Titulo" Subtitulo="@RotulosDeAgenda.ResumoDoEvento(Fuso, evento, comLocal: true)"
+                      Resumo="@RotulosDeAgenda.ResumoDoEvento(Fuso, evento, comLocal: false)" TituloDaBarra="Evento"
+                      VoltarPara="@Voltar" Origem="Agenda" Acoes="@(TemAcoes(evento.Acoes) ? AcoesDoDesktop(evento.Acoes) : null)" />
+
+    @if (_recado is { } recado)
+    {
+        <AvisoDeEventoSalvo Recado="recado" />
+    }
+    @if (_mensagem is not null)
+    {
+        <Aviso Tipo="TipoDeAviso.Erro">@_mensagem</Aviso>
+    }
+    @* A confirmação no topo, com o foco nela (Rotulo). A chave é a versão com que foi aberta. *@
+    @if (_confirmandoExclusao)
+    {
+        <Aviso @key="_versaoDaConfirmacao" Tipo="TipoDeAviso.Atencao" Rotulo="Confirmar exclusão" Titulo="@($"Confirmar a exclusão de {evento.Titulo}?")">
+            <ChildContent>O evento sai da agenda de todos os participantes.</ChildContent>
+            <Acoes><button type="button" class="aj-botao aj-botao--secundario" disabled="@_ocupado" @onclick="CancelarExclusao">Cancelar</button><button type="button" class="aj-botao aj-botao--primario" disabled="@_ocupado" @onclick="ExcluirAsync">Confirmar exclusão</button></Acoes>
+        </Aviso>
+    }
+
+    @* O arranjo do quadro: no desktop, a coluna (Descrição, Participantes) e o painel Detalhes à direita; no tablet e no
+       mobile o arranjo some e a ordem é Descrição, Detalhes, Participantes. Detalhes não tem estado e aparece duas vezes,
+       cada uma no seu invólucro de visão; Descrição e Participantes, uma vez só. *@
+    <div class="aj-lado-a-lado aj-lado-a-lado--ficha">
+        <div class="aj-lado-a-lado__lista aj-pilha">
+            @if (!string.IsNullOrWhiteSpace(evento.Descricao))
+            {
+                <section class="aj-painel">
+                    <h2>Descrição</h2>
+                    <p class="aj-texto-livre">@evento.Descricao</p>
+                </section>
+            }
+            <div class="aj-tablet-mobile">
+                <section class="aj-painel">
+                    @ConteudoDosDetalhes(evento)
+                </section>
+            </div>
+            <section class="aj-painel">
+                <h2>Participantes</h2>
+                <ul class="aj-participantes">
+                    @foreach (var p in ParticipantesEmOrdem(evento))
+                    {
+                        <li class="aj-participante" @key="p.UsuarioId"><span class="@ClasseDoAvatar(p)" aria-hidden="true">@AvatarDePessoa.Sigla(p.Nome ?? "")</span><span class="aj-participante__nome">@NomeDoParticipante(p)</span></li>
+                    }
+                </ul>
+            </section>
+        </div>
+        <div class="aj-so-desktop">
+            <section class="aj-painel aj-lado-a-lado__painel">
+                @ConteudoDosDetalhes(evento)
+            </section>
+        </div>
+    </div>
+
+    @* Barra fixa do tablet e do mobile: Excluir (secundário vermelho) e Editar (primário), nessa ordem (o quadro); sem
+       nenhuma das duas ações, sem barra (e o conteúdo volta ao respiro de baixo padrão). *@
+    @if (TemAcoes(evento.Acoes))
+    {
+        <div class="aj-tablet-mobile">
+            <div class="aj-acoes aj-acoes--fixa">@BarraFixa(evento.Acoes)</div>
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    /// <summary>A visão da agenda de onde se veio (<c>?visao=</c>): volta com ela.</summary>
+    [SupplyParameterFromQuery(Name = "visao")] public string? Visao { get; set; }
+
+    /// <summary>A data da agenda de onde se veio (<c>?data=</c>): volta com ela.</summary>
+    [SupplyParameterFromQuery(Name = "data")] public string? Data { get; set; }
+
+    private bool _carregado;
+    private UsuarioAutenticado? _ator;
+    private EventoDetalhe? _detalhe;
+    private bool _naoEncontrado;
+    private string? _erro;
+    private Recado? _recado;
+    private Guid? _idCarregado;
+    private bool _confirmandoExclusao;
+    // A versão do evento com que a confirmação foi aberta: a exclusão a manda como versão esperada.
+    private uint _versaoDaConfirmacao;
+    private bool _ocupado;
+    private string? _mensagem;
+
+    /// <summary>O período da agenda de onde se veio, só com o que a agenda aceitaria ("" sem origem).</summary>
+    private string ConsultaDeOrigem => PeriodoDaAgenda.ConsultaDeOrigem(Visao, Data);
+
+    private string Voltar => $"/agenda{ConsultaDeOrigem}";
+
+    private string Edicao => $"/agenda/{Id}/editar{ConsultaDeOrigem}";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_idCarregado == Id) return;
+
+        // O recado de outra tela é retirado só na primeira carga; abrir outro evento nesta tela tira o da anterior.
+        var primeira = _idCarregado is null;
+        _idCarregado = Id;
+        _recado = primeira ? Recados.Retirar() : null;
+        await CarregarAsync();
+    }
+
+    /// <summary>A carga inteira: o perfil e o evento. Também é o "Tentar de novo".</summary>
+    private async Task CarregarAsync()
+    {
+        _carregado = false;
+        _detalhe = null;
+        _naoEncontrado = false;
+        _erro = null;
+        _mensagem = null;
+        _confirmandoExclusao = false;
+
+        _ator = await Despachante.EnviarAsync(new ObterMeuAcesso());
+        if (_ator is not null) await RecarregarAsync();
+
+        _carregado = true;
+    }
+
+    /// <summary>
+    /// Relê o evento; devolve se a ficha ficou mostrando dados atuais. Acesso negado encerra a tela; não encontrado e
+    /// falha tiram a ficha da tela (as ações dependem do que o servidor permite agora).
+    /// </summary>
+    private async Task<bool> RecarregarAsync()
+    {
+        var resultado = await Despachante.EnviarAsync(new ObterEvento(Id));
+        _naoEncontrado = false;
+        _erro = null;
+
+        if (resultado.Erro == TipoErro.AcessoNegado)
+        {
+            EncerrarAcesso();
+            return false;
+        }
+
+        if (resultado.Erro == TipoErro.NaoEncontrado)
+        {
+            _detalhe = null;
+            _naoEncontrado = true;
+            return false;
+        }
+
+        if (!resultado.Sucesso || resultado.Valor is null)
+        {
+            _detalhe = null;
+            _erro = resultado.Mensagem ?? "Não foi possível consultar o evento.";
+            return false;
+        }
+
+        _detalhe = resultado.Valor;
+        return true;
+    }
+
+    private void EncerrarAcesso()
+    {
+        _ator = null;
+        _detalhe = null;
+        _confirmandoExclusao = false;
+        _mensagem = null;
+        _recado = null;
+    }
+
+    private static bool TemAcoes(AcoesDoEvento acoes) => acoes.Editar || acoes.Excluir;
+
+    /// <summary>As ações do desktop, à direita do título: Excluir (perigo) e Editar (secundário), cada uma pela sua permissão.</summary>
+    private RenderFragment AcoesDoDesktop(AcoesDoEvento acoes) => @<text>
+        @if (acoes.Excluir)
+        {
+            <button type="button" class="aj-botao aj-botao--perigo" disabled="@_ocupado" @onclick="PedirExclusao">Excluir</button>
+        }
+        @if (acoes.Editar)
+        {
+            <a href="@Edicao" class="aj-botao aj-botao--secundario">Editar</a>
+        }
+    </text>;
+
+    /// <summary>As ações da barra fixa do tablet e do mobile: Excluir (secundário vermelho) e Editar (primário).</summary>
+    private RenderFragment BarraFixa(AcoesDoEvento acoes) => @<text>
+        @if (acoes.Excluir)
+        {
+            <button type="button" class="aj-botao aj-botao--secundario aj-botao--destrutivo" disabled="@_ocupado" @onclick="PedirExclusao">Excluir</button>
+        }
+        @if (acoes.Editar)
+        {
+            <a href="@Edicao" class="aj-botao aj-botao--primario">Editar</a>
+        }
+    </text>;
+
+    private static string Ou(string? valor) => string.IsNullOrWhiteSpace(valor) ? "—" : valor;
+
+    /// <summary>As nove linhas do quadro, na ordem dele (a descrição tem painel próprio).</summary>
+    private IReadOnlyList<(string Termo, string Valor)> Detalhes(EventoDetalhe e) =>
+    [
+        ("Tipo", RotulosDeAgenda.Tipo(e.Tipo)),
+        ("Início", Fuso.Formatar(e.InicioEm)),
+        ("Fim", Fuso.Formatar(e.FimEm)),
+        ("Duração", RotulosDeAgenda.Duracao(e.DuracaoEstimadaMinutos)),
+        ("Local", Ou(e.Local)),
+        ("Cliente", e.ClienteId is null ? "—" : e.ClienteNome ?? "Cliente indisponível"),
+        ("Processo", e.ProcessoId is null ? "—" : e.ProcessoTitulo ?? "Processo indisponível"),
+        ("Atividade", e.AtividadeId is null ? "—" : RotulosDeAgenda.Atividade(e.AtividadeTitulo, e.AtividadeExcluida)),
+        ("Criado por", e.CriadorNome ?? RotulosDeAgenda.UsuarioNaoEncontrado),
+    ];
+
+    private RenderFragment ConteudoDosDetalhes(EventoDetalhe evento) => @<text>
+        <h2>Detalhes</h2>
+        <dl class="aj-detalhes">
+            @foreach (var (termo, valor) in Detalhes(evento))
+            {
+                <div><dt>@termo</dt><dd>@valor</dd></div>
+            }
+        </dl>
+    </text>;
+
+    private bool EhVoce(ParticipanteDetalhe p) => p.UsuarioId == _ator?.Id;
+
+    /// <summary>O próprio usuário primeiro (o quadro); os outros na ordem do servidor, por nome.</summary>
+    private IEnumerable<ParticipanteDetalhe> ParticipantesEmOrdem(EventoDetalhe evento) =>
+        evento.Participantes.Where(EhVoce).Concat(evento.Participantes.Where(p => !EhVoce(p)));
+
+    private string NomeDoParticipante(ParticipanteDetalhe p) =>
+        p.Nome is null ? RotulosDeAgenda.UsuarioNaoEncontrado
+        : EhVoce(p) ? $"{p.Nome} (você)"
+        : p.Ativo ? p.Nome
+        : $"{p.Nome} (inativo)";
+
+    // O próprio usuário tem o avatar dourado (classe de cor vazia); os outros, a cor da regra (AvatarDePessoa).
+    private string ClasseDoAvatar(ParticipanteDetalhe p) =>
+        AvatarDePessoa.Classes(p.Nome ?? "", proprio: EhVoce(p));
+
+    // Métodos, e não lambdas de atribuição, nos @onclick: a confirmação tem regras.
+    private void PedirExclusao()
+    {
+        if (_ocupado || _detalhe is null) return;
+
+        _recado = null;
+        _mensagem = null;
+        _versaoDaConfirmacao = _detalhe.Versao;
+        _confirmandoExclusao = true;
+    }
+
+    private void CancelarExclusao()
+    {
+        if (!_ocupado) _confirmandoExclusao = false;
+    }
+
+    private async Task ExcluirAsync()
+    {
+        if (_ocupado) return;
+
+        _ocupado = true;
+        _mensagem = null;
+        var navegou = false;
+        try
+        {
+            var resultado = await Despachante.EnviarAsync(new ExcluirEvento(Id, _versaoDaConfirmacao));
+            if (resultado.Erro == TipoErro.AcessoNegado)
+            {
+                EncerrarAcesso();
+                return;
+            }
+
+            if (!resultado.Sucesso)
+            {
+                // Qualquer recusa traz a ficha como está agora, para os botões acompanharem o servidor. Se o evento
+                // sumiu, o "Evento não encontrado." da tela já diz tudo.
+                _confirmandoExclusao = false;
+                await RecarregarAsync();
+                if (_ator is null || _naoEncontrado) return;
+                _mensagem = resultado.Mensagem ?? "Não foi possível excluir o evento.";
+                return;
+            }
+
+            Recados.Deixar("Evento excluído.");
+            navegou = true;
+            Navegacao.NavigateTo(Voltar);
+        }
+        finally
+        {
+            // Depois do sucesso a página vai embora: a confirmação fica travada para um clique tardio não excluir de novo.
+            if (!navegou) _ocupado = false;
+        }
+    }
+}

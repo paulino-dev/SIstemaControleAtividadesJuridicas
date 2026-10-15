@@ -28,6 +28,7 @@ public class ComponentesDoDesignSystemTests
     [InlineData("enviar")]
     [InlineData("planilha")]
     [InlineData("texto")]
+    [InlineData("filtrar")]
     public async Task Icone_do_design_system_tem_tracado(string nome)
     {
         var html = await TelaDeTeste.RenderizarSemDadosAsync<Icone>(new() { ["Nome"] = nome });
@@ -451,6 +452,167 @@ public class ComponentesDoDesignSystemTests
             "<span class=\"aj-etiqueta aj-etiqueta--direcionada\">Direcionada</span>\\s*<span class=\"aj-etiqueta aj-etiqueta--atrasada aj-etiqueta--com-ponto\">Atrasada</span>")
             .And.NotContain("<svg");
         noPrazo.Should().Contain("<span class=\"aj-etiqueta aj-etiqueta--criada\">Criada</span>").And.NotContain("Atrasada");
+    }
+
+    [Fact]
+    public async Task Icone_filtrar_e_o_funil()
+    {
+        var html = await TelaDeTeste.RenderizarSemDadosAsync<Icone>(new() { ["Nome"] = "filtrar" });
+
+        html.Should().Contain("<path d=\"M4 5h16l-6 7.5V19l-4 1.5v-8z\"></path>");
+    }
+
+    [Fact]
+    public async Task Aviso_em_frase_leva_o_modificador_e_sem_ele_fica_como_era()
+    {
+        RenderFragment texto = c =>
+        {
+            c.OpenElement(0, "strong");
+            c.AddContent(1, "Evento salvo.");
+            c.CloseElement();
+            c.AddContent(2, " Rafael Teles já tem evento.");
+        };
+
+        var frase = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarSemDadosAsync<Aviso>(
+            new() { ["Tipo"] = TipoDeAviso.Atencao, ["Frase"] = true, ["ChildContent"] = texto }));
+        var comum = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarSemDadosAsync<Aviso>(
+            new() { ["Tipo"] = TipoDeAviso.Atencao, ["ChildContent"] = texto }));
+
+        frase.Should().MatchRegex(
+            "<p class=\"aj-aviso aj-aviso--atencao aj-aviso--frase\" role=\"status\">\\s*<svg[^>]*>.*?</svg>\\s*<span><strong>Evento salvo\\.</strong> Rafael Teles já tem evento\\.</span></p>");
+        comum.Should().MatchRegex(
+            "<p class=\"aj-aviso aj-aviso--atencao\" role=\"status\">\\s*<svg[^>]*>.*?</svg>\\s*<span><strong>Evento salvo\\.</strong> Rafael Teles já tem evento\\.</span></p>")
+            .And.NotContain("aj-aviso--frase");
+    }
+
+    [Fact]
+    public async Task Estado_da_lista_vazio_com_icone_e_dica()
+    {
+        var comIcone = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarSemDadosAsync<EstadoDaLista>(new()
+        {
+            ["Vazio"] = true, ["TextoDeVazio"] = "Nenhum evento neste dia", ["Icone"] = "agenda",
+            ["Dica"] = "Toque em + para agendar.",
+        }));
+        var semIcone = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarSemDadosAsync<EstadoDaLista>(
+            new() { ["Vazio"] = true, ["TextoDeVazio"] = "Nenhum documento." }));
+
+        // O ícone antes do texto, a dica depois.
+        comIcone.Should().MatchRegex(
+            "<div class=\"aj-estado-lista\">\\s*<svg class=\"aj-estado-lista__icone\"[^>]*>\\s*<rect x=\"3.5\" y=\"5\"[^>]*></rect>.*?</svg>\\s*<strong>Nenhum evento neste dia</strong>\\s*<span class=\"aj-estado-lista__dica\">Toque em \\+ para agendar\\.</span>\\s*</div>");
+        // Sem os dois, o HTML de hoje.
+        semIcone.Should().Contain("<div class=\"aj-estado-lista\"><strong>Nenhum documento.</strong></div>")
+            .And.NotContain("<svg").And.NotContain("aj-estado-lista__dica");
+    }
+
+    [Fact]
+    public async Task Cabecalho_com_acao_do_mobile_poe_o_botao_entre_o_titulo_e_o_avatar_da_barra()
+    {
+        RenderFragment filtro = c => c.AddMarkupContent(0,
+            "<button type=\"button\" class=\"aj-botao aj-botao--fantasma aj-botao--icone aj-barra-superior__acao\" aria-label=\"Filtrar agenda\">funil</button>");
+
+        var comAcao = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarSemDadosAsync<ComBarraSuperior<CabecalhoDePagina>>(
+            new() { ["Titulo"] = "Agenda", ["SubtituloMobile"] = string.Empty, ["AcaoDoMobile"] = filtro }));
+        var semAcao = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarSemDadosAsync<ComBarraSuperior<CabecalhoDePagina>>(
+            new() { ["Titulo"] = "Agenda" }));
+
+        BarraDaTela(comAcao).Should().MatchRegex(
+            "(?s)<div class=\"aj-barra-superior__titulo\">\\s*<h1 class=\"aj-titulo\">Agenda</h1>\\s*</div>\\s*<button type=\"button\" class=\"aj-botao aj-botao--fantasma aj-botao--icone aj-barra-superior__acao\" aria-label=\"Filtrar agenda\">funil</button>\\s*<a href=\"/minha-senha\" class=\"aj-avatar\" aria-label=\"Minha conta\">");
+        // O botão é só da barra do mobile: o cabeçalho do desktop e do tablet não o tem.
+        BlocoDeVisao.De(comAcao, "aj-desktop-tablet").Should().Contain("<h1 class=\"aj-titulo\">Agenda</h1>")
+            .And.NotContain("Filtrar agenda");
+        // Sem ela, o título e o avatar seguidos, como hoje.
+        BarraDaTela(semAcao).Should().MatchRegex(
+            "(?s)<h1 class=\"aj-titulo\">Agenda</h1>\\s*</div>\\s*<a href=\"/minha-senha\" class=\"aj-avatar\" aria-label=\"Minha conta\">")
+            .And.NotContain("aj-barra-superior__acao");
+    }
+
+    [Fact]
+    public async Task Cabecalho_com_subtitulo_so_no_desktop_o_poe_num_involucro_e_tira_da_barra()
+    {
+        const string frase = "Preencha os dados e escolha quem participa.";
+
+        var soNoDesktop = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarSemDadosAsync<ComBarraSuperior<CabecalhoDePagina>>(
+            new() { ["Titulo"] = "Novo evento", ["Subtitulo"] = frase, ["SubtituloSoNoDesktop"] = true }));
+        var emTodas = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarSemDadosAsync<ComBarraSuperior<CabecalhoDePagina>>(
+            new() { ["Titulo"] = "Novo evento", ["Subtitulo"] = frase }));
+
+        BlocoDeVisao.De(soNoDesktop, "aj-desktop-tablet").Should().MatchRegex(
+            $"(?s)<h1 class=\"aj-titulo\">Novo evento</h1>\\s*<div class=\"aj-so-desktop\">\\s*<p class=\"aj-subtitulo\">{Regex.Escape(frase)}</p>\\s*</div>");
+        BarraDaTela(soNoDesktop).Should().Contain("<h1 class=\"aj-titulo\">Novo evento</h1>").And.NotContain("aj-subtitulo");
+        // Sem o parâmetro, o subtítulo direto no bloco de texto e repetido na barra, como hoje.
+        emTodas.Should().MatchRegex($"<h1 class=\"aj-titulo\">Novo evento</h1>\\s*<p class=\"aj-subtitulo\">{Regex.Escape(frase)}</p>")
+            .And.NotContain("aj-so-desktop");
+        BarraDaTela(emTodas).Should().Contain($"<span class=\"aj-subtitulo\">{frase}</span>");
+    }
+
+    [Fact]
+    public async Task Barra_de_voltar_aceita_outro_icone_e_sem_ele_fica_com_o_voltar()
+    {
+        var fechar = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarSemDadosAsync<ComBarraSuperior<BarraDeVoltar>>(new()
+        {
+            ["Titulo"] = "Novo evento", ["VoltarPara"] = "/agenda", ["Rotulo"] = "Fechar sem salvar", ["Icone"] = "fechar",
+        }));
+        var voltar = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarSemDadosAsync<ComBarraSuperior<BarraDeVoltar>>(new()
+        {
+            ["Titulo"] = "Novo evento", ["VoltarPara"] = "/agenda", ["Rotulo"] = "Voltar para Agenda",
+        }));
+
+        fechar.Should().MatchRegex(
+            "<a href=\"/agenda\" class=\"aj-botao aj-botao--fantasma aj-botao--icone\" aria-label=\"Fechar sem salvar\">\\s*<svg[^>]*>\\s*<path d=\"M6 6l12 12\"></path><path d=\"M18 6L6 18\"></path>\\s*</svg>\\s*</a>")
+            .And.NotContain("M15 6l-6 6 6 6");
+        voltar.Should().MatchRegex(
+            "<a href=\"/agenda\" class=\"aj-botao aj-botao--fantasma aj-botao--icone\" aria-label=\"Voltar para Agenda\">\\s*<svg[^>]*>\\s*<path d=\"M15 6l-6 6 6 6\"></path>\\s*</svg>\\s*</a>");
+    }
+
+    [Fact]
+    public async Task Cabecalho_de_detalhe_repassa_o_icone_do_voltar_do_mobile_e_o_subtitulo_so_no_desktop()
+    {
+        var html = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarSemDadosAsync<ComBarraSuperior<CabecalhoDeDetalhe>>(new()
+        {
+            ["Titulo"] = "Novo evento", ["Subtitulo"] = "Preencha os dados e escolha quem participa.", ["VoltarPara"] = "/agenda",
+            ["Origem"] = "Agenda", ["RotuloDoVoltarNoMobile"] = "Fechar sem salvar", ["IconeDoVoltarNoMobile"] = "fechar",
+            ["SubtituloSoNoDesktop"] = true,
+        }));
+
+        // A barra do mobile com o X; o voltar do desktop e do tablet continua com a seta.
+        html.Should().MatchRegex(
+            "<header class=\"aj-barra-superior aj-barra-superior--voltar\">\\s*<a href=\"/agenda\" class=\"aj-botao aj-botao--fantasma aj-botao--icone\" aria-label=\"Fechar sem salvar\">\\s*<svg[^>]*>\\s*<path d=\"M6 6l12 12\"></path>");
+        var desktopETablet = BlocoDeVisao.De(html, "aj-desktop-tablet");
+        desktopETablet.Should().MatchRegex(
+            "(?s)<a href=\"/agenda\" class=\"aj-voltar\">\\s*<svg[^>]*>\\s*<path d=\"M15 6l-6 6 6 6\"></path>\\s*</svg>\\s*Agenda</a>")
+            .And.MatchRegex(
+            "(?s)<h1 class=\"aj-titulo\">Novo evento</h1>\\s*<div class=\"aj-so-desktop\">\\s*<p class=\"aj-subtitulo\">Preencha os dados e escolha quem participa.</p>\\s*</div>");
+    }
+
+    [Fact]
+    public async Task Cabecalho_de_detalhe_sem_os_parametros_novos_fica_como_era()
+    {
+        var html = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarSemDadosAsync<ComBarraSuperior<CabecalhoDeDetalhe>>(new()
+        {
+            ["Titulo"] = "Editar evento", ["Subtitulo"] = "Reunião", ["VoltarPara"] = "/agenda", ["Origem"] = "Agenda",
+        }));
+
+        html.Should().MatchRegex(
+            "<header class=\"aj-barra-superior aj-barra-superior--voltar\">\\s*<a href=\"/agenda\" class=\"aj-botao aj-botao--fantasma aj-botao--icone\" aria-label=\"Voltar para Agenda\">\\s*<svg[^>]*>\\s*<path d=\"M15 6l-6 6 6 6\"></path>")
+            .And.MatchRegex("<h1 class=\"aj-titulo\">Editar evento</h1>\\s*<p class=\"aj-subtitulo\">Reunião</p>")
+            .And.NotContain("aj-so-desktop").And.NotContain("M6 6l12 12");
+    }
+
+    [Fact]
+    public async Task Rotulo_de_campo_com_complemento_traz_o_texto_e_o_small_dentro_de_um_span()
+    {
+        RenderFragment campo = c => c.AddMarkupContent(0, "<textarea class=\"aj-campo\"></textarea>");
+        System.Linq.Expressions.Expression<Func<string>> para = () => "x";
+
+        var comComplemento = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarSemDadosAsync<RotuloDeCampo<string>>(
+            new() { ["Texto"] = "Descrição", ["Para"] = para, ["Complemento"] = "(opcional)", ["ChildContent"] = campo }));
+        var semComplemento = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarSemDadosAsync<RotuloDeCampo<string>>(
+            new() { ["Texto"] = "Descrição", ["Para"] = para, ["ChildContent"] = campo }));
+
+        comComplemento.Should().MatchRegex(
+            "<label class=\"aj-rotulo\">\\s*<span>Descrição <small>\\(opcional\\)</small></span>\\s*<textarea class=\"aj-campo\"></textarea>\\s*</label>");
+        semComplemento.Should().MatchRegex("<label class=\"aj-rotulo\">\\s*Descrição\\s*<textarea class=\"aj-campo\"></textarea>\\s*</label>")
+            .And.NotContain("<small>");
     }
 
     [Fact]

@@ -8,7 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace AtividadesJuridicas.IntegrationTests;
 
-/// <summary>O que o layout decide sozinho: o destino aceso em cada barra, o avatar, o foco no título e a tela ainda não migrada.</summary>
+/// <summary>O que o layout decide sozinho: o destino aceso em cada barra, o avatar, o foco no título e a página sem cabeçalho.</summary>
 [Collection(ColecaoBanco.Nome)]
 public class LayoutWebTests(BancoFixture banco) : IAsyncLifetime
 {
@@ -145,36 +145,61 @@ public class LayoutWebTests(BancoFixture banco) : IAsyncLifetime
             .Should().Equal("/clientes");
     }
 
+    // A página que não declara cabeçalho (a de não encontrada) fica com a barra de logo do layout, uma só, e com a
+    // faixa de exibir o menu fora do conteúdo. Até a 9F era a agenda que provava isto; agora toda tela da equipe
+    // declara o seu cabeçalho.
     [Fact]
-    public async Task Tela_ainda_nao_migrada_fica_com_a_barra_de_logo_e_sem_involucro()
+    public async Task Pagina_sem_cabecalho_fica_com_a_barra_de_logo_e_a_faixa_de_exibir_menu()
     {
         var admin = await _app.ClienteAutenticadoAsync();
 
-        var html = await PaginaAsync(admin, "/agenda");
+        // A página não encontrada responde 404: lê o corpo sem exigir sucesso.
+        var html = WebUtility.HtmlDecode(await (await admin.GetAsync("/rota-que-nao-existe")).Content.ReadAsStringAsync());
 
+        html.Should().Contain("Página não encontrada");
         Regex.Matches(html, "<header class=\"aj-barra-superior").Should().ContainSingle();
         html.Should().Contain("<header class=\"aj-barra-superior aj-barra-superior--padrao\">")
             .And.Contain("class=\"aj-barra-superior__logo\"")
             .And.NotContain("class=\"pagina\"");
-        // O conteúdo antigo continua lá, direto no main; a faixa de exibir o menu fica fora dele.
+        // O título da página fica no main; a faixa de exibir o menu, fora dele.
         var corpo = Regex.Match(html, "<main class=\"aj-app__conteudo\">.*?</main>", RegexOptions.Singleline).Value;
         corpo.Should().Contain("<h1").And.NotContain("Exibir menu");
         html.Should().MatchRegex("<div class=\"aj-exibir-menu\">\\s*<button[^>]*aria-label=\"Exibir menu\"");
     }
 
-    // A regra interina do app.css trata como migrada a tela cujo conteúdo começa por um bloco do design system.
-    // Enquanto a tela não for migrada, nenhum componente aj- pode abrir o conteúdo dela.
+    // A regra interina do app.css tratava como "tela ainda não migrada" o conteúdo sem um bloco do design system no
+    // topo. Ela saiu na 9F: toda tela da equipe abre o conteúdo com um bloco aj-, e nenhuma depende mais dela.
     [Theory]
+    [InlineData("/")]
+    [InlineData("/atividades")]
+    [InlineData("/atividades/nova")]
     [InlineData("/agenda")]
-    public async Task Tela_ainda_nao_migrada_nao_abre_o_conteudo_com_bloco_do_design_system(string rota)
+    [InlineData("/agenda?visao=dia&data=2026-10-08")]
+    [InlineData("/agenda?visao=mes&data=2026-10-08")]
+    [InlineData("/agenda/novo")]
+    [InlineData("/clientes")]
+    [InlineData("/clientes/novo")]
+    [InlineData("/processos")]
+    [InlineData("/processos/novo")]
+    [InlineData("/areas")]
+    [InlineData("/usuarios")]
+    [InlineData("/usuarios/novo")]
+    [InlineData("/perfis")]
+    [InlineData("/auditoria")]
+    [InlineData("/produtores")]
+    [InlineData("/documentos-comuns")]
+    [InlineData("/minha-senha")]
+    [InlineData("/rota-que-nao-existe")]
+    public async Task Toda_tela_da_equipe_abre_o_conteudo_com_um_bloco_do_design_system(string rota)
     {
         var admin = await _app.ClienteAutenticadoAsync();
 
-        var html = await PaginaAsync(admin, rota);
+        var html = WebUtility.HtmlDecode(await (await admin.GetAsync(rota)).Content.ReadAsStringAsync());
 
         var primeiro = Regex.Match(html, "<main class=\"aj-app__conteudo\">(?:\\s|<!--.*?-->)*(<[a-z][^>]*>)",
             RegexOptions.Singleline).Groups[1].Value;
-        primeiro.Should().NotBeEmpty().And.NotContain("class=\"aj-");
+        primeiro.Should().MatchRegex("^<[a-z]+\\b[^>]*\\sclass=\"aj-",
+            "a regra interina do app.css alcançava o conteúdo sem um filho direto cuja classe começa por aj-");
     }
 
     [Theory]

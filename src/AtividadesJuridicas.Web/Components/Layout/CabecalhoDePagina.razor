@@ -8,7 +8,7 @@
    LinhaDoMobile, a segunda linha da barra superior do mobile (busca, chips, controle segmentado). *@
 @if (VoltarPara is not null)
 {
-    <BarraDeVoltar Titulo="@Titulo" VoltarPara="@VoltarPara" Rotulo="@(RotuloDoVoltar ?? "Voltar")" />
+    <BarraDeVoltar Titulo="@Titulo" VoltarPara="@VoltarPara" Rotulo="@(RotuloDoVoltar ?? "Voltar")" Icone="@IconeDoVoltar" />
 }
 else
 {
@@ -23,7 +23,7 @@ else
                         <span class="aj-subtitulo">@subtituloMobile@ParteDoAlerta</span>
                     }
                 </div>
-                <a href="/minha-senha" class="aj-avatar" aria-label="Minha conta">@Contexto?.Iniciais</a>
+                @(AcaoDoMobile)<a href="/minha-senha" class="aj-avatar" aria-label="Minha conta">@Contexto?.Iniciais</a>
             </div>
             @LinhaDoMobile
         </header>
@@ -39,7 +39,11 @@ else
             </span>
             <div class="@(Folgado ? "aj-cabecalho__texto aj-cabecalho__texto--folgado" : "aj-cabecalho__texto")">
                 <h1 class="aj-titulo">@Titulo</h1>
-                @if (Subtitulo is not null)
+                @if (Subtitulo is not null && SubtituloSoNoDesktop)
+                {
+                    <div class="aj-so-desktop"><p class="aj-subtitulo">@Subtitulo@ParteDoAlerta</p></div>
+                }
+                else if (Subtitulo is not null)
                 {
                     <p class="aj-subtitulo">@Subtitulo@ParteDoAlerta</p>
                 }
@@ -95,11 +99,20 @@ else
     /// <summary>Subtítulo em frase: o quadro afasta um pouco mais o título.</summary>
     [Parameter] public bool Folgado { get; set; }
 
+    /// <summary>
+    /// O subtítulo só no desktop (o formulário do evento): no tablet ele some, e a barra do mobile fica sem subtítulo
+    /// (a menos que <see cref="SubtituloMobile"/> diga outro).
+    /// </summary>
+    [Parameter] public bool SubtituloSoNoDesktop { get; set; }
+
     /// <summary>Destino do voltar da barra superior do mobile. Informado, a barra é a de voltar.</summary>
     [Parameter] public string? VoltarPara { get; set; }
 
     /// <summary>O rótulo acessível do voltar: "Voltar para Início". Sem ele, o botão diz só "Voltar".</summary>
     [Parameter] public string? RotuloDoVoltar { get; set; }
+
+    /// <summary>O ícone do voltar da barra do mobile: a seta (padrão) ou o X ("fechar") do formulário do evento.</summary>
+    [Parameter] public string IconeDoVoltar { get; set; } = "voltar";
 
     /// <summary>A ação principal da tela: botão no cabeçalho do desktop e do tablet, botão flutuante no mobile.</summary>
     [Parameter] public string? Acao { get; set; }
@@ -118,8 +131,16 @@ else
     /// <summary>A segunda linha da barra superior do mobile (busca, chips, controle segmentado).</summary>
     [Parameter] public RenderFragment? LinhaDoMobile { get; set; }
 
+    /// <summary>
+    /// Um botão na linha do título da barra do mobile, entre o título e o avatar (o "Filtrar agenda"). Só o mobile: o
+    /// cabeçalho do desktop e do tablet não o mostra.
+    /// </summary>
+    [Parameter] public RenderFragment? AcaoDoMobile { get; set; }
+
     private string? SubtituloDaBarra =>
-        SubtituloMobile is null ? Subtitulo : SubtituloMobile.Length == 0 ? null : SubtituloMobile;
+        SubtituloMobile is null
+            ? (SubtituloSoNoDesktop ? null : Subtitulo)
+            : SubtituloMobile.Length == 0 ? null : SubtituloMobile;
 
     // O separador vai como texto do próprio fragmento: escrito na marcação, o compilador do Razor poderia aparar o
     // espaço da ponta. Sem alerta, nada é emitido e o subtítulo fica como era.

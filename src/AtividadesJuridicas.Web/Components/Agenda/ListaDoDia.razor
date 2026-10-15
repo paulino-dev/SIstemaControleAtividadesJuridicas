@@ -1,0 +1,27 @@
+@* A lista do dia escolhido no mobile (Dia e Mês): o título do dia com o total e os cartões folgados, ou o vazio com o
+   ícone e a dica. Recebe os eventos que tocam o dia, já na ordem de início. *@
+<div class="aj-dia-escolhido"><h2>@RotulosDeAgenda.TituloDoDiaNoMobile(Dia, Hoje)</h2><span class="aj-dia-escolhido__total">@RotulosDeAgenda.TotalDeEventos(Eventos.Count)</span></div>
+@if (Eventos.Count == 0)
+{
+    <EstadoDaLista Vazio="true" TextoDeVazio="Nenhum evento neste dia" Icone="agenda" Dica="Toque em + para agendar." />
+}
+else
+{
+    foreach (var evento in Eventos)
+    {
+        <CartaoDeEvento @key="evento.Id" Evento="evento" Dia="Dia" Forma="FormaDoCartao.Folgado" Href="@PeriodoDaAgenda.Ficha(evento.Id, Consulta)" />
+    }
+}
+
+@code {
+    [Parameter, EditorRequired] public DateOnly Dia { get; set; }
+
+    /// <summary>Os eventos que tocam o dia, na ordem de início.</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<EventoResumo> Eventos { get; set; } = [];
+
+    /// <summary>O dia é hoje no fuso do escritório: o título leva "· hoje".</summary>
+    [Parameter] public bool Hoje { get; set; }
+
+    /// <summary>A consulta do período de origem (<c>PeriodoDaAgenda.Consulta</c>) que os cartões levam à ficha.</summary>
+    [Parameter, EditorRequired] public string Consulta { get; set; } = string.Empty;
+}

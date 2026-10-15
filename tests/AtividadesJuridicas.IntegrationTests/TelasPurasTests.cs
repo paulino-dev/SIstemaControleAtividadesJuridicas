@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using AtividadesJuridicas.Application.Agenda;
 using AtividadesJuridicas.Application.Atividades;
 using AtividadesJuridicas.Application.Cadastros;
 using AtividadesJuridicas.Application.Identidade;
@@ -369,6 +370,36 @@ public class RecadosTests
         recados.Retirar().Should().Be(new Recado("Usuário inativado.", TipoDeAviso.Sucesso));
         recados.Retirar().Should().BeNull();
     }
+
+    [Fact]
+    public void Recado_leva_as_sobreposicoes_e_as_entrega_uma_vez_so()
+    {
+        SobreposicaoDeAgenda[] sobreposicoes =
+        [
+            new(Guid.NewGuid(), "Rafael Teles", new DateTime(2026, 10, 7, 13, 0, 0, DateTimeKind.Utc),
+                new DateTime(2026, 10, 7, 14, 30, 0, DateTimeKind.Utc)),
+        ];
+        var recados = new Recados();
+
+        recados.Deixar("Evento salvo.", TipoDeAviso.Sucesso, sobreposicoes);
+
+        var recado = recados.Retirar();
+        recado.Should().NotBeNull();
+        recado!.Texto.Should().Be("Evento salvo.");
+        recado.Tipo.Should().Be(TipoDeAviso.Sucesso);
+        recado.Sobreposicoes.Should().BeSameAs(sobreposicoes);
+        recados.Retirar().Should().BeNull();
+    }
+
+    [Fact]
+    public void Recado_sem_sobreposicoes_continua_como_era()
+    {
+        var recados = new Recados();
+
+        recados.Deixar("Evento excluído.");
+
+        recados.Retirar().Should().Be(new Recado("Evento excluído.", TipoDeAviso.Sucesso, null));
+    }
 }
 
 public class ResumoDeAuditoriaTests
@@ -576,6 +607,41 @@ public class AvatarDePessoaTests
     {
         AvatarDePessoa.Classe("  Marina Couto ").Should().Be("aj-avatar--ambar");
         AvatarDePessoa.Classe("").Should().Be("aj-avatar--azul");
+    }
+
+    // O "você" da agenda é o avatar dourado: o .aj-avatar sem modificador de cor.
+    [Theory]
+    [InlineData("Rafael Teles", "aj-avatar--azul")]
+    [InlineData("Beatriz Lins", "aj-avatar--lilas")]
+    public void Classe_de_outra_pessoa_e_a_de_sempre(string nome, string classe)
+    {
+        AvatarDePessoa.Classe(nome, proprio: false).Should().Be(classe);
+    }
+
+    [Theory]
+    [InlineData("Rafael Teles")]
+    [InlineData("Marina Couto")]
+    [InlineData("")]
+    public void Classe_do_proprio_usuario_e_a_do_avatar_dourado_sem_cor(string nome)
+    {
+        AvatarDePessoa.Classe(nome, proprio: true).Should().BeEmpty();
+    }
+
+    // A classe inteira, para as telas não montarem a string (nem aparar o espaço da classe vazia).
+    [Theory]
+    [InlineData("Rafael Teles", "aj-avatar aj-avatar--azul")]
+    [InlineData("Beatriz Lins", "aj-avatar aj-avatar--lilas")]
+    public void Classes_de_outra_pessoa_junta_o_avatar_e_a_cor(string nome, string classes)
+    {
+        AvatarDePessoa.Classes(nome, proprio: false).Should().Be(classes);
+    }
+
+    [Theory]
+    [InlineData("Rafael Teles")]
+    [InlineData("")]
+    public void Classes_do_proprio_usuario_e_so_o_avatar_dourado_sem_espaco_sobrando(string nome)
+    {
+        AvatarDePessoa.Classes(nome, proprio: true).Should().Be("aj-avatar");
     }
 }
 

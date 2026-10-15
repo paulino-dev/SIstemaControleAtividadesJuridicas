@@ -1,0 +1,61 @@
+@inject FusoDoEscritorio Fuso
+
+@* A Semana da agenda (segunda a domingo da data do período). Desktop: a grade de sete colunas, uma por dia, com os
+   cartões empilhados na ordem de início; hoje sublinhado, sábado e domingo com o número apagado, dia vazio em caixa
+   tracejada. Tablet e mobile: uma seção por dia (SecaoDoDia), com os cartões em duas colunas (uma no mobile, pelo
+   CSS); hoje com a borda verde e a sigla "Hoje". As duas formas leem os mesmos eventos; cada evento aparece em todo
+   dia que toca. *@
+<div class="aj-so-desktop">
+    <div class="aj-semana">
+        @foreach (var dia in Periodo.Semana)
+        {
+            var doDia = _porDia[dia];
+            <section class="@ClasseDaColuna(dia)" @key="dia">
+                <h2 class="aj-semana__cabeca" aria-label="@RotulosDeAgenda.RotuloLongo(dia, dia == Hoje)"><span class="aj-semana__sigla">@SiglaDaColuna(dia)</span><span class="aj-semana__numero">@RotulosDeAgenda.NumeroDoDia(dia)</span></h2>
+                @if (doDia.Count == 0)
+                {
+                    <p class="aj-semana__vazio">Sem eventos</p>
+                }
+                @foreach (var evento in doDia)
+                {
+                    <CartaoDeEvento @key="evento.Id" Evento="evento" Dia="dia" Forma="FormaDoCartao.Coluna" Href="@Ficha(evento)" />
+                }
+            </section>
+        }
+    </div>
+</div>
+<div class="aj-tablet-mobile">
+    @foreach (var dia in Periodo.Semana)
+    {
+        <SecaoDoDia @key="dia" Dia="dia" Eventos="_porDia[dia]" Hoje="dia == Hoje" Consulta="@Periodo.Consulta" />
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public PeriodoDaAgenda Periodo { get; set; } = default!;
+    [Parameter, EditorRequired] public IReadOnlyList<EventoResumo> Eventos { get; set; } = [];
+
+    /// <summary>Hoje no fuso do escritório (a página calcula; os testes fixam).</summary>
+    [Parameter, EditorRequired] public DateOnly Hoje { get; set; }
+
+    private Dictionary<DateOnly, IReadOnlyList<EventoResumo>> _porDia = new();
+
+    protected override void OnParametersSet()
+    {
+        // Cada evento em todo dia que toca (o de vários dias em cada um; o que termina à meia-noite em ponto não
+        // passa ao dia seguinte). A ordem é a do início; no empate fica a do servidor (o id), porque o OrderBy é estável.
+        var porInicio = Eventos.OrderBy(evento => evento.InicioEm).ToList();
+        _porDia = Periodo.Semana.ToDictionary(dia => dia, dia => RotulosDeAgenda.EventosDoDia(Fuso, porInicio, dia));
+    }
+
+    private string Ficha(EventoResumo evento) => PeriodoDaAgenda.Ficha(evento.Id, Periodo.Consulta);
+
+    // Hoje vence a folga: um sábado que é hoje fica com o círculo verde.
+    private string ClasseDaColuna(DateOnly dia) =>
+        dia == Hoje ? "aj-semana__dia aj-semana__dia--hoje"
+        : dia.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday ? "aj-semana__dia aj-semana__dia--folga"
+        : "aj-semana__dia";
+
+    private string SiglaDaColuna(DateOnly dia) =>
+        dia == Hoje ? $"{RotulosDeAgenda.SiglaDoDia(dia)} · hoje" : RotulosDeAgenda.SiglaDoDia(dia);
+}

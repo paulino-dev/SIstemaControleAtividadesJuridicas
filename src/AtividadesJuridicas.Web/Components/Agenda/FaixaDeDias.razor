@@ -1,0 +1,28 @@
+@inject FusoDoEscritorio Fuso
+
+@* A faixa de dias da barra do mobile (visões Dia e Semana): os sete dias da semana da data, cada um um botão com a
+   sigla, o número e um ponto por evento do dia (até seis), na cor do tipo. O escolhido é o da data; hoje leva o aro
+   verde. Tocar num dia avisa a página, que troca a data no endereço. *@
+<div class="aj-faixa-dias">
+    @foreach (var dia in Periodo.Semana)
+    {
+        <button type="button" class="@(dia == Hoje ? "aj-faixa-dias__dia aj-faixa-dias__dia--hoje" : "aj-faixa-dias__dia")" aria-pressed="@(dia == Periodo.Data ? "true" : "false")" aria-label="@RotulosDeAgenda.RotuloCurto(dia, dia == Hoje)" @key="dia" @onclick="() => AoEscolher.InvokeAsync(dia)">
+            <span class="aj-faixa-dias__sigla">@RotulosDeAgenda.SiglaDoDia(dia)</span>
+            <span class="aj-faixa-dias__numero">@RotulosDeAgenda.NumeroDoDia(dia)</span>
+            <PontosDoDia Eventos="DoDia(dia)" />
+        </button>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public PeriodoDaAgenda Periodo { get; set; } = default!;
+    [Parameter, EditorRequired] public IReadOnlyList<EventoResumo> Eventos { get; set; } = [];
+    [Parameter, EditorRequired] public DateOnly Hoje { get; set; }
+
+    /// <summary>O dia tocado; a página leva a data ao endereço.</summary>
+    [Parameter] public EventCallback<DateOnly> AoEscolher { get; set; }
+
+    // Os eventos que tocam o dia, na ordem de início.
+    private IReadOnlyList<EventoResumo> DoDia(DateOnly dia) =>
+        RotulosDeAgenda.EventosDoDia(Fuso, Eventos.OrderBy(evento => evento.InicioEm), dia);
+}

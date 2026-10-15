@@ -1,6 +1,7 @@
-/* Estilos da aplicação sobre o design system (css/tokens.css e css/componentes.css).
-   As telas ainda usam os elementos e as classes antigas (button, table, .ficha, .formulario…);
-   este arquivo veste essas marcações com os tokens. Tela migrada passa a usar as classes aj-. */
+/* Base da aplicação sobre o design system (css/tokens.css e css/componentes.css): caixa, corpo, links e foco.
+   Todas as telas usam as classes aj-. As regras de elemento abaixo da base vêm da marcação antiga e ainda alcançam
+   os componentes do design system (título, parágrafo, rótulo, botão desabilitado, caixa de marcar, conjunto); saem
+   na fase 9G, com a conferência das telas. */
 
 *, *::before, *::after { box-sizing: border-box; }
 html, body { height: 100%; }
@@ -11,86 +12,21 @@ body { margin: 0; background: var(--fundo); color: var(--tinta); font: 400 15px/
 /* O título recebe o foco a cada navegação (FocoNoTitulo) só para ser anunciado; não é um controle. */
 h1:focus { outline: none; }
 
-/* ---------- Interino, até a fase 9G ---------- */
-/* Tela ainda não migrada (nenhum filho direto com classe aj-) continua em bloco, com as margens da marcação antiga.
-   Tela migrada usa a coluna flexível do design system. */
-.aj-app__conteudo:not(:has(> [class^="aj-"])) { display: block; }
-
-/* ---------- Página (marcação antiga) ---------- */
+/* ---------- Regras de elemento que ainda alcançam o design system (até a fase 9G) ---------- */
 h1 { margin: 0 0 var(--espaco-14); font: 500 var(--aj-titulo)/1.1 var(--font-serif); letter-spacing: -.01em; }
 h2 { margin: var(--espaco-28) 0 var(--espaco-10); font: 700 18px/1.3 var(--font-sans); }
 h3 { margin: var(--espaco-18) 0 var(--espaco-8); font: 700 16px/1.4 var(--font-sans); }
 p { margin: var(--espaco-8) 0; }
-
-/* As regras de elemento abaixo não valem para os componentes do design system (classes aj-). */
-
-/* ---------- Botões ---------- */
-button:not([class*="aj-"]) { display: inline-flex; align-items: center; justify-content: center; gap: var(--espaco-8); min-height: var(--aj-controle); padding: 0 var(--espaco-18); border: 1px solid var(--verde); border-radius: var(--aj-raio-botao); background: var(--verde); color: var(--sobre-verde); font: 600 var(--aj-fonte-controle)/1.3 var(--font-sans); cursor: pointer; }
-button:not([class*="aj-"]):hover { border-color: var(--verde-hover); background: var(--verde-hover); }
-button.secundario:not([class*="aj-"]) { border-color: var(--borda-campo); background: var(--superficie); color: var(--verde-escuro); }
-button.secundario:not([class*="aj-"]):hover { border-color: var(--borda-hover); background: var(--fundo); }
 button:disabled { opacity: .55; cursor: not-allowed; }
-.acoes { display: flex; flex-wrap: wrap; align-items: center; gap: var(--espaco-8); margin: var(--espaco-10) 0; }
-td .acoes { margin: 0; }
-/* A célula de ações continua célula de tabela; os botões ficam lado a lado, à direita. */
-td.acoes { display: table-cell; margin: 0; text-align: right; white-space: nowrap; }
-td.acoes > * + * { margin-left: var(--espaco-8); }
 
 /* ---------- Campos ---------- */
 label { display: grid; gap: var(--espaco-8); font: 600 var(--aj-fonte-rotulo)/1.4 var(--font-sans); color: var(--tinta-rotulo); }
-:where(input, select, textarea):not([class*="aj-"]) { width: 100%; min-height: var(--aj-campo); padding: 0 var(--espaco-14); border: 1px solid var(--borda-campo); border-radius: var(--aj-raio-campo); background: var(--superficie); color: var(--tinta); font: 400 var(--aj-fonte-campo)/1.5 var(--font-sans); }
-:where(select):not([class*="aj-"]) { padding: 0 var(--espaco-12); }
-:where(textarea):not([class*="aj-"]) { padding: 9px var(--espaco-12); resize: vertical; }
-:where(input, select, textarea):not([class*="aj-"]):focus { outline: none; border-color: var(--verde); box-shadow: var(--sombra-foco); }
 .aj-campo-icone input:focus, .aj-campo-filtro :focus { box-shadow: none; }
 input.invalid, select.invalid, textarea.invalid { border: 1.5px solid var(--erro); background: var(--erro-campo); box-shadow: var(--sombra-foco-erro); }
 input[type="checkbox"], input[type="radio"] { width: 18px; min-height: 0; height: 18px; margin: 0; padding: 0; accent-color: var(--verde); }
-input[type="file"]:not([class*="aj-"]) { min-height: 0; padding: var(--espaco-8) var(--espaco-12); }
 label:has(> input[type="checkbox"]), label:has(> input[type="radio"]) { display: flex; align-items: center; gap: var(--espaco-10); min-height: var(--aj-campo); font-weight: 500; color: var(--tinta); }
 fieldset { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(170px, 100%), 1fr)); gap: var(--espaco-8); margin: 0; padding: var(--espaco-12) var(--espaco-14); border: 1px solid var(--borda-opcao); border-radius: var(--raio-12); }
 legend { padding: 0 var(--espaco-6); font: 600 var(--aj-fonte-rotulo)/1.4 var(--font-sans); color: var(--tinta-rotulo); }
-.formulario, form.formulario { display: grid; gap: var(--espaco-10); }
-.cartao, form.formulario:not(.filtros) { min-width: min(20rem, 100%); max-width: 44rem; padding: var(--aj-cartao-padding); border: 1px solid var(--borda); border-radius: var(--aj-raio-cartao); background: var(--superficie); box-shadow: var(--sombra-1); }
-.ficha .formulario { max-width: 44rem; }
-.grade { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(14rem, 100%), 1fr)); gap: var(--espaco-10); }
-.filtros, form.formulario.filtros { grid-template-columns: repeat(auto-fit, minmax(min(11rem, 100%), 1fr)); align-items: end; gap: var(--espaco-8); margin: var(--espaco-14) 0; padding: var(--espaco-10); border: 1px solid var(--borda); border-radius: var(--raio-16); background: var(--superficie); box-shadow: var(--sombra-1); }
-.ficha .filtros { padding: 0; border: 0; background: transparent; box-shadow: none; }
 
 /* ---------- Tabelas ---------- */
-table:not([class*="aj-"]) { width: 100%; border-collapse: separate; border-spacing: 0; overflow: hidden; border: 1px solid var(--borda); border-radius: var(--raio-14); background: var(--superficie); font-size: 14.5px; box-shadow: var(--sombra-1); }
-table:not([class*="aj-"]) :where(th, td) { padding: 7px var(--espaco-14); border-bottom: 1px solid var(--borda-suave); text-align: left; vertical-align: middle; }
-table:not([class*="aj-"]) th { padding: 9px var(--espaco-14); border-bottom-color: var(--borda); background: var(--superficie-suave); white-space: nowrap; font-size: 12.5px; font-weight: 600; color: var(--tinta-apagada); }
-table:not([class*="aj-"]) tbody tr:last-child td { border-bottom: 0; }
-table:not([class*="aj-"]) tbody tr:hover td { background: var(--superficie-hover); }
 td code { font-size: .8rem; word-break: break-all; }
-td.horario { white-space: nowrap; font-weight: 600; font-variant-numeric: tabular-nums; }
-/* Tabela larga rola dentro da própria caixa em telas estreitas. */
-@media (max-width: 1199px) {
-    table:not([class*="aj-"]) { display: block; overflow-x: auto; }
-}
-
-/* ---------- Painéis ---------- */
-.ficha { margin-top: var(--espaco-14); padding: var(--aj-cartao-padding); border: 1px solid var(--borda); border-radius: var(--aj-raio-cartao); background: var(--superficie); box-shadow: var(--sombra-1); }
-.ficha > :first-child { margin-top: 0; }
-.ficha .ficha { box-shadow: none; }
-.ficha dl { display: grid; grid-template-columns: minmax(8rem, 12rem) 1fr; gap: 0; margin: 0; }
-.ficha dt, .ficha dd { margin: 0; padding: 7px 0; border-top: 1px solid var(--borda-suave); }
-.ficha dt { font-size: 13.5px; color: var(--tinta-apagada); }
-.ficha dd { font-weight: 600; }
-.texto-livre { white-space: pre-wrap; }
-.dia > h2 { margin-top: var(--espaco-24); }
-
-/* ---------- Retorno ---------- */
-.erro, .validation-message { color: var(--erro); }
-.ok { color: var(--sucesso-texto); }
-.aviso { color: var(--aviso-texto); }
-p.erro, p.ok, p.aviso { padding: 9px var(--espaco-14); border: 1px solid; border-radius: var(--raio-14); font-weight: 500; }
-p.erro { border-color: var(--erro-borda); background: var(--erro-fundo); color: var(--erro-texto); }
-p.ok { border-color: var(--sucesso-borda); background: var(--sucesso-fundo); }
-p.aviso { border-color: var(--aviso-borda); background: var(--aviso-fundo); }
-.validation-message { font: 500 12.5px/1.4 var(--font-sans); }
-strong.erro { margin-left: var(--espaco-6); }
-/* Nas telas antigas as etiquetas ficam soltas no texto; o ícone não pode deslocar a linha de base.
-   Só nelas: em tela migrada a etiqueta segue o design system (na tabela, alinhar ao meio encolhe a linha). */
-.aj-app__conteudo:not(:has(> [class^="aj-"])) .aj-etiqueta { vertical-align: middle; }
-.aj-app__conteudo:not(:has(> [class^="aj-"])) .aj-etiqueta + .aj-etiqueta { margin-left: var(--espaco-6); }

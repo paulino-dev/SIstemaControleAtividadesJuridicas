@@ -3,7 +3,7 @@ using System.Text.RegularExpressions;
 using AtividadesJuridicas.Application.Atividades;
 using AtividadesJuridicas.Application.Cadastros;
 using AtividadesJuridicas.Web.Components.Pages;
-using AtividadesJuridicas.Web.Components.Atividades;
+using AtividadesJuridicas.Web.Components.Layout;
 using AtividadesJuridicas.Domain.Auditoria;
 using AtividadesJuridicas.Infrastructure.Persistencia;
 using AtividadesJuridicas.Web.Infra;

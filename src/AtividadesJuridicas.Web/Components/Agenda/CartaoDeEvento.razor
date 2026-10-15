@@ -1,0 +1,125 @@
+@inject FusoDoEscritorio Fuso
+
+@* Um evento da agenda: o cartão inteiro é o link para a ficha. A forma diz onde ele está e quais linhas mostra (os
+   quadros): Coluna (Semana do desktop), Secao (tablet e Semana do mobile), Folgado (lista do dia no mobile), Linha
+   (régua do Dia no desktop) e Mes (célula do mês). Linha sem conteúdo não aparece; o processo fica só na ficha. *@
+<a class="@Classe" href="@Href">
+    @switch (Forma)
+    {
+        case FormaDoCartao.Coluna:
+            <span class="aj-evento__tipo">@RotuloDoTipo</span>
+            <span class="aj-evento__horario">@RotulosDeAgenda.Intervalo(Fuso, Evento, Dia)</span>
+            <span class="aj-evento__titulo">@Evento.Titulo</span>
+            if (Local is not null)
+            {
+                <span class="aj-evento__local">@Local</span>
+            }
+            if (Cliente is not null)
+            {
+                <span class="aj-evento__meta">@Cliente</span>
+            }
+            if (Pessoas is not null)
+            {
+                <span class="aj-evento__meta">@Pessoas</span>
+            }
+            break;
+
+        case FormaDoCartao.Secao:
+            <span class="aj-evento__hora"><b>@RotulosDeAgenda.HoraDeInicio(Fuso, Evento, Dia)</b><span>@RotulosDeAgenda.HoraDeFim(Fuso, Evento, Dia)</span></span>
+            <span class="aj-evento__corpo">
+                <span class="aj-evento__tipo">@RotuloDoTipo</span>
+                <span class="aj-evento__titulo">@Evento.Titulo</span>
+                @if (LinhaDoTablet is not null)
+                {
+                    <span class="aj-evento__local">@LinhaDoTablet</span>
+                }
+            </span>
+            break;
+
+        case FormaDoCartao.Folgado:
+            <span class="aj-evento__hora"><b>@RotulosDeAgenda.HoraDeInicio(Fuso, Evento, Dia)</b><span>@RotulosDeAgenda.HoraDeFim(Fuso, Evento, Dia)</span></span>
+            <span class="aj-evento__corpo">
+                <span class="aj-evento__tipo">@RotuloDoTipo</span>
+                <span class="aj-evento__titulo">@Evento.Titulo</span>
+                @if (LinhaDoMobile is not null)
+                {
+                    <span class="aj-evento__meta">@LinhaDoMobile</span>
+                }
+                @if (Pessoas is not null)
+                {
+                    <span class="aj-evento__meta">@Pessoas</span>
+                }
+            </span>
+            break;
+
+        case FormaDoCartao.Linha:
+            <span class="aj-evento__tipo">@RotuloDoTipo</span>
+            <span class="aj-evento__horario">@RotulosDeAgenda.Intervalo(Fuso, Evento, Dia)</span>
+            <span class="aj-evento__titulo">@Evento.Titulo</span>
+            if (LinhaDaRegua is not null)
+            {
+                <span class="aj-evento__meta">@LinhaDaRegua</span>
+            }
+            break;
+
+        case FormaDoCartao.Mes:
+            @* O item do mês só tem a cor para dizer o tipo: o leitor de tela ouve o tipo antes da hora. *@
+            <span class="aj-so-leitor">@(RotuloDoTipo + ", ")</span>
+            if (ComecaNoDia)
+            {
+                <span class="aj-evento__horario">@RotulosDeAgenda.HoraDeInicio(Fuso, Evento, Dia)</span>
+            }
+            <span class="aj-evento__titulo">@Evento.Titulo</span>
+            break;
+    }
+</a>
+
+@code {
+    [Parameter, EditorRequired] public EventoResumo Evento { get; set; } = default!;
+
+    /// <summary>O dia em que o cartão está (o evento de vários dias aparece em cada um).</summary>
+    [Parameter, EditorRequired] public DateOnly Dia { get; set; }
+
+    [Parameter, EditorRequired] public FormaDoCartao Forma { get; set; }
+
+    /// <summary>A ficha do evento com o período de origem (<c>PeriodoDaAgenda.Ficha</c>).</summary>
+    [Parameter, EditorRequired] public string Href { get; set; } = string.Empty;
+
+    /// <summary>Só na forma Linha: as classes de posição na régua (<c>aj-regua__evento</c> e as de início, quartos e parte).</summary>
+    [Parameter] public string? ClassesDaRegua { get; set; }
+
+    /// <summary>O sufixo das classes do tipo: "audiencia", "reuniao", "prazo", "outro" (também o dos pontos da faixa).</summary>
+    public static string Sufixo(TipoEvento tipo) => tipo switch
+    {
+        TipoEvento.Audiencia => "audiencia",
+        TipoEvento.Reuniao => "reuniao",
+        TipoEvento.Prazo => "prazo",
+        _ => "outro",
+    };
+
+    private string Classe => Forma switch
+    {
+        FormaDoCartao.Coluna => $"aj-evento aj-evento--coluna aj-evento--{Sufixo(Evento.Tipo)}",
+        FormaDoCartao.Folgado => $"aj-evento aj-evento--folgado aj-evento--{Sufixo(Evento.Tipo)}",
+        FormaDoCartao.Linha => ClassesDaRegua is null
+            ? $"aj-evento aj-evento--linha aj-evento--{Sufixo(Evento.Tipo)}"
+            : $"aj-evento aj-evento--linha aj-evento--{Sufixo(Evento.Tipo)} {ClassesDaRegua}",
+        FormaDoCartao.Mes => $"aj-evento aj-evento--mes aj-evento--{Sufixo(Evento.Tipo)}",
+        _ => $"aj-evento aj-evento--{Sufixo(Evento.Tipo)}",
+    };
+
+    private string RotuloDoTipo => RotulosDeAgenda.Tipo(Evento.Tipo);
+    private string? Local => Texto(Evento.Local);
+    private string? Cliente => Texto(Evento.ClienteNome);
+    private string? LinhaDoTablet => Texto(RotulosDeAgenda.LinhaDoTablet(Evento));
+    private string? LinhaDoMobile => Texto(RotulosDeAgenda.LinhaDoMobile(Evento));
+    private string? LinhaDaRegua => Texto(RotulosDeAgenda.LinhaDaRegua(Evento));
+
+    // Os participantes na ordem do servidor; quem não foi encontrado (nome vazio) aparece como "Usuário não encontrado".
+    private string? Pessoas => Texto(RotulosDeAgenda.Participantes(Evento));
+
+    // No mês, a hora só aparece no dia em que o evento começa.
+    private bool ComecaNoDia => DateOnly.FromDateTime(Fuso.ParaLocal(Evento.InicioEm)) == Dia;
+
+    private static string? Texto(string? valor) => string.IsNullOrWhiteSpace(valor) ? null : valor;
+}
