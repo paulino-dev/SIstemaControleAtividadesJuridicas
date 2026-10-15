@@ -1,5 +1,7 @@
 using System.Globalization;
 using System.Net;
+using System.Text.Json;
+using System.Text.RegularExpressions;
 using AtividadesJuridicas.Application.Agenda;
 using AtividadesJuridicas.Application.Identidade;
 using AtividadesJuridicas.Domain.Agenda;
@@ -20,6 +22,8 @@ public class AgendaWebTests(BancoFixture banco) : IAsyncLifetime
     private readonly FusoDoEscritorio _fuso = new("America/Sao_Paulo");
     private Guid _admin;
     private Guid _pedro;
+    private Guid _doPedro;
+    private Guid _restrito;
 
     public async Task InitializeAsync()
     {
@@ -29,12 +33,11 @@ public class AgendaWebTests(BancoFixture banco) : IAsyncLifetime
 
     public async Task DisposeAsync() => await _app.DisposeAsync();
 
+    /// <summary>Hoje, no fuso do escritório: a agenda sem endereço abre nele.</summary>
+    private DateOnly Hoje() => DateOnly.FromDateTime(_fuso.ParaLocal(DateTime.UtcNow));
+
     /// <summary>Hoje, no fuso do escritório, às <paramref name="hora"/>: sempre dentro da semana corrente.</summary>
-    private DateTime HojeAs(int hora, int minuto = 0)
-    {
-        var hoje = DateOnly.FromDateTime(_fuso.ParaLocal(DateTime.UtcNow));
-        return _fuso.ParaUtc(hoje.ToDateTime(new TimeOnly(hora, minuto)));
-    }
+    private DateTime HojeAs(int hora, int minuto = 0) => _fuso.ParaUtc(Hoje().ToDateTime(new TimeOnly(hora, minuto)));
 
     private async Task CriarEventosAsync()
     {
@@ -43,12 +46,45 @@ public class AgendaWebTests(BancoFixture banco) : IAsyncLifetime
             null, "Audiência de instrução do Pedro", null, "Fórum Central", TipoEvento.Audiencia, HojeAs(10), 60,
             null, null, null, [_pedro]));
         doPedro.Sucesso.Should().BeTrue(doPedro.Mensagem);
+        _doPedro = doPedro.Valor!.Id;
 
         // Só a Diretoria participa: o Pedro não pode ver.
         var restrito = await _app.ExecutarAsync(_admin, new SalvarEvento(
             null, "Reunião reservada da diretoria", null, null, TipoEvento.Reuniao, HojeAs(14, 30), 90,
             null, null, null, []));
         restrito.Sucesso.Should().BeTrue(restrito.Mensagem);
+        _restrito = restrito.Valor!.Id;
+    }
+
+    // A barra superior que a agenda declara (a do layout é "aj-barra-superior aj-barra-superior--padrao").
+    private static string BarraDoMobile(string html)
+    {
+        var barra = Regex.Match(html, "<header class=\"aj-barra-superior\">.*?</header>", RegexOptions.Singleline);
+        barra.Success.Should().BeTrue("a agenda declara a própria barra superior do mobile");
+        return barra.Value;
+    }
+
+    // O cartão da Semana do desktop (forma Coluna) que leva à ficha do evento, com o período de origem.
+    private static string CartaoDaSemana(string desktop, Guid id, string consulta = "")
+    {
+        var cartao = Regex.Match(desktop,
+            $"<a class=\"(?=[^\"]*aj-evento--coluna)[^\"]*\" href=\"/agenda/{id}{Regex.Escape(consulta)}\">.*?</a>",
+            RegexOptions.Singleline);
+        cartao.Success.Should().BeTrue($"a Semana do desktop traz o cartão do evento {id} como link para a ficha");
+        return cartao.Value;
+    }
+
+    // As consultas da agenda que o usuário fez (o registro de consultas guarda o período pedido no detalhe).
+    private Task<List<RegistroAcesso>> ConsultasDaAgendaAsync(Guid usuario) =>
+        _app.EmEscopoAsync(null, sp => sp.GetRequiredService<AppDbContext>().RegistrosAcesso.AsNoTracking()
+            .Where(a => a.UsuarioId == usuario && a.TipoRecurso == "Evento" && a.Acao == AcaoDeAcesso.Listou)
+            .OrderBy(a => a.DataHora)
+            .ToListAsync());
+
+    private static (DateTime De, DateTime Ate) PeriodoConsultado(RegistroAcesso registro)
+    {
+        using var detalhe = JsonDocument.Parse(registro.Detalhe!);
+        return (detalhe.RootElement.GetProperty("DeUtc").GetDateTime(), detalhe.RootElement.GetProperty("AteUtc").GetDateTime());
     }
 
     [Fact]
@@ -56,34 +92,78 @@ public class AgendaWebTests(BancoFixture banco) : IAsyncLifetime
     {
         await CriarEventosAsync();
         var cliente = await _app.ClienteAutenticadoAsync();
+        var hoje = Hoje();
 
         var html = WebUtility.HtmlDecode(await cliente.GetStringAsync("/agenda"));
 
-        html.Should().Contain("Agenda").And.Contain("Semana anterior").And.Contain("Hoje").And.Contain("Próxima semana")
-            .And.Contain("Novo evento").And.NotContain("Seu acesso foi encerrado");
-        html.Should().Contain("Audiência de instrução do Pedro").And.Contain("Reunião reservada da diretoria");
+        html.Should().Contain("Audiência de instrução do Pedro").And.Contain("Reunião reservada da diretoria")
+            .And.NotContain("Seu acesso foi encerrado");
+        // Cabeçalho: o título, o período da Semana (padrão do desktop e do tablet) e a ação de cadastro nos dois lugares.
+        html.Should().Contain("<h1 class=\"aj-titulo\">Agenda</h1>")
+            .And.Contain($"<p class=\"aj-subtitulo\">{RotulosDeAgenda.SubtituloDaSemana(RotulosDeAgenda.SegundaDe(hoje))}</p>")
+            .And.MatchRegex("<a href=\"/agenda/novo\" class=\"aj-botao aj-botao--primario aj-botao--com-icone\">\\s*<svg[^>]*>.*?</svg>\\s*Novo evento</a>")
+            .And.Contain("<a href=\"/agenda/novo\" class=\"aj-fab\" aria-label=\"Novo evento\">");
 
-        // Células da tabela (as palavras também aparecem nos filtros): horário no fuso do escritório, tipo, local, participantes.
-        html.Should().MatchRegex(@"<td[^>]*>\s*10:00 – 11:00\s*</td>");
-        html.Should().MatchRegex(@"<td[^>]*>\s*14:30 – 16:00\s*</td>");
-        html.Should().MatchRegex(@"<td>\s*Audiência\s*</td>");
-        html.Should().MatchRegex(@"<td>\s*Reunião\s*</td>");
-        html.Should().MatchRegex(@"<td>\s*Fórum Central\s*</td>");
-        // Os participantes estão na célula da linha, ordenados por nome, e não em qualquer parte da página.
-        html.Should().MatchRegex(@"<td>\s*Diana Diretora, Pedro Produção\s*</td>");
-        html.Should().MatchRegex(@"<td>\s*Diana Diretora\s*</td>");
-        html.Should().Contain("Abrir");
+        var desktop = BlocoDeVisao.De(html, "aj-so-desktop");
+        desktop.Should().MatchRegex(
+            "(?s)<div class=\"aj-barra-filtros aj-barra-filtros--dividida\">\\s*<div class=\"aj-barra-filtros__grupo\">\\s*" +
+            "<div class=\"aj-segmentado aj-segmentado--periodo\">\\s*" +
+            "<button type=\"button\" class=\"aj-segmentado__seta\" aria-label=\"Período anterior\"[^>]*>\\s*<svg[^>]*>.*?</svg>\\s*</button>\\s*" +
+            "<button type=\"button\" class=\"aj-segmentado__hoje\"[^>]*>Hoje</button>\\s*" +
+            "<button type=\"button\" class=\"aj-segmentado__seta\" aria-label=\"Próximo período\"[^>]*>\\s*<svg[^>]*>.*?</svg>\\s*</button>\\s*</div>\\s*" +
+            "<div class=\"aj-segmentado aj-segmentado--periodo\" role=\"group\" aria-label=\"Visualização da agenda\">\\s*" +
+            "<button type=\"button\" class=\"aj-segmentado__opcao\" aria-pressed=\"false\"[^>]*>Dia</button>\\s*" +
+            "<button type=\"button\" class=\"aj-segmentado__opcao\" aria-pressed=\"true\"[^>]*>Semana</button>\\s*" +
+            "<button type=\"button\" class=\"aj-segmentado__opcao\" aria-pressed=\"false\"[^>]*>Mês</button>\\s*</div>\\s*</div>\\s*" +
+            "<form class=\"aj-barra-filtros__grupo\" role=\"search\"[^>]*>\\s*" +
+            "<label class=\"aj-campo-filtro aj-campo-filtro--tipo\">\\s*<span>Tipo</span>\\s*<select class=\"aj-campo-filtro__controle\"[^>]*>\\s*" +
+            "<option value(?:=\"\")?[^>]*>Todos</option>\\s*<option value=\"Audiencia\"[^>]*>Audiência</option>\\s*<option value=\"Reuniao\"[^>]*>Reunião</option>\\s*" +
+            "<option value=\"Prazo\"[^>]*>Prazo</option>\\s*<option value=\"Outro\"[^>]*>Outro</option>\\s*</select>\\s*</label>\\s*" +
+            "<label class=\"aj-campo-filtro aj-campo-filtro--pessoa\">\\s*<span>Participante</span>\\s*<select class=\"aj-campo-filtro__controle\"[^>]*>.*?</select>\\s*</label>\\s*" +
+            "<button type=\"submit\" class=\"aj-botao aj-botao--secundario aj-botao--com-icone-pequeno\">\\s*<svg[^>]*>.*?</svg>\\s*Filtrar</button>\\s*</form>\\s*</div>");
+        // Cada evento no seu cartão da Semana, que leva à ficha: tipo, horário no fuso do escritório, título, local e
+        // participantes, nessa ordem e dentro do mesmo cartão.
+        CartaoDaSemana(desktop, _doPedro).Should().Contain("aj-evento--audiencia").And.MatchRegex(
+            "(?s)>Audiência<.*>10:00 – 11:00<.*>Audiência de instrução do Pedro<.*>Fórum Central<.*>Diana Diretora, Pedro Produção<");
+        CartaoDaSemana(desktop, _restrito).Should().Contain("aj-evento--reuniao").And.MatchRegex(
+            "(?s)>Reunião<.*>14:30 – 16:00<.*>Reunião reservada da diretoria<.*>Diana Diretora<");
+        // A semana tem sete dias; dia sem eventos é dito; hoje é marcado no cabeçalho do dia.
+        Regex.Matches(desktop, "<section class=\"aj-semana__dia[\" ]").Count.Should().Be(7);
+        desktop.Should().Contain(">Sem eventos<").And.Contain($"aria-label=\"{RotulosDeAgenda.RotuloLongo(hoje, true)}\"");
 
-        // Dia sem eventos é dito, e a semana tem sete dias.
-        html.Should().Contain("Sem eventos.");
-        html.Split("class=\"dia\"").Length.Should().Be(8);
+        var tablet = BlocoDeVisao.De(html, "aj-so-tablet");
+        tablet.Should().MatchRegex(
+            "(?s)<div class=\"aj-barra-filtros aj-barra-filtros--plana\">\\s*<div class=\"aj-segmentado aj-segmentado--periodo\">\\s*" +
+            "<button type=\"button\" class=\"aj-segmentado__seta\" aria-label=\"Semana anterior\"[^>]*>.*?</button>\\s*" +
+            "<button type=\"button\" class=\"aj-segmentado__hoje\"[^>]*>Hoje</button>\\s*" +
+            "<button type=\"button\" class=\"aj-segmentado__seta\" aria-label=\"Próxima semana\"[^>]*>.*?</button>\\s*</div>\\s*" +
+            "<div class=\"aj-segmentado aj-segmentado--periodo\" role=\"group\" aria-label=\"Visualização\">\\s*" +
+            "<button type=\"button\" class=\"aj-segmentado__opcao\" aria-pressed=\"false\"[^>]*>Dia</button>\\s*" +
+            "<button type=\"button\" class=\"aj-segmentado__opcao aj-segmentado__opcao--larga\" aria-pressed=\"true\"[^>]*>Semana</button>\\s*" +
+            "<button type=\"button\" class=\"aj-segmentado__opcao\" aria-pressed=\"false\"[^>]*>Mês</button>\\s*</div>\\s*" +
+            "<button type=\"button\" class=\"aj-botao aj-botao--secundario aj-botao--com-icone aj-botao--ao-fim\" aria-expanded=\"false\" aria-controls=\"filtros-da-agenda\"[^>]*>\\s*<svg[^>]*>.*?</svg>\\s*Filtros</button>\\s*</div>");
+        Regex.Matches(BlocoDeVisao.De(html, "aj-tablet-mobile"), "<section class=\"aj-secao-dia[\" ]").Count.Should().Be(7);
 
-        // O dia de hoje é um dos cabeçalhos, escrito com dia da semana e data.
-        var hoje = DateOnly.FromDateTime(_fuso.ParaLocal(DateTime.UtcNow));
-        html.Should().Contain(hoje.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture));
+        // Mobile: sem visão no endereço, o Dia de hoje, com os cartões que levam à ficha.
+        var mobile = BlocoDeVisao.De(html, "aj-so-mobile");
+        mobile.Should().Contain("aj-dia-escolhido").And.Contain($"href=\"/agenda/{_doPedro}\"").And.Contain($"href=\"/agenda/{_restrito}\"");
 
-        // O filtro por participante é só da Diretoria.
-        html.Should().MatchRegex(@"Participante\s*<select");
+        var barra = BarraDoMobile(html);
+        barra.Should().Contain("<h1 class=\"aj-titulo\">Agenda</h1>")
+            .And.MatchRegex("(?s)<h1 class=\"aj-titulo\">Agenda</h1>.*?aria-label=\"Filtrar agenda\".*?<a href=\"/minha-senha\" class=\"aj-avatar\"")
+            .And.MatchRegex("<button type=\"button\" class=\"aj-botao aj-botao--fantasma aj-botao--icone aj-barra-superior__acao\" aria-label=\"Filtrar agenda\" aria-expanded=\"false\" aria-controls=\"filtros-da-agenda\"[^>]*>\\s*<svg")
+            .And.MatchRegex(
+                "(?s)<div class=\"aj-segmentado aj-segmentado--recuado aj-segmentado--claro\" role=\"group\" aria-label=\"Visualização\">\\s*" +
+                "<button type=\"button\" class=\"aj-segmentado__opcao\" aria-pressed=\"true\"[^>]*>Dia</button>\\s*" +
+                "<button type=\"button\" class=\"aj-segmentado__opcao\" aria-pressed=\"false\"[^>]*>Semana</button>\\s*" +
+                "<button type=\"button\" class=\"aj-segmentado__opcao\" aria-pressed=\"false\"[^>]*>Mês</button>\\s*</div>")
+            .And.MatchRegex(
+                $"(?s)<div class=\"aj-barra-superior__periodo\">\\s*<strong>{RotulosDeAgenda.MesDoMobile(hoje)}</strong>\\s*<div class=\"aj-barra-superior__setas\">\\s*" +
+                "<button type=\"button\" class=\"aj-botao aj-botao--fantasma aj-botao--icone\" aria-label=\"Semana anterior\"[^>]*>.*?</button>\\s*" +
+                "<button type=\"button\" class=\"aj-botao aj-botao--fantasma aj-botao--icone\" aria-label=\"Próxima semana\"[^>]*>.*?</button>\\s*</div>\\s*</div>")
+            .And.Contain("aj-faixa-dias");
+        // O mobile não tem subtítulo nem "Hoje" (os quadros).
+        barra.Should().NotContain("aj-subtitulo").And.NotContain(">Hoje<");
     }
 
     [Fact]
@@ -94,11 +174,15 @@ public class AgendaWebTests(BancoFixture banco) : IAsyncLifetime
 
         var html = WebUtility.HtmlDecode(await cliente.GetStringAsync("/agenda"));
 
-        html.Should().Contain("Audiência de instrução do Pedro").And.Contain("Novo evento").And.Contain("Abrir");
-        html.Should().MatchRegex(@"<td[^>]*>\s*10:00 – 11:00\s*</td>");
-        html.Should().NotContain("Reunião reservada da diretoria").And.NotContain("14:30")
+        html.Should().Contain("Audiência de instrução do Pedro")
+            .And.Contain("<a href=\"/agenda/novo\" class=\"aj-fab\" aria-label=\"Novo evento\">");
+        var desktop = BlocoDeVisao.De(html, "aj-so-desktop");
+        CartaoDaSemana(desktop, _doPedro).Should().MatchRegex(">10:00 – 11:00<");
+        desktop.Should().Contain("<span>Tipo</span>");
+        html.Should().NotContain("Reunião reservada da diretoria").And.NotContain("14:30").And.NotContain(_restrito.ToString())
             .And.NotContain("Seu acesso foi encerrado");
-        html.Should().NotMatchRegex(@"Participante\s*<select");
+        // O filtro por participante é só da Diretoria (a positiva do mesmo bloco é o Tipo, acima).
+        desktop.Should().NotContain("<span>Participante</span>");
     }
 
     [Fact]
@@ -133,6 +217,64 @@ public class AgendaWebTests(BancoFixture banco) : IAsyncLifetime
             a.TipoRecurso == "Evento" && a.Acao == AcaoDeAcesso.Listou && a.UsuarioId == _pedro);
     }
 
+    // Review Focus 1: endereço sem período ou com período estranho abre hoje, no padrão de cada largura, sem erro e
+    // com uma consulta só (a semana de hoje, que serve à Semana do desktop e do tablet e ao Dia do mobile).
+    [Theory]
+    [InlineData("/agenda")]
+    [InlineData("/agenda?visao=xyz")]
+    [InlineData("/agenda?data=2026-13-40")]
+    [InlineData("/agenda?data=1999-01-01")]
+    [InlineData("/agenda?visao=xyz&data=ontem")]
+    public async Task Endereco_sem_periodo_ou_estranho_abre_hoje_no_padrao_com_uma_consulta_so(string rota)
+    {
+        var cliente = await _app.ClienteAutenticadoAsync(AplicacaoDeTeste.EmailDoPedro, AplicacaoDeTeste.SenhaDoPedro);
+        var segunda = RotulosDeAgenda.SegundaDe(Hoje());
+
+        var html = WebUtility.HtmlDecode(await cliente.GetStringAsync(rota));
+
+        html.Should().Contain($"<p class=\"aj-subtitulo\">{RotulosDeAgenda.SubtituloDaSemana(segunda)}</p>")
+            .And.NotContain("Seu acesso foi encerrado").And.NotContain("Não foi possível consultar a agenda.");
+        BlocoDeVisao.De(html, "aj-so-desktop").Should().MatchRegex("aria-pressed=\"true\"[^>]*>Semana</button>")
+            .And.NotMatchRegex("aria-pressed=\"true\"[^>]*>(Dia|Mês)</button>");
+        BarraDoMobile(html).Should().MatchRegex("aria-pressed=\"true\"[^>]*>Dia</button>")
+            .And.NotMatchRegex("aria-pressed=\"true\"[^>]*>(Semana|Mês)</button>");
+        var consulta = (await ConsultasDaAgendaAsync(_pedro)).Should().ContainSingle().Which;
+        PeriodoConsultado(consulta).Should().Be((_fuso.InicioDoDiaEmUtc(segunda), _fuso.InicioDoDiaEmUtc(segunda.AddDays(7))));
+    }
+
+    // O Mês consulta as semanas inteiras que cobrem o mês (outubro de 2026: de 28/09 a 01/11), numa consulta só.
+    [Fact]
+    public async Task Mes_consulta_as_semanas_inteiras_do_mes()
+    {
+        var cliente = await _app.ClienteAutenticadoAsync(AplicacaoDeTeste.EmailDoPedro, AplicacaoDeTeste.SenhaDoPedro);
+
+        var html = WebUtility.HtmlDecode(await cliente.GetStringAsync("/agenda?visao=mes&data=2026-10-15"));
+
+        html.Should().Contain("<p class=\"aj-subtitulo\">Outubro de 2026</p>").And.Contain("aj-mes__grade")
+            .And.Contain("<a href=\"/agenda/novo?visao=mes&data=2026-10-15\" class=\"aj-fab\" aria-label=\"Novo evento\">");
+        BlocoDeVisao.De(html, "aj-so-desktop").Should().MatchRegex("aria-pressed=\"true\"[^>]*>Mês</button>");
+        BarraDoMobile(html).Should().Contain("<strong>Outubro 2026</strong>").And.Contain("aj-faixa-dias--mes")
+            .And.Contain("aria-label=\"Mês anterior\"").And.Contain("aria-label=\"Próximo mês\"");
+        var consulta = (await ConsultasDaAgendaAsync(_pedro)).Should().ContainSingle().Which;
+        PeriodoConsultado(consulta).Should().Be(
+            (_fuso.InicioDoDiaEmUtc(new DateOnly(2026, 9, 28)), _fuso.InicioDoDiaEmUtc(new DateOnly(2026, 11, 2))));
+    }
+
+    // O período de onde se veio segue para a ficha (cartão) e para o novo evento.
+    [Fact]
+    public async Task Cartao_e_novo_evento_levam_o_periodo_de_origem()
+    {
+        await CriarEventosAsync();
+        var cliente = await _app.ClienteAutenticadoAsync();
+        var consulta = $"?visao=semana&data={Hoje().ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}";
+
+        var html = WebUtility.HtmlDecode(await cliente.GetStringAsync($"/agenda{consulta}"));
+
+        html.Should().Contain($"<a href=\"/agenda/novo{consulta}\" class=\"aj-fab\" aria-label=\"Novo evento\">");
+        CartaoDaSemana(BlocoDeVisao.De(html, "aj-so-desktop"), _doPedro, consulta).Should().Contain("Audiência de instrução do Pedro");
+        // Nenhum cartão perde a origem.
+        html.Should().NotContain($"href=\"/agenda/{_doPedro}\"");
+    }
 
     [Fact]
     public async Task Diretor_encontra_no_filtro_o_usuario_inativo_marcado_e_em_ordem_de_nome_e_producao_nao_tem_o_filtro()
@@ -150,15 +292,18 @@ public class AgendaWebTests(BancoFixture banco) : IAsyncLifetime
         var htmlDoDiretor = WebUtility.HtmlDecode(await doDiretor.GetStringAsync("/agenda"));
         var htmlDoPedro = WebUtility.HtmlDecode(await doPedro.GetStringAsync("/agenda"));
 
-        var inicio = System.Text.RegularExpressions.Regex.Match(htmlDoDiretor, @"Participante\s*<select");
-        inicio.Success.Should().BeTrue();
-        var select = htmlDoDiretor[inicio.Index..htmlDoDiretor.IndexOf("</select>", inicio.Index, StringComparison.Ordinal)];
-        select.Should().MatchRegex(@">\s*Iara Inativa \(inativo\)\s*<");
-        var nomes = System.Text.RegularExpressions.Regex.Matches(select, @"<option[^>]*>\s*([^<]*?)\s*</option>")
+        var select = Regex.Match(BlocoDeVisao.De(htmlDoDiretor, "aj-so-desktop"),
+            "(?s)<span>Participante</span>\\s*<select class=\"aj-campo-filtro__controle\"[^>]*>(.*?)</select>");
+        select.Success.Should().BeTrue();
+        select.Groups[1].Value.Should().MatchRegex(@">\s*Iara Inativa \(inativo\)\s*<");
+        var nomes = Regex.Matches(select.Groups[1].Value, @"<option[^>]*>\s*([^<]*?)\s*</option>")
             .Select(m => m.Groups[1].Value).ToList();
         nomes.Should().Equal("Todos", "Diana Diretora", "Iara Inativa (inativo)", "Pedro Produção");
 
-        htmlDoPedro.Should().NotMatchRegex(@"Participante\s*<select").And.NotContain("Iara");
+        var desktopDoPedro = BlocoDeVisao.De(htmlDoPedro, "aj-so-desktop");
+        desktopDoPedro.Should().Contain("<span>Tipo</span>");
+        desktopDoPedro.Should().NotContain("<span>Participante</span>");
+        htmlDoPedro.Should().NotContain("Iara");
     }
 }
 
