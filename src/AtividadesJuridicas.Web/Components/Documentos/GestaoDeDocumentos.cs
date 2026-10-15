@@ -55,6 +55,9 @@ public abstract class GestaoDeDocumentos : ComponentBase
     // Um painel acabou de abrir e o campo dele ainda espera o foco: pedido uma vez por abertura, não a cada desenho.
     private bool _focarPainel;
 
+    // O envio em curso foi confirmado no aviso de visibilidade (só os Documentos comuns pedem): o gancho padrão o repassa.
+    private bool _envioConfirmado;
+
     protected IReadOnlyDictionary<CategoriaDocumento, int> _porCategoria = new Dictionary<CategoriaDocumento, int>();
 
     protected IBrowserFile? _arquivo;
@@ -80,12 +83,6 @@ public abstract class GestaoDeDocumentos : ComponentBase
 
     protected override async Task OnInitializedAsync()
     {
-        // Só o Documento comum não é de um cliente; qualquer outra combinação é erro de quem usa o componente.
-        if (CategoriaDosDocumentos != CategoriaDocumento.DocumentoComum && ClienteDosDocumentos is null)
-            throw new InvalidOperationException("Informe o ClienteId: só os Documentos comuns dispensam o cliente.");
-        if (CategoriaDosDocumentos == CategoriaDocumento.DocumentoComum && ClienteDosDocumentos is not null)
-            throw new InvalidOperationException("Documentos comuns não pertencem a um cliente: não informe o ClienteId.");
-
         _confirmacao = new EnvioComConfirmacao(exigeConfirmacao: CategoriaDosDocumentos == CategoriaDocumento.DocumentoComum);
         await CarregarAsync(1);
         _carregado = true;
@@ -102,34 +99,18 @@ public abstract class GestaoDeDocumentos : ComponentBase
     {
         _paginaPedida = pagina;
         _excluindo = null;
-        Resultado resultado;
-        Pagina<Linha>? lida;
-        if (CategoriaDosDocumentos == CategoriaDocumento.DocumentoComum)
-        {
-            var comuns = await Despachante.EnviarAsync(new ListarDocumentosComuns(pagina));
-            resultado = comuns;
-            // Documento comum não tem atividade: o título fica nulo. O autor vem preenchido para a Diretoria.
-            lida = comuns.Valor is { } p
-                ? new Pagina<Linha>([.. p.Itens.Select(d => new Linha(d.Id, d.Nome, d.TamanhoBytes, d.EnviadoEm, d.EnviadoPor, null))],
-                    p.Total, p.Numero, p.Tamanho)
-                : null;
-        }
-        else
-        {
-            var doCliente = await Despachante.EnviarAsync(new ListarDocumentosDoCliente(ClienteDosDocumentos!.Value, CategoriaDosDocumentos, pagina));
-            resultado = doCliente;
-            if (doCliente.Valor is PaginaDeDocumentos lidos) _porCategoria = lidos.PorCategoria;
-            lida = doCliente.Valor is { } p
-                ? new Pagina<Linha>([.. p.Itens.Select(d => new Linha(d.Id, d.Nome, d.TamanhoBytes, d.EnviadoEm, d.EnviadoPor, d.AtividadeTitulo))],
-                    p.Total, p.Numero, p.Tamanho)
-                : null;
-        }
+        var resultado = await ListarPaginaAsync(pagina);
+        // Só a lista de um cliente traz a contagem por área.
+        if (resultado.Valor is PaginaDeDocumentos lidos) _porCategoria = lidos.PorCategoria;
 
         if (await EncerradoAsync(resultado)) return;
 
-        _pagina = lida ?? Vazia;
+        _pagina = resultado.Valor is { } p
+            ? new Pagina<Linha>([.. p.Itens.Select(d => new Linha(d.Id, d.Nome, d.TamanhoBytes, d.EnviadoEm, d.EnviadoPor, d.AtividadeTitulo))],
+                p.Total, p.Numero, p.Tamanho)
+            : Vazia;
         // Falha na consulta não é "nenhum documento": mostra o erro no lugar da lista.
-        _erroDaLista = resultado.Sucesso ? null : resultado.Mensagem ?? "Não foi possível consultar os documentos.";
+        _erroDaLista = resultado.Sucesso ? null : resultado.Mensagem ?? MensagemDaLista;
 
         // A página ficou além do fim (por exemplo, ao excluir o único item dela): volta à última.
         if (resultado.Sucesso && _pagina.Itens.Count == 0 && _pagina.Total > 0 && _pagina.Numero > _pagina.TotalDePaginas)
@@ -137,6 +118,64 @@ public abstract class GestaoDeDocumentos : ComponentBase
 
         if (resultado.Sucesso) await AoCarregarAsync();
     }
+
+    private const string MensagemDaLista = "Não foi possível consultar os documentos.";
+
+    /// <summary>
+    /// Lê uma página da lista. O padrão lê os Documentos comuns ou os do cliente na categoria da tela; a página do
+    /// cliente chega como <see cref="PaginaDeDocumentos"/>, com a contagem por área. A lista de outra origem (os
+    /// documentos de uma atividade) sobrescreve.
+    /// </summary>
+    protected virtual async Task<Resultado<Pagina<DocumentoResumo>>> ListarPaginaAsync(int pagina)
+    {
+        ConferirOrigemPadrao();
+        if (CategoriaDosDocumentos == CategoriaDocumento.DocumentoComum)
+        {
+            var comuns = await Despachante.EnviarAsync(new ListarDocumentosComuns(pagina));
+            if (!comuns.Sucesso) return MesmaFalha(comuns);
+
+            // Documento comum não tem atividade: o título fica nulo. O autor vem preenchido para a Diretoria. A linha
+            // não usa o nome original do arquivo; o resumo leva o nome do documento no lugar dele.
+            var p = comuns.Valor!;
+            return Resultado<Pagina<DocumentoResumo>>.Ok(new Pagina<DocumentoResumo>(
+                [.. p.Itens.Select(d => new DocumentoResumo(
+                    d.Id, d.Nome, d.Nome, d.TamanhoBytes, CategoriaDocumento.DocumentoComum, d.EnviadoEm, d.EnviadoPor, null, null))],
+                p.Total, p.Numero, p.Tamanho));
+        }
+
+        var doCliente = await Despachante.EnviarAsync(
+            new ListarDocumentosDoCliente(ClienteDosDocumentos!.Value, CategoriaDosDocumentos, pagina));
+        // A página segue como PaginaDeDocumentos: a contagem por área vai junto.
+        return doCliente.Sucesso ? Resultado<Pagina<DocumentoResumo>>.Ok(doCliente.Valor!) : MesmaFalha(doCliente);
+    }
+
+    /// <summary>
+    /// Envia o arquivo escolhido. O padrão envia o Documento comum (com a confirmação de visibilidade que a tela
+    /// colheu) ou o documento do cliente na categoria da tela. A lista de outra origem sobrescreve.
+    /// </summary>
+    protected virtual Task<Resultado<Guid>> EnviarArquivoAsync(string? nome, string nomeArquivo, string? tipoConteudo, Stream conteudo)
+    {
+        ConferirOrigemPadrao();
+        return CategoriaDosDocumentos == CategoriaDocumento.DocumentoComum
+            ? Despachante.EnviarAsync(new EnviarDocumentoComum(
+                nome, nomeArquivo, tipoConteudo, conteudo, ConfirmouVisibilidade: _envioConfirmado))
+            : Despachante.EnviarAsync(new EnviarDocumento(
+                CategoriaDosDocumentos, ClienteDosDocumentos!.Value, nome, nomeArquivo, tipoConteudo, conteudo));
+    }
+
+    // A lista padrão é a dos Documentos comuns ou a de um cliente: qualquer outra combinação é erro de quem usa o
+    // componente. A lista de outra origem sobrescreve os dois ganchos e não passa por aqui.
+    private void ConferirOrigemPadrao()
+    {
+        if (CategoriaDosDocumentos != CategoriaDocumento.DocumentoComum && ClienteDosDocumentos is null)
+            throw new InvalidOperationException("Informe o ClienteId: só os Documentos comuns dispensam o cliente.");
+        if (CategoriaDosDocumentos == CategoriaDocumento.DocumentoComum && ClienteDosDocumentos is not null)
+            throw new InvalidOperationException("Documentos comuns não pertencem a um cliente: não informe o ClienteId.");
+    }
+
+    // A falha da consulta no tipo do gancho, com o erro e a mensagem de quem respondeu.
+    private static Resultado<Pagina<DocumentoResumo>> MesmaFalha(Resultado resultado) =>
+        Resultado<Pagina<DocumentoResumo>>.Falha(resultado.Erro ?? TipoErro.Validacao, resultado.Mensagem ?? MensagemDaLista);
 
     private async Task<bool> EncerradoAsync(Resultado resultado)
     {
@@ -179,7 +218,7 @@ public abstract class GestaoDeDocumentos : ComponentBase
             return;
         }
 
-        await EnviarArquivoAsync(confirmou: false);
+        await EnviarEscolhidoAsync(confirmou: false);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -215,7 +254,7 @@ public abstract class GestaoDeDocumentos : ComponentBase
 
         if (!_confirmacao.Confirmar()) return;
 
-        await EnviarArquivoAsync(confirmou: true);
+        await EnviarEscolhidoAsync(confirmou: true);
     }
 
     // O arquivo e o nome escolhidos ficam: o usuário pode enviar depois.
@@ -286,7 +325,7 @@ public abstract class GestaoDeDocumentos : ComponentBase
     /// <summary>Um envio acabou de dar certo: fecha limpando (outro arquivo escolhido enquanto este subia não fica).</summary>
     protected virtual void AoConcluirEnvio() => DescartarEnvio();
 
-    private async Task EnviarArquivoAsync(bool confirmou)
+    private async Task EnviarEscolhidoAsync(bool confirmou)
     {
         if (_arquivo is not { } arquivo || _enviando) return;
 
@@ -295,11 +334,8 @@ public abstract class GestaoDeDocumentos : ComponentBase
         try
         {
             await using var conteudo = arquivo.OpenReadStream(DocumentosOpcoes.TamanhoMaximoBytes);
-            Resultado<Guid> resultado = CategoriaDosDocumentos == CategoriaDocumento.DocumentoComum
-                ? await Despachante.EnviarAsync(new EnviarDocumentoComum(
-                    _nomeDoEnvio, arquivo.Name, arquivo.ContentType, conteudo, ConfirmouVisibilidade: confirmou))
-                : await Despachante.EnviarAsync(new EnviarDocumento(
-                    CategoriaDosDocumentos, ClienteDosDocumentos!.Value, _nomeDoEnvio, arquivo.Name, arquivo.ContentType, conteudo));
+            _envioConfirmado = confirmou;
+            var resultado = await EnviarArquivoAsync(_nomeDoEnvio, arquivo.Name, arquivo.ContentType, conteudo);
             if (await EncerradoAsync(resultado)) return;
 
             if (!resultado.Sucesso)
@@ -351,6 +387,13 @@ public abstract class GestaoDeDocumentos : ComponentBase
         if (!resultado.Sucesso)
         {
             Avisar(resultado.Mensagem, falhou: true);
+            if (resultado.Erro == TipoErro.NaoEncontrado)
+            {
+                // O documento já não existe: fecha o painel e atualiza a lista, mantendo a mensagem.
+                if (ReferenceEquals(_renomeando, documento)) _renomeando = null;
+                await CarregarAsync(_pagina.Numero);
+            }
+
             return;
         }
 
@@ -384,6 +427,8 @@ public abstract class GestaoDeDocumentos : ComponentBase
             if (!resultado.Sucesso)
             {
                 Avisar(resultado.Mensagem, falhou: true);
+                // O documento pode já não existir: a lista é atualizada para refletir o servidor.
+                if (resultado.Erro == TipoErro.NaoEncontrado) await CarregarAsync(_pagina.Numero);
                 return;
             }
 
