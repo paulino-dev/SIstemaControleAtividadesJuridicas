@@ -1,0 +1,416 @@
+@page "/atividades/nova"
+@page "/atividades/{Id:guid}/editar"
+@using System.ComponentModel.DataAnnotations
+@inject IDespachante Despachante
+@inject NavigationManager Navegacao
+@inject Recados Recados
+
+<PageTitle>@Titulo</PageTitle>
+
+<CabecalhoDeDetalhe Titulo="@Titulo" Subtitulo="@SubtituloDoFormulario" VoltarPara="@VoltarDoCabecalho" Origem="@OrigemDoCabecalho"
+                    RotuloDoVoltarNoMobile="@RotuloDoVoltarNoMobile" />
+
+<CargaDoFormulario Estado="_estado" Erro="@_erroDaCarga" TextoNaoEncontrado="Atividade não encontrada." TentarDeNovo="CarregarAsync">
+    @if (_mensagem is not null)
+    {
+        <Aviso Tipo="TipoDeAviso.Erro">@_mensagem</Aviso>
+    }
+
+    <EditForm EditContext="_contexto" OnValidSubmit="SalvarAsync" FormName="atividade" id="formulario-da-atividade" class="aj-lado-a-lado aj-lado-a-lado--formulario">
+        <DataAnnotationsValidator />
+        <section class="aj-painel aj-painel--principal aj-lado-a-lado__lista">
+            <h2>Atividade</h2>
+            <div class="aj-grade-campos">
+                <RotuloDeCampo Texto="Título" Para="() => _form.Titulo" Classe="aj-grade-campos__inteiro"><InputText @bind-Value="_form.Titulo" maxlength="@Atividade.TamanhoMaximoTitulo" class="aj-campo" /></RotuloDeCampo>
+                <label class="aj-rotulo">Data de entrega<InputDate @bind-Value="_form.DataEntrega" class="aj-campo" /></label>
+                @* Os três níveis do domínio (ComplexidadeMinima a ComplexidadeMaxima). Um grupo de botões não cabe num label:
+                   o rótulo é o próprio grupo, e o erro do campo vem do contexto do formulário, como no RotuloDeCampo. *@
+                <div class="@ClasseDaComplexidade" role="group" aria-label="Complexidade">Complexidade<div class="aj-segmentado"><button type="button" class="aj-segmentado__opcao" aria-pressed="@Marcada(1)" @onclick="() => EscolherComplexidade(1)">1</button><button type="button" class="aj-segmentado__opcao" aria-pressed="@Marcada(2)" @onclick="() => EscolherComplexidade(2)">2</button><button type="button" class="aj-segmentado__opcao" aria-pressed="@Marcada(3)" @onclick="() => EscolherComplexidade(3)">3</button></div>@foreach (var erro in ErrosDaComplexidade)
+                    {<span class="aj-campo-erro">@erro</span>}</div>
+                <RotuloDeCampo Texto="Descrição" Para="() => _form.Descricao" Classe="aj-grade-campos__inteiro"><InputTextArea @bind-Value="_form.Descricao" rows="4" maxlength="@Atividade.TamanhoMaximoDescricao" class="aj-campo" /></RotuloDeCampo>
+            </div>
+        </section>
+
+        <section class="aj-painel aj-lado-a-lado__painel">
+            <h2>Vínculos</h2>
+            @if (_processo is { } processo)
+            {
+                <div class="aj-vinculo__escolhido aj-vinculo__escolhido--detalhado"><span class="aj-vinculo__texto"><span class="aj-ajuda">Processo</span><span class="aj-vinculo__titulo">@processo.Titulo</span><span class="aj-ajuda">@($"Área {processo.AreaNome}, definida pelo processo")</span></span><button type="button" class="aj-botao aj-botao--fantasma aj-botao--icone" aria-label="Sem processo" disabled="@_salvando" @onclick="RemoverProcesso"><Icone Nome="fechar" /></button></div>
+                <label class="@(ClienteForaDoProcesso(processo) ? "aj-rotulo aj-rotulo--erro" : "aj-rotulo")">Cliente do processo<select class="aj-campo" @bind="_clienteId"><option value="@Guid.Empty">Selecione…</option>@if (ClienteForaDoProcesso(processo))
+                    {<option value="@_clienteId">@($"{_clienteNome ?? "Cliente"} (não é mais cliente deste processo)")</option>}@foreach (var cliente in processo.Clientes)
+                    {<option value="@cliente.ClienteId">@(cliente.Ativo ? cliente.Nome : $"{cliente.Nome} (inativo)")</option>}</select>@if (ClienteForaDoProcesso(processo))
+                    {<span class="aj-campo-erro">O cliente atual não é mais cliente deste processo. Escolha outro cliente do processo para salvar.</span>}</label>
+            }
+            else
+            {
+                <label class="aj-rotulo">Área de atuação<select class="aj-campo" @bind="_areaId"><option value="@Guid.Empty">Nenhuma</option>@foreach (var area in _areas)
+                    {<option value="@area.Id">@(area.Ativo ? area.Nome : $"{area.Nome} (inativa)")</option>}</select></label>
+                @if (_clienteId != Guid.Empty)
+                {
+                    <div class="aj-vinculo__escolhido aj-vinculo__escolhido--detalhado"><span class="aj-vinculo__texto"><span class="aj-ajuda">Cliente</span><span class="aj-vinculo__titulo">@_clienteNome</span></span><button type="button" class="aj-botao aj-botao--fantasma aj-botao--icone" aria-label="Sem cliente" disabled="@_salvando" @onclick="RemoverCliente"><Icone Nome="fechar" /></button></div>
+                }
+            }
+            @if (_clienteId != Guid.Empty)
+            {
+                <span class="aj-ajuda">O título aparece para o cliente no portal.</span>
+            }
+
+            @* O Enter nas buscas envia os formulários escondidos do fim da tela, e não o da atividade. *@
+            <label class="aj-campo-icone"><Icone Nome="buscar" /><span class="aj-so-leitor">Escolher processo (título, parte contrária ou número CNJ)</span><input type="search" class="aj-campo-icone__controle" form="busca-de-processo" placeholder="@ExemploDaBuscaDeProcesso" @bind="_buscaDeProcesso" @bind:event="oninput" /></label>
+            @if (_processosEncontrados.Count > 0)
+            {
+                <ul class="aj-resultados">@foreach (var candidato in _processosEncontrados)
+                    {<li @key='("processo", candidato.Id)'><button type="button" class="aj-resultados__item" disabled="@_salvando" @onclick="() => EscolherProcessoAsync(candidato.Id)"><span class="aj-resultados__texto"><span class="aj-resultados__titulo">@candidato.Titulo</span><span class="aj-resultados__meta">@MetaDoProcesso(candidato)</span></span><span class="aj-resultados__acao">Escolher</span></button></li>}</ul>
+            }
+            @if (_nenhumProcesso)
+            {
+                <span class="aj-ajuda">Nenhum processo encontrado.</span>
+            }
+            @if (_processosTruncados)
+            {
+                <span class="aj-ajuda">Mostrando os primeiros resultados. Refine a busca para ver outros.</span>
+            }
+
+            @if (_processo is null)
+            {
+                <label class="aj-campo-icone"><Icone Nome="buscar" /><span class="aj-so-leitor">Escolher cliente (nome, CPF ou CNPJ)</span><input type="search" class="aj-campo-icone__controle" form="busca-de-cliente" placeholder="Escolher cliente: nome, CPF ou CNPJ" @bind="_buscaDeCliente" @bind:event="oninput" /></label>
+                @if (_clientesEncontrados.Count > 0)
+                {
+                    <ul class="aj-resultados">@foreach (var candidato in _clientesEncontrados)
+                        {<li @key='("cliente", candidato.Id)'><button type="button" class="aj-resultados__item" disabled="@_salvando" @onclick="() => EscolherCliente(candidato)"><span class="aj-resultados__texto"><span class="aj-resultados__titulo">@candidato.Nome</span><span class="aj-resultados__meta">@TextosDoCliente.Documento(candidato.Tipo, candidato.Documento)</span></span><span class="aj-resultados__acao">Escolher</span></button></li>}</ul>
+                }
+                @if (_nenhumCliente)
+                {
+                    <span class="aj-ajuda">Nenhum cliente encontrado.</span>
+                }
+                @if (_clientesTruncados)
+                {
+                    <span class="aj-ajuda">Mostrando os primeiros resultados. Refine a busca para ver outros.</span>
+                }
+            }
+        </section>
+    </EditForm>
+
+    @* As barras de ação ficam fora do formulário e o enviam pelo atributo form. *@
+    <div class="aj-so-desktop">
+        <div class="aj-acoes aj-acoes--fixa"><a href="@Voltar" class="aj-botao aj-botao--fantasma">Cancelar</a><button type="submit" class="aj-botao aj-botao--primario aj-botao--com-icone" form="formulario-da-atividade" disabled="@_salvando"><Icone Nome="confirmar" />Salvar atividade</button></div>
+    </div>
+    <div class="aj-so-tablet">
+        <div class="aj-acoes aj-acoes--fixa"><a href="@Voltar" class="aj-botao aj-botao--secundario">Cancelar</a><button type="submit" class="aj-botao aj-botao--primario aj-botao--com-icone" form="formulario-da-atividade" disabled="@_salvando"><Icone Nome="confirmar" />Salvar atividade</button></div>
+    </div>
+    <div class="aj-so-mobile">
+        <div class="aj-acoes aj-acoes--fixa"><a href="@Voltar" class="aj-botao aj-botao--secundario">Cancelar</a><button type="submit" class="aj-botao aj-botao--primario aj-botao--com-icone" form="formulario-da-atividade" disabled="@_salvando"><Icone Nome="confirmar" />Salvar</button></div>
+    </div>
+
+    <form id="busca-de-processo" hidden @onsubmit="ProcurarProcessosAsync" @onsubmit:preventDefault></form>
+    <form id="busca-de-cliente" hidden @onsubmit="ProcurarClientesAsync" @onsubmit:preventDefault></form>
+</CargaDoFormulario>
+
+@code {
+    [Parameter] public Guid? Id { get; set; }
+
+    private EstadoDeCarga _estado = EstadoDeCarga.Carregando;
+    private string? _erroDaCarga;
+    private bool _salvando;
+    private string? _mensagem;
+
+    private Formulario _form = new();
+    private EditContext? _contexto;
+    private uint? _versao;
+    private string? _tituloDaAtividade;
+
+    // O vínculo, como na lógica de vínculo de antes da fase: o cliente (Guid.Empty = nenhum), a área (só sem processo) e o processo.
+    private Guid _clienteId;
+    private string? _clienteNome;
+    private Guid _areaId;
+    private ProcessoDetalhe? _processo;
+    private IReadOnlyList<AreaAtuacaoResumo> _areas = [];
+
+    private string? _buscaDeProcesso;
+    private IReadOnlyList<ProcessoResumo> _processosEncontrados = [];
+    private bool _nenhumProcesso;
+    private bool _processosTruncados;
+
+    private string? _buscaDeCliente;
+    private IReadOnlyList<ClienteResumo> _clientesEncontrados = [];
+    private bool _nenhumCliente;
+    private bool _clientesTruncados;
+
+    private string Titulo => Id is null ? "Nova atividade" : "Editar atividade";
+
+    // Depois de salvar: a nova volta à lista; a edição, à ficha.
+    private string Voltar => Id is null ? "/atividades" : $"/atividades/{Id}";
+
+    // Sem processo escolhido, a busca escolhe um; com processo, troca o escolhido (o exemplo do quadro).
+    private string ExemploDaBuscaDeProcesso => _processo is null
+        ? "Escolher processo: título, parte contrária ou número CNJ"
+        : "Trocar o processo: título, parte contrária ou número CNJ";
+
+    // Sem a atividade para voltar a ela (nova, ou edição de uma que não existe), o voltar vai para a lista.
+    private bool VoltaParaALista => Id is null || _estado == EstadoDeCarga.NaoEncontrado;
+    private string VoltarDoCabecalho => VoltaParaALista ? "/atividades" : Voltar;
+    private string OrigemDoCabecalho => VoltaParaALista ? "Atividades" : _tituloDaAtividade ?? "Atividade";
+    private string? RotuloDoVoltarNoMobile => VoltaParaALista ? null : "Voltar para a atividade";
+
+    // O subtítulo só acompanha o formulário: sobre "Acesso negado." ou "Atividade não encontrada." ele sobra.
+    private string? SubtituloDoFormulario => _estado == EstadoDeCarga.Pronto
+        ? "Diga o que precisa ser feito e a que processo ou cliente se refere."
+        : null;
+
+    protected override Task OnInitializedAsync() => CarregarAsync();
+
+    // A carga inteira, também a do "Tentar de novo": o perfil antes de qualquer consulta.
+    private async Task CarregarAsync()
+    {
+        _estado = EstadoDeCarga.Carregando;
+        _erroDaCarga = null;
+        _mensagem = null;
+        _form = new Formulario();
+        _contexto = null;
+        _versao = null;
+        _tituloDaAtividade = null;
+        _clienteId = Guid.Empty;
+        _clienteNome = null;
+        _areaId = Guid.Empty;
+        _processo = null;
+        LimparBuscaDeProcesso();
+        LimparBuscaDeCliente();
+
+        if (await Despachante.EnviarAsync(new ObterMeuAcesso()) is not { EhDiretoria: true })
+        {
+            _estado = EstadoDeCarga.AcessoNegado;
+            return;
+        }
+
+        Guid? areaAtual = null;
+        if (Id is { } id)
+        {
+            var atividade = await Despachante.EnviarAsync(new ObterAtividade(id));
+            if (atividade.Valor is not { } a)
+            {
+                Falhar(atividade, "Não foi possível consultar a atividade.", daAtividade: true);
+                return;
+            }
+
+            _form = new Formulario { Titulo = a.Titulo, Descricao = a.Descricao, DataEntrega = a.DataEntrega, Complexidade = a.Complexidade };
+            _versao = a.Versao;
+            _tituloDaAtividade = a.Titulo;
+            _clienteId = a.ClienteId ?? Guid.Empty;
+            _clienteNome = a.ClienteNome;
+            _areaId = a.AreaAtuacaoId ?? Guid.Empty;
+            areaAtual = a.AreaAtuacaoId;
+
+            if (a.ProcessoId is { } processoId)
+            {
+                var processo = await Despachante.EnviarAsync(new ObterProcesso(processoId));
+                if (processo.Valor is null)
+                {
+                    Falhar(processo, "Não foi possível consultar o processo da atividade.");
+                    return;
+                }
+
+                _processo = processo.Valor;
+            }
+        }
+
+        // Áreas ativas, mais a área atual da atividade quando ela está inativa.
+        var areas = await Despachante.EnviarAsync(new ListarAreasAtuacao());
+        if (!areas.Sucesso || areas.Valor is null)
+        {
+            Falhar(areas, "Não foi possível consultar as áreas de atuação.");
+            return;
+        }
+
+        _areas = [.. areas.Valor.Where(area => area.Ativo || area.Id == areaAtual)];
+        _contexto = new EditContext(_form);
+        _estado = EstadoDeCarga.Pronto;
+    }
+
+    // Acesso negado encerra a tela; "não encontrada" só quando é a própria atividade; o resto, a mensagem com "Tentar de novo".
+    private void Falhar(Resultado resultado, string padrao, bool daAtividade = false)
+    {
+        if (resultado.Erro == TipoErro.AcessoNegado)
+            _estado = EstadoDeCarga.AcessoNegado;
+        else if (daAtividade && resultado.Erro == TipoErro.NaoEncontrado)
+            _estado = EstadoDeCarga.NaoEncontrado;
+        else
+        {
+            _estado = EstadoDeCarga.Falhou;
+            _erroDaCarga = resultado.Mensagem ?? padrao;
+        }
+    }
+
+    // Perder o acesso no meio do uso encerra a tela.
+    private bool Encerrou(Resultado resultado)
+    {
+        if (resultado.Erro != TipoErro.AcessoNegado) return false;
+
+        _estado = EstadoDeCarga.AcessoNegado;
+        return true;
+    }
+
+    private string Marcada(int nivel) => _form.Complexidade == nivel ? "true" : "false";
+
+    private IEnumerable<string> ErrosDaComplexidade =>
+        _contexto is null ? [] : _contexto.GetValidationMessages(FieldIdentifier.Create(() => _form.Complexidade));
+
+    private string ClasseDaComplexidade => ErrosDaComplexidade.Any() ? "aj-rotulo aj-rotulo--erro" : "aj-rotulo";
+
+    private void EscolherComplexidade(int nivel)
+    {
+        _form.Complexidade = nivel;
+        // Revalida o campo: "Escolha a complexidade." sai assim que um nível é escolhido.
+        _contexto?.NotifyFieldChanged(FieldIdentifier.Create(() => _form.Complexidade));
+    }
+
+    /// <summary>O cliente guardado na atividade deixou de ser um dos clientes do processo.</summary>
+    private bool ClienteForaDoProcesso(ProcessoDetalhe processo) =>
+        _clienteId != Guid.Empty && processo.Clientes.All(c => c.ClienteId != _clienteId);
+
+    private static string MetaDoProcesso(ProcessoResumo processo) =>
+        processo.Clientes.Count == 0 ? processo.AreaNome : $"{processo.AreaNome} · {string.Join(", ", processo.Clientes)}";
+
+    private async Task ProcurarProcessosAsync()
+    {
+        if (_salvando) return;
+
+        _mensagem = null;
+        var resultado = await Despachante.EnviarAsync(new ListarProcessos(_buscaDeProcesso));
+        if (Encerrou(resultado)) return;
+
+        var itens = resultado.Valor?.Itens ?? [];
+        _processosEncontrados = itens;
+        // Os avisos valem só para uma busca que deu certo; uma falha mostra o erro no lugar deles.
+        _nenhumProcesso = resultado.Sucesso && itens.Count == 0;
+        _processosTruncados = resultado.Sucesso && resultado.Valor!.Total > itens.Count;
+        if (!resultado.Sucesso) _mensagem = resultado.Mensagem;
+    }
+
+    private async Task EscolherProcessoAsync(Guid id)
+    {
+        if (_salvando) return;
+
+        _mensagem = null;
+        var resultado = await Despachante.EnviarAsync(new ObterProcesso(id));
+        if (Encerrou(resultado)) return;
+        if (resultado.Valor is not { } processo)
+        {
+            _mensagem = resultado.Mensagem;
+            return;
+        }
+
+        _processo = processo;
+        LimparBuscaDeProcesso();
+
+        // O cliente passa a ser um dos clientes do processo: mantém o atual se ele é um deles; senão, o único que houver.
+        var clientes = processo.Clientes;
+        if (clientes.All(c => c.ClienteId != _clienteId))
+            _clienteId = clientes.Count == 1 ? clientes[0].ClienteId : Guid.Empty;
+    }
+
+    private void RemoverProcesso()
+    {
+        // O cliente escolhido entre os do processo continua valendo, agora como cliente avulso.
+        _clienteNome = _processo?.Clientes.FirstOrDefault(c => c.ClienteId == _clienteId)?.Nome ?? _clienteNome;
+        _processo = null;
+        _areaId = Guid.Empty;
+    }
+
+    private void RemoverCliente()
+    {
+        _clienteId = Guid.Empty;
+        _clienteNome = null;
+    }
+
+    private async Task ProcurarClientesAsync()
+    {
+        if (_salvando) return;
+
+        _mensagem = null;
+        var resultado = await Despachante.EnviarAsync(new ListarClientes(_buscaDeCliente));
+        if (Encerrou(resultado)) return;
+
+        var itens = resultado.Valor?.Itens ?? [];
+        _clientesEncontrados = itens;
+        _nenhumCliente = resultado.Sucesso && itens.Count == 0;
+        _clientesTruncados = resultado.Sucesso && resultado.Valor!.Total > itens.Count;
+        if (!resultado.Sucesso) _mensagem = resultado.Mensagem;
+    }
+
+    private void EscolherCliente(ClienteResumo cliente)
+    {
+        _clienteId = cliente.Id;
+        _clienteNome = cliente.Nome;
+        LimparBuscaDeCliente();
+    }
+
+    private void LimparBuscaDeProcesso()
+    {
+        _processosEncontrados = [];
+        _nenhumProcesso = false;
+        _processosTruncados = false;
+        _buscaDeProcesso = null;
+    }
+
+    private void LimparBuscaDeCliente()
+    {
+        _clientesEncontrados = [];
+        _nenhumCliente = false;
+        _clientesTruncados = false;
+        _buscaDeCliente = null;
+    }
+
+    private async Task SalvarAsync()
+    {
+        if (_salvando) return;
+
+        _salvando = true;
+        var navegou = false;
+        try
+        {
+            _mensagem = null;
+            var resultado = await Despachante.EnviarAsync(new SalvarAtividade(
+                Id, _form.Titulo, _form.Descricao, _form.DataEntrega,
+                _clienteId == Guid.Empty ? null : _clienteId,
+                _processo?.Id,
+                // Com processo, a área é a do processo (o caso de uso a ignora); sem processo, a escolhida.
+                _processo is not null || _areaId == Guid.Empty ? null : _areaId,
+                _form.Complexidade,
+                // Na edição, a versão com que a tela carregou a atividade; atividade nova não tem.
+                Id is null ? null : _versao));
+
+            if (Encerrou(resultado)) return;
+
+            if (!resultado.Sucesso)
+            {
+                // O formulário permanece com o que foi digitado; conflito e "não encontrada" trazem a mensagem do servidor.
+                _mensagem = resultado.Mensagem;
+                return;
+            }
+
+            Recados.Deixar("Atividade salva.");
+            navegou = true;
+            Navegacao.NavigateTo(Voltar);
+        }
+        finally
+        {
+            // Depois do sucesso a página vai embora: o botão fica travado para um clique tardio não salvar de novo.
+            if (!navegou) _salvando = false;
+        }
+    }
+
+    private sealed class Formulario
+    {
+        [Required(ErrorMessage = "Informe o título.")]
+        public string Titulo { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Informe a descrição.")]
+        public string Descricao { get; set; } = string.Empty;
+
+        public DateOnly? DataEntrega { get; set; }
+
+        // 0 é "ainda não escolhida" (atividade nova).
+        [Range(Atividade.ComplexidadeMinima, Atividade.ComplexidadeMaxima, ErrorMessage = "Escolha a complexidade.")]
+        public int Complexidade { get; set; }
+    }
+}

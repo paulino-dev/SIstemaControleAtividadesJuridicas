@@ -192,19 +192,22 @@ public class AtividadesWebTests(BancoFixture banco) : IAsyncLifetime
 
     // ---- Complexidade ----
 
-    /// <summary>O seletor de complexidade do formulário: do rótulo até o fim do primeiro select depois dele.</summary>
-    private static string SeletorDeComplexidade(string html)
+    /// <summary>Os níveis do controle segmentado de complexidade do formulário, cada um com se está marcado.</summary>
+    private static List<(string Nivel, bool Marcado)> Complexidade(string html)
     {
-        var inicio = Regex.Match(html, @"Complexidade\s*<select");
-        inicio.Success.Should().BeTrue("o formulário deve ter o campo Complexidade");
-        return html[inicio.Index..html.IndexOf("</select>", inicio.Index, StringComparison.Ordinal)];
+        var grupo = Regex.Match(html,
+            "<div class=\"aj-rotulo\" role=\"group\" aria-label=\"Complexidade\">\\s*Complexidade\\s*<div class=\"aj-segmentado\">(.*?)</div>",
+            RegexOptions.Singleline);
+        grupo.Success.Should().BeTrue("o formulário deve ter o campo Complexidade");
+        return [.. Regex.Matches(grupo.Groups[1].Value,
+                "<button type=\"button\" class=\"aj-segmentado__opcao\" aria-pressed=\"(true|false)\"[^>]*>\\s*(\\d)\\s*</button>")
+            .Select(m => (m.Groups[2].Value, m.Groups[1].Value == "true"))];
     }
 
-    private static List<string> Opcoes(string select, bool soASelecionada = false) =>
-        [.. Regex.Matches(select, soASelecionada
-                ? @"<option[^>]*selected[^>]*>\s*([^<]*?)\s*</option>"
-                : @"<option[^>]*>\s*([^<]*?)\s*</option>")
-            .Select(m => m.Groups[1].Value)];
+    // O formulário em tela própria: nova (sem Id) ou a edição da atividade informada.
+    private async Task<string> FormularioAsync(Guid? id) =>
+        WebUtility.HtmlDecode(await TelaDeTeste.RenderizarAsync<AtividadeFormulario>(_app, _admin,
+            id is { } atividade ? new() { [nameof(AtividadeFormulario.Id)] = atividade } : new()));
 
     [Fact]
     public async Task Lista_mostra_a_complexidade_de_cada_atividade()
@@ -236,26 +239,17 @@ public class AtividadesWebTests(BancoFixture banco) : IAsyncLifetime
     [Fact]
     public async Task Formulario_de_atividade_nova_pede_a_complexidade_e_comeca_sem_escolha()
     {
-        var html = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarAsync<FormularioDeAtividade>(
-            _app, _admin, new() { [nameof(FormularioDeAtividade.AtividadeId)] = null }));
+        var html = await FormularioAsync(null);
 
-        var select = SeletorDeComplexidade(html);
-        Opcoes(select).Should().Equal("Selecione…", "1", "2", "3");
-        Opcoes(select, soASelecionada: true).Should().Equal("Selecione…");
+        Complexidade(html).Should().Equal(("1", false), ("2", false), ("3", false));
     }
 
     [Fact]
     public async Task Formulario_de_edicao_abre_com_a_complexidade_da_atividade()
     {
-        var atual = (await _app.ExecutarAsync(_admin, new ObterAtividade(_contestacao))).Valor!;
+        var html = await FormularioAsync(_contestacao);
 
-        var html = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarAsync<FormularioDeAtividade>(_app, _admin, new()
-        {
-            [nameof(FormularioDeAtividade.AtividadeId)] = _contestacao,
-            [nameof(FormularioDeAtividade.Atual)] = atual,
-        }));
-
-        Opcoes(SeletorDeComplexidade(html), soASelecionada: true).Should().Equal("2");
+        Complexidade(html).Where(n => n.Marcado).Select(n => n.Nivel).Should().Equal("2");
     }
 
     [Fact]
@@ -268,24 +262,13 @@ public class AtividadesWebTests(BancoFixture banco) : IAsyncLifetime
         var comCliente = await _app.ExecutarAsync(_admin, new SalvarAtividade(
             null, "Petição da Maria", "Texto.", null, cliente.Valor, null, null, 1));
         comCliente.Sucesso.Should().BeTrue(comCliente.Mensagem);
-        var atual = (await _app.ExecutarAsync(_admin, new ObterAtividade(comCliente.Valor))).Valor!;
 
-        var daAtividadeComCliente = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarAsync<FormularioDeAtividade>(_app, _admin, new()
-        {
-            [nameof(FormularioDeAtividade.AtividadeId)] = comCliente.Valor,
-            [nameof(FormularioDeAtividade.Atual)] = atual,
-        }));
-        var daAtividadeNova = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarAsync<FormularioDeAtividade>(
-            _app, _admin, new() { [nameof(FormularioDeAtividade.AtividadeId)] = null }));
-        var semCliente = (await _app.ExecutarAsync(_admin, new ObterAtividade(_contestacao))).Valor!;
-        var daAtividadeSemCliente = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarAsync<FormularioDeAtividade>(_app, _admin, new()
-        {
-            [nameof(FormularioDeAtividade.AtividadeId)] = _contestacao,
-            [nameof(FormularioDeAtividade.Atual)] = semCliente,
-        }));
+        var daAtividadeComCliente = await FormularioAsync(comCliente.Valor);
+        var daAtividadeNova = await FormularioAsync(null);
+        var daAtividadeSemCliente = await FormularioAsync(_contestacao);
 
         daAtividadeComCliente.Should().Contain(lembrete);
-        daAtividadeNova.Should().NotContain(lembrete);
-        daAtividadeSemCliente.Should().NotContain(lembrete);
+        daAtividadeNova.Should().Contain("<h2>Vínculos</h2>").And.NotContain(lembrete);
+        daAtividadeSemCliente.Should().Contain("<h2>Vínculos</h2>").And.NotContain(lembrete);
     }
 }
