@@ -17,7 +17,7 @@
 - **Período no endereço** (spec 5 e 7.6): `/agenda?visao={dia|semana|mes}&data={yyyy-MM-dd}`.
   - Sem `visao`, cada largura mostra o seu padrão sobre os mesmos dados: Semana no desktop e no tablet, Dia no mobile. Com `visao`, as três larguras mostram essa visão.
   - Sem `data` (ou com data inválida, ou fora de 2000–2100), vale hoje no fuso do escritório. `visao` desconhecida conta como ausente. Nada disso é erro.
-  - A consulta é uma só por período: a semana (segunda a domingo) que contém `data` nas visões Dia e Semana e sem `visao`; no Mês, as semanas inteiras que cobrem o mês (de 28 a 42 dias, dentro do limite de 92 do `ListarEventos`). Cada troca de período grava um registro de consulta, como hoje.
+  - A consulta é uma só por período: a semana (segunda a domingo) que contém `data` nas visões Dia e Semana e sem `visao`; no Mês, as semanas inteiras que cobrem o mês (de 28 a 42 dias, dentro do limite de 92 do `ListarEventos`). Cada consulta grava um registro, como hoje; a troca que fica no mesmo intervalo (de Dia para Semana na mesma semana, ou de um dia para outro da semana à vista) não consulta de novo.
   - Os controles de período navegam (`NavigationManager.NavigateTo`) para o endereço novo; a página reage à troca de `?visao`/`?data` e consulta de novo. Os filtros (Tipo e Participante) ficam no estado da página, não no endereço, e sobrevivem à troca de período.
 - **Navegação de período:**
   - Desktop: setas `Período anterior` e `Próximo período` e `Hoje`; andam uma semana (Semana e sem `visao`), um dia (Dia) ou um mês (Mês).
@@ -48,7 +48,7 @@
   - Quem não gerencia o evento e abre `/agenda/{id}/editar`: aviso de atenção `Só a Diretoria e quem criou o evento podem editá-lo.`, sem formulário, com o voltar para a ficha (o terceiro estado da 9E). Conflito de versão: só o aviso com a mensagem do servidor (que pede recarregar), formulário mantido (a 9E).
   - O formulário usa o `CargaDoFormulario` (carga dos usuários e, na edição, do evento) e trava o envio depois do sucesso até a navegação (9D).
 - **Peças compartilhadas que ganham parâmetro** (Tarefa 3): `Recados`/`Recado` (sobreposições); `Aviso.Frase` (`aj-aviso--frase`); `EstadoDaLista.Icone` e `Dica`; `CabecalhoDePagina.AcaoDoMobile` (botão entre o título e o avatar da barra do mobile) e `SubtituloSoNoDesktop`; `BarraDeVoltar.Icone` (padrão `voltar`); `CabecalhoDeDetalhe.IconeDoVoltarNoMobile` e `SubtituloSoNoDesktop`; `RotuloDeCampo.Complemento` (o `(opcional)` em `<small>`); `Icone` com `filtrar` (funil). Nenhum comportamento de tela existente muda.
-- **Camada antiga:** a agenda é a última tela com marcação antiga. A Tarefa 10 apaga `FichaDoEvento.razor` e `FormularioDeEvento.razor`, tira do `app.css` as regras que só a agenda usava (lista no `inventario-codigo.md`, seção 6), a regra interina das telas não migradas e as duas regras de etiqueta que dependem dela, e reescreve os dois testes de "tela ainda não migrada" de `LayoutWebTests`. As regras de elemento que ainda alcançam as classes `aj-` (`h1`–`h3`, `p`, `label`, `button:disabled`, `fieldset`, `legend`, `input[type=checkbox]`…) ficam para a 9G.
+- **Camada antiga:** a agenda é a última tela com marcação antiga. A Tarefa 10 apaga `FichaDoEvento.razor` e `FormularioDeEvento.razor`, tira do `app.css` as regras que só a agenda usava (lista no `inventario-codigo.md`, seção 6), a regra interina das telas não migradas e as duas regras de etiqueta que dependem dela (os dois testes de "tela ainda não migrada" de `LayoutWebTests` são reescritos antes, na Tarefa 9). As regras de elemento que ainda alcançam as classes `aj-` (`h1`–`h3`, `p`, `label`, `button:disabled`, `fieldset`, `legend`, `input[type=checkbox]`…) ficam para a 9G.
 - **Sem backend novo:** `EventoResumo` já traz o que os cartões mostram (tipo, início, fim, título, local, cliente, participantes); `EventoDetalhe` traz o resto. Nenhuma consulta nova.
 - **Divergências dos quadros antigos que ficam como nas fases anteriores** (para todas as telas ficarem iguais entre si): o `letter-spacing` do título; a sombra do botão primário no tablet e na barra fixa; a sombra da opção escolhida do segmentado no desktop (a classe); o hover do "Filtros" do tablet (a classe); no formulário, as do item anterior. Ficam anotadas na spec.
 
@@ -856,6 +856,8 @@ git commit -F $f
 ---
 
 ### Task 2: Lógica de calendário pura — período, régua e rótulos
+
+**Decisão da coordenação (varredura, vale sobre os passos abaixo):** acrescente a `RotulosDeAgenda`, com testes, `IReadOnlyList<EventoResumo> EventosDoDia(FusoDoEscritorio fuso, IEnumerable<EventoResumo> eventos, DateOnly dia)` (os que tocam o dia, pela regra do `TocaODia`, na ordem recebida) e `string NumeroDoDia(DateOnly dia)` (`dd`, `08`). As Tarefas 6, 7 e 8 usam os dois no lugar de repetir o filtro e o formato.
 
 **Files:**
 - Create: `src/AtividadesJuridicas.Web/Components/Agenda/VisaoDaAgenda.cs`, `PeriodoDaAgenda.cs`, `ReguaDoDia.cs`
@@ -2078,6 +2080,8 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
 
 ### Task 3: Peças compartilhadas — parâmetros novos, recado com sobreposições e aviso de evento salvo
 
+**Decisão da coordenação (varredura, vale sobre os passos abaixo):** `AvatarDePessoa` ganha, com teste, `string Classe(string nome, bool proprio)`: com `proprio` verdadeiro, a classe do avatar dourado (vazia, o `.aj-avatar` sem modificador); senão, a de hoje. As Tarefas 4 e 5 usam essa sobrecarga para o "você" dourado e escrevem `RotulosDeAgenda.UsuarioNaoEncontrado` (Tarefa 2) no lugar do texto à mão.
+
 **Files:**
 - Modify: `src/AtividadesJuridicas.Web/Infra/Recados.cs`, `Components/Layout/Aviso.razor`, `EstadoDaLista.razor`, `CabecalhoDePagina.razor`, `CabecalhoDeDetalhe.razor`, `BarraDeVoltar.razor`, `RotuloDeCampo.razor`, `Icone.razor`
 - Move: `Components/Atividades/AvatarDePessoa.cs` → `Components/Layout/AvatarDePessoa.cs` (namespace `AtividadesJuridicas.Web.Components.Layout`; os usos da 9E passam a importar dali)
@@ -2800,6 +2804,8 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
 ---
 
 ### Task 4: Ficha do evento em tela própria
+
+**Decisão da coordenação (varredura):** o avatar do próprio usuário usa `AvatarDePessoa.Classe(nome, proprio: true)` (Tarefa 3) e o participante sem nome `RotulosDeAgenda.UsuarioNaoEncontrado` (Tarefa 2), sem repetir a regra nem o texto.
 
 **Files:**
 - Create: `src/AtividadesJuridicas.Web/Components/Pages/EventoFicha.razor`
@@ -3946,6 +3952,8 @@ Expected do `git branch --show-current`: `worktree-feat+fase-9f-agenda`.
 ---
 
 ### Task 5: Formulário do evento em tela própria (novo e edição)
+
+**Decisão da coordenação (varredura):** o avatar do próprio usuário nos chips usa `AvatarDePessoa.Classe(nome, proprio: true)` (Tarefa 3) e o participante sem nome `RotulosDeAgenda.UsuarioNaoEncontrado` (Tarefa 2), sem repetir a regra nem o texto.
 
 **Files:**
 - Create: `src/AtividadesJuridicas.Web/Components/Pages/EventoFormulario.razor`
@@ -5480,6 +5488,8 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
 
 ### Task 6: Cartão de evento e Semana
 
+**Decisão da coordenação (varredura, vale sobre os passos abaixo):** a seção de um dia do tablet (e da Semana do mobile) vira o componente `Components/Agenda/SecaoDoDia.razor` (`DateOnly Dia`, `IReadOnlyList<EventoResumo> Eventos` já do dia, `bool Hoje`, `string Consulta` para o `href` dos cartões), com a mesma marcação dos passos; a `SemanaDaAgenda` o usa sete vezes e a Tarefa 7 o usa no Dia do tablet. O filtro dos eventos do dia e o número do dia vêm de `RotulosDeAgenda.EventosDoDia` e `NumeroDoDia` (Tarefa 2). Os testes dos passos continuam valendo pela `SemanaDaAgenda`.
+
 **Files:**
 - Create: `src/AtividadesJuridicas.Web/Components/Agenda/CartaoDeEvento.razor`, `FormaDoCartao.cs`, `SemanaDaAgenda.razor`
 - Test: `tests/AtividadesJuridicas.IntegrationTests/SemanaDaAgendaTests.cs` (com a classe `CartaoDeEventoTests`), `QuadroDaAgenda.cs` (novo: os eventos do quadro, usados também pelas Tarefas 7, 8 e 9)
@@ -6206,6 +6216,8 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
 
 ### Task 7: Dia — régua do desktop, seção do tablet, faixa e lista do mobile
 
+**Decisão da coordenação (varredura, vale sobre os passos abaixo):** o Dia do tablet usa o `SecaoDoDia` da Tarefa 6 (em vez de repetir a marcação), e a lista do dia escolhido do mobile (o `aj-dia-escolhido`, os cartões `Folgado` e o vazio com ícone e dica) vira o componente `Components/Agenda/ListaDoDia.razor` (`DateOnly Dia`, `IReadOnlyList<EventoResumo> Eventos` já do dia, `bool Hoje`, `string Consulta`), usado aqui e no Mês do mobile (Tarefa 8). O filtro dos eventos do dia e o número do dia vêm de `RotulosDeAgenda.EventosDoDia` e `NumeroDoDia` (Tarefa 2). Os testes dos passos continuam valendo pelo `DiaDaAgenda`.
+
 **Files:**
 - Create: `src/AtividadesJuridicas.Web/Components/Agenda/DiaDaAgenda.razor`, `FaixaDeDias.razor`
 - Test: `tests/AtividadesJuridicas.IntegrationTests/DiaDaAgendaTests.cs`
@@ -6708,6 +6720,8 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
 
 ### Task 8: Mês — grade do desktop e do tablet, grade compacta e lista do mobile
 
+**Decisão da coordenação (varredura, vale sobre os passos abaixo):** a lista do dia escolhido do mobile é o `ListaDoDia` da Tarefa 7, sem repetir a marcação; o filtro dos eventos do dia e o número do dia vêm de `RotulosDeAgenda.EventosDoDia` e `NumeroDoDia` (Tarefa 2).
+
 **Files:**
 - Create: `src/AtividadesJuridicas.Web/Components/Agenda/MesDaAgenda.razor`, `GradeCompactaDoMes.razor`
 - Test: `tests/AtividadesJuridicas.IntegrationTests/MesDaAgendaTests.cs`
@@ -7204,6 +7218,8 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
 ---
 
 ### Task 9: A página da agenda
+
+**Decisão da coordenação (varredura):** os testes de clique dependem de a página reagir ao próprio `NavigateTo` no bUnit. Antes de escrever os outros, escreva e rode um único teste de seta; se a página não reagir, ajuste o desenho do teste (por exemplo, desenhar de novo com os parâmetros do endereço novo) e registre no relatório, sem afrouxar o que os testes provam. As setas e os botões de período seguem os `aria-label` dos quadros ("Período anterior", "Semana anterior" e os outros), como está.
 
 **Files:**
 - Modify: `src/AtividadesJuridicas.Web/Components/Pages/Agenda.razor` (reescrita)
@@ -8592,7 +8608,7 @@ Em `tests/AtividadesJuridicas.UnitTests/TelasNoDesignSystemTests.cs` (fim de lin
 
 Run: `dotnet build -m:1`
 Run: `dotnet test tests/AtividadesJuridicas.UnitTests --no-build --filter "FullyQualifiedName~TelasNoDesignSystemTests.Toda_tela_da_agenda_esta_na_trava"`
-Expected: falha, com estes doze arquivos fora de `Migradas`: `Components/Agenda/AvisoDeEventoSalvo.razor`, `CartaoDeEvento.razor`, `DiaDaAgenda.razor`, `FaixaDeDias.razor`, `FichaDoEvento.razor`, `FormularioDeEvento.razor`, `GradeCompactaDoMes.razor`, `MesDaAgenda.razor`, `SemanaDaAgenda.razor` e `Components/Pages/Agenda.razor`, `EventoFicha.razor`, `EventoFormulario.razor`. Se aparecer outro arquivo, ou faltar um dos novos, uma tarefa anterior criou ou deixou de criar algo fora do contrato: pare e relate.
+Expected: falha, com estes treze arquivos fora de `Migradas`: `Components/Agenda/CartaoDeEvento.razor`, `DiaDaAgenda.razor`, `FaixaDeDias.razor`, `FichaDoEvento.razor`, `FormularioDeEvento.razor`, `GradeCompactaDoMes.razor`, `ListaDoDia.razor`, `MesDaAgenda.razor`, `SecaoDoDia.razor`, `SemanaDaAgenda.razor` e `Components/Pages/Agenda.razor`, `EventoFicha.razor`, `EventoFormulario.razor`. Se aparecer outro arquivo, ou faltar um dos novos, uma tarefa anterior criou ou deixou de criar algo fora do contrato: pare e relate.
 
 - [ ] **Step 2: As telas novas na trava**
 
@@ -8601,12 +8617,13 @@ Em `Migradas`, acrescente, na ordem alfabética da lista:
 - antes de `"Components/Atividades/CabecalhoDaAtividade.razor",`:
 
 ```csharp
-        "Components/Agenda/AvisoDeEventoSalvo.razor",
         "Components/Agenda/CartaoDeEvento.razor",
         "Components/Agenda/DiaDaAgenda.razor",
         "Components/Agenda/FaixaDeDias.razor",
         "Components/Agenda/GradeCompactaDoMes.razor",
+        "Components/Agenda/ListaDoDia.razor",
         "Components/Agenda/MesDaAgenda.razor",
+        "Components/Agenda/SecaoDoDia.razor",
         "Components/Agenda/SemanaDaAgenda.razor",
 ```
 
@@ -8617,7 +8634,7 @@ Em `Migradas`, acrescente, na ordem alfabética da lista:
 
 Run: `dotnet build -m:1`
 Run: `dotnet test tests/AtividadesJuridicas.UnitTests --no-build --filter "FullyQualifiedName~TelasNoDesignSystemTests"`
-Expected: o theory `Tela_migrada_nao_tem_estilo_embutido_nem_classe_fora_do_design_system` passa para os dez arquivos novos (nenhum `style`, `<style>`, `.razor.css`, classe fora de `aj-` nem `button`/`table`/`input`/`select`/`textarea` sem classe); `Toda_tela_da_agenda_esta_na_trava` continua falhando, agora só com `Components/Agenda/FichaDoEvento.razor` e `Components/Agenda/FormularioDeEvento.razor`. Se o theory reprovar um arquivo novo, a tarefa que o criou deixou marcação fora do design system: pare e relate (não o tire da lista).
+Expected: o theory `Tela_migrada_nao_tem_estilo_embutido_nem_classe_fora_do_design_system` passa para os onze arquivos novos (o `AvisoDeEventoSalvo.razor` já entrou na Tarefa 3) (nenhum `style`, `<style>`, `.razor.css`, classe fora de `aj-` nem `button`/`table`/`input`/`select`/`textarea` sem classe); `Toda_tela_da_agenda_esta_na_trava` continua falhando, agora só com `Components/Agenda/FichaDoEvento.razor` e `Components/Agenda/FormularioDeEvento.razor`. Se o theory reprovar um arquivo novo, a tarefa que o criou deixou marcação fora do design system: pare e relate (não o tire da lista).
 
 Confira também, na revisão, as classes montadas por expressão (ponto cego da trava) nos arquivos novos: com a ferramenta Grep, `class="@` em `src/AtividadesJuridicas.Web/Components/Agenda` e em `Components/Pages/Agenda.razor`, `EventoFicha.razor`, `EventoFormulario.razor`, e leia cada expressão: todo valor que ela pode produzir começa por `aj-`. Registre a lista no relatório.
 
