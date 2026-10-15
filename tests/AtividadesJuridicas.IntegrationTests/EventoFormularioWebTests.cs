@@ -96,7 +96,7 @@ public class EventoFormularioWebTests(BancoFixture banco) : IAsyncLifetime
                 "<label class=\"aj-rotulo aj-linha-de-campos__curto\">\\s*Hora\\s*<input(?=[^>]*type=\"time\")(?=[^>]*value=\"09:00(:00)?\")[^>]*>\\s*</label>\\s*" +
                 "<label class=\"aj-rotulo\">\\s*Duração \\(minutos\\)\\s*<input(?=[^>]*type=\"number\")(?=[^>]*min=\"1\")(?=[^>]*max=\"10080\")(?=[^>]*value=\"60\")[^>]*>\\s*</label>\\s*</div>")
             .And.MatchRegex("<p class=\"aj-ajuda aj-ajuda--com-icone aj-ajuda--colada\"><svg[^>]*><circle cx=\"12\" cy=\"12\" r=\"8.5\"></circle><path d=\"M12 7.5V12l3 2\"></path></svg>Data e hora no horário do escritório.</p>")
-            .And.MatchRegex("<label class=\"aj-rotulo\">\\s*Descrição\\s*<small>\\(opcional\\)</small>\\s*<textarea(?=[^>]*rows=\"5\")(?=[^>]*maxlength=\"4000\")(?=[^>]*class=\"aj-campo[ \"])[^>]*>")
+            .And.MatchRegex("<label class=\"aj-rotulo\">\\s*<span>Descrição <small>\\(opcional\\)</small></span>\\s*<textarea(?=[^>]*rows=\"5\")(?=[^>]*maxlength=\"4000\")(?=[^>]*class=\"aj-campo[ \"])[^>]*>")
             .And.Contain("form=\"busca-de-processo\" placeholder=\"Título, parte contrária ou número CNJ\"")
             .And.MatchRegex(
                 "(?s)<div class=\"aj-opcoes\" role=\"group\" aria-labelledby=\"titulo-dos-participantes\">\\s*" +
@@ -128,7 +128,7 @@ public class EventoFormularioWebTests(BancoFixture banco) : IAsyncLifetime
         tablet.Should().MatchRegex(
                 "(?s)<label class=\"aj-rotulo\">Duração<select class=\"aj-campo\"[^>]*>\\s*<option value=\"30\">30 minutos</option>\\s*<option value=\"60\" selected[^>]*>1 hora</option>\\s*" +
                 "<option value=\"90\">1h30</option>\\s*<option value=\"120\">2 horas</option>\\s*<option value=\"outra\">Outra duração</option>\\s*</select></label>")
-            .And.MatchRegex("<label class=\"aj-rotulo\">\\s*Descrição\\s*<small>\\(opcional\\)</small>\\s*<textarea(?=[^>]*rows=\"3\")[^>]*>")
+            .And.MatchRegex("<label class=\"aj-rotulo\">\\s*<span>Descrição <small>\\(opcional\\)</small></span>\\s*<textarea(?=[^>]*rows=\"3\")[^>]*>")
             .And.MatchRegex(
                 "(?s)<div class=\"aj-opcoes\" role=\"group\" aria-labelledby=\"titulo-dos-participantes\">\\s*" +
                 "<label class=\"aj-chip aj-chip--pessoa\"><input type=\"checkbox\" class=\"aj-opcao__caixa\" checked disabled[^>]*><span class=\"aj-avatar\" aria-hidden=\"true\">DD</span>Diana Diretora \\(você\\)</label>\\s*" +
@@ -146,7 +146,7 @@ public class EventoFormularioWebTests(BancoFixture banco) : IAsyncLifetime
             ".*?<fieldset class=\"aj-conjunto\"><legend class=\"aj-rotulo\">Participantes</legend><div class=\"aj-opcoes\">\\s*" +
             "<label class=\"aj-chip aj-chip--pessoa\"><input type=\"checkbox\" class=\"aj-opcao__caixa\" checked disabled[^>]*><span class=\"aj-avatar\" aria-hidden=\"true\">DD</span>Você</label>\\s*" +
             $"<label class=\"aj-chip aj-chip--pessoa\"><input[^>]*><span class=\"{avatarDoPedro}\" aria-hidden=\"true\">PP</span>Pedro</label>\\s*</div></fieldset>" +
-            ".*?<label class=\"aj-rotulo\">\\s*Descrição\\s*<small>\\(opcional\\)</small>\\s*<textarea(?=[^>]*rows=\"3\")[^>]*>" +
+            ".*?<label class=\"aj-rotulo\">\\s*<span>Descrição <small>\\(opcional\\)</small></span>\\s*<textarea(?=[^>]*rows=\"3\")[^>]*>" +
             ".*?<div class=\"aj-acoes aj-acoes--fixa\"><button type=\"submit\" class=\"aj-botao aj-botao--primario aj-botao--com-icone\" form=\"formulario-do-evento\"[^>]*><svg[^>]*>.*?</svg>Salvar evento</button></div>");
         mobile.Should().NotContain("Cancelar").And.NotContain("Quem cria o evento sempre participa.");
     }

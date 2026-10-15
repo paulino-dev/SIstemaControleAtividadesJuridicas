@@ -6,7 +6,7 @@
    A mensagem é escrita aqui, em <span>, como no canvas: o ValidationMessage emite <div>, que não cabe num <label>. *@
 @{ var mensagens = Mensagens(); }
 <label class="@ClasseDoRotulo(mensagens.Count > 0)">
-    @Texto@ParteDoComplemento
+    @TextoDoRotulo
     @ChildContent
     @foreach (var mensagem in mensagens)
     {
@@ -32,14 +32,22 @@
     /// <summary>O complemento do rótulo, mais leve, depois do texto: "(opcional)".</summary>
     [Parameter] public string? Complemento { get; set; }
 
-    // Sem complemento, nada é emitido e o rótulo fica como era.
-    private RenderFragment ParteDoComplemento => construtor =>
+    // Com complemento, o texto e o <small> vão juntos num <span>: o rótulo é uma coluna flex e, soltos, cada um viraria uma linha.
+    // Sem complemento, o texto solto, como era.
+    private RenderFragment TextoDoRotulo => construtor =>
     {
-        if (Complemento is null) return;
+        if (Complemento is null)
+        {
+            construtor.AddContent(0, Texto);
+            return;
+        }
 
-        construtor.AddContent(0, " ");
-        construtor.OpenElement(1, "small");
-        construtor.AddContent(2, Complemento);
+        construtor.OpenElement(1, "span");
+        construtor.AddContent(2, Texto);
+        construtor.AddContent(3, " ");
+        construtor.OpenElement(4, "small");
+        construtor.AddContent(5, Complemento);
+        construtor.CloseElement();
         construtor.CloseElement();
     };
 

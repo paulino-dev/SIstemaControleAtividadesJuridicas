@@ -599,7 +599,7 @@ public class ComponentesDoDesignSystemTests
     }
 
     [Fact]
-    public async Task Rotulo_de_campo_com_complemento_traz_o_small_depois_do_texto()
+    public async Task Rotulo_de_campo_com_complemento_traz_o_texto_e_o_small_dentro_de_um_span()
     {
         RenderFragment campo = c => c.AddMarkupContent(0, "<textarea class=\"aj-campo\"></textarea>");
         System.Linq.Expressions.Expression<Func<string>> para = () => "x";
@@ -610,7 +610,7 @@ public class ComponentesDoDesignSystemTests
             new() { ["Texto"] = "Descrição", ["Para"] = para, ["ChildContent"] = campo }));
 
         comComplemento.Should().MatchRegex(
-            "<label class=\"aj-rotulo\">\\s*Descrição <small>\\(opcional\\)</small>\\s*<textarea class=\"aj-campo\"></textarea>\\s*</label>");
+            "<label class=\"aj-rotulo\">\\s*<span>Descrição <small>\\(opcional\\)</small></span>\\s*<textarea class=\"aj-campo\"></textarea>\\s*</label>");
         semComplemento.Should().MatchRegex("<label class=\"aj-rotulo\">\\s*Descrição\\s*<textarea class=\"aj-campo\"></textarea>\\s*</label>")
             .And.NotContain("<small>");
     }
