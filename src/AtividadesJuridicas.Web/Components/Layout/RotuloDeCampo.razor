@@ -6,7 +6,7 @@
    A mensagem é escrita aqui, em <span>, como no canvas: o ValidationMessage emite <div>, que não cabe num <label>. *@
 @{ var mensagens = Mensagens(); }
 <label class="@ClasseDoRotulo(mensagens.Count > 0)">
-    @Texto
+    @Texto@ParteDoComplemento
     @ChildContent
     @foreach (var mensagem in mensagens)
     {
@@ -28,6 +28,20 @@
 
     /// <summary>Classe de posição do rótulo no formulário (uma célula da grade de endereço, por exemplo).</summary>
     [Parameter] public string? Classe { get; set; }
+
+    /// <summary>O complemento do rótulo, mais leve, depois do texto: "(opcional)".</summary>
+    [Parameter] public string? Complemento { get; set; }
+
+    // Sem complemento, nada é emitido e o rótulo fica como era.
+    private RenderFragment ParteDoComplemento => construtor =>
+    {
+        if (Complemento is null) return;
+
+        construtor.AddContent(0, " ");
+        construtor.OpenElement(1, "small");
+        construtor.AddContent(2, Complemento);
+        construtor.CloseElement();
+    };
 
     private string ClasseDoRotulo(bool erro) =>
         string.Join(" ", new[] { "aj-rotulo", erro ? "aj-rotulo--erro" : null, Classe }.Where(c => !string.IsNullOrEmpty(c)));

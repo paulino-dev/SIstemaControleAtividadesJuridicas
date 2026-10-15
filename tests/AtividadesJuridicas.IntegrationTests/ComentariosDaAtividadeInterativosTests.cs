@@ -2,6 +2,7 @@ using AngleSharp.Dom;
 using AtividadesJuridicas.Application.Atividades;
 using AtividadesJuridicas.Application.Comum;
 using AtividadesJuridicas.Web.Components.Atividades;
+using AtividadesJuridicas.Web.Components.Layout;
 using Bunit;
 
 namespace AtividadesJuridicas.IntegrationTests;

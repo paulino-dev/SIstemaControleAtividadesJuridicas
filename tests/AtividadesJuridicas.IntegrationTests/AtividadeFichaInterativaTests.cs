@@ -7,6 +7,7 @@ using AtividadesJuridicas.Application.Identidade;
 using AtividadesJuridicas.Domain.Atividades;
 using AtividadesJuridicas.Domain.Documentos;
 using AtividadesJuridicas.Web.Components.Atividades;
+using AtividadesJuridicas.Web.Components.Layout;
 using AtividadesJuridicas.Web.Components.Pages;
 using AtividadesJuridicas.Web.Infra;
 using Bunit;

@@ -1,0 +1,29 @@
+@inject FusoDoEscritorio Fuso
+
+@* O aviso no topo da agenda e da ficha do evento depois de salvar ou excluir. Sem conflito de agenda, o recado como
+   veio ("Evento salvo.", "Evento excluído."). Com conflito, um aviso de atenção em frase por visão, como os quadros
+   da agenda: o desktop com "Evento salvo." em destaque e "Atenção:", o tablet sem "Atenção:", o mobile só com o
+   conflito e "em dd/MM". O texto depois do destaque é uma expressão só, com o espaço na frente. *@
+@if (Sobreposicoes.Count == 0)
+{
+    <Aviso Tipo="Recado.Tipo">@Recado.Texto</Aviso>
+}
+else
+{
+    <div class="aj-so-desktop">
+        <Aviso Tipo="TipoDeAviso.Atencao" Frase="true"><strong>Evento salvo.</strong>@($" {RotulosDeAgenda.ConflitoNoDesktop(Fuso, Sobreposicoes)}")</Aviso>
+    </div>
+    <div class="aj-so-tablet">
+        <Aviso Tipo="TipoDeAviso.Atencao" Frase="true"><strong>Evento salvo.</strong>@($" {RotulosDeAgenda.ConflitoNoTablet(Fuso, Sobreposicoes)}")</Aviso>
+    </div>
+    <div class="aj-so-mobile">
+        <Aviso Tipo="TipoDeAviso.Atencao" Frase="true">@RotulosDeAgenda.ConflitoNoMobile(Fuso, Sobreposicoes)</Aviso>
+    </div>
+}
+
+@code {
+    /// <summary>O recado deixado pelo formulário ou pela ficha do evento (<c>Recados.Retirar()</c>).</summary>
+    [Parameter, EditorRequired] public Recado Recado { get; set; } = default!;
+
+    private IReadOnlyList<SobreposicaoDeAgenda> Sobreposicoes => Recado.Sobreposicoes ?? [];
+}

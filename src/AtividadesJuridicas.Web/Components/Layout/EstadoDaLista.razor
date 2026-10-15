@@ -1,4 +1,5 @@
-@* O que aparece no lugar da lista: falha de consulta, carregando ou nada a mostrar. *@
+@* O que aparece no lugar da lista: falha de consulta, carregando ou nada a mostrar. O vazio pode trazer um ícone
+   antes do texto e uma dica depois (o dia sem eventos da agenda no mobile). *@
 @if (Erro is not null)
 {
     <Aviso Tipo="TipoDeAviso.Erro">
@@ -12,7 +13,17 @@ else if (Carregando)
 }
 else if (Vazio)
 {
-    <div class="aj-estado-lista"><strong>@TextoDeVazio</strong></div>
+    <div class="aj-estado-lista">
+        @if (Icone is not null)
+        {
+            <Icone Nome="@Icone" Classe="aj-estado-lista__icone" />
+        }
+        <strong>@TextoDeVazio</strong>
+        @if (Dica is not null)
+        {
+            <span class="aj-estado-lista__dica">@Dica</span>
+        }
+    </div>
 }
 else
 {
@@ -24,6 +35,13 @@ else
     [Parameter] public bool Carregando { get; set; }
     [Parameter] public bool Vazio { get; set; }
     [Parameter, EditorRequired] public string TextoDeVazio { get; set; } = string.Empty;
+
+    /// <summary>O nome do ícone do vazio (o <c>Icone</c> do design system), antes do texto.</summary>
+    [Parameter] public string? Icone { get; set; }
+
+    /// <summary>A segunda linha do vazio, menor ("Toque em + para agendar.").</summary>
+    [Parameter] public string? Dica { get; set; }
+
     [Parameter] public EventCallback TentarDeNovo { get; set; }
     [Parameter] public RenderFragment? ChildContent { get; set; }
 }

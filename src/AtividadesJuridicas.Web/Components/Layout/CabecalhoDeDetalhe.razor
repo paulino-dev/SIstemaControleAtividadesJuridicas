@@ -3,8 +3,9 @@
 <div class="aj-desktop-tablet">
     <div><a href="@VoltarPara" class="aj-voltar"><Icone Nome="voltar" />@Origem</a></div>
 </div>
-<CabecalhoDePagina Titulo="@Titulo" Subtitulo="@Subtitulo" Folgado="@(Subtitulo is not null)"
-                   VoltarPara="@VoltarPara" RotuloDoVoltar="@(RotuloDoVoltarNoMobile ?? $"Voltar para {Origem}")" />
+<CabecalhoDePagina Titulo="@Titulo" Subtitulo="@Subtitulo" Folgado="@(Subtitulo is not null)" SubtituloSoNoDesktop="@SubtituloSoNoDesktop"
+                   VoltarPara="@VoltarPara" RotuloDoVoltar="@(RotuloDoVoltarNoMobile ?? $"Voltar para {Origem}")"
+                   IconeDoVoltar="@IconeDoVoltarNoMobile" />
 
 @code {
     [Parameter, EditorRequired] public string Titulo { get; set; } = string.Empty;
@@ -22,4 +23,10 @@
     /// uma atividade: "Voltar para a atividade"). Nulo, vale "Voltar para {Origem}".
     /// </summary>
     [Parameter] public string? RotuloDoVoltarNoMobile { get; set; }
+
+    /// <summary>O ícone do voltar da barra do mobile: a seta (padrão) ou o X ("fechar") do formulário do evento.</summary>
+    [Parameter] public string IconeDoVoltarNoMobile { get; set; } = "voltar";
+
+    /// <summary>O subtítulo só no desktop (o formulário do evento); no tablet ele some.</summary>
+    [Parameter] public bool SubtituloSoNoDesktop { get; set; }
 }

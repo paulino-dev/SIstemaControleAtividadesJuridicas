@@ -2,7 +2,7 @@
    Com ações, vira a caixa de confirmação (ou o erro com nova tentativa) dos quadros. *@
 @if (Acoes is null)
 {
-    <p class="@Classe" role="@Papel"><Icone Nome="@NomeDoIcone" /><span>@ChildContent</span></p>
+    <p class="@(Frase ? $"{Classe} aj-aviso--frase" : Classe)" role="@Papel"><Icone Nome="@NomeDoIcone" /><span>@ChildContent</span></p>
 }
 else
 {
@@ -32,6 +32,12 @@ else
 
     /// <summary>O nome acessível da confirmação; com ele o aviso é um diálogo de alerta e recebe o foco ao aparecer.</summary>
     [Parameter] public string? Rotulo { get; set; }
+
+    /// <summary>
+    /// O aviso em frase (o retorno de salvar evento): o ícone na altura da primeira linha e o texto em peso normal, com
+    /// o começo em <c>strong</c>. Só no aviso sem ações.
+    /// </summary>
+    [Parameter] public bool Frase { get; set; }
 
     private ElementReference _caixa;
 

@@ -16,6 +16,7 @@ public partial class TelasNoDesignSystemTests
     // Caminhos a partir de src/AtividadesJuridicas.Web.
     private static readonly string[] Migradas =
     [
+        "Components/Agenda/AvisoDeEventoSalvo.razor",
         "Components/Atividades/CabecalhoDaAtividade.razor",
         "Components/Atividades/ComentariosDaAtividade.razor",
         "Components/Atividades/DocumentosDaAtividade.razor",

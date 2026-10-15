@@ -6,7 +6,7 @@ using AtividadesJuridicas.Application.Atividades;
 using AtividadesJuridicas.Application.Auditoria;
 using AtividadesJuridicas.Application.Cadastros;
 using AtividadesJuridicas.Domain.Cadastros;
-using AtividadesJuridicas.Web.Components.Atividades;
+using AtividadesJuridicas.Web.Components.Layout;
 
 namespace AtividadesJuridicas.IntegrationTests;
 
