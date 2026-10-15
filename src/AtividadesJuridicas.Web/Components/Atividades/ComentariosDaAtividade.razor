@@ -1,69 +1,70 @@
 @inject IDespachante Despachante
 @inject FusoDoEscritorio Fuso
 
-<section class="ficha">
-    <h3>Comentários</h3>
+@* O painel "Comentários" da ficha da atividade: a ficha o põe na coluna do desktop e na aba "Comentários" do tablet e
+   do mobile, uma vez só. O que muda por visão vai em invólucros dentro do painel. *@
+<section class="aj-painel aj-painel--ficha aj-painel--comentarios">
+    <h2>Comentários</h2>
 
     @if (_mensagem is not null)
     {
-        <p class="@(_falhou ? "erro" : "ok")" role="status">@_mensagem</p>
+        <Aviso Tipo="@(_falhou ? TipoDeAviso.Erro : TipoDeAviso.Sucesso)">@_mensagem</Aviso>
     }
 
-    @if (!_carregado)
+    @if (_acessoEncerrado)
     {
-        <p>Carregando…</p>
-    }
-    else if (_acessoEncerrado)
-    {
-        @* A página foi avisada; se ela não retirar a seção, ela não finge uma lista vazia. *@
-        <p class="erro">Você não tem mais acesso a esta atividade.</p>
+        @* A página foi avisada; se ela não retirar o painel, ele não finge uma lista vazia. *@
+        <Aviso Tipo="TipoDeAviso.Erro">Você não tem mais acesso a esta atividade.</Aviso>
     }
     else if (_naoEncontrada)
     {
-        @* Perdeu a visibilidade da atividade: a mensagem do caso de uso ocupa o lugar da seção. *@
-        <p>@_mensagemNaoEncontrada</p>
+        @* Perdeu a visibilidade da atividade: a mensagem do caso de uso ocupa o lugar da lista. *@
+        <div class="aj-estado-lista"><strong>@_mensagemNaoEncontrada</strong></div>
     }
     else
     {
-        @if (_erroDaLista is not null)
-        {
-            @* Falha na consulta nunca é apresentada como "nenhum comentário". *@
-            <p class="erro">@_erroDaLista</p>
-            <div class="acoes">
-                <button type="button" class="secundario" disabled="@_enviando" @onclick="TentarDeNovoAsync">Tentar de novo</button>
-            </div>
-        }
-        else if (_comentarios.Count == 0)
-        {
-            <p>Nenhum comentário.</p>
-        }
-        else
-        {
-            <ul class="comentarios">
+        @* Falha na consulta nunca é apresentada como "nenhum comentário": o EstadoDaLista mostra o erro primeiro. *@
+        <EstadoDaLista Erro="@_erroDaLista" Carregando="@(!_carregado)" Vazio="@(_comentarios.Count == 0)"
+                       TextoDeVazio="Nenhum comentário." TentarDeNovo="TentarDeNovoAsync">
+            <ul class="aj-comentarios">
                 @foreach (var comentario in _comentarios)
                 {
-                    <li @key="comentario.Id">
-                        <strong>@(comentario.UsuarioNome ?? "Autor não identificado")</strong>
-                        <span>@Fuso.Formatar(comentario.DataHora)</span>
-                        <div class="texto-livre">@comentario.Texto</div>
+                    <li class="aj-comentario" @key="comentario.Id">
+                        <span class="@ClasseDoAvatar(comentario)" aria-hidden="true">@AvatarDePessoa.Sigla(comentario.UsuarioNome ?? string.Empty)</span>
+                        <div class="aj-comentario__balao">
+                            @* A data muda de texto por visão: completa no desktop e no mobile, curta no tablet. *@
+                            <div class="aj-comentario__cabeca"><strong>@(comentario.UsuarioNome ?? "Autor não identificado")</strong><span class="aj-desktop-mobile"><span class="aj-comentario__data">@Fuso.Formatar(comentario.DataHora)</span></span><span class="aj-so-tablet"><span class="aj-comentario__data">@TextosDeAtividade.DataCurta(Fuso, comentario.DataHora)</span></span></div>
+                            <div class="aj-comentario__texto">@comentario.Texto</div>
+                        </div>
                     </li>
                 }
             </ul>
-        }
+        </EstadoDaLista>
 
-        <div class="formulario">
-            <label>Novo comentário <textarea rows="3" maxlength="@AtividadeComentario.TamanhoMaximoTexto" @bind="_texto" @bind:event="oninput" disabled="@_enviando"></textarea></label>
-            <div class="acoes">
-                <button type="button" disabled="@_enviando" @onclick="ComentarAsync">
-                    @(_enviando ? "Enviando…" : "Comentar")
-                </button>
+        @if (_carregado)
+        {
+            @* Duas formas do comentário novo, ligadas ao mesmo texto: o que se digita numa vale na outra. *@
+            <div class="aj-desktop-mobile">
+                <div class="aj-comentarios__novo">
+                    <label class="aj-rotulo">Novo comentário<textarea class="aj-campo" rows="3" placeholder="Escreva um comentário para a equipe" maxlength="@AtividadeComentario.TamanhoMaximoTexto" @bind="_texto" @bind:event="oninput" disabled="@_enviando"></textarea></label>
+                    <button type="button" class="aj-botao aj-botao--secundario" disabled="@_enviando" @onclick="ComentarAsync">@(_enviando ? "Enviando…" : "Comentar")</button>
+                </div>
             </div>
-        </div>
+            <div class="aj-so-tablet">
+                <div class="aj-campo-com-botao">
+                    <label class="aj-rotulo"><span class="aj-so-leitor">Novo comentário</span><textarea class="aj-campo aj-campo--folgado" rows="2" placeholder="Escreva um comentário" maxlength="@AtividadeComentario.TamanhoMaximoTexto" @bind="_texto" @bind:event="oninput" disabled="@_enviando"></textarea></label>
+                    <button type="button" class="aj-botao aj-botao--primario aj-botao--icone aj-botao--enviar" aria-label="Enviar comentário" disabled="@_enviando" @onclick="ComentarAsync"><Icone Nome="enviar" /></button>
+                </div>
+            </div>
+        }
     }
 </section>
 
 @code {
     [Parameter, EditorRequired] public Guid AtividadeId { get; set; }
+
+    /// <summary>Quantos comentários a lista trouxe, a cada carga bem-sucedida (o contador da aba "Comentários").</summary>
+    [Parameter] public EventCallback<int> AoContar { get; set; }
 
     /// <summary>Avisado quando um caso de uso responde acesso negado: a página decide o que mostrar.</summary>
     [Parameter] public EventCallback OnAcessoEncerrado { get; set; }
@@ -88,7 +89,7 @@
         _carregado = true;
     }
 
-    /// <summary>Consulta a lista; devolve se a seção ficou mostrando dados atuais.</summary>
+    /// <summary>Consulta a lista; devolve se o painel ficou mostrando dados atuais.</summary>
     private async Task<bool> CarregarAsync()
     {
         var resultado = await Despachante.EnviarAsync(new ListarComentariosDaAtividade(AtividadeId));
@@ -98,6 +99,7 @@
         {
             _comentarios = lista;
             _erroDaLista = null;
+            await AoContar.InvokeAsync(lista.Count);
             return true;
         }
 
@@ -107,7 +109,11 @@
         return false;
     }
 
-    /// <summary>Acesso negado avisa a página; "não encontrado" (perdeu a visibilidade) troca a seção pela mensagem.</summary>
+    // A cor e a sigla saem do nome (o comentário de autor desconhecido fica com "?").
+    private static string ClasseDoAvatar(ComentarioDetalhe comentario) =>
+        $"aj-avatar {AvatarDePessoa.Classe(comentario.UsuarioNome ?? string.Empty)}";
+
+    /// <summary>Acesso negado avisa a página; "não encontrado" (perdeu a visibilidade) troca o painel pela mensagem.</summary>
     private async Task<bool> EncerradoAsync(Resultado resultado)
     {
         if (resultado.Erro == TipoErro.NaoEncontrado)
