@@ -1,0 +1,7 @@
+@page "/atividades/{Id:guid}/devolver"
+
+<MotivoComResponsaveis Id="Id" Reabrir="false" />
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+}

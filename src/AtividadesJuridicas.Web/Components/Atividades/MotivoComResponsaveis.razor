@@ -1,0 +1,196 @@
+@using System.ComponentModel.DataAnnotations
+@inject IDespachante Despachante
+@inject NavigationManager Navegacao
+@inject Recados Recados
+
+@* A tela de devolver e a de reabrir: o motivo e os responsáveis que voltam a ter a parte pendente. As duas páginas só
+   passam o identificador da rota e qual das duas ações é. *@
+<PageTitle>@Titulo</PageTitle>
+
+<CabecalhoDeDetalhe Titulo="@Titulo" Subtitulo="@Subtitulo" VoltarPara="@Voltar" Origem="@Origem"
+                    RotuloDoVoltarNoMobile="@RotuloDoVoltarNoMobile" />
+
+<CargaDoFormulario Estado="_estado" Erro="@_erroDaConsulta" TextoNaoEncontrado="Atividade não encontrada." TentarDeNovo="CarregarAsync">
+    @if (!Permitida)
+    {
+        <Aviso Tipo="TipoDeAviso.Atencao">Esta atividade não permite mais essa ação.</Aviso>
+    }
+    else
+    {
+        @if (_mensagem is not null)
+        {
+            <Aviso Tipo="TipoDeAviso.Erro">@_mensagem</Aviso>
+        }
+
+        @* A barra de voltar do mobile não tem subtítulo: o título da atividade vira a ajuda no topo. *@
+        <div class="aj-so-mobile">
+            <span class="aj-ajuda">@_detalhe!.Titulo</span>
+        </div>
+
+        <EditForm Model="_form" OnSubmit="EnviarAsync" FormName="@NomeDoFormulario" id="formulario-do-motivo" class="aj-painel aj-painel--principal aj-painel--medio">
+            <DataAnnotationsValidator />
+            <RotuloDeCampo Texto="Motivo" Para="() => _form.Motivo"><InputTextArea @bind-Value="_form.Motivo" rows="4" maxlength="@AtividadeHistoricoStatus.TamanhoMaximoMotivo" disabled="@_enviando" class="aj-campo" /></RotuloDeCampo>
+            <fieldset class="aj-conjunto">
+                <legend class="@ClasseDaLegenda">Responsáveis que voltam a ter a parte pendente</legend>
+                @foreach (var responsavel in _detalhe.Responsaveis)
+                {
+                    <label class="aj-opcao" @key="responsavel.UsuarioId"><input type="checkbox" class="aj-opcao__caixa" checked="@_marcados.Contains(responsavel.UsuarioId)" disabled="@_enviando" @onchange="e => Marcar(responsavel.UsuarioId, e)" />@responsavel.Nome</label>
+                }
+                @if (_erroDosResponsaveis is not null)
+                {
+                    <span class="aj-campo-erro">@_erroDosResponsaveis</span>
+                }
+            </fieldset>
+        </EditForm>
+
+        @* As barras de ação ficam fora do formulário e o enviam pelo atributo form. No desktop a barra fica no fluxo,
+           logo abaixo do painel e com a mesma largura máxima; no tablet e no mobile, presa embaixo. *@
+        <div class="aj-so-desktop">
+            <div class="aj-acoes aj-acoes--medio"><a href="@Voltar" class="aj-botao aj-botao--fantasma">Cancelar</a><button type="submit" class="aj-botao aj-botao--primario aj-botao--com-icone" form="formulario-do-motivo" disabled="@_enviando"><Icone Nome="devolver" />@Verbo</button></div>
+        </div>
+        <div class="aj-so-tablet">
+            <div class="aj-acoes aj-acoes--fixa"><a href="@Voltar" class="aj-botao aj-botao--secundario">Cancelar</a><button type="submit" class="aj-botao aj-botao--primario aj-botao--com-icone" form="formulario-do-motivo" disabled="@_enviando"><Icone Nome="devolver" />@Verbo</button></div>
+        </div>
+        <div class="aj-so-mobile">
+            <div class="aj-acoes aj-acoes--fixa"><a href="@Voltar" class="aj-botao aj-botao--secundario">Cancelar</a><button type="submit" class="aj-botao aj-botao--primario aj-botao--com-icone" form="formulario-do-motivo" disabled="@_enviando"><Icone Nome="devolver" />@Verbo</button></div>
+        </div>
+    }
+</CargaDoFormulario>
+
+@code {
+    [Parameter, EditorRequired] public Guid Id { get; set; }
+
+    /// <summary>Verdadeiro na tela de reabrir (atividade concluída); falso na de devolver (feita ou corrigida).</summary>
+    [Parameter] public bool Reabrir { get; set; }
+
+    private EstadoDeCarga _estado = EstadoDeCarga.Carregando;
+    private string? _erroDaConsulta;
+    private AtividadeDetalhe? _detalhe;
+    private Formulario _form = new();
+    private HashSet<Guid> _marcados = [];
+    private string? _mensagem;
+    private string? _erroDosResponsaveis;
+    private bool _enviando;
+
+    private string Titulo => Reabrir ? "Reabrir atividade" : "Devolver para correção";
+    private string Verbo => Reabrir ? "Reabrir" : "Devolver";
+    private string NomeDoFormulario => Reabrir ? "reabertura" : "devolucao";
+
+    // A permissão vem da atividade carregada: devolver é do revisor numa atividade feita ou corrigida; reabrir, de
+    // quem é da Diretoria numa concluída.
+    private bool Permitida =>
+        _estado == EstadoDeCarga.Pronto && _detalhe is { } d && (Reabrir ? d.Acoes.Reabrir : d.Acoes.AprovarOuDevolver);
+
+    // O subtítulo (o título da atividade) só acompanha o formulário.
+    private string? Subtitulo => Permitida ? _detalhe!.Titulo : null;
+
+    // Sem a atividade para voltar a ela, o voltar vai para a lista.
+    private string Voltar => _estado == EstadoDeCarga.NaoEncontrado ? "/atividades" : $"/atividades/{Id}";
+    private string Origem => _estado == EstadoDeCarga.NaoEncontrado ? "Atividades" : _detalhe?.Titulo ?? "Atividade";
+    private string? RotuloDoVoltarNoMobile => _estado == EstadoDeCarga.NaoEncontrado ? null : "Voltar para a atividade";
+
+    private string ClasseDaLegenda => _erroDosResponsaveis is null ? "aj-rotulo" : "aj-rotulo aj-rotulo--erro";
+
+    protected override Task OnInitializedAsync() => CarregarAsync();
+
+    // A carga inteira, também pelo "Tentar de novo": o perfil e a atividade.
+    private async Task CarregarAsync()
+    {
+        _estado = EstadoDeCarga.Carregando;
+        _erroDaConsulta = null;
+        _mensagem = null;
+        _erroDosResponsaveis = null;
+        _detalhe = null;
+
+        // O perfil vem antes de tudo: a Produção não consulta a atividade.
+        if (await Despachante.EnviarAsync(new ObterMeuAcesso()) is not { EhDiretoria: true })
+        {
+            _estado = EstadoDeCarga.AcessoNegado;
+            return;
+        }
+
+        var atividade = await Despachante.EnviarAsync(new ObterAtividade(Id));
+        if (atividade.Erro == TipoErro.AcessoNegado)
+        {
+            _estado = EstadoDeCarga.AcessoNegado;
+            return;
+        }
+
+        if (atividade.Erro == TipoErro.NaoEncontrado)
+        {
+            _estado = EstadoDeCarga.NaoEncontrado;
+            return;
+        }
+
+        if (atividade.Valor is not { } detalhe)
+        {
+            _erroDaConsulta = atividade.Mensagem ?? "Não foi possível consultar a atividade.";
+            _estado = EstadoDeCarga.Falhou;
+            return;
+        }
+
+        // O motivo começa vazio e todos os responsáveis começam marcados.
+        _form = new Formulario();
+        _marcados = [.. detalhe.Responsaveis.Select(r => r.UsuarioId)];
+        _detalhe = detalhe;
+        _estado = EstadoDeCarga.Pronto;
+    }
+
+    private void Marcar(Guid usuarioId, ChangeEventArgs e)
+    {
+        if (e.Value is true) _marcados.Add(usuarioId);
+        else _marcados.Remove(usuarioId);
+    }
+
+    private async Task EnviarAsync(EditContext contexto)
+    {
+        if (_enviando || _detalhe is not { } detalhe) return;
+
+        // Os dois erros aparecem juntos, cada um no seu campo, e nada é enviado.
+        var motivoValido = contexto.Validate();
+        _erroDosResponsaveis = _marcados.Count == 0 ? "Marque ao menos um responsável." : null;
+        if (!motivoValido || _erroDosResponsaveis is not null) return;
+
+        _enviando = true;
+        var navegou = false;
+        try
+        {
+            _mensagem = null;
+            // Só o que está marcado na tela, na ordem dos responsáveis da atividade.
+            IReadOnlyList<Guid> responsaveis = [.. detalhe.Responsaveis.Select(r => r.UsuarioId).Where(_marcados.Contains)];
+            var motivo = _form.Motivo.Trim();
+            var resultado = Reabrir
+                ? await Despachante.EnviarAsync(new ReabrirAtividade(Id, motivo, responsaveis))
+                : await Despachante.EnviarAsync(new DevolverAtividade(Id, motivo, responsaveis));
+
+            if (resultado.Erro == TipoErro.AcessoNegado)
+            {
+                _estado = EstadoDeCarga.AcessoNegado;
+                return;
+            }
+
+            if (!resultado.Sucesso)
+            {
+                // O aviso no topo com a mensagem do servidor; o motivo e as marcas ficam como estão.
+                _mensagem = resultado.Mensagem;
+                return;
+            }
+
+            Recados.Deixar(Reabrir ? "Atividade reaberta." : "Atividade devolvida para correção.");
+            navegou = true;
+            Navegacao.NavigateTo(Voltar);
+        }
+        finally
+        {
+            // Depois do sucesso a página vai embora: o botão fica travado para um clique tardio não enviar de novo.
+            if (!navegou) _enviando = false;
+        }
+    }
+
+    private sealed class Formulario
+    {
+        // O Required recusa também o motivo só com espaços.
+        [Required(ErrorMessage = "Informe o motivo.")]
+        public string Motivo { get; set; } = string.Empty;
+    }
+}
