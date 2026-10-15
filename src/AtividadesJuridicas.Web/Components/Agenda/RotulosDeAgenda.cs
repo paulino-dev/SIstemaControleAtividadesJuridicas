@@ -5,12 +5,6 @@ using AtividadesJuridicas.Web.Infra;
 
 namespace AtividadesJuridicas.Web.Components.Agenda;
 
-/// <summary>
-/// O que o formulário devolve depois de gravar: o id, os avisos de sobreposição e o início gravado (em UTC), para a
-/// página mostrar a semana em que o evento caiu.
-/// </summary>
-public sealed record EventoGravado(Guid Id, IReadOnlyList<SobreposicaoDeAgenda> Sobreposicoes, DateTime InicioEm);
-
 /// <summary>Os textos em português e o cálculo de dia que a agenda mostra.</summary>
 public static class RotulosDeAgenda
 {
