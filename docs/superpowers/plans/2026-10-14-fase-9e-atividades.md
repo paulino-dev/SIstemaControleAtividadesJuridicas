@@ -417,7 +417,7 @@ São 84 nomes de classe novos.
 .aj-historico__item:last-child .aj-historico__texto{padding-bottom:0}
 .aj-historico__mudanca{font-weight:600}
 .aj-historico__autor{font-size:13.5px;color:var(--tinta-suave);font-variant-numeric:tabular-nums}
-.aj-historico__motivo{margin-top:var(--espaco-2);font-size:14px;color:var(--tinta-secundaria);white-space:pre-wrap;overflow-wrap:anywhere}
+.aj-historico .aj-historico__motivo{margin-top:var(--espaco-2);font-size:14px;color:var(--tinta-secundaria);white-space:pre-wrap;overflow-wrap:anywhere}
 
 /* Comentários em balões: avatar, balão com nome, data e texto. No tablet, avatar menor, balão sem vão interno e data
    menor. */
