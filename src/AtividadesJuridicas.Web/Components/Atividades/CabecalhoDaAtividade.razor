@@ -1,0 +1,44 @@
+@* Cabeçalho da ficha da atividade (quadros FichaDaAtividade.dc.html, FichaTablet.dc.html e FichaMobile.dc.html). No desktop e no tablet, o voltar
+   acima de um painel com a linha de situação (etiqueta e entrega), o título e, embaixo, a faixa de ações. No mobile, a
+   barra de voltar com "Atividade" e, à direita, a ação da barra; no conteúdo, a linha de situação com a entrega curta e o
+   título em h2 (o h1 é o da barra). Os dois encaixes ficam vazios quando a tela não tem o que pôr neles. *@
+<BarraDeVoltar Titulo="Atividade" VoltarPara="@VoltarPara" Rotulo="@(RotuloDoVoltarNoMobile ?? $"Voltar para {Origem}")" Acao="@AcaoDaBarra" />
+
+<div class="aj-desktop-tablet">
+    <div><a href="@VoltarPara" class="aj-voltar"><Icone Nome="voltar" />@Origem</a></div>
+    <header class="aj-painel aj-painel--principal aj-painel--cabecalho-com-faixa">
+        <div class="aj-titulo-da-ficha aj-titulo-da-ficha--com-situacao">
+            <div class="aj-titulo-da-ficha__situacao"><EtiquetaDeSituacao Status="Detalhe.Status" Atrasada="Detalhe.Atrasada" /><span class="aj-titulo-da-ficha__entrega">@(TextosDeAtividade.Entrega(Detalhe.DataEntrega, Detalhe.AreaNome, curta: false))</span></div>
+            <h1 class="aj-titulo">@Detalhe.Titulo</h1>
+        </div>
+        @if (Faixa is not null)
+        {
+            <div class="aj-painel__botoes aj-painel__botoes--faixa">@Faixa</div>
+        }
+    </header>
+</div>
+
+<div class="aj-so-mobile">
+    <div class="aj-titulo-da-ficha aj-titulo-da-ficha--com-situacao">
+        <div class="aj-titulo-da-ficha__situacao"><EtiquetaDeSituacao Status="Detalhe.Status" Atrasada="Detalhe.Atrasada" /><span class="aj-titulo-da-ficha__entrega">@(TextosDeAtividade.Entrega(Detalhe.DataEntrega, Detalhe.AreaNome, curta: true))</span></div>
+        <h2 class="aj-titulo">@Detalhe.Titulo</h2>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public AtividadeDetalhe Detalhe { get; set; } = default!;
+
+    [Parameter, EditorRequired] public string VoltarPara { get; set; } = string.Empty;
+
+    /// <summary>O nome da tela de destino do voltar: "Atividades" ou "Produtores".</summary>
+    [Parameter, EditorRequired] public string Origem { get; set; } = string.Empty;
+
+    /// <summary>O rótulo do voltar da barra do mobile; nulo = "Voltar para {Origem}".</summary>
+    [Parameter] public string? RotuloDoVoltarNoMobile { get; set; }
+
+    /// <summary>A faixa de ações do desktop e do tablet, abaixo do título. Nula: sem faixa (e sem a borda dela).</summary>
+    [Parameter] public RenderFragment? Faixa { get; set; }
+
+    /// <summary>A ação à direita da barra de voltar do mobile (o "Mais ações"). Nula: o vazio do tamanho do botão.</summary>
+    [Parameter] public RenderFragment? AcaoDaBarra { get; set; }
+}

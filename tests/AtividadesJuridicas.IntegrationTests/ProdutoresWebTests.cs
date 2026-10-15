@@ -289,7 +289,7 @@ public class ProdutoresWebTests(BancoFixture banco) : IAsyncLifetime
     [Fact]
     public async Task Painel_abre_no_mes_corrente_com_os_totais_e_as_atividades_de_cada_complexidade()
     {
-        await ConcluidaAgoraAsync("Petição simples", 1);
+        var peticao = await ConcluidaAgoraAsync("Petição simples", 1);
         await ConcluidaAgoraAsync("Parecer difícil", 3);
         await ConcluidaAgoraAsync("Recurso difícil", 3);
         var mesCorrente = RotulosDeProdutividade.Mes(RotulosDeProdutividade.MesDe(Hoje()));
@@ -320,8 +320,14 @@ public class ProdutoresWebTests(BancoFixture banco) : IAsyncLifetime
             .And.BeLessThan(html.IndexOf("Recurso difícil", StringComparison.Ordinal));
         // Só o grupo vazio diz que está vazio.
         Regex.Matches(html, "Nenhuma atividade\\.").Count.Should().Be(1);
-        html.Should().Contain("Concluída em").And.Contain("Abrir");
-        html.Should().NotContain("Tentar de novo").And.NotContain("Carregando");
+        // "Abrir" (desktop) e a linha (tablet e mobile) levam à ficha, que volta ao painel do produtor.
+        var ficha = $"/atividades/{peticao}?de=produtores&produtor={_pedro}";
+        BlocoDeVisao.De(html, "aj-so-desktop").Should()
+            .Contain($"<a href=\"{ficha}\" class=\"aj-botao aj-botao--fantasma aj-botao--seta\">Abrir<svg");
+        BlocoDeVisao.De(html, "aj-tablet-mobile").Should()
+            .Contain($"<a href=\"{ficha}\" class=\"aj-linha aj-linha--link\"><span class=\"aj-linha__texto\"><span class=\"aj-linha__titulo\">Petição simples</span>");
+        html.Should().Contain("Concluída em").And.NotContain("aj-linha--botao")
+            .And.NotContain("<button type=\"button\" class=\"aj-botao aj-botao--fantasma aj-botao--seta\"");        html.Should().NotContain("Tentar de novo").And.NotContain("Carregando");
     }
 
     [Fact]

@@ -1,0 +1,284 @@
+@page "/atividades/{Id:guid}"
+@using System.Globalization
+@inject IDespachante Despachante
+@inject FusoDoEscritorio Fuso
+@inject Recados Recados
+
+<PageTitle>@(_detalhe?.Titulo ?? "Atividade")</PageTitle>
+
+@if (!_carregado || _ator is null || _detalhe is null)
+{
+    <CabecalhoDeDetalhe Titulo="Atividade" VoltarPara="@Voltar" Origem="@Origem" />
+    @if (!_carregado)
+    {
+        <p class="aj-subtitulo" role="status">Carregando…</p>
+    }
+    else if (_ator is null)
+    {
+        <Aviso Tipo="TipoDeAviso.Erro">Seu acesso foi encerrado. Entre novamente.</Aviso>
+    }
+    else if (_naoEncontrado)
+    {
+        @* A atividade foi excluída ou o usuário não a vê: o servidor responde igual nos dois casos. *@
+        <Aviso Tipo="TipoDeAviso.Erro">Atividade não encontrada.</Aviso>
+    }
+    else
+    {
+        @* Falha ao consultar nunca vira uma ficha vazia nem deixa dados antigos na tela. *@
+        <EstadoDaLista Erro="@(_erro ?? "Não foi possível consultar a atividade.")" TextoDeVazio="" TentarDeNovo="CarregarAsync" />
+    }
+}
+else
+{
+    var a = _detalhe;
+    <CabecalhoDaAtividade Detalhe="a" VoltarPara="@Voltar" Origem="@Origem" />
+
+    @if (_recado is { } recado)
+    {
+        <Aviso Tipo="@recado.Tipo">@recado.Texto</Aviso>
+    }
+
+    <div class="aj-so-mobile">
+        <Abas Rotulo="Seções da atividade" Itens="@AbasDaFicha" Ativa="@_aba" AoEscolher="(string aba) => _aba = aba" />
+    </div>
+
+    @* Cada painel com estado aparece uma vez só. O painel Detalhes vem primeiro e o CSS o leva para a direita no desktop;
+       os blocos que mudam por visão ficam em invólucros de visão; no mobile, as abas escondem o que não é da aba escolhida. *@
+    <div class="aj-lado-a-lado aj-lado-a-lado--painel-primeiro aj-lado-a-lado--ficha aj-lado-a-lado--painel-estreito">
+        <div class="aj-so-desktop">
+            <aside class="aj-painel aj-painel--ficha aj-painel--detalhes aj-lado-a-lado__painel" aria-label="Dados da atividade">
+                <h2>Detalhes</h2>
+                @Pares(DetalhesDoDesktop(a))
+            </aside>
+        </div>
+
+        <div class="aj-lado-a-lado__lista aj-pilha">
+            <div class="aj-so-desktop">
+                @PainelDeDescricao(a)
+                @PainelDeResponsaveis(a)
+                @PainelDeHistorico(a)
+            </div>
+            <div class="aj-tablet-mobile">
+                <div class="@ClasseDaAba("detalhes")">
+                    <div class="aj-grade">
+                        @PainelDeDescricao(a)
+                        <section class="aj-painel aj-painel--ficha aj-painel--detalhes">
+                            <h2>Dados</h2>
+                            @Pares(DadosDoTabletEMobile(a))
+                        </section>
+                    </div>
+                    @PainelDeResponsaveis(a)
+                </div>
+                <div class="@ClasseDaAba("historico")">@PainelDeHistorico(a)</div>
+            </div>
+            @* A chave é a atividade: abrir outra ficha nesta mesma tela recria os dois componentes. *@
+            <div class="@ClasseDaAba("comentarios")">
+                <ComentariosDaAtividade @key="a.Id" AtividadeId="a.Id" AoContar="ContarComentarios"
+                                        OnAcessoEncerrado="EncerrarAcesso" OnAtividadeNaoEncontrada="AtividadeSumiuAsync" />
+            </div>
+            <div class="@ClasseDaAba("documentos")">
+                @* Gerenciar documentos (renomear e excluir) é permissão da Diretoria, que hoje coincide com poder editar a
+                   atividade; se as duas regras se separarem, esta linha precisa de uma ação própria. *@
+                <DocumentosDaAtividade @key="a.Id" AtividadeId="a.Id" PodeGerenciar="a.Acoes.Editar" AoContar="ContarDocumentos"
+                                       OnAcessoEncerrado="EncerrarAcesso" OnAtividadeNaoEncontrada="AtividadeSumiuAsync" />
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    /// <summary>De onde se veio (<c>?de=produtores</c>): decide o voltar.</summary>
+    [SupplyParameterFromQuery(Name = "de")] public string? De { get; set; }
+
+    /// <summary>O produtor do painel de onde se veio (<c>?produtor=</c>). Texto que não é um id volta a <c>/produtores</c>.</summary>
+    [SupplyParameterFromQuery(Name = "produtor")] public string? Produtor { get; set; }
+
+    private bool _carregado;
+    private UsuarioAutenticado? _ator;
+    private AtividadeDetalhe? _detalhe;
+    private bool _naoEncontrado;
+    private string? _erro;
+    private int? _totalDeComentarios;
+    private int? _totalDeDocumentos;
+    private string _aba = "detalhes";
+    private Recado? _recado;
+    private Guid? _idCarregado;
+
+    private bool DeProdutores => string.Equals(De, "produtores", StringComparison.Ordinal);
+
+    private string Voltar => !DeProdutores
+        ? "/atividades"
+        : Guid.TryParse(Produtor, out var produtor) ? $"/produtores?produtor={produtor}" : "/produtores";
+
+    private string Origem => DeProdutores ? "Produtores" : "Atividades";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_idCarregado == Id) return;
+
+        var primeira = _idCarregado is null;
+        _idCarregado = Id;
+        if (primeira) _recado = Recados.Retirar();
+        await CarregarAsync();
+    }
+
+    /// <summary>A carga inteira: o perfil e a atividade. Também é o "Tentar de novo".</summary>
+    private async Task CarregarAsync()
+    {
+        _carregado = false;
+        _detalhe = null;
+        _naoEncontrado = false;
+        _erro = null;
+        _totalDeComentarios = null;
+        _totalDeDocumentos = null;
+        _aba = "detalhes";
+
+        _ator = await Despachante.EnviarAsync(new ObterMeuAcesso());
+        if (_ator is not null) await RecarregarAsync();
+
+        _carregado = true;
+    }
+
+    /// <summary>
+    /// Relê a atividade; devolve se a ficha ficou mostrando dados atuais. Acesso negado encerra a tela; não encontrada e
+    /// falha tiram a ficha da tela (as ações dependem do que o servidor permite agora).
+    /// </summary>
+    private async Task<bool> RecarregarAsync()
+    {
+        var resultado = await Despachante.EnviarAsync(new ObterAtividade(Id));
+        _naoEncontrado = false;
+        _erro = null;
+
+        if (resultado.Erro == TipoErro.AcessoNegado)
+        {
+            EncerrarAcesso();
+            return false;
+        }
+
+        if (resultado.Erro == TipoErro.NaoEncontrado)
+        {
+            _detalhe = null;
+            _naoEncontrado = true;
+            return false;
+        }
+
+        if (!resultado.Sucesso || resultado.Valor is null)
+        {
+            _detalhe = null;
+            _erro = resultado.Mensagem ?? "Não foi possível consultar a atividade.";
+            return false;
+        }
+
+        _detalhe = resultado.Valor;
+        return true;
+    }
+
+    /// <summary>Um componente descobriu que a atividade não existe mais: a ficha relê e mostra o que o servidor diz.</summary>
+    private Task AtividadeSumiuAsync() => RecarregarAsync();
+
+    private void EncerrarAcesso()
+    {
+        _ator = null;
+        _detalhe = null;
+    }
+
+    private void ContarComentarios(int total) => _totalDeComentarios = total;
+
+    private void ContarDocumentos(int total) => _totalDeDocumentos = total;
+
+    private IReadOnlyList<Aba> AbasDaFicha =>
+    [
+        new("detalhes", "Detalhes"),
+        new("comentarios", "Comentários", _totalDeComentarios),
+        new("documentos", "Documentos", _totalDeDocumentos),
+        new("historico", "Histórico"),
+    ];
+
+    private string ClasseDaAba(string aba) => aba == _aba ? "aj-aba-painel" : "aj-aba-painel aj-aba-painel--oculta";
+
+    private static string Ou(string? valor) => string.IsNullOrWhiteSpace(valor) ? "—" : valor;
+
+    private static string Autor(AtividadeDetalhe a) => a.TipoAutor == TipoAutor.Sistema ? "Sistema" : Ou(a.AutorNome);
+
+    private static string Complexidade(AtividadeDetalhe a) => a.Complexidade.ToString(CultureInfo.InvariantCulture);
+
+    private static IReadOnlyList<(string Termo, string Valor)> DetalhesDoDesktop(AtividadeDetalhe a) =>
+    [
+        ("Entrega", RotulosDeAtividade.Data(a.DataEntrega)),
+        ("Cliente", Ou(a.ClienteNome)),
+        ("Processo", Ou(a.ProcessoTitulo)),
+        ("Área", Ou(a.AreaNome)),
+        ("Complexidade", Complexidade(a)),
+        ("Autor", Autor(a)),
+        ("Revisor", Ou(a.RevisorNome)),
+    ];
+
+    // No tablet e no mobile a entrega e a área já estão na linha de situação, acima do título.
+    private static IReadOnlyList<(string Termo, string Valor)> DadosDoTabletEMobile(AtividadeDetalhe a) =>
+    [
+        ("Cliente", Ou(a.ClienteNome)),
+        ("Processo", Ou(a.ProcessoTitulo)),
+        ("Autor", Autor(a)),
+        ("Revisor", Ou(a.RevisorNome)),
+        ("Complexidade", Complexidade(a)),
+    ];
+
+    private RenderFragment Pares(IReadOnlyList<(string Termo, string Valor)> pares) => @<dl class="aj-detalhes">
+        @foreach (var (termo, valor) in pares)
+        {
+            <div><dt>@termo</dt><dd>@valor</dd></div>
+        }
+    </dl>;
+
+    private RenderFragment PainelDeDescricao(AtividadeDetalhe a) => @<section class="aj-painel aj-painel--ficha aj-painel--descricao">
+        <h2>Descrição</h2>
+        <p>@a.Descricao</p>
+    </section>;
+
+    private RenderFragment PainelDeResponsaveis(AtividadeDetalhe a) => @<section class="aj-painel aj-painel--ficha aj-painel--responsaveis">
+        <h2>Responsáveis</h2>
+        <EstadoDaLista Vazio="@(a.Responsaveis.Count == 0)" TextoDeVazio="Nenhum responsável.">
+            <ul class="aj-responsaveis">
+                @foreach (var r in a.Responsaveis)
+                {
+                    @* O direcionamento de outra pessoa nem chega do servidor; aqui só se mostra o que veio, e só se for visível. *@
+                    <li class="aj-responsavel" @key="r.UsuarioId"><span class="@($"aj-avatar {AvatarDePessoa.Classe(r.Nome)}")" aria-hidden="true">@AvatarDePessoa.Sigla(r.Nome)</span><div class="aj-responsavel__texto"><div class="aj-responsavel__cabeca"><strong>@r.Nome</strong>@EstadoDaParte(r)</div>@if (r.DirecionamentoVisivel && !string.IsNullOrWhiteSpace(r.Direcionamento)) {<span class="aj-responsavel__direcionamento">@r.Direcionamento</span>}</div></li>
+                }
+            </ul>
+        </EstadoDaLista>
+    </section>;
+
+    /// <summary>A parte do responsável: concluída, com o ícone e a data (completa no desktop, curta no tablet e no mobile), ou pendente.</summary>
+    private RenderFragment EstadoDaParte(ResponsavelDetalhe r)
+    {
+        if (r.ConcluidoEm is not { } em)
+            return @<span class="aj-responsavel__estado aj-responsavel__estado--pendente">Pendente</span>;
+
+        return @<span class="aj-responsavel__estado"><Icone Nome="confirmar" /><span class="aj-so-desktop">@($"Concluída em {Fuso.Formatar(em)}")</span><span class="aj-tablet-mobile">@($"Concluída em {TextosDeAtividade.DataCurta(Fuso, em)}")</span></span>;
+    }
+
+    private RenderFragment PainelDeHistorico(AtividadeDetalhe a) => @<section class="aj-painel aj-painel--ficha aj-painel--historico">
+        <h2>Histórico</h2>
+        <EstadoDaLista Vazio="@(a.Historico.Count == 0)" TextoDeVazio="Nenhum registro.">
+            <ol class="aj-historico">
+                @for (var i = 0; i < a.Historico.Count; i++)
+                {
+                    var h = a.Historico[i];
+                    var atual = i == a.Historico.Count - 1;
+                    <li class="aj-historico__item"><div class="aj-historico__marca" aria-hidden="true"><span class="@ClasseDoPonto(h.StatusNovo, atual)"></span>@if (!atual) {<span class="aj-historico__linha"></span>}</div><div class="aj-historico__texto"><span class="aj-historico__mudanca">@TextosDeAtividade.Mudanca(h.StatusAnterior, h.StatusNovo)</span><span class="aj-historico__autor">@($"{h.UsuarioNome ?? "Sistema"} · {Fuso.Formatar(h.DataHora)}")</span>@if (!string.IsNullOrWhiteSpace(h.Motivo)) {<p class="aj-historico__motivo">@h.Motivo</p>}</div></li>
+                }
+            </ol>
+        </EstadoDaLista>
+    </section>;
+
+    /// <summary>O ponto da linha do tempo na cor da situação nova (Criada é o ponto sem modificador); o atual, cheio.</summary>
+    private static string ClasseDoPonto(StatusAtividade situacao, bool atual)
+    {
+        var classe = situacao == StatusAtividade.Criada
+            ? "aj-historico__ponto"
+            : $"aj-historico__ponto aj-historico__ponto--{RotulosDeAtividade.ClasseDaEtiqueta(situacao)}";
+        return atual ? $"{classe} aj-historico__ponto--atual" : classe;
+    }
+}
