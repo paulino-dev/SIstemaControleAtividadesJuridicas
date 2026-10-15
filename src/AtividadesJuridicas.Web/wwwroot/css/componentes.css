@@ -1117,3 +1117,401 @@ textarea.aj-campo--folgado{padding:var(--espaco-10) var(--espaco-14)}
 @media (min-width:761px) and (max-width:1199px){.aj-comentario__texto{max-width:none}}
 [data-visao="tablet"] .aj-comentario__texto{max-width:none}
 [data-visao="desktop"] .aj-comentario__texto,[data-visao="mobile"] .aj-comentario__texto{max-width:68ch}
+
+/* ---------- Agenda e evento (fase 9F) ---------- */
+/* Barra da agenda. Desktop: a navegação de período e as visões num grupo, os filtros no outro, nas pontas da barra; os
+   campos Tipo e Participante com 160px e 200px e o "Filtrar" com o ícone de 16px. Tablet: a barra sem sombra e o botão
+   "Filtros" com 46px, 16px de respiro, raio 12, texto de 14,5px e ícone de traço 1,75. */
+.aj-barra-filtros--dividida{justify-content:space-between;gap:var(--espaco-8) var(--espaco-16)}
+.aj-barra-filtros__grupo{display:flex;flex-wrap:wrap;align-items:center;gap:var(--espaco-8)}
+.aj-barra-filtros__grupo>.aj-botao{min-height:var(--campo-desktop)}
+.aj-campo-filtro--tipo{min-width:160px}
+.aj-campo-filtro--pessoa{min-width:200px}
+.aj-botao--com-icone-pequeno svg{width:16px;height:16px}
+.aj-barra-filtros--plana{box-shadow:none}
+.aj-barra-filtros--plana .aj-botao{min-height:var(--controle-toque);padding:0 var(--espaco-16);border-radius:var(--raio-12);font-size:14.5px}
+.aj-barra-filtros--plana .aj-botao svg{stroke-width:1.75}
+
+/* Segmentados da agenda. No tablet as opções são mais justas (texto de 14,5px, 6px de respiro, 70px de mínimo; o
+   "Semana" com 80px), a escolhida sem sombra e o "Hoje" com 16px de respiro e 14,5px. As regras miram as opções
+   (aj-segmentado__opcao) e o "Hoje": as setas ficam como a classe as desenha. */
+@media (min-width:761px) and (max-width:1199px){
+  .aj-segmentado--periodo .aj-segmentado__opcao{min-width:70px;padding:0 var(--espaco-6);font-size:14.5px}
+  .aj-segmentado--periodo .aj-segmentado__opcao[aria-pressed="true"]{box-shadow:none}
+  .aj-segmentado--periodo .aj-segmentado__opcao--larga{min-width:80px}
+  .aj-segmentado--periodo button.aj-segmentado__hoje{padding:0 var(--espaco-16);font-size:14.5px}
+}
+[data-visao="tablet"] .aj-segmentado--periodo .aj-segmentado__opcao{min-width:70px;padding:0 var(--espaco-6);font-size:14.5px}
+[data-visao="tablet"] .aj-segmentado--periodo .aj-segmentado__opcao[aria-pressed="true"]{box-shadow:none}
+[data-visao="tablet"] .aj-segmentado--periodo .aj-segmentado__opcao--larga{min-width:80px}
+[data-visao="tablet"] .aj-segmentado--periodo button.aj-segmentado__hoje{padding:0 var(--espaco-16);font-size:14.5px}
+[data-visao="desktop"] .aj-segmentado--periodo .aj-segmentado__opcao,[data-visao="mobile"] .aj-segmentado--periodo .aj-segmentado__opcao{min-width:72px;padding:0 var(--espaco-16);font-size:14px}
+[data-visao="desktop"] .aj-segmentado--periodo .aj-segmentado__opcao[aria-pressed="true"],[data-visao="mobile"] .aj-segmentado--periodo .aj-segmentado__opcao[aria-pressed="true"]{box-shadow:var(--sombra-botao)}
+[data-visao="desktop"] .aj-segmentado--periodo button.aj-segmentado__hoje,[data-visao="mobile"] .aj-segmentado--periodo button.aj-segmentado__hoje{padding:0 var(--espaco-18);font-size:14px}
+
+/* Segmentado claro (visões da agenda na barra superior do mobile): 3px de respiro, opções de 38px em tinta secundária e
+   a escolhida em branco, com sombra leve. Vai junto de aj-segmentado--recuado. */
+.aj-segmentado--claro{padding:3px}
+.aj-segmentado--claro button{min-width:0;min-height:var(--controle-desktop);padding:0 var(--espaco-6);color:var(--tinta-secundaria)}
+.aj-segmentado--claro button[aria-pressed="true"]{background:var(--superficie);color:var(--tinta);box-shadow:0 1px 3px rgba(31,43,34,.15)}
+
+/* Aviso em frase (o retorno de salvar evento com sobreposição): o ícone na altura da primeira linha, o texto em peso
+   normal com "Evento salvo." em strong 600. No tablet mais respiro e menos vão; no mobile, caixa e texto menores. */
+.aj-aviso--frase{align-items:flex-start;font-weight:400}
+.aj-aviso--frase svg{margin-top:1px}
+.aj-aviso--frase strong{font-weight:600}
+@media (min-width:761px) and (max-width:1199px){.aj-aviso--frase{gap:var(--espaco-10);padding:var(--espaco-10) var(--espaco-14)}}
+@media (max-width:760px){
+  .aj-aviso--frase{gap:var(--espaco-10);padding:var(--espaco-10) var(--espaco-12);border-radius:var(--raio-12);font-size:13.5px;line-height:1.4}
+  .aj-aviso--frase svg{width:18px;height:18px}
+}
+[data-visao="desktop"] .aj-aviso--frase{gap:var(--espaco-12);padding:9px var(--espaco-14);border-radius:var(--raio-14);font-size:15px;line-height:1.5}
+[data-visao="tablet"] .aj-aviso--frase{gap:var(--espaco-10);padding:var(--espaco-10) var(--espaco-14);border-radius:var(--raio-14);font-size:15px;line-height:1.5}
+[data-visao="mobile"] .aj-aviso--frase{gap:var(--espaco-10);padding:var(--espaco-10) var(--espaco-12);border-radius:var(--raio-12);font-size:13.5px;line-height:1.4}
+[data-visao="desktop"] .aj-aviso--frase svg,[data-visao="tablet"] .aj-aviso--frase svg{width:20px;height:20px}
+[data-visao="mobile"] .aj-aviso--frase svg{width:18px;height:18px}
+
+/* Cartão de evento. A linha de apoio genérica (cliente, participantes, "local · cliente"); o cartão como link, sem
+   sublinhado; o texto longo quebra em vez de alargar a coluna; o hover (o das variantes do desktop sobe 1px). */
+.aj-evento__meta{font-size:13px;line-height:1.4;color:var(--aj-evento-suave);overflow-wrap:anywhere}
+.aj-evento :is(.aj-evento__titulo,.aj-evento__local){overflow-wrap:anywhere}
+a.aj-evento{text-decoration:none}
+.aj-evento{transition:box-shadow .15s,transform .15s}
+.aj-evento:hover{box-shadow:0 8px 20px -12px rgba(31,43,34,.4)}
+:is(.aj-evento--coluna,.aj-evento--linha,.aj-evento--mes):hover{transform:translateY(-1px);box-shadow:0 8px 18px -10px rgba(31,43,34,.45)}
+
+/* Correções das variantes do desktop (Semana, régua e mês), depois das regras originais: sem borda, salvo o Outro; o
+   horário da Audiência no tom suave; o ponto do Prazo em #B07A12 e o do Outro em tinta-icone. */
+:is(.aj-evento--coluna,.aj-evento--linha,.aj-evento--mes):not(.aj-evento--outro){border-width:0}
+:is(.aj-evento--coluna,.aj-evento--linha).aj-evento--audiencia .aj-evento__horario{color:var(--evento-audiencia-suave)}
+:is(.aj-evento--coluna,.aj-evento--linha).aj-evento--prazo .aj-evento__tipo::before{background:#B07A12}
+:is(.aj-evento--coluna,.aj-evento--linha).aj-evento--outro .aj-evento__tipo::before{background:var(--tinta-icone)}
+
+/* Cartão folgado (mobile): vão e respiro de 14, raio 16, coluna da hora de 46px com o início em 15px, 2px entre as
+   linhas do corpo e título de 15,5px. */
+.aj-evento--folgado{gap:var(--espaco-14);padding:var(--espaco-14);border-radius:var(--raio-16)}
+.aj-evento--folgado .aj-evento__hora{flex-basis:46px}
+.aj-evento--folgado .aj-evento__hora b{font-size:15px}
+.aj-evento--folgado .aj-evento__corpo{gap:var(--espaco-2)}
+.aj-evento--folgado .aj-evento__titulo{font-size:15.5px}
+
+/* Cartão em linha (régua do Dia, desktop): tipo, horário, título e a linha de apoio lado a lado, 14px entre eles; o
+   que não cabe é cortado (a linha de apoio com reticências), para o cartão estreito dos eventos simultâneos. */
+.aj-evento--linha{align-items:center;gap:var(--espaco-14);padding:var(--espaco-6) var(--espaco-12);border-radius:var(--raio-10);overflow:hidden;white-space:nowrap}
+.aj-evento--linha .aj-evento__horario{font-size:12.5px;font-weight:600;color:var(--tinta-secundaria);font-variant-numeric:tabular-nums}
+.aj-evento--linha .aj-evento__titulo{font-size:14.5px;line-height:1.5}
+.aj-evento--linha .aj-evento__meta{min-width:0;overflow:hidden;text-overflow:ellipsis;line-height:1.5}
+
+/* Item de evento da célula do mês: a hora de início na cor do tipo e o título cortado com reticências. */
+.aj-evento--mes{align-items:center;gap:5px;padding:3px var(--espaco-6);border-radius:6px;font-size:12px;white-space:nowrap;overflow:hidden}
+.aj-evento--mes.aj-evento--outro{padding:2px var(--espaco-6)}
+.aj-evento--mes .aj-evento__horario{flex:0 0 auto;font-weight:600;color:var(--aj-evento-rotulo);font-variant-numeric:tabular-nums}
+.aj-evento--mes .aj-evento__titulo{min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:12px;font-weight:400;line-height:1.5}
+
+/* Semana (desktop): sete colunas sempre, cada uma com o cabeçalho do dia e os cartões empilhados. Hoje sublinhado em
+   verde, com o número num círculo; sábado e domingo com o número apagado; dia sem evento numa caixa tracejada. */
+.aj-semana{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));align-items:start;gap:var(--espaco-8);padding:var(--espaco-6);border:1px solid var(--borda);border-radius:var(--raio-14);background:var(--superficie);box-shadow:var(--sombra-painel)}
+.aj-semana__dia{display:flex;flex-direction:column;gap:var(--espaco-8);min-width:0}
+.aj-semana__cabeca{display:flex;align-items:center;justify-content:space-between;gap:var(--espaco-8);min-height:40px;margin:0;padding:0 var(--espaco-6) var(--espaco-8);border-bottom:1px solid var(--borda-suave);font:400 15px/1.5 var(--font-sans)}
+.aj-semana__sigla{font-size:13px;font-weight:600;color:var(--tinta-apagada)}
+.aj-semana__numero{font-size:20px;font-weight:600;line-height:1;font-variant-numeric:tabular-nums}
+.aj-semana__dia--folga .aj-semana__numero{color:var(--tinta-apagada)}
+.aj-semana__dia--hoje .aj-semana__cabeca{padding:0 0 var(--espaco-8) var(--espaco-6);border-bottom:2px solid var(--verde)}
+.aj-semana__dia--hoje .aj-semana__sigla{font-weight:700;color:var(--verde)}
+.aj-semana__dia--hoje .aj-semana__numero{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:var(--raio-pilula);background:var(--verde);color:var(--sobre-verde);font-size:16px}
+.aj-semana__vazio{margin:0;padding:var(--espaco-12) var(--espaco-8);border:1px dashed var(--borda-campo-suave);border-radius:var(--raio-12);font-size:13px;color:var(--tinta-apagada);text-align:center}
+
+/* Seção de um dia (tablet; também o Dia do tablet e a Semana do mobile): o dia numa coluna de 64px e os cartões numa
+   grade de duas colunas (uma no mobile). Hoje com borda verde e o número cheio. */
+.aj-secao-dia{display:flex;gap:var(--espaco-14);padding:var(--espaco-12);border:1px solid var(--borda);border-radius:var(--raio-18);background:var(--superficie)}
+.aj-secao-dia--hoje{border-color:var(--verde)}
+.aj-secao-dia__cabeca{flex:0 0 64px;display:flex;flex-direction:column;align-items:center;gap:var(--espaco-2);margin:0;padding-top:var(--espaco-4);font:400 15px/1.5 var(--font-sans)}
+.aj-secao-dia__sigla{font-size:12.5px;font-weight:700;color:var(--tinta-apagada)}
+.aj-secao-dia--hoje .aj-secao-dia__sigla{color:var(--verde)}
+.aj-secao-dia__numero{display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:var(--raio-pilula);background:var(--fundo);color:var(--tinta);font-size:19px;font-weight:600;font-variant-numeric:tabular-nums}
+.aj-secao-dia--hoje .aj-secao-dia__numero{background:var(--verde);color:var(--sobre-verde)}
+.aj-secao-dia__eventos{flex:1 1 auto;min-width:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-content:start;gap:var(--espaco-8)}
+@media (max-width:760px){.aj-secao-dia__eventos{grid-template-columns:minmax(0,1fr)}}
+[data-visao="desktop"] .aj-secao-dia__eventos,[data-visao="tablet"] .aj-secao-dia__eventos{grid-template-columns:repeat(2,minmax(0,1fr))}
+[data-visao="mobile"] .aj-secao-dia__eventos{grid-template-columns:minmax(0,1fr)}
+.aj-secao-dia__vazio{grid-column:1/-1;margin:0;padding:var(--espaco-14) var(--espaco-4);font-size:14px;color:var(--tinta-apagada)}
+
+/* Dia (desktop): o cabeçalho com o número (cheio de verde quando é hoje), o nome do dia e o total, e a régua. */
+.aj-dia{display:flex;flex-direction:column;gap:var(--espaco-8);padding:var(--espaco-10) var(--espaco-12) var(--espaco-14);border:1px solid var(--borda);border-radius:var(--raio-14);background:var(--superficie);box-shadow:var(--sombra-painel)}
+.aj-dia__cabeca{display:flex;align-items:center;gap:var(--espaco-10);margin:0;padding:0 0 var(--espaco-8);border-bottom:1px solid var(--borda-suave);font:600 15px/1.5 var(--font-sans)}
+.aj-dia__numero{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:var(--raio-pilula);background:var(--fundo);color:var(--tinta);font-size:16px;font-weight:600;font-variant-numeric:tabular-nums}
+.aj-dia--hoje .aj-dia__numero{background:var(--verde);color:var(--sobre-verde)}
+.aj-dia__total{margin-left:auto;font-size:13px;font-weight:500;color:var(--tinta-apagada)}
+
+/* Régua de horas: 56px por hora, numa grade de quartos de hora de 14px e 12 colunas. Os rótulos ficam numa coluna de
+   52px, subidos 8px para cair na linha da hora; as linhas das horas são o fundo da grade, a cada 56px. O cartão
+   ocupa a largura toda a 2px das linhas e 4px dos lados; a linha de início, os quartos e a parte da largura vêm das
+   famílias abaixo (eventos simultâneos dividem as 12 colunas em até quatro partes). Sem atributo style. */
+.aj-regua{display:flex;gap:var(--espaco-8)}
+.aj-regua__horas{flex:0 0 52px;display:flex;flex-direction:column}
+.aj-regua__hora{flex:0 0 56px;height:56px;transform:translateY(-8px);font-size:12px;font-weight:600;color:var(--tinta-apagada);text-align:right;font-variant-numeric:tabular-nums}
+.aj-regua__grade{flex:1 1 auto;min-width:0;display:grid;grid-template-columns:repeat(12,minmax(0,1fr));grid-auto-rows:14px;background-image:linear-gradient(to bottom,var(--borda-suave) 1px,transparent 1px);background-size:100% 56px}
+.aj-regua__evento{grid-column:1/-1;width:auto;min-height:0;margin:2px 4px;overflow:hidden}
+/* Famílias da régua, geradas por roteiro (gerar-regua-9f.py): a grade de n horas (n de 1 a 24), o quarto em que o
+   cartão começa (0 a 95), quantos quartos ele ocupa (2 a 96) e a parte k de n da largura (n de 2 a 4). */
+.aj-regua__grade--horas-1{grid-template-rows:repeat(4,14px)}
+.aj-regua__grade--horas-2{grid-template-rows:repeat(8,14px)}
+.aj-regua__grade--horas-3{grid-template-rows:repeat(12,14px)}
+.aj-regua__grade--horas-4{grid-template-rows:repeat(16,14px)}
+.aj-regua__grade--horas-5{grid-template-rows:repeat(20,14px)}
+.aj-regua__grade--horas-6{grid-template-rows:repeat(24,14px)}
+.aj-regua__grade--horas-7{grid-template-rows:repeat(28,14px)}
+.aj-regua__grade--horas-8{grid-template-rows:repeat(32,14px)}
+.aj-regua__grade--horas-9{grid-template-rows:repeat(36,14px)}
+.aj-regua__grade--horas-10{grid-template-rows:repeat(40,14px)}
+.aj-regua__grade--horas-11{grid-template-rows:repeat(44,14px)}
+.aj-regua__grade--horas-12{grid-template-rows:repeat(48,14px)}
+.aj-regua__grade--horas-13{grid-template-rows:repeat(52,14px)}
+.aj-regua__grade--horas-14{grid-template-rows:repeat(56,14px)}
+.aj-regua__grade--horas-15{grid-template-rows:repeat(60,14px)}
+.aj-regua__grade--horas-16{grid-template-rows:repeat(64,14px)}
+.aj-regua__grade--horas-17{grid-template-rows:repeat(68,14px)}
+.aj-regua__grade--horas-18{grid-template-rows:repeat(72,14px)}
+.aj-regua__grade--horas-19{grid-template-rows:repeat(76,14px)}
+.aj-regua__grade--horas-20{grid-template-rows:repeat(80,14px)}
+.aj-regua__grade--horas-21{grid-template-rows:repeat(84,14px)}
+.aj-regua__grade--horas-22{grid-template-rows:repeat(88,14px)}
+.aj-regua__grade--horas-23{grid-template-rows:repeat(92,14px)}
+.aj-regua__grade--horas-24{grid-template-rows:repeat(96,14px)}
+.aj-regua__evento--inicio-0{grid-row-start:1}.aj-regua__evento--inicio-1{grid-row-start:2}.aj-regua__evento--inicio-2{grid-row-start:3}.aj-regua__evento--inicio-3{grid-row-start:4}
+.aj-regua__evento--inicio-4{grid-row-start:5}.aj-regua__evento--inicio-5{grid-row-start:6}.aj-regua__evento--inicio-6{grid-row-start:7}.aj-regua__evento--inicio-7{grid-row-start:8}
+.aj-regua__evento--inicio-8{grid-row-start:9}.aj-regua__evento--inicio-9{grid-row-start:10}.aj-regua__evento--inicio-10{grid-row-start:11}.aj-regua__evento--inicio-11{grid-row-start:12}
+.aj-regua__evento--inicio-12{grid-row-start:13}.aj-regua__evento--inicio-13{grid-row-start:14}.aj-regua__evento--inicio-14{grid-row-start:15}.aj-regua__evento--inicio-15{grid-row-start:16}
+.aj-regua__evento--inicio-16{grid-row-start:17}.aj-regua__evento--inicio-17{grid-row-start:18}.aj-regua__evento--inicio-18{grid-row-start:19}.aj-regua__evento--inicio-19{grid-row-start:20}
+.aj-regua__evento--inicio-20{grid-row-start:21}.aj-regua__evento--inicio-21{grid-row-start:22}.aj-regua__evento--inicio-22{grid-row-start:23}.aj-regua__evento--inicio-23{grid-row-start:24}
+.aj-regua__evento--inicio-24{grid-row-start:25}.aj-regua__evento--inicio-25{grid-row-start:26}.aj-regua__evento--inicio-26{grid-row-start:27}.aj-regua__evento--inicio-27{grid-row-start:28}
+.aj-regua__evento--inicio-28{grid-row-start:29}.aj-regua__evento--inicio-29{grid-row-start:30}.aj-regua__evento--inicio-30{grid-row-start:31}.aj-regua__evento--inicio-31{grid-row-start:32}
+.aj-regua__evento--inicio-32{grid-row-start:33}.aj-regua__evento--inicio-33{grid-row-start:34}.aj-regua__evento--inicio-34{grid-row-start:35}.aj-regua__evento--inicio-35{grid-row-start:36}
+.aj-regua__evento--inicio-36{grid-row-start:37}.aj-regua__evento--inicio-37{grid-row-start:38}.aj-regua__evento--inicio-38{grid-row-start:39}.aj-regua__evento--inicio-39{grid-row-start:40}
+.aj-regua__evento--inicio-40{grid-row-start:41}.aj-regua__evento--inicio-41{grid-row-start:42}.aj-regua__evento--inicio-42{grid-row-start:43}.aj-regua__evento--inicio-43{grid-row-start:44}
+.aj-regua__evento--inicio-44{grid-row-start:45}.aj-regua__evento--inicio-45{grid-row-start:46}.aj-regua__evento--inicio-46{grid-row-start:47}.aj-regua__evento--inicio-47{grid-row-start:48}
+.aj-regua__evento--inicio-48{grid-row-start:49}.aj-regua__evento--inicio-49{grid-row-start:50}.aj-regua__evento--inicio-50{grid-row-start:51}.aj-regua__evento--inicio-51{grid-row-start:52}
+.aj-regua__evento--inicio-52{grid-row-start:53}.aj-regua__evento--inicio-53{grid-row-start:54}.aj-regua__evento--inicio-54{grid-row-start:55}.aj-regua__evento--inicio-55{grid-row-start:56}
+.aj-regua__evento--inicio-56{grid-row-start:57}.aj-regua__evento--inicio-57{grid-row-start:58}.aj-regua__evento--inicio-58{grid-row-start:59}.aj-regua__evento--inicio-59{grid-row-start:60}
+.aj-regua__evento--inicio-60{grid-row-start:61}.aj-regua__evento--inicio-61{grid-row-start:62}.aj-regua__evento--inicio-62{grid-row-start:63}.aj-regua__evento--inicio-63{grid-row-start:64}
+.aj-regua__evento--inicio-64{grid-row-start:65}.aj-regua__evento--inicio-65{grid-row-start:66}.aj-regua__evento--inicio-66{grid-row-start:67}.aj-regua__evento--inicio-67{grid-row-start:68}
+.aj-regua__evento--inicio-68{grid-row-start:69}.aj-regua__evento--inicio-69{grid-row-start:70}.aj-regua__evento--inicio-70{grid-row-start:71}.aj-regua__evento--inicio-71{grid-row-start:72}
+.aj-regua__evento--inicio-72{grid-row-start:73}.aj-regua__evento--inicio-73{grid-row-start:74}.aj-regua__evento--inicio-74{grid-row-start:75}.aj-regua__evento--inicio-75{grid-row-start:76}
+.aj-regua__evento--inicio-76{grid-row-start:77}.aj-regua__evento--inicio-77{grid-row-start:78}.aj-regua__evento--inicio-78{grid-row-start:79}.aj-regua__evento--inicio-79{grid-row-start:80}
+.aj-regua__evento--inicio-80{grid-row-start:81}.aj-regua__evento--inicio-81{grid-row-start:82}.aj-regua__evento--inicio-82{grid-row-start:83}.aj-regua__evento--inicio-83{grid-row-start:84}
+.aj-regua__evento--inicio-84{grid-row-start:85}.aj-regua__evento--inicio-85{grid-row-start:86}.aj-regua__evento--inicio-86{grid-row-start:87}.aj-regua__evento--inicio-87{grid-row-start:88}
+.aj-regua__evento--inicio-88{grid-row-start:89}.aj-regua__evento--inicio-89{grid-row-start:90}.aj-regua__evento--inicio-90{grid-row-start:91}.aj-regua__evento--inicio-91{grid-row-start:92}
+.aj-regua__evento--inicio-92{grid-row-start:93}.aj-regua__evento--inicio-93{grid-row-start:94}.aj-regua__evento--inicio-94{grid-row-start:95}.aj-regua__evento--inicio-95{grid-row-start:96}
+.aj-regua__evento--quartos-2{grid-row-end:span 2}.aj-regua__evento--quartos-3{grid-row-end:span 3}.aj-regua__evento--quartos-4{grid-row-end:span 4}
+.aj-regua__evento--quartos-5{grid-row-end:span 5}.aj-regua__evento--quartos-6{grid-row-end:span 6}.aj-regua__evento--quartos-7{grid-row-end:span 7}.aj-regua__evento--quartos-8{grid-row-end:span 8}
+.aj-regua__evento--quartos-9{grid-row-end:span 9}.aj-regua__evento--quartos-10{grid-row-end:span 10}.aj-regua__evento--quartos-11{grid-row-end:span 11}.aj-regua__evento--quartos-12{grid-row-end:span 12}
+.aj-regua__evento--quartos-13{grid-row-end:span 13}.aj-regua__evento--quartos-14{grid-row-end:span 14}.aj-regua__evento--quartos-15{grid-row-end:span 15}.aj-regua__evento--quartos-16{grid-row-end:span 16}
+.aj-regua__evento--quartos-17{grid-row-end:span 17}.aj-regua__evento--quartos-18{grid-row-end:span 18}.aj-regua__evento--quartos-19{grid-row-end:span 19}.aj-regua__evento--quartos-20{grid-row-end:span 20}
+.aj-regua__evento--quartos-21{grid-row-end:span 21}.aj-regua__evento--quartos-22{grid-row-end:span 22}.aj-regua__evento--quartos-23{grid-row-end:span 23}.aj-regua__evento--quartos-24{grid-row-end:span 24}
+.aj-regua__evento--quartos-25{grid-row-end:span 25}.aj-regua__evento--quartos-26{grid-row-end:span 26}.aj-regua__evento--quartos-27{grid-row-end:span 27}.aj-regua__evento--quartos-28{grid-row-end:span 28}
+.aj-regua__evento--quartos-29{grid-row-end:span 29}.aj-regua__evento--quartos-30{grid-row-end:span 30}.aj-regua__evento--quartos-31{grid-row-end:span 31}.aj-regua__evento--quartos-32{grid-row-end:span 32}
+.aj-regua__evento--quartos-33{grid-row-end:span 33}.aj-regua__evento--quartos-34{grid-row-end:span 34}.aj-regua__evento--quartos-35{grid-row-end:span 35}.aj-regua__evento--quartos-36{grid-row-end:span 36}
+.aj-regua__evento--quartos-37{grid-row-end:span 37}.aj-regua__evento--quartos-38{grid-row-end:span 38}.aj-regua__evento--quartos-39{grid-row-end:span 39}.aj-regua__evento--quartos-40{grid-row-end:span 40}
+.aj-regua__evento--quartos-41{grid-row-end:span 41}.aj-regua__evento--quartos-42{grid-row-end:span 42}.aj-regua__evento--quartos-43{grid-row-end:span 43}.aj-regua__evento--quartos-44{grid-row-end:span 44}
+.aj-regua__evento--quartos-45{grid-row-end:span 45}.aj-regua__evento--quartos-46{grid-row-end:span 46}.aj-regua__evento--quartos-47{grid-row-end:span 47}.aj-regua__evento--quartos-48{grid-row-end:span 48}
+.aj-regua__evento--quartos-49{grid-row-end:span 49}.aj-regua__evento--quartos-50{grid-row-end:span 50}.aj-regua__evento--quartos-51{grid-row-end:span 51}.aj-regua__evento--quartos-52{grid-row-end:span 52}
+.aj-regua__evento--quartos-53{grid-row-end:span 53}.aj-regua__evento--quartos-54{grid-row-end:span 54}.aj-regua__evento--quartos-55{grid-row-end:span 55}.aj-regua__evento--quartos-56{grid-row-end:span 56}
+.aj-regua__evento--quartos-57{grid-row-end:span 57}.aj-regua__evento--quartos-58{grid-row-end:span 58}.aj-regua__evento--quartos-59{grid-row-end:span 59}.aj-regua__evento--quartos-60{grid-row-end:span 60}
+.aj-regua__evento--quartos-61{grid-row-end:span 61}.aj-regua__evento--quartos-62{grid-row-end:span 62}.aj-regua__evento--quartos-63{grid-row-end:span 63}.aj-regua__evento--quartos-64{grid-row-end:span 64}
+.aj-regua__evento--quartos-65{grid-row-end:span 65}.aj-regua__evento--quartos-66{grid-row-end:span 66}.aj-regua__evento--quartos-67{grid-row-end:span 67}.aj-regua__evento--quartos-68{grid-row-end:span 68}
+.aj-regua__evento--quartos-69{grid-row-end:span 69}.aj-regua__evento--quartos-70{grid-row-end:span 70}.aj-regua__evento--quartos-71{grid-row-end:span 71}.aj-regua__evento--quartos-72{grid-row-end:span 72}
+.aj-regua__evento--quartos-73{grid-row-end:span 73}.aj-regua__evento--quartos-74{grid-row-end:span 74}.aj-regua__evento--quartos-75{grid-row-end:span 75}.aj-regua__evento--quartos-76{grid-row-end:span 76}
+.aj-regua__evento--quartos-77{grid-row-end:span 77}.aj-regua__evento--quartos-78{grid-row-end:span 78}.aj-regua__evento--quartos-79{grid-row-end:span 79}.aj-regua__evento--quartos-80{grid-row-end:span 80}
+.aj-regua__evento--quartos-81{grid-row-end:span 81}.aj-regua__evento--quartos-82{grid-row-end:span 82}.aj-regua__evento--quartos-83{grid-row-end:span 83}.aj-regua__evento--quartos-84{grid-row-end:span 84}
+.aj-regua__evento--quartos-85{grid-row-end:span 85}.aj-regua__evento--quartos-86{grid-row-end:span 86}.aj-regua__evento--quartos-87{grid-row-end:span 87}.aj-regua__evento--quartos-88{grid-row-end:span 88}
+.aj-regua__evento--quartos-89{grid-row-end:span 89}.aj-regua__evento--quartos-90{grid-row-end:span 90}.aj-regua__evento--quartos-91{grid-row-end:span 91}.aj-regua__evento--quartos-92{grid-row-end:span 92}
+.aj-regua__evento--quartos-93{grid-row-end:span 93}.aj-regua__evento--quartos-94{grid-row-end:span 94}.aj-regua__evento--quartos-95{grid-row-end:span 95}.aj-regua__evento--quartos-96{grid-row-end:span 96}
+.aj-regua__evento--parte-1-de-2{grid-column:1/7}.aj-regua__evento--parte-2-de-2{grid-column:7/13}
+.aj-regua__evento--parte-1-de-3{grid-column:1/5}.aj-regua__evento--parte-2-de-3{grid-column:5/9}.aj-regua__evento--parte-3-de-3{grid-column:9/13}
+.aj-regua__evento--parte-1-de-4{grid-column:1/4}.aj-regua__evento--parte-2-de-4{grid-column:4/7}.aj-regua__evento--parte-3-de-4{grid-column:7/10}.aj-regua__evento--parte-4-de-4{grid-column:10/13}
+
+/* Mês (desktop e tablet): a linha dos dias da semana e a grade das semanas (4 a 6 linhas). No desktop a grade tem
+   700px de largura mínima e rola de lado abaixo disso; no tablet não tem mínimo. Dia de outro mês apagado e sem
+   eventos; hoje com o número num círculo; até três eventos e o "+N". */
+.aj-mes{display:flex;flex-direction:column;gap:var(--espaco-6);padding:var(--espaco-6);border:1px solid var(--borda);border-radius:var(--raio-14);background:var(--superficie);box-shadow:var(--sombra-painel)}
+.aj-mes__cabeca,.aj-mes__grade{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:var(--espaco-4)}
+.aj-mes__cabeca>span{padding:var(--espaco-4) var(--espaco-8);font-size:12.5px;font-weight:600;color:var(--tinta-apagada)}
+.aj-mes__rolagem{overflow-x:auto}
+@media (min-width:1200px){.aj-mes__grade{min-width:700px}}
+[data-visao="desktop"] .aj-mes__grade{min-width:700px}
+[data-visao="tablet"] .aj-mes__grade,[data-visao="mobile"] .aj-mes__grade{min-width:0}
+.aj-mes__celula{display:flex;flex-direction:column;gap:3px;min-width:0;min-height:96px;padding:5px var(--espaco-6);border:1px solid var(--borda-suave);border-radius:var(--raio-10);background:var(--superficie)}
+.aj-mes__celula--fora{display:block;padding:var(--espaco-6) var(--espaco-8);border:0;background:var(--superficie-campo)}
+.aj-mes__numero{padding:3px var(--espaco-2);font-size:13px;font-weight:600;color:var(--tinta);font-variant-numeric:tabular-nums}
+.aj-mes__celula--fora .aj-mes__numero{padding:0;font-weight:500;color:var(--tinta-icone)}
+.aj-mes__numero--hoje{align-self:flex-start;display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;padding:0;border-radius:var(--raio-pilula);background:var(--verde);color:var(--sobre-verde)}
+.aj-mes__mais{align-self:flex-start;padding:0 var(--espaco-6);border:0;border-radius:6px;background:transparent;color:var(--tinta-apagada);font:600 12px/1.5 var(--font-sans);cursor:pointer}
+.aj-mes__mais:hover{background:var(--superficie-recuada)}
+.aj-mes__mais:focus-visible{outline:2px solid var(--verde);outline-offset:2px}
+
+/* Barra superior da agenda (mobile): o botão de filtros entre o título e o avatar (44px, raio 12, ícone de 22px) e a
+   linha do mês, com o nome em 700 e as setas de 40px nas pontas. */
+.aj-barra-superior__acao{flex:0 0 auto;width:var(--alvo-toque);min-height:var(--alvo-toque);border-radius:var(--raio-12)}
+.aj-barra-superior__acao svg{width:22px;height:22px;stroke-width:1.75}
+.aj-barra-superior__periodo{display:flex;align-items:center;justify-content:space-between;gap:var(--espaco-8)}
+.aj-barra-superior__periodo>strong{font-size:15px;font-weight:700}
+.aj-barra-superior__setas{display:flex;gap:var(--espaco-2)}
+.aj-barra-superior__setas .aj-botao{width:40px;min-height:40px}
+
+/* Faixa de dias (mobile): sigla, número e um ponto por evento; o escolhido (aria-pressed) cheio de verde, hoje com o
+   aro verde. Com --mes, a grade compacta do mês: a linha de siglas é o primeiro filho (aj-faixa-dias__cabeca, que
+   ocupa a largura toda com as suas sete colunas), os dias sem sigla e o dia de outro mês apagado. */
+.aj-faixa-dias,.aj-faixa-dias__cabeca{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:var(--espaco-2)}
+.aj-faixa-dias__cabeca{font-size:11.5px;font-weight:600;color:var(--tinta-apagada);text-align:center}
+.aj-faixa-dias--mes>.aj-faixa-dias__cabeca{grid-column:1/-1}
+.aj-faixa-dias__dia{display:flex;flex-direction:column;align-items:center;gap:var(--espaco-4);min-width:0;min-height:64px;padding:var(--espaco-4) 0;border:0;border-radius:var(--raio-12);background:transparent;color:var(--tinta);font:400 15px/1.5 var(--font-sans);cursor:pointer}
+.aj-faixa-dias__dia:focus-visible{outline:2px solid var(--verde);outline-offset:2px}
+.aj-faixa-dias__sigla{font-size:11.5px;font-weight:600;color:var(--tinta-apagada)}
+.aj-faixa-dias__numero{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border:1.5px solid transparent;border-radius:var(--raio-pilula);font-size:15px;font-weight:600;font-variant-numeric:tabular-nums}
+.aj-faixa-dias__dia--hoje .aj-faixa-dias__numero{border-color:var(--verde);color:var(--verde)}
+.aj-faixa-dias__dia[aria-pressed="true"] .aj-faixa-dias__numero{border-color:var(--verde);background:var(--verde);color:var(--sobre-verde)}
+.aj-faixa-dias--mes .aj-faixa-dias__dia{min-height:52px}
+.aj-faixa-dias__dia--fora .aj-faixa-dias__numero{font-weight:500;color:var(--tinta-icone)}
+
+/* Pontos de evento (faixa e grade compacta): um por evento, na cor do tipo; a Audiência num dourado mais escuro. A
+   fileira tem 5px de altura mesmo sem pontos, para os dias terem a mesma altura. */
+.aj-pontos-evento{display:flex;gap:3px;height:5px}
+.aj-ponto-evento{width:5px;height:5px;border-radius:var(--raio-pilula);background:var(--tinta-icone)}
+.aj-ponto-evento--reuniao{background:var(--evento-reuniao-rotulo)}
+.aj-ponto-evento--audiencia{background:#B08A45}
+.aj-ponto-evento--prazo{background:var(--evento-prazo-rotulo)}
+.aj-ponto-evento--outro{background:var(--evento-outro-rotulo)}
+
+/* Título do dia escolhido (mobile), com o total na mesma linha de base, e o estado vazio com ícone e dica. */
+.aj-dia-escolhido{display:flex;align-items:baseline;justify-content:space-between;gap:var(--espaco-8);padding:var(--espaco-4) var(--espaco-2) 0}
+.aj-dia-escolhido>h2{margin:0;font:700 16px/1.5 var(--font-sans)}
+.aj-dia-escolhido__total{font-size:13px;color:var(--tinta-apagada)}
+.aj-estado-lista__icone{width:28px;height:28px;fill:none;stroke:var(--tinta-icone);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.aj-estado-lista__dica{font-size:13.5px}
+
+/* Formulário de evento. Lado a lado com o painel médio (desktop): a coluna principal com base de 420px e quase todo o
+   espaço livre; o painel (vínculos e participantes) com base de 380px. */
+@media (min-width:1200px){
+  .aj-lado-a-lado--painel-medio .aj-lado-a-lado__lista{flex:999 1 420px}
+  .aj-lado-a-lado--painel-medio .aj-lado-a-lado__painel{flex:1 1 380px;min-width:0}
+}
+[data-visao="desktop"] .aj-lado-a-lado--painel-medio .aj-lado-a-lado__lista{flex:999 1 420px}
+[data-visao="desktop"] .aj-lado-a-lado--painel-medio .aj-lado-a-lado__painel{flex:1 1 380px;min-width:0}
+[data-visao="tablet"] .aj-lado-a-lado--painel-medio :is(.aj-lado-a-lado__lista,.aj-lado-a-lado__painel),
+[data-visao="mobile"] .aj-lado-a-lado--painel-medio :is(.aj-lado-a-lado__lista,.aj-lado-a-lado__painel){flex:0 0 auto}
+
+/* Linha de campos: no desktop, campos lado a lado com larguras de base (170px; o título com 260px e o dobro do espaço
+   livre, o tipo com 160px, a hora com 130px) e quebra; no tablet, três colunas iguais; no mobile, duas, com 16px entre
+   as linhas, e o campo marcado na linha inteira. O campo pode vir dentro de um invólucro de visão. */
+.aj-linha-de-campos{display:flex;flex-wrap:wrap;gap:var(--espaco-10)}
+.aj-linha-de-campos>*,.aj-linha-de-campos>:is(.aj-so-desktop,.aj-so-tablet,.aj-so-mobile,.aj-desktop-tablet,.aj-tablet-mobile,.aj-desktop-mobile)>*{flex:1 1 170px;min-width:0}
+.aj-linha-de-campos .aj-linha-de-campos__largo{flex:2 1 260px}
+.aj-linha-de-campos .aj-linha-de-campos__medio{flex-basis:160px}
+.aj-linha-de-campos .aj-linha-de-campos__curto{flex-basis:130px}
+@media (max-width:1199px){.aj-linha-de-campos{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--espaco-12)}}
+@media (max-width:760px){
+  .aj-linha-de-campos{grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--espaco-16) var(--espaco-10)}
+  .aj-linha-de-campos .aj-linha-de-campos__inteiro-no-mobile{grid-column:1/-1}
+}
+[data-visao="desktop"] .aj-linha-de-campos{display:flex;gap:var(--espaco-10)}
+[data-visao="tablet"] .aj-linha-de-campos{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--espaco-12)}
+[data-visao="mobile"] .aj-linha-de-campos{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--espaco-16) var(--espaco-10)}
+[data-visao="desktop"] .aj-linha-de-campos .aj-linha-de-campos__inteiro-no-mobile,[data-visao="tablet"] .aj-linha-de-campos .aj-linha-de-campos__inteiro-no-mobile{grid-column:auto}
+[data-visao="mobile"] .aj-linha-de-campos .aj-linha-de-campos__inteiro-no-mobile{grid-column:1/-1}
+
+/* Ajuda com ícone de 14px, colada na linha de campos de cima (o fuso do escritório, desktop). */
+.aj-ajuda--com-icone{display:flex;align-items:center;gap:var(--espaco-6)}
+.aj-ajuda--com-icone svg{flex:0 0 auto;width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.aj-ajuda--colada{margin-top:calc(-1 * var(--espaco-6))}
+
+/* Painéis do formulário de evento: vão de 14px entre os blocos (Vínculos e Participantes). No mobile o painel deixa de
+   ser caixa (sem borda, respiro, fundo e sombra; o título vai num invólucro aj-desktop-tablet) e os campos ficam a 16px
+   uns dos outros, dentro do painel e entre os painéis (o vão do conteúdo da tela). */
+:root{--aj-pagina-gap-solto:var(--espaco-14)}
+@media (max-width:760px){:root{--aj-pagina-gap-solto:var(--espaco-16)}}
+[data-visao="desktop"],[data-visao="tablet"]{--aj-pagina-gap-solto:var(--espaco-14)}
+[data-visao="mobile"]{--aj-pagina-gap-solto:var(--espaco-16)}
+.aj-painel--folgado{gap:var(--espaco-14)}
+@media (max-width:760px){.aj-painel.aj-painel--solto-no-mobile{gap:var(--espaco-16);padding:0;border:0;border-radius:0;background:transparent;box-shadow:none}}
+[data-visao="mobile"] .aj-painel.aj-painel--solto-no-mobile{gap:var(--espaco-16);padding:0;border:0;border-radius:0;background:transparent;box-shadow:none}
+[data-visao="desktop"] .aj-painel.aj-painel--solto-no-mobile,[data-visao="tablet"] .aj-painel.aj-painel--solto-no-mobile{gap:var(--espaco-12);padding:var(--aj-cartao-padding);border:1px solid var(--borda);border-radius:var(--aj-raio-cartao);background:var(--superficie);box-shadow:var(--sombra-1)}
+[data-visao="desktop"] .aj-painel--principal.aj-painel--solto-no-mobile,[data-visao="tablet"] .aj-painel--principal.aj-painel--solto-no-mobile{box-shadow:var(--sombra-painel)}
+[data-visao="desktop"] .aj-painel--folgado.aj-painel--solto-no-mobile,[data-visao="tablet"] .aj-painel--folgado.aj-painel--solto-no-mobile{gap:var(--espaco-14)}
+.aj-app:has(.aj-painel--solto-no-mobile) .aj-app__conteudo{gap:var(--aj-pagina-gap-solto)}
+
+/* Vínculo com o nome visível (cliente, processo e atividade do evento): 10px entre o nome, o escolhido e a busca no
+   desktop, 8px no tablet e no mobile. O escolhido com a sigla num círculo branco e o remover em verde de sucesso; no
+   tablet o escolhido tem a altura do campo; no tablet e no mobile o remover tem o alvo de toque. */
+.aj-vinculo--rotulado{gap:var(--espaco-10)}
+@media (max-width:1199px){.aj-vinculo--rotulado{gap:var(--espaco-8)}}
+[data-visao="desktop"] .aj-vinculo--rotulado{gap:var(--espaco-10)}
+[data-visao="tablet"] .aj-vinculo--rotulado,[data-visao="mobile"] .aj-vinculo--rotulado{gap:var(--espaco-8)}
+.aj-vinculo__rotulo{font:600 var(--aj-fonte-rotulo)/1.4 var(--font-sans);color:var(--tinta-rotulo)}
+.aj-vinculo__rotulo small{font-size:inherit;font-weight:400;color:var(--tinta-apagada)}
+.aj-vinculo__escolhido--com-avatar{gap:var(--espaco-12);padding:var(--espaco-6) var(--espaco-6) var(--espaco-6) var(--espaco-8);border-radius:var(--raio-14)}
+.aj-vinculo__escolhido--com-avatar .aj-botao{color:var(--sucesso)}
+.aj-vinculo__avatar{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:var(--raio-pilula);background:var(--superficie);color:var(--sucesso);font:700 12px/1 var(--font-sans)}
+@media (max-width:1199px){
+  .aj-vinculo__escolhido--com-avatar{gap:var(--espaco-10)}
+  .aj-vinculo__escolhido--com-avatar .aj-botao--icone{width:var(--alvo-toque);min-height:var(--alvo-toque)}
+}
+@media (min-width:761px) and (max-width:1199px){
+  .aj-vinculo__escolhido--com-avatar{min-height:var(--campo-toque);padding:2px 2px 2px var(--espaco-8);border-radius:var(--raio-12)}
+  .aj-vinculo__escolhido--com-avatar .aj-vinculo__avatar{width:30px;height:30px;font-size:11px}
+}
+@media (max-width:760px){.aj-vinculo__escolhido--com-avatar{padding:var(--espaco-4) var(--espaco-4) var(--espaco-4) var(--espaco-8)}}
+[data-visao="desktop"] .aj-vinculo__escolhido--com-avatar{gap:var(--espaco-12);min-height:0;padding:var(--espaco-6) var(--espaco-6) var(--espaco-6) var(--espaco-8);border-radius:var(--raio-14)}
+[data-visao="desktop"] .aj-vinculo__escolhido--com-avatar .aj-botao--icone{width:var(--aj-controle);min-height:var(--aj-controle)}
+[data-visao="tablet"] .aj-vinculo__escolhido--com-avatar,[data-visao="mobile"] .aj-vinculo__escolhido--com-avatar{gap:var(--espaco-10)}
+[data-visao="tablet"] .aj-vinculo__escolhido--com-avatar .aj-botao--icone,[data-visao="mobile"] .aj-vinculo__escolhido--com-avatar .aj-botao--icone{width:var(--alvo-toque);min-height:var(--alvo-toque)}
+[data-visao="tablet"] .aj-vinculo__escolhido--com-avatar{min-height:var(--campo-toque);padding:2px 2px 2px var(--espaco-8);border-radius:var(--raio-12)}
+[data-visao="tablet"] .aj-vinculo__escolhido--com-avatar .aj-vinculo__avatar{width:30px;height:30px;font-size:11px}
+[data-visao="desktop"] .aj-vinculo__escolhido--com-avatar .aj-vinculo__avatar,[data-visao="mobile"] .aj-vinculo__escolhido--com-avatar .aj-vinculo__avatar{width:32px;height:32px;font-size:12px}
+[data-visao="mobile"] .aj-vinculo__escolhido--com-avatar{min-height:0;padding:var(--espaco-4) var(--espaco-4) var(--espaco-4) var(--espaco-8);border-radius:var(--raio-14)}
+
+/* Escolha única em ladrilhos (o tipo do evento no tablet e no mobile): um rádio escondido em cada ladrilho; o
+   escolhido em verde; o foco do rádio contorna o ladrilho. Quatro por linha e 48px no tablet, dois e 46px no mobile.
+   O ladrilho leva o seletor com o pai (0,2,0) para vencer a regra de rótulo com rádio da folha da aplicação. */
+.aj-escolha{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--espaco-8)}
+.aj-escolha>.aj-escolha__opcao{position:relative;display:flex;align-items:center;justify-content:center;gap:var(--espaco-8);min-width:0;min-height:48px;border:1px solid var(--borda-campo);border-radius:var(--raio-12);background:var(--superficie);color:var(--tinta-rotulo);font:600 15px/1.5 var(--font-sans);text-align:center;cursor:pointer}
+.aj-escolha__opcao input{position:absolute;opacity:0;pointer-events:none}
+.aj-escolha>.aj-escolha__opcao:has(input:checked){border-color:var(--verde);background:var(--verde);color:var(--sobre-verde)}
+.aj-escolha>.aj-escolha__opcao:has(input:focus-visible){outline:2px solid var(--verde);outline-offset:2px}
+@media (max-width:760px){
+  .aj-escolha{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .aj-escolha>.aj-escolha__opcao{min-height:var(--controle-toque)}
+}
+[data-visao="desktop"] .aj-escolha,[data-visao="tablet"] .aj-escolha{grid-template-columns:repeat(4,minmax(0,1fr))}
+[data-visao="desktop"] .aj-escolha>.aj-escolha__opcao,[data-visao="tablet"] .aj-escolha>.aj-escolha__opcao{min-height:48px}
+[data-visao="mobile"] .aj-escolha{grid-template-columns:repeat(2,minmax(0,1fr))}
+[data-visao="mobile"] .aj-escolha>.aj-escolha__opcao{min-height:var(--controle-toque)}
+
+/* Pessoa marcável em chip (participantes do evento no tablet e no mobile): avatar à esquerda e a caixa de marcar
+   escondida; marcada, o fundo de seleção com a borda #9DB898. 46px e avatar de 32px no tablet; 44px e avatar de 30px no
+   mobile. O chip leva as duas classes no seletor (0,2,0) para vencer a regra de rótulo com caixa da folha da
+   aplicação. A opção travada (quem cria o evento) não tem cursor de clique; a nota "(você)" do desktop em 13px. */
+.aj-chip.aj-chip--pessoa{position:relative;display:inline-flex;align-items:center;gap:var(--espaco-8);min-height:var(--controle-toque);padding:0 var(--espaco-16) 0 var(--espaco-6);color:var(--tinta-rotulo);font:600 15px/1.5 var(--font-sans)}
+.aj-chip--pessoa input{position:absolute;opacity:0;pointer-events:none}
+.aj-chip.aj-chip--pessoa:has(input:checked){border-color:#9DB898;background:var(--selecao-fundo);color:var(--verde-escuro)}
+.aj-chip.aj-chip--pessoa:has(input:focus-visible){outline:2px solid var(--verde);outline-offset:2px}
+.aj-chip--pessoa>.aj-avatar{width:32px;height:32px;font-size:11px}
+.aj-chip--pessoa:has(input:disabled),.aj-opcao:has(input:disabled){cursor:default}
+.aj-opcao__nota--menor{font-size:13px}
+@media (max-width:760px){
+  .aj-chip.aj-chip--pessoa{min-height:var(--alvo-toque);padding:0 var(--espaco-14) 0 var(--espaco-6)}
+  .aj-chip--pessoa>.aj-avatar{width:30px;height:30px}
+}
+[data-visao="desktop"] .aj-chip.aj-chip--pessoa,[data-visao="tablet"] .aj-chip.aj-chip--pessoa{min-height:var(--controle-toque);padding:0 var(--espaco-16) 0 var(--espaco-6)}
+[data-visao="desktop"] .aj-chip--pessoa>.aj-avatar,[data-visao="tablet"] .aj-chip--pessoa>.aj-avatar{width:32px;height:32px}
+[data-visao="mobile"] .aj-chip.aj-chip--pessoa{min-height:var(--alvo-toque);padding:0 var(--espaco-14) 0 var(--espaco-6)}
+[data-visao="mobile"] .aj-chip--pessoa>.aj-avatar{width:30px;height:30px}
+
+/* Ficha do evento. Participantes: uma linha por pessoa, com avatar de 34px e o nome em 600, borda em cima de cada
+   linha (também da primeira) e 12px entre elas. Excluir na barra fixa do tablet e do mobile: o secundário com o texto
+   em vermelho. A descrição mantém as quebras de linha digitadas. */
+.aj-participantes{display:flex;flex-direction:column;gap:var(--espaco-12);margin:0;padding:0;list-style:none}
+.aj-participante{display:flex;align-items:center;gap:var(--espaco-10);min-width:0;padding-top:var(--espaco-8);border-top:1px solid var(--borda-suave)}
+.aj-participante>.aj-avatar{width:34px;height:34px;font-size:12px}
+.aj-participante__nome{min-width:0;font-weight:600;overflow-wrap:anywhere}
+.aj-botao--secundario.aj-botao--destrutivo{color:var(--erro)}
+.aj-texto-livre{white-space:pre-wrap;overflow-wrap:anywhere}
