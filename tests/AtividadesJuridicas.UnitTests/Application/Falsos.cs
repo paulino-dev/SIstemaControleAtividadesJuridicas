@@ -391,6 +391,14 @@ public sealed class AtividadeRepositorioFalso(
             todos.Count, pagina, tamanho));
     }
 
+    // Mesma regra da consulta real: o escopo é só o responsável (nenhum outro filtro), e atrasada é a não concluída
+    // com entrega antes de hoje. A excluída já saiu de Itens (Remover).
+    public Task<ContagemDeAtividades> ContarAsync(Guid? responsavelId, DateOnly hoje, CancellationToken ct)
+    {
+        var noEscopo = Itens.Where(a => responsavelId is null || a.EhResponsavel(responsavelId.Value)).ToList();
+        return Task.FromResult(new ContagemDeAtividades(noEscopo.Count, noEscopo.Count(a => a.EstaAtrasada(hoje))));
+    }
+
     // Mesma regra da consulta real: concluída, no intervalo semiaberto, com o usuário entre os responsáveis.
     public Task<IReadOnlyList<AtividadeRealizada>> ListarRealizadasAsync(
         Guid responsavelId, DateTime deUtc, DateTime ateUtc, CancellationToken ct) =>

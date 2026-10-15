@@ -20,16 +20,11 @@ public sealed class AtividadeRepositorio(AppDbContext db) : IAtividadeRepositori
         var consulta = db.Atividades.AsNoTracking();
 
         if (filtro.Status is { } status) consulta = consulta.Where(a => a.Status == status);
-        if (filtro.ResponsavelId is { } responsavelId)
-            consulta = consulta.Where(a => a.Responsaveis.Any(r => r.UsuarioId == responsavelId));
+        if (filtro.ResponsavelId is { } responsavelId) consulta = DoResponsavel(consulta, responsavelId);
         if (filtro.RevisorId is { } revisorId) consulta = consulta.Where(a => a.RevisorId == revisorId);
         if (filtro.ClienteId is { } clienteId) consulta = consulta.Where(a => a.ClienteId == clienteId);
         if (filtro.ProcessoId is { } processoId) consulta = consulta.Where(a => a.ProcessoId == processoId);
-        if (filtro.SomenteAtrasadas)
-        {
-            var hoje = filtro.Hoje;
-            consulta = consulta.Where(a => a.Status != StatusAtividade.Concluida && a.DataEntrega < hoje);
-        }
+        if (filtro.SomenteAtrasadas) consulta = SoAtrasadas(consulta, filtro.Hoje);
 
         if (!string.IsNullOrWhiteSpace(filtro.Busca))
         {
@@ -75,6 +70,23 @@ public sealed class AtividadeRepositorio(AppDbContext db) : IAtividadeRepositori
 
         return new Pagina<AtividadeResumo>(itens, total, pagina, tamanho);
     }
+
+    public async Task<ContagemDeAtividades> ContarAsync(Guid? responsavelId, DateOnly hoje, CancellationToken ct)
+    {
+        // Só o escopo de acesso, nenhum filtro da tela. Pelas entidades mapeadas: a atividade excluída e a entrada de
+        // responsável excluída ficam de fora pelo filtro de exclusão lógica, como na listagem.
+        var noEscopo = db.Atividades.AsNoTracking();
+        if (responsavelId is { } id) noEscopo = DoResponsavel(noEscopo, id);
+
+        return new ContagemDeAtividades(await noEscopo.CountAsync(ct), await SoAtrasadas(noEscopo, hoje).CountAsync(ct));
+    }
+
+    // A mesma regra na listagem e na contagem: o filtro "só atrasadas" e o contador de atrasadas contam igual.
+    private static IQueryable<Atividade> DoResponsavel(IQueryable<Atividade> consulta, Guid responsavelId) =>
+        consulta.Where(a => a.Responsaveis.Any(r => r.UsuarioId == responsavelId));
+
+    private static IQueryable<Atividade> SoAtrasadas(IQueryable<Atividade> consulta, DateOnly hoje) =>
+        consulta.Where(a => a.Status != StatusAtividade.Concluida && a.DataEntrega < hoje);
 
     public async Task<IReadOnlyList<AtividadeRealizada>> ListarRealizadasAsync(
         Guid responsavelId, DateTime deUtc, DateTime ateUtc, CancellationToken ct)
