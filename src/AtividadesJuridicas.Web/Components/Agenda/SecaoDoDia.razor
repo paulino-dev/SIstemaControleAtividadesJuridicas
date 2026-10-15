@@ -1,0 +1,29 @@
+@* A seção de um dia do tablet (e da Semana do mobile, e do Dia do tablet): a sigla ("Hoje" no dia de hoje) e o número à
+   esquerda, os cartões em duas colunas (uma no mobile, pelo CSS) à direita; hoje com a borda verde. Recebe os eventos
+   que tocam o dia, já na ordem de início; sem eles, "Sem eventos". *@
+<section class="@(Hoje ? "aj-secao-dia aj-secao-dia--hoje" : "aj-secao-dia")">
+    <h2 class="aj-secao-dia__cabeca" aria-label="@RotulosDeAgenda.RotuloLongo(Dia, Hoje)"><span class="aj-secao-dia__sigla">@(Hoje ? "Hoje" : RotulosDeAgenda.SiglaDoDia(Dia))</span><span class="aj-secao-dia__numero">@RotulosDeAgenda.NumeroDoDia(Dia)</span></h2>
+    <div class="aj-secao-dia__eventos">
+        @foreach (var evento in Eventos)
+        {
+            <CartaoDeEvento @key="evento.Id" Evento="evento" Dia="Dia" Forma="FormaDoCartao.Secao" Href="@PeriodoDaAgenda.Ficha(evento.Id, Consulta)" />
+        }
+        @if (Eventos.Count == 0)
+        {
+            <p class="aj-secao-dia__vazio">Sem eventos</p>
+        }
+    </div>
+</section>
+
+@code {
+    [Parameter, EditorRequired] public DateOnly Dia { get; set; }
+
+    /// <summary>Os eventos que tocam o dia, na ordem de início (a Semana e o Dia filtram e ordenam).</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<EventoResumo> Eventos { get; set; } = [];
+
+    /// <summary>O dia é hoje no fuso do escritório: borda verde e a sigla "Hoje".</summary>
+    [Parameter] public bool Hoje { get; set; }
+
+    /// <summary>A consulta do período de origem (<c>PeriodoDaAgenda.Consulta</c>) que os cartões levam à ficha.</summary>
+    [Parameter, EditorRequired] public string Consulta { get; set; } = string.Empty;
+}
