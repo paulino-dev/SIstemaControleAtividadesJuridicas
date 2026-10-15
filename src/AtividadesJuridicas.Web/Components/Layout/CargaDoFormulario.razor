@@ -1,0 +1,42 @@
+@* O lugar do formulário de uma tela própria (cliente, processo, usuário, atividade) enquanto a carga não deixa
+   mostrá-lo: carregando, acesso negado, o registro que não existe ou a falha da consulta, com a nova tentativa. O
+   formulário (o conteúdo) só aparece pronto. *@
+@if (Estado == EstadoDeCarga.Carregando)
+{
+    <p class="aj-subtitulo" role="status">Carregando…</p>
+}
+else if (Estado == EstadoDeCarga.AcessoNegado)
+{
+    <Aviso Tipo="TipoDeAviso.Erro">Acesso negado.</Aviso>
+}
+else if (Estado == EstadoDeCarga.NaoEncontrado)
+{
+    <Aviso Tipo="TipoDeAviso.Erro">@TextoNaoEncontrado</Aviso>
+}
+else if (Estado == EstadoDeCarga.Falhou)
+{
+    <Aviso Tipo="TipoDeAviso.Erro">
+        <ChildContent>@Erro</ChildContent>
+        <Acoes><button type="button" class="aj-botao aj-botao--secundario" @onclick="TentarDeNovo">Tentar de novo</button></Acoes>
+    </Aviso>
+}
+else
+{
+    @ChildContent
+}
+
+@code {
+    [Parameter, EditorRequired] public EstadoDeCarga Estado { get; set; }
+
+    /// <summary>A mensagem da falha da consulta (estado <see cref="EstadoDeCarga.Falhou"/>).</summary>
+    [Parameter] public string? Erro { get; set; }
+
+    /// <summary>O texto do registro que não existe: "Cliente não encontrado.".</summary>
+    [Parameter, EditorRequired] public string TextoNaoEncontrado { get; set; } = string.Empty;
+
+    /// <summary>"Tentar de novo": a tela repete a carga inteira, inclusive a do perfil de quem está nela.</summary>
+    [Parameter] public EventCallback TentarDeNovo { get; set; }
+
+    /// <summary>O formulário, mostrado só com a carga pronta.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

@@ -597,6 +597,57 @@ public class AtividadesTests(BancoFixture banco) : TesteComBanco(banco)
     }
 
     [Fact]
+    public async Task Contadores_da_listagem_no_banco_sao_do_escopo_de_acesso_e_nao_do_filtro()
+    {
+        // Diretoria (Diana, Davi) e Produção (Pedro, Paula, Ester) no banco. Hoje vem do calendário do escritório.
+        var hoje = await EmEscopoAsync(null, sp => Task.FromResult(sp.GetRequiredService<ICalendarioDoEscritorio>().Hoje));
+        var doPedroAtrasada = await CriarAsync("Do Pedro, atrasada", hoje.AddDays(-2));
+        await DirecionarAsync(doPedroAtrasada, _diana, (_pedro, null));
+        var doPedroNoPrazo = await CriarAsync("Do Pedro, no prazo");
+        await DirecionarAsync(doPedroNoPrazo, _diana, (_pedro, null));
+        var daEsterAtrasada = await CriarAsync("Da Ester, atrasada", hoje.AddDays(-3));
+        await DirecionarAsync(daEsterAtrasada, _davi, (_ester, null));
+        await CriarAsync("Sem responsável, atrasada", hoje.AddDays(-1));
+        var concluidaVencida = await CriarAsync("Do Pedro, concluída vencida", hoje.AddDays(-1));
+        await DirecionarAsync(concluidaVencida, _diana, (_pedro, null));
+        await ConcluirAsync(_pedro, concluidaVencida);
+        (await ExecutarAsync(_diana, new AprovarAtividade(concluidaVencida))).Sucesso.Should().BeTrue();
+        var excluida = await CriarAsync("Do Pedro, excluída", hoje.AddDays(-1));
+        await DirecionarAsync(excluida, _diana, (_pedro, null));
+        (await ExecutarAsync(_diana, new ExcluirAtividade(excluida))).Sucesso.Should().BeTrue();
+
+        var daDiretoria = (await ExecutarAsync(_diana, new ListarAtividades())).Valor!;
+        var daDiretoriaFiltrada = (await ExecutarAsync(_diana, new ListarAtividades(
+            Status: StatusAtividade.Direcionada, ResponsavelId: _ester, SomenteAtrasadas: true, Busca: "Ester"))).Valor!;
+        var doPedro = (await ExecutarAsync(_pedro, new ListarAtividades())).Valor!;
+        var doPedroFiltrada = (await ExecutarAsync(_pedro, new ListarAtividades(Status: StatusAtividade.Criada, ResponsavelId: _ester))).Valor!;
+        var daPaula = (await ExecutarAsync(_paula, new ListarAtividades())).Valor!;
+
+        // Diretoria: as cinco vivas do escritório; atrasadas, as três não concluídas com entrega vencida.
+        daDiretoria.Total.Should().Be(5);
+        daDiretoria.NoEscopo.Should().Be(5);
+        daDiretoria.Atrasadas.Should().Be(3);
+        // Situação, responsável, só atrasadas e busca mudam a página, não os contadores.
+        daDiretoriaFiltrada.Itens.Select(a => a.Id).Should().Equal(daEsterAtrasada);
+        daDiretoriaFiltrada.NoEscopo.Should().Be(5);
+        daDiretoriaFiltrada.Atrasadas.Should().Be(3);
+        // Produção: só as atividades em que é responsável; a concluída vencida não é atrasada; a excluída não conta.
+        doPedro.Itens.Select(a => a.Id).Should().BeEquivalentTo([doPedroAtrasada, doPedroNoPrazo, concluidaVencida]);
+        doPedro.NoEscopo.Should().Be(3);
+        doPedro.Atrasadas.Should().Be(1);
+        doPedroFiltrada.Itens.Should().BeEmpty();
+        doPedroFiltrada.NoEscopo.Should().Be(3);
+        doPedroFiltrada.Atrasadas.Should().Be(1);
+        daPaula.NoEscopo.Should().Be(0);
+        daPaula.Atrasadas.Should().Be(0);
+
+        // A contagem vai dentro da listagem: cada pedido do Pedro é uma consulta registrada, não duas.
+        var listagensDoPedro = await EmEscopoAsync(null, sp => sp.GetRequiredService<AppDbContext>().RegistrosAcesso.AsNoTracking()
+            .CountAsync(a => a.UsuarioId == _pedro && a.TipoRecurso == "Atividade" && a.Acao == AcaoDeAcesso.Listou));
+        listagensDoPedro.Should().Be(2);
+    }
+
+    [Fact]
     public async Task Mesma_data_de_entrega_lista_a_mais_recente_primeiro()
     {
         var primeira = await CriarAsync("Primeira");

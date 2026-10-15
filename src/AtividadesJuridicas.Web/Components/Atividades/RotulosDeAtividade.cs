@@ -18,6 +18,19 @@ public static class RotulosDeAtividade
         _ => status.ToString(),
     };
 
+    /// <summary>O nome do chip de filtro: "Direcionadas", "Para correção".</summary>
+    public static string SituacaoNoPlural(StatusAtividade status) => status switch
+    {
+        StatusAtividade.Criada => "Criadas",
+        StatusAtividade.Direcionada => "Direcionadas",
+        StatusAtividade.Feita => "Feitas",
+        StatusAtividade.ParaCorrecao => "Para correção",
+        StatusAtividade.Corrigida => "Corrigidas",
+        StatusAtividade.Concluida => "Concluídas",
+        StatusAtividade.Reaberta => "Reabertas",
+        _ => status.ToString(),
+    };
+
     /// <summary>O modificador da etiqueta do design system (<c>aj-etiqueta--…</c>) para a situação.</summary>
     public static string ClasseDaEtiqueta(StatusAtividade status) => status switch
     {

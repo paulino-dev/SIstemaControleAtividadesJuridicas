@@ -153,4 +153,34 @@ public class DocumentosComunsInterativosTests : TelaInterativa
             .Which.Should().Be(new RenomearDocumento(Contrato, "Contrato padrão.pdf"));
         tela.FindAll("section.aj-painel:not(.aj-painel--principal)").Should().BeEmpty();
     }
+
+    [Fact]
+    public void Renomear_documento_que_sumiu_fecha_o_painel_rele_a_lista_e_mantem_a_mensagem()
+    {
+        Despachante.Responde<RenomearDocumento, Resultado>(Resultado.Falha(TipoErro.NaoEncontrado, "Documento não encontrado."));
+        var tela = Tela();
+        ClicarNaLinha(tela, "Renomear");
+
+        tela.FindAll("section.aj-painel button").Single(b => b.TextContent == "Salvar nome").Click();
+
+        tela.WaitForAssertion(() => tela.Markup.Should().Contain("Documento não encontrado."));
+        tela.FindAll("section.aj-painel:not(.aj-painel--principal)").Should().BeEmpty();
+        Despachante.Recebidas.OfType<ListarDocumentosComuns>().Should().HaveCount(2);
+        tela.FindAll("table.aj-tabela tbody tr").Should().HaveCount(2);
+    }
+
+    [Fact]
+    public void Excluir_documento_que_sumiu_rele_a_lista_e_mantem_a_mensagem()
+    {
+        Despachante.Responde<ExcluirDocumento, Resultado>(Resultado.Falha(TipoErro.NaoEncontrado, "Documento não encontrado."));
+        var tela = Tela();
+        ClicarNaLinha(tela, "Excluir");
+
+        tela.FindAll("[role=alertdialog] button").Single(b => b.TextContent == "Confirmar exclusão").Click();
+
+        tela.WaitForAssertion(() => tela.Markup.Should().Contain("Documento não encontrado."));
+        Despachante.Recebidas.OfType<ListarDocumentosComuns>().Should().HaveCount(2);
+        tela.FindAll("[role=alertdialog]").Should().BeEmpty();
+        tela.FindAll("table.aj-tabela tbody tr").Should().HaveCount(2);
+    }
 }

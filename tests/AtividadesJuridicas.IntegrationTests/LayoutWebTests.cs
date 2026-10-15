@@ -150,7 +150,7 @@ public class LayoutWebTests(BancoFixture banco) : IAsyncLifetime
     {
         var admin = await _app.ClienteAutenticadoAsync();
 
-        var html = await PaginaAsync(admin, "/atividades");
+        var html = await PaginaAsync(admin, "/agenda");
 
         Regex.Matches(html, "<header class=\"aj-barra-superior").Should().ContainSingle();
         html.Should().Contain("<header class=\"aj-barra-superior aj-barra-superior--padrao\">")
@@ -165,7 +165,6 @@ public class LayoutWebTests(BancoFixture banco) : IAsyncLifetime
     // A regra interina do app.css trata como migrada a tela cujo conteúdo começa por um bloco do design system.
     // Enquanto a tela não for migrada, nenhum componente aj- pode abrir o conteúdo dela.
     [Theory]
-    [InlineData("/atividades")]
     [InlineData("/agenda")]
     public async Task Tela_ainda_nao_migrada_nao_abre_o_conteudo_com_bloco_do_design_system(string rota)
     {

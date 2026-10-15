@@ -2,9 +2,11 @@ using System.Net;
 using System.Text.RegularExpressions;
 using AtividadesJuridicas.Application.Atividades;
 using AtividadesJuridicas.Application.Cadastros;
+using AtividadesJuridicas.Web.Components.Pages;
 using AtividadesJuridicas.Web.Components.Atividades;
 using AtividadesJuridicas.Domain.Auditoria;
 using AtividadesJuridicas.Infrastructure.Persistencia;
+using AtividadesJuridicas.Web.Infra;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -38,6 +40,14 @@ public class AtividadesWebTests(BancoFixture banco) : IAsyncLifetime
 
     public async Task DisposeAsync() => await _app.DisposeAsync();
 
+    // A barra superior que a lista declara (a do layout é "aj-barra-superior aj-barra-superior--padrao").
+    private static string BarraDoMobile(string html)
+    {
+        var barra = Regex.Match(html, "<header class=\"aj-barra-superior\">.*?</header>", RegexOptions.Singleline);
+        barra.Success.Should().BeTrue("a lista declara a própria barra superior do mobile");
+        return barra.Value;
+    }
+
     [Fact]
     public async Task Diretor_ve_todas_as_atividades_e_as_acoes_de_cadastro()
     {
@@ -48,17 +58,80 @@ public class AtividadesWebTests(BancoFixture banco) : IAsyncLifetime
         html.Should().Contain("Atividades").And.Contain("Elaborar contestação").And.Contain("Recurso interno")
             .And.Contain("Direcionada").And.Contain("Criada").And.Contain("Atrasada").And.Contain("15/01/2020")
             .And.Contain("Pedro Produção");
-        html.Should().Contain("Nova atividade").And.Contain("Abrir");
+        // O cabeçalho conta o escopo da Diretoria (o escritório inteiro), com as atrasadas à parte, e traz a ação.
+        html.Should().MatchRegex("<p class=\"aj-subtitulo\">2 atividades\\s*·\\s*<strong class=\"aj-subtitulo__alerta\">1 atrasada</strong></p>")
+            .And.MatchRegex("<a href=\"/atividades/nova\" class=\"aj-botao aj-botao--primario aj-botao--com-icone\">\\s*<svg[^>]*>.*?</svg>\\s*Nova atividade</a>")
+            .And.Contain("<a href=\"/atividades/nova\" class=\"aj-fab\" aria-label=\"Nova atividade\">")
+            .And.Contain("<form id=\"busca-de-atividades\" hidden");
 
-        // As palavras acima também aparecem nos filtros (<option>); só a tabela tem estas células.
-        html.Should().MatchRegex(@"<td>\s*Elaborar contestação\s*</td>");
-        // A situação é uma etiqueta do design system; a entrega vencida ganha a etiqueta Atrasada ao lado.
-        html.Should().MatchRegex(
-            @"<td>\s*<span class=""aj-etiqueta aj-etiqueta--direcionada"">Direcionada</span>\s*" +
-            @"<span class=""aj-etiqueta aj-etiqueta--atrasada"">(<svg.*?</svg>)?Atrasada</span>\s*</td>");
-        html.Should().MatchRegex(@"<td>\s*<span class=""aj-etiqueta aj-etiqueta--criada"">Criada</span>\s*</td>");
-        html.Should().MatchRegex(@"<td>\s*15/01/2020\s*</td>");
-        html.Should().MatchRegex(@"<td>\s*Pedro Produção\s*</td>");
+        var desktop = BlocoDeVisao.De(html, "aj-so-desktop");
+        desktop.Should().MatchRegex("<form class=\"aj-barra-filtros\" role=\"search\"")
+            .And.MatchRegex("<label class=\"aj-campo-icone aj-campo-icone--filtro\">\\s*<svg[^>]*>.*?</svg>\\s*<span class=\"aj-so-leitor\">Busca</span>\\s*<input type=\"text\" class=\"aj-campo-icone__controle\" placeholder=\"Buscar pelo título da atividade\"")
+            .And.MatchRegex("(?s)<label class=\"aj-campo-filtro\">\\s*<span>Situação</span>\\s*<select class=\"aj-campo-filtro__controle\"[^>]*>\\s*<option value[^>]*>Todas</option>.*?>Criada</option>.*?>Reaberta</option>\\s*</select>")
+            .And.MatchRegex("<label class=\"aj-opcao aj-opcao--solta\">\\s*<input type=\"checkbox\" class=\"aj-opcao__caixa\"[^>]*>\\s*Só atrasadas</label>")
+            .And.Contain("<button type=\"submit\" class=\"aj-botao aj-botao--secundario\">Buscar</button>")
+            .And.Contain("<table class=\"aj-tabela aj-tabela--larga\">")
+            .And.Contain("<thead><tr><th scope=\"col\">Título</th><th scope=\"col\">Situação</th><th scope=\"col\">Entrega</th><th scope=\"col\">Complexidade</th><th scope=\"col\">Cliente</th><th scope=\"col\">Processo</th><th scope=\"col\">Responsáveis</th><th scope=\"col\">Revisor</th><th scope=\"col\"><span class=\"aj-so-leitor\">Ações</span></th></tr></thead>")
+            .And.MatchRegex(
+                "(?s)<td class=\"aj-tabela__principal\">Elaborar contestação</td>\\s*" +
+                "<td>\\s*<div class=\"aj-etiquetas\">\\s*<span class=\"aj-etiqueta aj-etiqueta--direcionada\">Direcionada</span>\\s*" +
+                "<span class=\"aj-etiqueta aj-etiqueta--atrasada\"><svg[^>]*>.*?</svg>Atrasada</span>\\s*</div>\\s*</td>\\s*" +
+                "<td class=\"aj-tabela__data aj-tabela__data--atrasada\">15/01/2020</td>\\s*<td>2</td>\\s*" +
+                "<td class=\"aj-tabela__vazia\">—</td>\\s*<td class=\"aj-tabela__vazia\">—</td>\\s*" +
+                "<td>Pedro Produção</td>\\s*<td>Diana Diretora</td>\\s*" +
+                $"<td class=\"aj-tabela__acao\"><a href=\"/atividades/{_contestacao}\" class=\"aj-botao aj-botao--fantasma aj-botao--seta\">\\s*Abrir\\s*<svg")
+            .And.MatchRegex(
+                "(?s)<td class=\"aj-tabela__principal\">Recurso interno</td>\\s*" +
+                "<td>\\s*<div class=\"aj-etiquetas\">\\s*<span class=\"aj-etiqueta aj-etiqueta--criada\">Criada</span>\\s*</div>\\s*</td>\\s*" +
+                "<td class=\"aj-tabela__vazia\">—</td>\\s*<td>3</td>\\s*" +
+                "<td class=\"aj-tabela__vazia\">—</td>\\s*<td class=\"aj-tabela__vazia\">—</td>\\s*<td class=\"aj-tabela__vazia\">—</td>")
+            .And.Contain("aj-paginacao--com-setas").And.Contain("Página 1 de 1 · 2 atividades");
+        // Responsável: os não clientes; revisor: só a Diretoria.
+        Regex.Match(desktop, "(?s)<span>Responsável</span>\\s*<select[^>]*>(.*?)</select>").Groups[1].Value
+            .Should().Contain(">Todos</option>").And.Contain(">Diana Diretora</option>").And.Contain(">Pedro Produção</option>");
+        Regex.Match(desktop, "(?s)<span>Revisor</span>\\s*<select[^>]*>(.*?)</select>").Groups[1].Value
+            .Should().Contain(">Diana Diretora</option>").And.NotContain("Pedro Produção");
+
+        var tablet = BlocoDeVisao.De(html, "aj-so-tablet");
+        tablet.Should().MatchRegex("<form class=\"aj-linha-filtros aj-linha-filtros--busca\" role=\"search\"")
+            .And.MatchRegex("<span class=\"aj-so-leitor\">Buscar atividade</span>\\s*<input type=\"search\" class=\"aj-campo-icone__controle\" placeholder=\"Buscar pelo título da atividade\"")
+            .And.MatchRegex("<button type=\"button\" class=\"aj-botao aj-botao--secundario aj-botao--com-icone\" aria-expanded=\"false\" aria-controls=\"filtros-de-atividades\"[^>]*>\\s*<svg[^>]*>.*?</svg>\\s*Responsável, revisor</button>")
+            .And.MatchRegex(
+                "(?s)<div class=\"aj-chips\" role=\"group\" aria-label=\"Filtrar por situação\">\\s*" +
+                "<button type=\"button\" class=\"aj-chip\" aria-pressed=\"true\"[^>]*>Todas · 2</button>\\s*" +
+                "<button type=\"button\" class=\"aj-chip aj-chip--alerta\" aria-pressed=\"false\"[^>]*>Atrasadas · 1</button>\\s*" +
+                "<button type=\"button\" class=\"aj-chip\" aria-pressed=\"false\"[^>]*>Direcionadas</button>\\s*" +
+                "<button[^>]*>Feitas</button>\\s*<button[^>]*>Para correção</button>\\s*<button[^>]*>Corrigidas</button>\\s*<button[^>]*>Concluídas</button>\\s*</div>")
+            .And.Contain("Página 1 de 1 · 2 atividades");
+
+        var cartoes = BlocoDeVisao.De(html, "aj-tablet-mobile");
+        cartoes.Should().MatchRegex(
+            $"(?s)<a href=\"/atividades/{_contestacao}\" class=\"aj-cartao aj-cartao--atividade\">\\s*" +
+            "<span class=\"aj-cartao__topo\">\\s*<span class=\"aj-cartao__etiquetas\">\\s*" +
+            "<span class=\"aj-etiqueta aj-etiqueta--direcionada\">Direcionada</span>\\s*" +
+            "<span class=\"aj-etiqueta aj-etiqueta--atrasada aj-etiqueta--com-ponto\">Atrasada</span>\\s*</span>\\s*" +
+            "<span class=\"aj-so-mobile\"><svg class=\"aj-cartao__seta\"[^>]*>.*?</svg></span>\\s*</span>\\s*" +
+            "<span class=\"aj-cartao__titulo\">Elaborar contestação</span>\\s*" +
+            "<span class=\"aj-cartao__meta\">Sem cliente<br\\s*/?>Sem processo vinculado</span>\\s*" +
+            "<span class=\"aj-cartao__rodape\">\\s*<span class=\"aj-cartao__data aj-cartao__data--atrasada\"><svg[^>]*>.*?</svg>15/01/2020</span>\\s*" +
+            $"<span class=\"aj-avatares\">\\s*<span class=\"aj-avatar aj-avatar--p {AvatarDePessoa.Classe("Pedro Produção")}\" title=\"Pedro Produção\">PP</span>\\s*</span>")
+            .And.MatchRegex(
+                "(?s)<span class=\"aj-cartao__titulo\">Recurso interno</span>\\s*" +
+                "<span class=\"aj-cartao__meta\">Sem cliente<br\\s*/?>Sem processo vinculado</span>\\s*" +
+                "<span class=\"aj-cartao__rodape\">\\s*<span class=\"aj-cartao__data\"><svg[^>]*>.*?</svg>—</span>\\s*" +
+                "<span class=\"aj-cartao__vazio\">Sem responsável</span>");
+
+        // No mobile a paginação só aparece com mais de uma página; o bloco do mobile tem as setas dos cartões.
+        BlocoDeVisao.De(html, "aj-so-mobile").Should().Contain("aj-cartao__seta").And.NotContain("Página 1");
+
+        var barra = BarraDoMobile(html);
+        barra.Should().MatchRegex("<span class=\"aj-subtitulo\">2 atividades\\s*·\\s*<strong class=\"aj-subtitulo__alerta\">1 atrasada</strong></span>")
+            .And.MatchRegex("<div class=\"aj-barra-superior__busca\">\\s*<label class=\"aj-campo-icone\">")
+            .And.Contain("<input type=\"search\" class=\"aj-campo-icone__controle\" form=\"busca-de-atividades\" placeholder=\"Buscar pelo título\"")
+            .And.Contain("<button type=\"button\" class=\"aj-botao aj-botao--secundario aj-botao--icone\" aria-label=\"Mais filtros\" aria-expanded=\"false\" aria-controls=\"filtros-de-atividades\"")
+            .And.MatchRegex("(?s)<div class=\"aj-chips aj-chips--barra\" role=\"group\" aria-label=\"Filtrar por situação\">.*?>Todas · 2</button>.*?>Atrasadas · 1</button>.*?>Concluídas</button>\\s*</div>");
+        // O mobile não tem o chip "Corrigidas" (o quadro).
+        barra.Should().NotContain("Corrigidas");
     }
 
     [Fact]
@@ -68,9 +141,21 @@ public class AtividadesWebTests(BancoFixture banco) : IAsyncLifetime
 
         var html = WebUtility.HtmlDecode(await cliente.GetStringAsync("/atividades"));
 
-        html.Should().Contain("Elaborar contestação").And.Contain("Abrir");
-        html.Should().NotContain("Recurso interno").And.NotContain("Nova atividade")
+        html.Should().Contain("Elaborar contestação")
+            .And.MatchRegex($"<a href=\"/atividades/{_contestacao}\" class=\"aj-botao aj-botao--fantasma aj-botao--seta\">\\s*Abrir");
+        html.Should().NotContain("Recurso interno").And.NotContain("Nova atividade").And.NotContain("/atividades/nova")
             .And.NotContain("Seu acesso foi encerrado");
+        // Review Focus 1: os números contam só as atividades em que a Produção é responsável.
+        html.Should().MatchRegex("<p class=\"aj-subtitulo\">1 atividade\\s*·\\s*<strong class=\"aj-subtitulo__alerta\">1 atrasada</strong></p>");
+
+        var desktop = BlocoDeVisao.De(html, "aj-so-desktop");
+        desktop.Should().Contain("<span>Situação</span>").And.Contain("Só atrasadas");
+        desktop.Should().NotContain("<span>Responsável</span>").And.NotContain("<span>Revisor</span>");
+
+        var tablet = BlocoDeVisao.De(html, "aj-so-tablet");
+        tablet.Should().MatchRegex("aria-controls=\"filtros-de-atividades\"[^>]*>\\s*<svg[^>]*>.*?</svg>\\s*Mais filtros</button>")
+            .And.MatchRegex(">Todas · 1</button>").And.MatchRegex(">Atrasadas · 1</button>");
+        tablet.Should().NotContain("Responsável, revisor").And.NotContain("Todas · 2");
     }
 
     [Fact]
@@ -107,19 +192,22 @@ public class AtividadesWebTests(BancoFixture banco) : IAsyncLifetime
 
     // ---- Complexidade ----
 
-    /// <summary>O seletor de complexidade do formulário: do rótulo até o fim do primeiro select depois dele.</summary>
-    private static string SeletorDeComplexidade(string html)
+    /// <summary>Os níveis do controle segmentado de complexidade do formulário, cada um com se está marcado.</summary>
+    private static List<(string Nivel, bool Marcado)> Complexidade(string html)
     {
-        var inicio = Regex.Match(html, @"Complexidade\s*<select");
-        inicio.Success.Should().BeTrue("o formulário deve ter o campo Complexidade");
-        return html[inicio.Index..html.IndexOf("</select>", inicio.Index, StringComparison.Ordinal)];
+        var grupo = Regex.Match(html,
+            "<div class=\"aj-rotulo\" role=\"group\" aria-label=\"Complexidade\">\\s*Complexidade\\s*<div class=\"aj-segmentado\">(.*?)</div>",
+            RegexOptions.Singleline);
+        grupo.Success.Should().BeTrue("o formulário deve ter o campo Complexidade");
+        return [.. Regex.Matches(grupo.Groups[1].Value,
+                "<button type=\"button\" class=\"aj-segmentado__opcao\" aria-pressed=\"(true|false)\"[^>]*>\\s*(\\d)\\s*</button>")
+            .Select(m => (m.Groups[2].Value, m.Groups[1].Value == "true"))];
     }
 
-    private static List<string> Opcoes(string select, bool soASelecionada = false) =>
-        [.. Regex.Matches(select, soASelecionada
-                ? @"<option[^>]*selected[^>]*>\s*([^<]*?)\s*</option>"
-                : @"<option[^>]*>\s*([^<]*?)\s*</option>")
-            .Select(m => m.Groups[1].Value)];
+    // O formulário em tela própria: nova (sem Id) ou a edição da atividade informada.
+    private async Task<string> FormularioAsync(Guid? id) =>
+        WebUtility.HtmlDecode(await TelaDeTeste.RenderizarAsync<AtividadeFormulario>(_app, _admin,
+            id is { } atividade ? new() { [nameof(AtividadeFormulario.Id)] = atividade } : new()));
 
     [Fact]
     public async Task Lista_mostra_a_complexidade_de_cada_atividade()
@@ -128,33 +216,40 @@ public class AtividadesWebTests(BancoFixture banco) : IAsyncLifetime
 
         var html = WebUtility.HtmlDecode(await cliente.GetStringAsync("/atividades"));
 
-        html.Should().MatchRegex(@"<th>\s*Complexidade\s*</th>");
-        html.Should().MatchRegex(@"<td>\s*2\s*</td>").And.MatchRegex(@"<td>\s*3\s*</td>");
+        var desktop = BlocoDeVisao.De(html, "aj-so-desktop");
+        // A coluna vem logo depois de Entrega (spec 8).
+        desktop.Should().Contain("<th scope=\"col\">Entrega</th><th scope=\"col\">Complexidade</th>");
+        desktop.Should().MatchRegex("<td class=\"aj-tabela__data aj-tabela__data--atrasada\">15/01/2020</td>\\s*<td>2</td>")
+            .And.MatchRegex("<td class=\"aj-tabela__vazia\">—</td>\\s*<td>3</td>");
+    }
+
+    [Fact]
+    public async Task Recado_de_outra_tela_aparece_uma_vez_no_topo()
+    {
+        var recados = new Recados();
+        recados.Deixar("Atividade excluída.");
+
+        var html = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarAsync<Atividades>(_app, _admin, new(), recados));
+
+        html.Should().MatchRegex("<p class=\"aj-aviso aj-aviso--sucesso\"[^>]*>.*Atividade excluída.")
+            .And.Contain("Elaborar contestação");
+        recados.Retirar().Should().BeNull();
     }
 
     [Fact]
     public async Task Formulario_de_atividade_nova_pede_a_complexidade_e_comeca_sem_escolha()
     {
-        var html = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarAsync<FormularioDeAtividade>(
-            _app, _admin, new() { [nameof(FormularioDeAtividade.AtividadeId)] = null }));
+        var html = await FormularioAsync(null);
 
-        var select = SeletorDeComplexidade(html);
-        Opcoes(select).Should().Equal("Selecione…", "1", "2", "3");
-        Opcoes(select, soASelecionada: true).Should().Equal("Selecione…");
+        Complexidade(html).Should().Equal(("1", false), ("2", false), ("3", false));
     }
 
     [Fact]
     public async Task Formulario_de_edicao_abre_com_a_complexidade_da_atividade()
     {
-        var atual = (await _app.ExecutarAsync(_admin, new ObterAtividade(_contestacao))).Valor!;
+        var html = await FormularioAsync(_contestacao);
 
-        var html = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarAsync<FormularioDeAtividade>(_app, _admin, new()
-        {
-            [nameof(FormularioDeAtividade.AtividadeId)] = _contestacao,
-            [nameof(FormularioDeAtividade.Atual)] = atual,
-        }));
-
-        Opcoes(SeletorDeComplexidade(html), soASelecionada: true).Should().Equal("2");
+        Complexidade(html).Where(n => n.Marcado).Select(n => n.Nivel).Should().Equal("2");
     }
 
     [Fact]
@@ -167,24 +262,13 @@ public class AtividadesWebTests(BancoFixture banco) : IAsyncLifetime
         var comCliente = await _app.ExecutarAsync(_admin, new SalvarAtividade(
             null, "Petição da Maria", "Texto.", null, cliente.Valor, null, null, 1));
         comCliente.Sucesso.Should().BeTrue(comCliente.Mensagem);
-        var atual = (await _app.ExecutarAsync(_admin, new ObterAtividade(comCliente.Valor))).Valor!;
 
-        var daAtividadeComCliente = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarAsync<FormularioDeAtividade>(_app, _admin, new()
-        {
-            [nameof(FormularioDeAtividade.AtividadeId)] = comCliente.Valor,
-            [nameof(FormularioDeAtividade.Atual)] = atual,
-        }));
-        var daAtividadeNova = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarAsync<FormularioDeAtividade>(
-            _app, _admin, new() { [nameof(FormularioDeAtividade.AtividadeId)] = null }));
-        var semCliente = (await _app.ExecutarAsync(_admin, new ObterAtividade(_contestacao))).Valor!;
-        var daAtividadeSemCliente = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarAsync<FormularioDeAtividade>(_app, _admin, new()
-        {
-            [nameof(FormularioDeAtividade.AtividadeId)] = _contestacao,
-            [nameof(FormularioDeAtividade.Atual)] = semCliente,
-        }));
+        var daAtividadeComCliente = await FormularioAsync(comCliente.Valor);
+        var daAtividadeNova = await FormularioAsync(null);
+        var daAtividadeSemCliente = await FormularioAsync(_contestacao);
 
         daAtividadeComCliente.Should().Contain(lembrete);
-        daAtividadeNova.Should().NotContain(lembrete);
-        daAtividadeSemCliente.Should().NotContain(lembrete);
+        daAtividadeNova.Should().Contain("<h2>Vínculos</h2>").And.NotContain(lembrete);
+        daAtividadeSemCliente.Should().Contain("<h2>Vínculos</h2>").And.NotContain(lembrete);
     }
 }

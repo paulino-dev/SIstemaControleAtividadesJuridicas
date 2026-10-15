@@ -16,6 +16,11 @@ public partial class TelasNoDesignSystemTests
     // Caminhos a partir de src/AtividadesJuridicas.Web.
     private static readonly string[] Migradas =
     [
+        "Components/Atividades/CabecalhoDaAtividade.razor",
+        "Components/Atividades/ComentariosDaAtividade.razor",
+        "Components/Atividades/DocumentosDaAtividade.razor",
+        "Components/Atividades/EtiquetaDeSituacao.razor",
+        "Components/Atividades/MotivoComResponsaveis.razor",
         "Components/Documentos/DocumentosComunsDaDiretoria.razor",
         "Components/Documentos/DocumentosDaFicha.razor",
         "Components/Documentos/DocumentosParaBaixar.razor",
@@ -25,6 +30,7 @@ public partial class TelasNoDesignSystemTests
         "Components/Layout/CabecalhoDeDetalhe.razor",
         "Components/Layout/CabecalhoDeFicha.razor",
         "Components/Layout/CabecalhoDePagina.razor",
+        "Components/Layout/CargaDoFormulario.razor",
         "Components/Layout/CartaoAtalho.razor",
         "Components/Layout/EstadoDaLista.razor",
         "Components/Layout/Icone.razor",
@@ -34,6 +40,12 @@ public partial class TelasNoDesignSystemTests
         "Components/Layout/RotuloDeCampo.razor",
         "Components/Pages/Andamento.razor",
         "Components/Pages/Areas.razor",
+        "Components/Pages/Atividades.razor",
+        "Components/Pages/AtividadeFicha.razor",
+        "Components/Pages/AtividadeFormulario.razor",
+        "Components/Pages/AtividadeDevolver.razor",
+        "Components/Pages/AtividadeReabrir.razor",
+        "Components/Pages/AtividadeResponsaveis.razor",
         "Components/Pages/Auditoria.razor",
         "Components/Pages/Clientes.razor",
         "Components/Pages/ClienteFicha.razor",
@@ -104,6 +116,21 @@ public partial class TelasNoDesignSystemTests
         Violacoes(File.ReadAllText(caminho)).Should().BeEmpty(
             "tela migrada não tem estilo embutido nem classe fora do design system: o padrão vira classe aj- lá");
         File.Exists(caminho + ".css").Should().BeFalse("tela migrada não tem CSS próprio: o estilo vem do design system");
+    }
+
+    // Toda tela de atividade fica na trava: os componentes de Components/Atividades e as páginas de atividade.
+    // Um componente antigo que sobrou (marcação antiga, fora da lista) faz este teste falhar.
+    [Fact]
+    public void Toda_tela_de_atividade_esta_na_trava()
+    {
+        var web = Path.Combine(GravacoesPorForaTests.RaizDoRepositorio(), "src", "AtividadesJuridicas.Web");
+        var telas = Directory.GetFiles(Path.Combine(web, "Components", "Atividades"), "*.razor")
+            .Concat(Directory.GetFiles(Path.Combine(web, "Components", "Pages"), "Atividade*.razor"))
+            .Select(caminho => Path.GetRelativePath(web, caminho).Replace('\\', '/'))
+            .ToList();
+
+        telas.Should().Contain("Components/Pages/Atividades.razor").And.Contain("Components/Atividades/EtiquetaDeSituacao.razor");
+        telas.Should().BeSubsetOf(Migradas, "tela de atividade fora da trava pode voltar à marcação antiga");
     }
 
     // A própria trava: o que ela tem de reprovar e o que tem de deixar passar.

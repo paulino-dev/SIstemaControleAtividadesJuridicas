@@ -2,9 +2,11 @@ using System.Security.Claims;
 using AtividadesJuridicas.Application.Atividades;
 using AtividadesJuridicas.Application.Cadastros;
 using AtividadesJuridicas.Application.Identidade;
+using AtividadesJuridicas.Domain.Atividades;
 using AtividadesJuridicas.Domain.Auditoria;
 using AtividadesJuridicas.Domain.Cadastros;
 using AtividadesJuridicas.Domain.Identidade;
+using AtividadesJuridicas.Web.Components.Atividades;
 using AtividadesJuridicas.Web.Components.Layout;
 using AtividadesJuridicas.Web.Infra;
 
@@ -523,5 +525,104 @@ public class ValorEmReaisTests
         vazio.Should().BeNull();
         ValorEmReais.Escrever(84000m).Should().Be("84.000,00");
         ValorEmReais.Escrever(null).Should().BeNull();
+    }
+}
+
+public class RotulosDeAtividadeTests
+{
+    [Theory]
+    [InlineData(StatusAtividade.Criada, "Criadas")]
+    [InlineData(StatusAtividade.Direcionada, "Direcionadas")]
+    [InlineData(StatusAtividade.Feita, "Feitas")]
+    [InlineData(StatusAtividade.ParaCorrecao, "Para correção")]
+    [InlineData(StatusAtividade.Corrigida, "Corrigidas")]
+    [InlineData(StatusAtividade.Concluida, "Concluídas")]
+    [InlineData(StatusAtividade.Reaberta, "Reabertas")]
+    public void Situacao_no_plural_e_o_nome_do_chip(StatusAtividade status, string plural)
+    {
+        RotulosDeAtividade.SituacaoNoPlural(status).Should().Be(plural);
+    }
+}
+
+public class AvatarDePessoaTests
+{
+    [Theory]
+    [InlineData("Beatriz Lins", "BL")]
+    [InlineData("Otávio Brandão", "OB")]
+    [InlineData("Maria de Fátima Souza", "MS")]
+    [InlineData("  ana   lima  ", "AL")]
+    [InlineData("Marina", "MA")]
+    [InlineData("é", "É")]
+    [InlineData("", "?")]
+    [InlineData("   ", "?")]
+    public void Sigla_sao_as_iniciais_do_primeiro_e_do_ultimo_nome(string nome, string sigla)
+    {
+        AvatarDePessoa.Sigla(nome).Should().Be(sigla);
+    }
+
+    // A soma dos códigos dos caracteres, módulo 4: 1128, 1117, 1154 e 1159 dão 0, 1, 2 e 3.
+    [Theory]
+    [InlineData("Rafael Teles", "aj-avatar--azul")]
+    [InlineData("Camila Prado", "aj-avatar--verde")]
+    [InlineData("Marina Couto", "aj-avatar--ambar")]
+    [InlineData("Beatriz Lins", "aj-avatar--lilas")]
+    public void Classe_sai_da_soma_dos_codigos_do_nome(string nome, string classe)
+    {
+        AvatarDePessoa.Classe(nome).Should().Be(classe);
+    }
+
+    [Fact]
+    public void Classe_nao_muda_com_espacos_nas_pontas_e_nome_vazio_e_azul()
+    {
+        AvatarDePessoa.Classe("  Marina Couto ").Should().Be("aj-avatar--ambar");
+        AvatarDePessoa.Classe("").Should().Be("aj-avatar--azul");
+    }
+}
+
+public class TextosDeAtividadeTests
+{
+    private readonly FusoDoEscritorio _fuso = new("America/Sao_Paulo");
+
+    [Theory]
+    [InlineData(false, "Entrega em 09/10/2026 · Trabalhista")]
+    [InlineData(true, "Entrega 09/10/2026 · Trabalhista")]
+    public void Entrega_com_data_e_area(bool curta, string esperado)
+    {
+        TextosDeAtividade.Entrega(new DateOnly(2026, 10, 9), "Trabalhista", curta).Should().Be(esperado);
+    }
+
+    [Fact]
+    public void Entrega_sem_area_ou_sem_data()
+    {
+        TextosDeAtividade.Entrega(new DateOnly(2026, 10, 9), null, curta: false).Should().Be("Entrega em 09/10/2026");
+        TextosDeAtividade.Entrega(new DateOnly(2026, 10, 9), "  ", curta: true).Should().Be("Entrega 09/10/2026");
+        TextosDeAtividade.Entrega(null, "Trabalhista", curta: false).Should().Be("Sem data de entrega · Trabalhista");
+        TextosDeAtividade.Entrega(null, null, curta: true).Should().Be("Sem data de entrega");
+    }
+
+    [Fact]
+    public void Mudanca_do_primeiro_registro_e_so_a_situacao()
+    {
+        TextosDeAtividade.Mudanca(null, StatusAtividade.Criada).Should().Be("Criada");
+        TextosDeAtividade.Mudanca(StatusAtividade.Criada, StatusAtividade.Direcionada).Should().Be("Criada → Direcionada");
+        TextosDeAtividade.Mudanca(StatusAtividade.Feita, StatusAtividade.ParaCorrecao).Should().Be("Feita → Para correção");
+    }
+
+    [Fact]
+    public void Data_curta_no_horario_do_escritorio()
+    {
+        TextosDeAtividade.DataCurta(_fuso, new DateTime(2026, 10, 7, 19, 42, 0, DateTimeKind.Utc)).Should().Be("07/10 16:42");
+        // Perto da meia-noite vale o dia do escritório, não o de Greenwich.
+        TextosDeAtividade.DataCurta(_fuso, new DateTime(2026, 10, 8, 2, 30, 0, DateTimeKind.Utc)).Should().Be("07/10 23:30");
+    }
+
+    [Theory]
+    [InlineData(0, "0 atividades", null)]
+    [InlineData(1, "1 atividade", "1 atrasada")]
+    [InlineData(8, "8 atividades", "8 atrasadas")]
+    public void Contagem_e_atrasadas_no_numero_certo(int quantidade, string contagem, string? atrasadas)
+    {
+        TextosDeAtividade.Contagem(quantidade).Should().Be(contagem);
+        TextosDeAtividade.Atrasadas(quantidade).Should().Be(atrasadas);
     }
 }

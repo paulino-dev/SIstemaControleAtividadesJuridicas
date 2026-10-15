@@ -47,7 +47,7 @@
                                             <td class="aj-tabela__principal">@atividade.Titulo</td>
                                             <td>@(atividade.ClienteNome ?? "—")</td>
                                             <td class="aj-tabela__data">@Fuso.Formatar(atividade.ConcluidaEm)</td>
-                                            <td class="aj-tabela__acao"><button type="button" class="aj-botao aj-botao--fantasma aj-botao--seta" @onclick="() => Abrir(atividade.Id)">Abrir<Icone Nome="avancar" /></button></td>
+                                            <td class="aj-tabela__acao"><a href="@Ficha(atividade.Id)" class="aj-botao aj-botao--fantasma aj-botao--seta">Abrir<Icone Nome="avancar" /></a></td>
                                         </tr>
                                     }
                                 </tbody>
@@ -58,7 +58,7 @@
                         <div class="aj-linhas">
                             @foreach (var atividade in grupo.Atividades)
                             {
-                                <button type="button" class="aj-linha aj-linha--botao" @key="atividade.Id" @onclick="() => Abrir(atividade.Id)"><span class="aj-linha__texto"><span class="aj-linha__titulo">@atividade.Titulo</span><span class="aj-ajuda">@Detalhe(atividade)</span></span><Icone Nome="avancar" Classe="aj-cartao__seta" /></button>
+                                <a href="@Ficha(atividade.Id)" class="aj-linha aj-linha--link" @key="atividade.Id"><span class="aj-linha__texto"><span class="aj-linha__titulo">@atividade.Titulo</span><span class="aj-ajuda">@Detalhe(atividade)</span></span><Icone Nome="avancar" Classe="aj-cartao__seta" /></a>
                             }
                         </div>
                     </div>
@@ -66,13 +66,6 @@
             }
         }
     </EstadoDaLista>
-
-    @if (_atividadeAberta is { } id)
-    {
-        @* A ficha da atividade (marcação antiga até a 9E), como hoje. Fica fora da lista: se a recarga que ela provoca falhar, a ficha continua aberta. *@
-        <FichaDaAtividade @key="id" AtividadeId="id" OnMudou="RecarregarAsync" OnAcessoEncerrado="EncerrarAcessoAsync"
-                          OnFechar="() => FecharFicha(id)" />
-    }
 </section>
 
 @code {
@@ -92,7 +85,6 @@
     private DateOnly _mes;
     private IReadOnlyList<DateOnly> _meses = [];
     private ProdutividadeDoProdutor? _produtividade;
-    private Guid? _atividadeAberta;
 
     protected override async Task OnInitializedAsync()
     {
@@ -111,7 +103,6 @@
         if (_carregando || !RotulosDeProdutividade.TentarLer(e.Value as string, out var mes) || !_meses.Contains(mes)) return;
 
         _mes = mes;
-        _atividadeAberta = null;   // a ficha aberta era de uma atividade do mês que saiu da tela
         // Os números na tela não têm outro rótulo de mês além do seletor: os do mês anterior saem antes da consulta.
         _produtividade = null;
         _erro = null;
@@ -119,9 +110,6 @@
     }
 
     private Task TentarDeNovoAsync() => _carregando ? Task.CompletedTask : CarregarAsync();
-
-    /// <summary>A ficha avisou que algo mudou na atividade: os números do mês são consultados de novo.</summary>
-    private Task RecarregarAsync() => CarregarAsync();
 
     private async Task CarregarAsync()
     {
@@ -164,7 +152,8 @@
         }
     }
 
-    private void Abrir(Guid atividadeId) => _atividadeAberta = atividadeId;
+    /// <summary>A ficha da atividade, que volta a este painel (o mês volta ao corrente: ele não está no endereço).</summary>
+    private string Ficha(Guid atividadeId) => $"/atividades/{atividadeId}?de=produtores&produtor={ProdutorId}";
 
     private string Detalhe(AtividadeRealizada atividade) =>
         $"{atividade.ClienteNome ?? "Sem cliente"} · concluída em {Fuso.Formatar(atividade.ConcluidaEm)}";
@@ -177,15 +166,9 @@
         }
     </select>;
 
-    private void FecharFicha(Guid idDaFicha)
-    {
-        if (_atividadeAberta == idDaFicha) _atividadeAberta = null;
-    }
-
     private async Task EncerrarAcessoAsync()
     {
         _produtividade = null;
-        _atividadeAberta = null;
         _erro = null;
         await OnAcessoEncerrado.InvokeAsync();
     }

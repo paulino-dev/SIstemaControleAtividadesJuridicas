@@ -4,7 +4,7 @@
     <div><a href="@VoltarPara" class="aj-voltar"><Icone Nome="voltar" />@Origem</a></div>
 </div>
 <CabecalhoDePagina Titulo="@Titulo" Subtitulo="@Subtitulo" Folgado="@(Subtitulo is not null)"
-                   VoltarPara="@VoltarPara" RotuloDoVoltar="@($"Voltar para {Origem}")" />
+                   VoltarPara="@VoltarPara" RotuloDoVoltar="@(RotuloDoVoltarNoMobile ?? $"Voltar para {Origem}")" />
 
 @code {
     [Parameter, EditorRequired] public string Titulo { get; set; } = string.Empty;
@@ -16,4 +16,10 @@
 
     /// <summary>O nome da tela de destino do voltar: o texto do link e o rótulo do botão do mobile.</summary>
     [Parameter, EditorRequired] public string Origem { get; set; } = string.Empty;
+
+    /// <summary>
+    /// O rótulo do voltar da barra do mobile, quando "Voltar para {Origem}" não serve (a origem é o título longo de
+    /// uma atividade: "Voltar para a atividade"). Nulo, vale "Voltar para {Origem}".
+    /// </summary>
+    [Parameter] public string? RotuloDoVoltarNoMobile { get; set; }
 }

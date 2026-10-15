@@ -77,7 +77,7 @@ public class AtividadesTests
         new ObterAtividadeManipulador(_c.Como(ator), _c.Atividades, _c.Usuarios, _c.Clientes, _c.Processos, _c.Areas, _c.Calendario, _c.Auditoria)
             .ManipularAsync(new ObterAtividade(id), default);
 
-    private Task<Resultado<Pagina<AtividadeResumo>>> Listar(Usuario? ator, ListarAtividades? consulta = null) =>
+    private Task<Resultado<PaginaDeAtividades>> Listar(Usuario? ator, ListarAtividades? consulta = null) =>
         new ListarAtividadesManipulador(_c.Como(ator), _c.Atividades, _c.Calendario)
             .ManipularAsync(consulta ?? new ListarAtividades(), default);
 
@@ -656,6 +656,47 @@ public class AtividadesTests
         consulta.Acao.Should().Be(AcaoDeAcesso.Listou);
         consulta.RecursoId.Should().BeNull();
         consulta.Detalhe.Should().Contain("contestação").And.Contain("\"Pagina\":2");
+    }
+
+    [Fact]
+    public async Task Contadores_da_listagem_sao_do_escopo_de_acesso_e_nao_do_filtro()
+    {
+        // Hoje é 09/10/2026 (CalendarioFixo). Diana é a revisora de todas.
+        var dosDois = await DirecionadaAsync("De Pedro e Paula", new DateOnly(2026, 10, 1));       // atrasada
+        var daEster = await CriadaAsync("Da Ester");                                                // entrega em 20/10
+        (await Definir(Diana, daEster, Diana.Id, (_ester, null))).Sucesso.Should().BeTrue();
+        await CriadaAsync("Sem responsável", new DateOnly(2026, 10, 2));                            // atrasada
+        var concluida = await DirecionadaAsync("Concluída vencida", new DateOnly(2026, 10, 1));
+        (await Concluir(_pedro, concluida)).Sucesso.Should().BeTrue();
+        (await Concluir(_paula, concluida)).Sucesso.Should().BeTrue();
+        (await Aprovar(Diana, concluida)).Sucesso.Should().BeTrue();
+        var excluida = await DirecionadaAsync("Excluída", new DateOnly(2026, 10, 1));
+        (await Excluir(Diana, excluida)).Sucesso.Should().BeTrue();
+
+        var daDiretoria = (await Listar(Diana)).Valor!;
+        var filtrada = (await Listar(Diana, new ListarAtividades(
+            Status: StatusAtividade.Direcionada, ResponsavelId: _ester.Id, RevisorId: Diana.Id, Busca: "Ester"))).Valor!;
+        var soAtrasadasDoDavi = (await Listar(Diana, new ListarAtividades(SomenteAtrasadas: true, RevisorId: _davi.Id))).Valor!;
+        var doPedro = (await Listar(_pedro, new ListarAtividades(ResponsavelId: _ester.Id))).Valor!;
+        var daEsterSo = (await Listar(_ester)).Valor!;
+
+        // Diretoria: o escritório inteiro (De Pedro e Paula, Da Ester, Sem responsável, Concluída vencida); atrasadas,
+        // só as duas não concluídas com entrega vencida. A excluída não conta.
+        daDiretoria.NoEscopo.Should().Be(4);
+        daDiretoria.Atrasadas.Should().Be(2);
+        // Os filtros pedidos mudam a página, não os contadores (nem o responsável pedido pela Diretoria).
+        filtrada.Itens.Select(a => a.Id).Should().Equal(daEster);
+        filtrada.NoEscopo.Should().Be(4);
+        filtrada.Atrasadas.Should().Be(2);
+        soAtrasadasDoDavi.Itens.Should().BeEmpty();
+        soAtrasadasDoDavi.NoEscopo.Should().Be(4);
+        soAtrasadasDoDavi.Atrasadas.Should().Be(2);
+        // Produção: só as suas, qualquer que seja o filtro; a concluída vencida não é atrasada.
+        doPedro.Itens.Select(a => a.Id).Should().BeEquivalentTo([dosDois, concluida]);
+        doPedro.NoEscopo.Should().Be(2);
+        doPedro.Atrasadas.Should().Be(1);
+        daEsterSo.NoEscopo.Should().Be(1);
+        daEsterSo.Atrasadas.Should().Be(0);
     }
 
     // ---- Complexidade ----

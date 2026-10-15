@@ -172,7 +172,7 @@ public class UsuariosWebTests(BancoFixture banco) : IAsyncLifetime
         var html = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarComAsync<UsuarioFormularioPagina>(
             despachante, new() { ["Id"] = Guid.NewGuid() }));
 
-        html.Should().MatchRegex("(?s)class=\"aj-aviso aj-aviso--erro\".*?Falha de teste\\.")
+        html.Should().MatchRegex("(?s)class=\"aj-aviso aj-aviso--erro aj-aviso--com-acoes\"[^>]*role=\"alert\".*?Falha de teste\\..*?>Tentar de novo</button>")
             .And.MatchRegex("<h1 class=\"aj-titulo\">Editar usuário</h1>")
             .And.MatchRegex("<a href=\"/usuarios\" class=\"aj-voltar\">");
         html.Should().NotContain("Usuário não encontrado.").And.NotContain("<h2>Usuário</h2>").And.NotContain("Salvar usuário")
@@ -211,7 +211,7 @@ public class UsuariosWebTests(BancoFixture banco) : IAsyncLifetime
 
         var html = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarComAsync<UsuarioFormularioPagina>(despachante, new()));
 
-        html.Should().MatchRegex("(?s)class=\"aj-aviso aj-aviso--erro\".*?Falha de teste\\.")
+        html.Should().MatchRegex("(?s)class=\"aj-aviso aj-aviso--erro aj-aviso--com-acoes\"[^>]*role=\"alert\".*?Falha de teste\\..*?>Tentar de novo</button>")
             .And.MatchRegex("<h1 class=\"aj-titulo\">Novo usuário</h1>");
         html.Should().NotContain("Acesso negado").And.NotContain("<h2>Usuário</h2>").And.NotContain("Salvar usuário")
             .And.NotContain("Escolha o perfil.");

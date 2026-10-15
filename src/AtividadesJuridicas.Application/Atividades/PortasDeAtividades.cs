@@ -17,6 +17,17 @@ public sealed record AtividadeResumo(
     Guid Id, string Titulo, StatusAtividade Status, DateOnly? DataEntrega, bool Atrasada, string? ClienteNome,
     string? ProcessoTitulo, string? AreaNome, IReadOnlyList<string> Responsaveis, string? RevisorNome, int Complexidade);
 
+/// <summary>
+/// <paramref name="NoEscopo"/>: todas as atividades que o usuário pode listar, sem nenhum filtro (a Diretoria, o
+/// escritório inteiro; os demais, as atividades em que são responsáveis). <paramref name="Atrasadas"/>: as atrasadas
+/// desse mesmo escopo. São os contadores do subtítulo e dos chips da lista, que não mudam com o filtro.
+/// </summary>
+public sealed record PaginaDeAtividades(
+    IReadOnlyList<AtividadeResumo> Itens, int Total, int Numero, int Tamanho, int NoEscopo, int Atrasadas)
+    : Pagina<AtividadeResumo>(Itens, Total, Numero, Tamanho);
+
+public sealed record ContagemDeAtividades(int Total, int Atrasadas);
+
 /// <summary><paramref name="Direcionamento"/> só vem para a Diretoria e para o próprio responsável.</summary>
 public sealed record ResponsavelDetalhe(
     Guid UsuarioId, string Nome, bool DirecionamentoVisivel, string? Direcionamento, DateTime? ConcluidoEm);
@@ -103,6 +114,12 @@ public interface IAtividadeRepositorio
     /// sem diferenciar maiúsculas nem acentos, tratando % e _ como caracteres comuns.
     /// </summary>
     Task<Pagina<AtividadeResumo>> ListarAsync(FiltroDeAtividades filtro, int pagina, int tamanho, CancellationToken ct);
+
+    /// <summary>
+    /// Quantas atividades vivas há no escopo (todas, ou só aquelas em que <paramref name="responsavelId"/> é responsável)
+    /// e quantas delas estão atrasadas: não concluídas, com entrega antes de <paramref name="hoje"/>. Nenhum outro filtro.
+    /// </summary>
+    Task<ContagemDeAtividades> ContarAsync(Guid? responsavelId, DateOnly hoje, CancellationToken ct);
 
     void Adicionar(Atividade atividade);
 

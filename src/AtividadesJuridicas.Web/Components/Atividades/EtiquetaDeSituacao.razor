@@ -1,12 +1,31 @@
-@* A situação da atividade como etiqueta do design system; a entrega vencida ganha a etiqueta Atrasada ao lado. *@
-<span class="aj-etiqueta aj-etiqueta--@RotulosDeAtividade.ClasseDaEtiqueta(Status)">@RotulosDeAtividade.Status(Status)</span>
+@* A situação da atividade como etiqueta do design system; a entrega vencida ganha a etiqueta Atrasada ao lado.
+   Na tabela (quadro do desktop), a Concluída leva o visto e a Atrasada o relógio, sem ponto. Fora dela (cartões e
+   ficha), todas com ponto e nenhum ícone. *@
+@if (NaTabela && Status == StatusAtividade.Concluida)
+{
+    <span class="aj-etiqueta aj-etiqueta--concluida aj-etiqueta--com-icone"><Icone Nome="confirmar" />@RotulosDeAtividade.Status(Status)</span>
+}
+else
+{
+    <span class="aj-etiqueta aj-etiqueta--@RotulosDeAtividade.ClasseDaEtiqueta(Status)">@RotulosDeAtividade.Status(Status)</span>
+}
 @if (Atrasada)
 {
-    <span class="aj-etiqueta aj-etiqueta--atrasada"><Icone Nome="atrasada" />Atrasada</span>
+    @if (NaTabela)
+    {
+        <span class="aj-etiqueta aj-etiqueta--atrasada"><Icone Nome="atrasada" />Atrasada</span>
+    }
+    else
+    {
+        <span class="aj-etiqueta aj-etiqueta--atrasada aj-etiqueta--com-ponto">Atrasada</span>
+    }
 }
 
 @code {
     [Parameter, EditorRequired] public StatusAtividade Status { get; set; }
 
     [Parameter] public bool Atrasada { get; set; }
+
+    /// <summary>Na tabela do desktop: o visto na Concluída e o relógio na Atrasada. Fora dela, o ponto em todas.</summary>
+    [Parameter] public bool NaTabela { get; set; }
 }
