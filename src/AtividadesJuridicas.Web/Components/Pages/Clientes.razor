@@ -1,536 +1,187 @@
 @page "/clientes"
-@using System.ComponentModel.DataAnnotations
 @inject IDespachante Despachante
-@inject FusoDoEscritorio Fuso
+@inject Recados Recados
 
 <PageTitle>Clientes</PageTitle>
 
-<h1>Clientes</h1>
+<CabecalhoDePagina Titulo="Clientes" Subtitulo="@Subtitulo" Acao="@(_ator?.EhDiretoria == true ? "Novo cliente" : null)" AcaoHref="/clientes/novo">
+    <LinhaDoMobile>
+        @* O Enter na busca envia o formulário "busca-de-clientes", que fica no fim da tela. *@
+        <label class="aj-campo-icone"><Icone Nome="buscar" /><span class="aj-so-leitor">Buscar cliente</span><input type="search" class="aj-campo-icone__controle" form="busca-de-clientes" placeholder="Buscar por nome, CPF ou CNPJ" @bind="_texto" /></label>
+    </LinhaDoMobile>
+</CabecalhoDePagina>
 
 @if (!_carregado)
 {
-    <p>Carregando…</p>
+    <p class="aj-subtitulo" role="status">Carregando…</p>
 }
 else if (_ator is null)
 {
-    <p class="erro">Seu acesso foi encerrado. Entre novamente.</p>
+    <Aviso Tipo="TipoDeAviso.Erro">Seu acesso foi encerrado. Entre novamente.</Aviso>
 }
 else
 {
-    <EditForm Model="_busca" OnSubmit="BuscarAsync" FormName="busca-clientes" class="formulario filtros">
-        <label>Nome, CPF ou CNPJ <InputText @bind-Value="_busca.Texto" /></label>
-        <label><InputCheckbox @bind-Value="_busca.IncluirInativos" /> Incluir inativos</label>
-        <button type="submit">Buscar</button>
-    </EditForm>
-
-    @if (_mensagem is not null)
+    @if (_recado is { } recado)
     {
-        <p class="@(_falhou ? "erro" : "ok")" role="status">@_mensagem</p>
+        <Aviso Tipo="@recado.Tipo">@recado.Texto</Aviso>
     }
 
-    <table>
-        <thead>
-            <tr><th>Nome</th><th>Documento</th><th>E-mail</th><th>Telefone</th><th>Cidade</th><th>Situação</th><th></th></tr>
-        </thead>
-        <tbody>
-            @foreach (var cliente in _pagina.Itens)
-            {
-                <tr class="@(cliente.Ativo ? null : "inativo")" @key="cliente.Id">
-                    <td>@cliente.Nome</td>
-                    <td>@cliente.Documento</td>
-                    <td>@cliente.Email</td>
-                    <td>@cliente.Telefone</td>
-                    <td>@cliente.Cidade</td>
-                    <td>@(cliente.Ativo ? "Ativo" : "Inativo")</td>
-                    <td class="acoes">
-                        @if (_ator.EhDiretoria)
+    <div class="aj-so-desktop">
+        <form class="aj-barra-filtros" role="search" @onsubmit="BuscarAsync" @onsubmit:preventDefault>
+            <label class="aj-campo-icone"><Icone Nome="buscar" /><span class="aj-so-leitor">Buscar cliente</span><input type="search" class="aj-campo-icone__controle" placeholder="Buscar por nome, CPF ou CNPJ" @bind="_texto" /></label>
+            <label class="aj-opcao aj-opcao--filtro"><input type="checkbox" class="aj-opcao__caixa" @bind="_incluirInativos" />Incluir inativos</label>
+            <button type="submit" class="aj-botao aj-botao--secundario">Buscar</button>
+        </form>
+    </div>
+    <div class="aj-so-tablet">
+        <form class="aj-linha-filtros" role="search" @onsubmit="BuscarAsync" @onsubmit:preventDefault>
+            <label class="aj-campo-icone"><Icone Nome="buscar" /><span class="aj-so-leitor">Buscar cliente</span><input type="search" class="aj-campo-icone__controle" placeholder="Buscar por nome, CPF ou CNPJ" @bind="_texto" /></label>
+            <button type="button" class="aj-chip aj-chip--campo" aria-pressed="@Pressionado" @onclick="AlternarInativosAsync">Incluir inativos</button>
+        </form>
+    </div>
+    <div class="aj-so-mobile">
+        <div class="aj-chips" role="group" aria-label="Filtros">
+            <button type="button" class="aj-chip" aria-pressed="@Pressionado" @onclick="AlternarInativosAsync">Incluir inativos</button>
+        </div>
+    </div>
+
+    <EstadoDaLista Erro="@_erro" Vazio="@(_pagina.Itens.Count == 0)" TextoDeVazio="Nenhum cliente." TentarDeNovo="() => CarregarAsync(_paginaPedida)">
+        <div class="aj-so-desktop">
+            <div class="aj-tabela-caixa">
+                <table class="aj-tabela">
+                    <thead><tr><th scope="col">Nome</th><th scope="col">Documento</th><th scope="col">E-mail</th><th scope="col">Telefone</th><th scope="col">Cidade</th><th scope="col">Situação</th><th scope="col"><span class="aj-so-leitor">Ações</span></th></tr></thead>
+                    <tbody>
+                        @foreach (var cliente in _pagina.Itens)
                         {
-                            <button type="button" class="secundario" @onclick="() => EditarAsync(cliente.Id)">Editar</button>
-                            <button type="button" class="secundario" @onclick="() => AlternarAtivoAsync(cliente)">
-                                @(cliente.Ativo ? "Inativar" : "Ativar")
-                            </button>
+                            <tr class="@(cliente.Ativo ? null : "aj-tabela__linha--inativa")" @key="cliente.Id">
+                                <td class="aj-tabela__principal">@cliente.Nome</td>
+                                <td class="aj-tabela__data">@cliente.Documento</td>
+                                @* Na linha inativa o e-mail fica apagado como as outras células, como no quadro. *@
+                                <td class="@(cliente.Ativo ? "aj-tabela__secundaria" : null)">@Ou(cliente.Email)</td>
+                                <td class="aj-tabela__data">@Ou(cliente.Telefone)</td>
+                                <td>@Ou(cliente.Cidade)</td>
+                                <td>@Situacao(cliente)</td>
+                                <td class="aj-tabela__acao"><a href="@Ficha(cliente)" class="aj-botao aj-botao--fantasma aj-botao--seta">Abrir<Icone Nome="avancar" /></a></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <Paginacao Numero="_pagina.Numero" TotalDePaginas="_pagina.TotalDePaginas" Total="_pagina.Total"
+                       Singular="cliente" Plural="clientes" SempreVisivel="true" IrPara="CarregarAsync" />
+        </div>
+
+        <div class="aj-tablet-mobile">
+            <div class="aj-grade">
+                @foreach (var cliente in _pagina.Itens)
+                {
+                    <a href="@Ficha(cliente)" class="@(cliente.Ativo ? "aj-cartao" : "aj-cartao aj-cartao--inativo")" @key="cliente.Id">
+                        <span class="aj-cartao__titulo">@cliente.Nome</span>
+                        @if (Localizacao(cliente) is { } localizacao)
+                        {
+                            <span class="aj-cartao__meta">@TextosDoCliente.Documento(cliente.Tipo, cliente.Documento)<br />@localizacao</span>
                         }
                         else
                         {
-                            <button type="button" class="secundario" @onclick="() => VerAsync(cliente.Id)">Ver</button>
+                            <span class="aj-cartao__meta">@TextosDoCliente.Documento(cliente.Tipo, cliente.Documento)</span>
                         }
-                    </td>
-                </tr>
-            }
-        </tbody>
-    </table>
-
-    <div class="acoes">
-        <button type="button" class="secundario" disabled="@(_pagina.Numero <= 1)" @onclick="() => IrParaAsync(_pagina.Numero - 1)">Anterior</button>
-        <span>Página @_pagina.Numero de @_pagina.TotalDePaginas (@_pagina.Total clientes)</span>
-        <button type="button" class="secundario" disabled="@(_pagina.Numero >= _pagina.TotalDePaginas)" @onclick="() => IrParaAsync(_pagina.Numero + 1)">Próxima</button>
-    </div>
-
-    @if (_ator.EhDiretoria)
-    {
-        <div class="acoes">
-            <button type="button" @onclick="() => Novo(TipoCliente.PessoaFisica)">Nova pessoa física</button>
-            <button type="button" @onclick="() => Novo(TipoCliente.PessoaJuridica)">Nova pessoa jurídica</button>
+                        <span class="aj-cartao__rodape"><span class="aj-cartao__resumo">@(cliente.Email ?? "Sem e-mail")</span><span class="aj-cartao__situacao">@Situacao(cliente)</span></span>
+                    </a>
+                }
+            </div>
         </div>
+        <div class="aj-so-tablet">
+            <Paginacao Numero="_pagina.Numero" TotalDePaginas="_pagina.TotalDePaginas" Total="_pagina.Total"
+                       Singular="cliente" Plural="clientes" SempreVisivel="true" IrPara="CarregarAsync" />
+        </div>
+        <div class="aj-so-mobile">
+            <Paginacao Numero="_pagina.Numero" TotalDePaginas="_pagina.TotalDePaginas" Total="_pagina.Total"
+                       Singular="cliente" Plural="clientes" IrPara="CarregarAsync" />
+        </div>
+    </EstadoDaLista>
 
-        @if (_form is not null)
-        {
-            <h2>@Titulo()</h2>
-
-            <EditForm Model="_form" OnValidSubmit="SalvarAsync" FormName="cliente" class="formulario">
-                <DataAnnotationsValidator />
-
-                <div class="grade">
-                    <label>
-                        @(_form.Tipo == TipoCliente.PessoaFisica ? "Nome completo" : "Razão social")
-                        <InputText @bind-Value="_form.Nome" />
-                        <ValidationMessage For="() => _form.Nome" />
-                    </label>
-
-                    @if (_form.Tipo == TipoCliente.PessoaFisica)
-                    {
-                        <label>CPF <InputText @bind-Value="_form.Documento" /><ValidationMessage For="() => _form.Documento" /></label>
-                        <label>RG <InputText @bind-Value="_form.Rg" /></label>
-                        <label>Data de nascimento <InputDate @bind-Value="_form.DataNascimento" /></label>
-                    }
-                    else
-                    {
-                        <label>CNPJ <InputText @bind-Value="_form.Documento" /><ValidationMessage For="() => _form.Documento" /></label>
-                        <label>Nome fantasia <InputText @bind-Value="_form.NomeFantasia" /></label>
-                        <label>Responsável <InputText @bind-Value="_form.NomeResponsavel" /></label>
-                        <label>Inscrição estadual <InputText @bind-Value="_form.InscricaoEstadual" /></label>
-                        <label>Inscrição municipal <InputText @bind-Value="_form.InscricaoMunicipal" /></label>
-                    }
-
-                    <label>E-mail <InputText @bind-Value="_form.Email" type="email" /></label>
-                    <label>Telefone <InputText @bind-Value="_form.Telefone" /></label>
-                </div>
-
-                <div class="grade">
-                    <label>Logradouro <InputText @bind-Value="_form.Logradouro" /></label>
-                    <label>Número <InputText @bind-Value="_form.Numero" /></label>
-                    <label>Complemento <InputText @bind-Value="_form.Complemento" /></label>
-                    <label>Bairro <InputText @bind-Value="_form.Bairro" /></label>
-                    <label>Cidade <InputText @bind-Value="_form.Cidade" /></label>
-                    <label>UF <InputText @bind-Value="_form.Uf" maxlength="2" /></label>
-                    <label>CEP <InputText @bind-Value="_form.Cep" /></label>
-                </div>
-
-                <label>Observações <InputTextArea @bind-Value="_form.Observacoes" rows="3" /></label>
-
-                <div class="acoes">
-                    <button type="submit">Salvar</button>
-                    <button type="button" class="secundario" @onclick="Fechar">Cancelar</button>
-                </div>
-            </EditForm>
-
-            @if (_form.Id is not null)
-            {
-                @ProcessosDoCliente
-                @UsuariosDoClienteSecao
-                <DocumentosDoCliente @key="@($"gerais-{_form.Id}")" ClienteId="_form.Id.Value"
-                                     Categoria="CategoriaDocumento.DocumentoGeral" Titulo="Documentos Gerais"
-                                     PodeGerenciar="true" OnAcessoEncerrado="EncerrarAcesso" />
-                <DocumentosDoCliente @key="@($"contratos-{_form.Id}")" ClienteId="_form.Id.Value"
-                                     Categoria="CategoriaDocumento.ContratoHonorarios" Titulo="Contratos de Honorários"
-                                     PodeGerenciar="true" OnAcessoEncerrado="EncerrarAcesso" />
-                <DocumentosDoCliente @key="@($"atividades-{_form.Id}")" ClienteId="_form.Id.Value"
-                                     Categoria="CategoriaDocumento.DocumentoAtividade" Titulo="Documentos de Atividades"
-                                     PodeGerenciar="true" OnAcessoEncerrado="EncerrarAcesso" />
-                <DocumentosDoCliente @key="@($"do-cliente-{_form.Id}")" ClienteId="_form.Id.Value"
-                                     Categoria="CategoriaDocumento.DocumentoDoCliente" Titulo="Documentos do cliente (visíveis ao cliente)"
-                                     PodeGerenciar="true" OnAcessoEncerrado="EncerrarAcesso" />
-            }
-        }
-    }
-    else if (_ficha is not null)
-    {
-        <section class="ficha">
-            <h2>@_ficha.Nome</h2>
-            <dl>
-                @if (_ficha.Tipo == TipoCliente.PessoaFisica)
-                {
-                    <dt>CPF</dt><dd>@_ficha.Cpf</dd>
-                    <dt>RG</dt><dd>@_ficha.Rg</dd>
-                    <dt>Data de nascimento</dt><dd>@_ficha.DataNascimento?.ToString("dd/MM/yyyy")</dd>
-                }
-                else
-                {
-                    <dt>CNPJ</dt><dd>@_ficha.Cnpj</dd>
-                    <dt>Nome fantasia</dt><dd>@_ficha.NomeFantasia</dd>
-                    <dt>Responsável</dt><dd>@_ficha.NomeResponsavel</dd>
-                    <dt>Inscrição estadual</dt><dd>@_ficha.InscricaoEstadual</dd>
-                    <dt>Inscrição municipal</dt><dd>@_ficha.InscricaoMunicipal</dd>
-                }
-                <dt>E-mail</dt><dd>@_ficha.Email</dd>
-                <dt>Telefone</dt><dd>@_ficha.Telefone</dd>
-                <dt>Endereço</dt>
-                <dd>@LinhaDeEndereco(_ficha)</dd>
-                <dt>Observações</dt><dd>@_ficha.Observacoes</dd>
-                <dt>Situação</dt><dd>@(_ficha.Ativo ? "Ativo" : "Inativo")</dd>
-            </dl>
-            @ProcessosDoCliente
-            <DocumentosDoCliente @key="@($"gerais-{_ficha.Id}")" ClienteId="_ficha.Id"
-                                 Categoria="CategoriaDocumento.DocumentoGeral" Titulo="Documentos Gerais"
-                                 PodeGerenciar="false" OnAcessoEncerrado="EncerrarAcesso" />
-            <DocumentosDoCliente @key="@($"atividades-{_ficha.Id}")" ClienteId="_ficha.Id"
-                                 Categoria="CategoriaDocumento.DocumentoAtividade" Titulo="Documentos de Atividades"
-                                 PodeGerenciar="false" OnAcessoEncerrado="EncerrarAcesso" />
-            <div class="acoes"><button type="button" class="secundario" @onclick="Fechar">Fechar</button></div>
-        </section>
-    }
+    <form id="busca-de-clientes" hidden @onsubmit="BuscarAsync" @onsubmit:preventDefault></form>
 }
 
 @code {
-    private static readonly Pagina<ClienteResumo> Vazia = new([], 0, 1, ClientesOpcoes.TamanhoDaPagina);
+    private static readonly PaginaDeClientes Vazia = new([], 0, 1, ClientesOpcoes.TamanhoDaPagina, 0, 0);
 
     private bool _carregado;
-    private bool _falhou;
-    private string? _mensagem;
     private UsuarioAutenticado? _ator;
-    private Busca _busca = new();
-    private Pagina<ClienteResumo> _pagina = Vazia;
-    private Formulario? _form;
-    private ClienteDetalhe? _ficha;
-    private IReadOnlyList<ProcessoResumo> _processosDoCliente = [];
-    private int _totalDeProcessosDoCliente;
-    private string? _erroDosProcessosDoCliente;
-    private IReadOnlyList<UsuarioDoCliente> _usuariosDoCliente = [];
-    private string? _erroDosUsuariosDoCliente;
+    private string? _texto;
+    private bool _incluirInativos;
+    private PaginaDeClientes _pagina = Vazia;
+    private int _paginaPedida = 1;
+    private string? _erro;
+    private Recado? _recado;
 
     protected override async Task OnInitializedAsync()
     {
         _ator = await Despachante.EnviarAsync(new ObterMeuAcesso());
-        if (_ator is not null) await CarregarAsync(1);
+        if (_ator is not null)
+        {
+            _recado = Recados.Retirar();
+            await CarregarAsync(1);
+        }
+
         _carregado = true;
     }
 
-    private Task BuscarAsync() => CarregarAsync(1);
-
-    private Task IrParaAsync(int pagina) => CarregarAsync(pagina);
-
     private async Task CarregarAsync(int pagina)
     {
-        var resultado = await Despachante.EnviarAsync(
-            new ListarClientes(_busca.Texto, _busca.IncluirInativos, pagina));
+        _paginaPedida = pagina;
+        var resultado = await Despachante.EnviarAsync(new ListarClientes(_texto, _incluirInativos, pagina));
 
-        if (AcessoEncerrado(resultado)) return;
-
-        _pagina = resultado.Valor ?? Vazia;
-        if (!resultado.Sucesso)
+        if (resultado.Erro == TipoErro.AcessoNegado)
         {
-            Avisar(resultado.Mensagem, falhou: true);
+            _ator = null;
+            _pagina = Vazia;
             return;
         }
+
+        if (!resultado.Sucesso || resultado.Valor is null)
+        {
+            _erro = resultado.Mensagem ?? "Não foi possível consultar os clientes.";
+            _pagina = Vazia;
+            return;
+        }
+
+        _erro = null;
+        _pagina = resultado.Valor;
 
         // A última página ficou além do fim (por exemplo, ao inativar o único item dela): volta à última.
         if (_pagina.Itens.Count == 0 && _pagina.Total > 0 && _pagina.Numero > _pagina.TotalDePaginas)
             await CarregarAsync(_pagina.TotalDePaginas);
     }
 
-    private bool AcessoEncerrado(Resultado resultado)
+    private Task BuscarAsync()
     {
-        if (resultado.Erro != TipoErro.AcessoNegado) return false;
-
-        EncerrarAcesso();
-        return true;
+        _recado = null;
+        return CarregarAsync(1);
     }
 
-    // Perdeu o acesso no meio do uso: some tudo que estava na tela, nada de dados antigos.
-    private void EncerrarAcesso()
+    private Task AlternarInativosAsync()
     {
-        _ator = null;
-        _pagina = Vazia;
-        _form = null;
-        _ficha = null;
-        LimparProcessosDoCliente();
-        LimparUsuariosDoCliente();
+        _incluirInativos = !_incluirInativos;
+        return BuscarAsync();
     }
 
-    private void Novo(TipoCliente tipo)
+    private string? Subtitulo =>
+        _carregado && _ator is not null && _erro is null && _pagina.NoCadastro > 0
+            ? Contagem.ComInativos(_pagina.NoCadastro, _pagina.Inativos, "cliente", "clientes", "inativo", "inativos")
+            : null;
+
+    private string Pressionado => _incluirInativos ? "true" : "false";
+
+    private static string Ficha(ClienteResumo cliente) => $"/clientes/{cliente.Id}";
+
+    private static string Situacao(ClienteResumo cliente) => cliente.Ativo ? "Ativo" : "Inativo";
+
+    private static string Ou(string? valor) => string.IsNullOrWhiteSpace(valor) ? "—" : valor;
+
+    private static string? Localizacao(ClienteResumo cliente)
     {
-        _mensagem = null;
-        LimparProcessosDoCliente();
-        LimparUsuariosDoCliente();
-        _form = new Formulario { Tipo = tipo };
-    }
-
-    private async Task EditarAsync(Guid id)
-    {
-        var resultado = await Despachante.EnviarAsync(new ObterCliente(id));
-        if (AcessoEncerrado(resultado)) return;
-
-        if (resultado.Valor is not { } c)
-        {
-            Avisar(resultado.Mensagem, falhou: true);
-            return;
-        }
-
-        if (!await CarregarProcessosDoClienteAsync(id)) return;
-        if (!await CarregarUsuariosDoClienteAsync(id)) return;
-
-        _mensagem = null;
-        _form = new Formulario
-        {
-            Id = c.Id, Ativo = c.Ativo, Tipo = c.Tipo, Nome = c.Nome, Email = c.Email, Telefone = c.Telefone,
-            Documento = c.Cpf ?? c.Cnpj ?? string.Empty, Rg = c.Rg, DataNascimento = c.DataNascimento,
-            NomeFantasia = c.NomeFantasia, NomeResponsavel = c.NomeResponsavel,
-            InscricaoEstadual = c.InscricaoEstadual, InscricaoMunicipal = c.InscricaoMunicipal,
-            Logradouro = c.Logradouro, Numero = c.Numero, Complemento = c.Complemento, Bairro = c.Bairro,
-            Cidade = c.Cidade, Uf = c.Uf, Cep = c.Cep, Observacoes = c.Observacoes,
-        };
-    }
-
-    private async Task VerAsync(Guid id)
-    {
-        var resultado = await Despachante.EnviarAsync(new ObterCliente(id));
-        if (AcessoEncerrado(resultado)) return;
-
-        if (resultado.Valor is not { } ficha)
-        {
-            _ficha = null;
-            Avisar(resultado.Mensagem, falhou: true);
-            return;
-        }
-
-        if (!await CarregarProcessosDoClienteAsync(id)) return;
-
-        _ficha = ficha;
-    }
-
-    // Primeira página dos processos do cliente aberto; falso quando o acesso foi encerrado.
-    private async Task<bool> CarregarProcessosDoClienteAsync(Guid clienteId)
-    {
-        var processos = await Despachante.EnviarAsync(new ListarProcessos(ClienteId: clienteId));
-        if (AcessoEncerrado(processos)) return false;
-
-        LimparProcessosDoCliente();
-        if (!processos.Sucesso || processos.Valor is not { } pagina)
-        {
-            // Falha na consulta não é "sem processos": mostra o erro no lugar da lista.
-            _erroDosProcessosDoCliente = processos.Mensagem ?? "Não foi possível consultar os processos do cliente.";
-            return true;
-        }
-
-        _processosDoCliente = pagina.Itens;
-        _totalDeProcessosDoCliente = pagina.Total;
-        return true;
-    }
-
-    private void LimparProcessosDoCliente()
-    {
-        _processosDoCliente = [];
-        _totalDeProcessosDoCliente = 0;
-        _erroDosProcessosDoCliente = null;
-    }
-
-    // Usuários de acesso do cliente aberto (só a edição da Diretoria); falso quando o acesso foi encerrado.
-    private async Task<bool> CarregarUsuariosDoClienteAsync(Guid clienteId)
-    {
-        var usuarios = await Despachante.EnviarAsync(new ListarUsuariosDoCliente(clienteId));
-        if (AcessoEncerrado(usuarios)) return false;
-
-        LimparUsuariosDoCliente();
-        if (!usuarios.Sucesso || usuarios.Valor is not { } lista)
-        {
-            // Falha na consulta não é "sem usuários": mostra o erro no lugar da lista.
-            _erroDosUsuariosDoCliente = usuarios.Mensagem ?? "Não foi possível consultar os usuários do cliente.";
-            return true;
-        }
-
-        _usuariosDoCliente = lista;
-        return true;
-    }
-
-    private void LimparUsuariosDoCliente()
-    {
-        _usuariosDoCliente = [];
-        _erroDosUsuariosDoCliente = null;
-    }
-
-    private RenderFragment UsuariosDoClienteSecao => @<text>
-        <h3>Usuários do cliente</h3>
-        @if (_erroDosUsuariosDoCliente is not null)
-        {
-            <p class="erro">@_erroDosUsuariosDoCliente</p>
-        }
-        else if (_usuariosDoCliente.Count == 0)
-        {
-            <p>Nenhum usuário. Crie o acesso do cliente em Usuários.</p>
-        }
-        else
-        {
-            if (_form is { Ativo: false })
-            {
-                <p>Cliente inativo: estes usuários estão sem acesso ao portal até o cliente ser reativado.</p>
-            }
-            <table>
-                <thead>
-                    <tr><th>Nome</th><th>E-mail</th><th>Situação</th><th>Último acesso</th></tr>
-                </thead>
-                <tbody>
-                    @foreach (var usuario in _usuariosDoCliente)
-                    {
-                        <tr class="@(usuario.Ativo ? null : "inativo")" @key="usuario.Id">
-                            <td>@usuario.Nome</td>
-                            <td>@usuario.Email</td>
-                            <td>@(usuario.Ativo ? "Ativo" : "Inativo")</td>
-                            <td>@Fuso.Formatar(usuario.UltimoAcessoEm)</td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        }
-    </text>;
-
-    private RenderFragment ProcessosDoCliente => @<text>
-        <h3>Processos do cliente</h3>
-        @if (_erroDosProcessosDoCliente is not null)
-        {
-            <p class="erro">@_erroDosProcessosDoCliente</p>
-        }
-        else if (_processosDoCliente.Count == 0)
-        {
-            <p>Nenhum processo vinculado.</p>
-        }
-        else
-        {
-            <ul>
-                @foreach (var processo in _processosDoCliente)
-                {
-                    <li @key="processo.Id">@processo.Titulo — @(processo.NumeroCnj ?? "sem número") — @processo.Status</li>
-                }
-            </ul>
-            @if (_totalDeProcessosDoCliente > _processosDoCliente.Count)
-            {
-                <p>Há mais processos; veja todos em Processos.</p>
-            }
-        }
-    </text>;
-
-    private void Fechar()
-    {
-        _form = null;
-        _ficha = null;
-        _mensagem = null;
-        LimparProcessosDoCliente();
-        LimparUsuariosDoCliente();
-    }
-
-    // Só as partes preenchidas, sem separadores soltos.
-    private static string LinhaDeEndereco(ClienteDetalhe c)
-    {
-        static string Juntar(string separador, params string?[] partes) =>
-            string.Join(separador, partes.Where(p => !string.IsNullOrWhiteSpace(p)));
-
-        var cidadeUf = Juntar("/", c.Cidade, c.Uf);
-        return Juntar(" — ", Juntar(" ", c.Logradouro, c.Numero, c.Complemento), c.Bairro, cidadeUf, c.Cep);
-    }
-
-    private string Titulo() => (_form!.Id is null ? "Nova " : "Editar ") +
-        (_form.Tipo == TipoCliente.PessoaFisica ? "pessoa física" : "pessoa jurídica");
-
-    private async Task SalvarAsync()
-    {
-        var f = _form!;
-        var dados = new DadosDoClienteEntrada(
-            f.Nome, f.Email, f.Telefone,
-            new EnderecoEntrada(f.Logradouro, f.Numero, f.Complemento, f.Bairro, f.Cidade, f.Uf, f.Cep),
-            f.Observacoes);
-
-        Resultado resultado = f.Tipo == TipoCliente.PessoaFisica
-            ? await Despachante.EnviarAsync(new SalvarClientePessoaFisica(f.Id, dados, f.Documento, f.Rg, f.DataNascimento))
-            : await Despachante.EnviarAsync(new SalvarClientePessoaJuridica(
-                f.Id, dados, f.Documento, f.NomeFantasia, f.NomeResponsavel, f.InscricaoEstadual, f.InscricaoMunicipal));
-
-        if (AcessoEncerrado(resultado)) return;
-
-        if (!resultado.Sucesso)
-        {
-            // O formulário permanece aberto com o que foi digitado.
-            Avisar(resultado.Mensagem, falhou: true);
-            return;
-        }
-
-        _form = null;
-        _falhou = false;
-        await CarregarAsync(_pagina.Numero);
-        if (_ator is not null && !_falhou) Avisar("Cliente salvo.", falhou: false);
-    }
-
-    private async Task AlternarAtivoAsync(ClienteResumo cliente)
-    {
-        var resultado = await Despachante.EnviarAsync(new DefinirAtivoCliente(cliente.Id, !cliente.Ativo));
-        if (AcessoEncerrado(resultado)) return;
-
-        _falhou = false;
-        await CarregarAsync(_pagina.Numero);
-        if (_ator is null || (_falhou && resultado.Sucesso)) return;
-
-        var mensagem = resultado.Mensagem;
-        if (resultado.Sucesso)
-        {
-            mensagem = "Cliente ativado.";
-            if (cliente.Ativo)
-            {
-                mensagem = await AvisoDeInativacaoAsync(cliente.Id);
-                if (_ator is null) return;
-            }
-        }
-
-        Avisar(mensagem, falhou: !resultado.Sucesso);
-    }
-
-    // Inativar o cliente tira o acesso dos usuários dele: o aviso diz quantos usuários ativos ficaram sem o portal.
-    // Se a contagem não puder ser consultada, o aviso é o de sempre; a inativação já deu certo.
-    private async Task<string?> AvisoDeInativacaoAsync(Guid clienteId)
-    {
-        var usuarios = await Despachante.EnviarAsync(new ListarUsuariosDoCliente(clienteId));
-        if (AcessoEncerrado(usuarios)) return null;
-
-        var ativos = usuarios.Sucesso && usuarios.Valor is { } lista ? lista.Count(u => u.Ativo) : 0;
-        return TextosDoCliente.Inativado(ativos);
-    }
-
-    private void Avisar(string? mensagem, bool falhou)
-    {
-        _mensagem = mensagem;
-        _falhou = falhou;
-    }
-
-    private sealed class Busca
-    {
-        public string? Texto { get; set; }
-        public bool IncluirInativos { get; set; }
-    }
-
-    private sealed class Formulario
-    {
-        public Guid? Id { get; set; }
-        public bool Ativo { get; set; } = true;
-        public TipoCliente Tipo { get; set; }
-
-        [Required(ErrorMessage = "Informe o nome.")]
-        public string Nome { get; set; } = string.Empty;
-
-        [Required(ErrorMessage = "Informe o documento.")]
-        public string Documento { get; set; } = string.Empty;
-
-        public string? Email { get; set; }
-        public string? Telefone { get; set; }
-        public string? Rg { get; set; }
-        public DateOnly? DataNascimento { get; set; }
-        public string? NomeFantasia { get; set; }
-        public string? NomeResponsavel { get; set; }
-        public string? InscricaoEstadual { get; set; }
-        public string? InscricaoMunicipal { get; set; }
-        public string? Logradouro { get; set; }
-        public string? Numero { get; set; }
-        public string? Complemento { get; set; }
-        public string? Bairro { get; set; }
-        public string? Cidade { get; set; }
-        public string? Uf { get; set; }
-        public string? Cep { get; set; }
-        public string? Observacoes { get; set; }
+        var partes = new[] { cliente.Cidade, cliente.Telefone }.Where(p => !string.IsNullOrWhiteSpace(p));
+        return partes.Any() ? string.Join(" · ", partes) : null;
     }
 }

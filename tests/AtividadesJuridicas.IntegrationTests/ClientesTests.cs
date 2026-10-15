@@ -46,6 +46,27 @@ public class ClientesTests(BancoFixture banco) : TesteComBanco(banco)
         (await AuditoriaAsync()).Where(r => r.EntidadeId == clienteId).ToList();
 
     [Fact]
+    public async Task Listar_clientes_traz_o_cadastro_e_os_inativos_sem_olhar_a_busca()
+    {
+        // Três clientes, um inativo; a busca acha um só, e a lista sem inativos tem dois.
+        var adminId = await IdDoAdminAsync();
+        await CriarPfAsync(adminId, "Ana Lima", "529.982.247-25");
+        await CriarPfAsync(adminId, "Bruno Reis", "111.444.777-35");
+        var inativo = await CriarPfAsync(adminId, "Carlos Dias", "390.533.447-05");
+        (await ExecutarAsync(adminId, new DefinirAtivoCliente(inativo, false))).Sucesso.Should().BeTrue();
+        var pedroId = await CriarProducaoAsync(adminId);
+
+        var busca = (await ExecutarAsync(adminId, new ListarClientes("Ana"))).Valor!;
+        var semInativos = (await ExecutarAsync(pedroId, new ListarClientes())).Valor!;
+
+        busca.Itens.Select(c => c.Nome).Should().Equal("Ana Lima");
+        busca.NoCadastro.Should().Be(3);
+        busca.Inativos.Should().Be(1);
+        semInativos.Total.Should().Be(2);
+        semInativos.NoCadastro.Should().Be(3);
+        semInativos.Inativos.Should().Be(1);
+    }
+    [Fact]
     public async Task Pessoa_fisica_e_juridica_vao_e_voltam_do_banco_inteiras()
     {
         var adminId = await IdDoAdminAsync();

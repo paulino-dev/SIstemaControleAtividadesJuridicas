@@ -119,14 +119,14 @@ public class PortaoDoClienteTests
         contexto.Consultas.Should().Be(0);
     }
 
-    private sealed class ListarClientesFalso : IManipulador<ListarClientes, Resultado<Pagina<ClienteResumo>>>
+    private sealed class ListarClientesFalso : IManipulador<ListarClientes, Resultado<PaginaDeClientes>>
     {
         public int Chamadas { get; private set; }
 
-        public Task<Resultado<Pagina<ClienteResumo>>> ManipularAsync(ListarClientes requisicao, CancellationToken ct)
+        public Task<Resultado<PaginaDeClientes>> ManipularAsync(ListarClientes requisicao, CancellationToken ct)
         {
             Chamadas++;
-            return Task.FromResult(Resultado<Pagina<ClienteResumo>>.Ok(new Pagina<ClienteResumo>([], 0, 1, 20)));
+            return Task.FromResult(Resultado<PaginaDeClientes>.Ok(new PaginaDeClientes([], 0, 1, 20, 0, 0)));
         }
     }
 
@@ -143,7 +143,7 @@ public class PortaoDoClienteTests
     {
         var manipulador = new ListarClientesFalso();
         var executor = new ExecutorDeRequisicoes(
-            new ProvedorFalso().Com<IManipulador<ListarClientes, Resultado<Pagina<ClienteResumo>>>>(manipulador),
+            new ProvedorFalso().Com<IManipulador<ListarClientes, Resultado<PaginaDeClientes>>>(manipulador),
             new AuditoriaFalsa(), new ContextoDeAcessoFixo(ator));
 
         (await executor.ExecutarAsync(new ListarClientes(), default)).Sucesso.Should().BeTrue();
@@ -159,7 +159,7 @@ public class PortaoDoClienteTests
         var manipulador = new ListarClientesFalso();
         var executor = new ExecutorDeRequisicoes(
             new ProvedorFalso()
-                .Com<IManipulador<ListarClientes, Resultado<Pagina<ClienteResumo>>>>(manipulador)
+                .Com<IManipulador<ListarClientes, Resultado<PaginaDeClientes>>>(manipulador)
                 .Com<IManipulador<ObterMeuAcesso, UsuarioAutenticado?>>(new ObterMeuAcessoFalso(desconhecido)),
             new AuditoriaFalsa(), new ContextoDeAcessoFixo(desconhecido));
 
@@ -177,7 +177,7 @@ public class PortaoDoClienteTests
         var auditoria = new AuditoriaFalsa();
         var manipulador = new ListarClientesFalso();
         var executor = new ExecutorDeRequisicoes(
-            new ProvedorFalso().Com<IManipulador<ListarClientes, Resultado<Pagina<ClienteResumo>>>>(manipulador),
+            new ProvedorFalso().Com<IManipulador<ListarClientes, Resultado<PaginaDeClientes>>>(manipulador),
             auditoria, new ContextoDeAcessoFixo(Cliente));
         var pedido = new ListarClientes("Maria", Pagina: 2);
 

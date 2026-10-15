@@ -625,3 +625,126 @@ textarea.aj-campo{padding:9px var(--espaco-12);resize:vertical}
 [data-visao="tablet"]{--aj-pagina-padding-acoes:var(--espaco-16) var(--espaco-24) 110px}
 [data-visao="mobile"]{--aj-pagina-padding-acoes:var(--espaco-16) var(--espaco-16) 112px}
 .aj-app:has(:is(.aj-so-tablet,.aj-tablet-mobile)>.aj-acoes--fixa) .aj-app__conteudo{padding:var(--aj-pagina-padding-acoes)}
+
+/* ---------- Clientes e processos (fase 9D) ---------- */
+/* Lado a lado: com o painel primeiro na marcação (a ficha do cliente, que no tablet começa pelos dados), o
+   desktop inverte a linha e o painel fica à direita; na ficha e no formulário o painel encolhe com o conteúdo; no
+   formulário a coluna principal é um pouco mais estreita. Pilha: uma coluna de painéis dentro do arranjo, que no
+   tablet e no mobile some como o arranjo. */
+.aj-pilha{display:contents}
+@media (min-width:1200px){
+  .aj-lado-a-lado--painel-primeiro{flex-direction:row-reverse}
+  :is(.aj-lado-a-lado--ficha,.aj-lado-a-lado--formulario) .aj-lado-a-lado__painel{min-width:0}
+  .aj-lado-a-lado--formulario .aj-lado-a-lado__lista{flex:1.6 1 0}
+  .aj-pilha{display:flex;flex-direction:column;gap:var(--aj-pagina-gap)}
+}
+[data-visao="desktop"] .aj-lado-a-lado--painel-primeiro{flex-direction:row-reverse}
+[data-visao="desktop"] :is(.aj-lado-a-lado--ficha,.aj-lado-a-lado--formulario) .aj-lado-a-lado__painel{min-width:0}
+[data-visao="desktop"] .aj-lado-a-lado--formulario .aj-lado-a-lado__lista{flex:1.6 1 0}
+[data-visao="desktop"] .aj-pilha{display:flex;flex-direction:column;gap:var(--aj-pagina-gap)}
+[data-visao="tablet"] .aj-pilha,[data-visao="mobile"] .aj-pilha{display:contents}
+
+/* Cabeçalho da ficha: o painel com o título e, no desktop, as ações à direita; no tablet, mais arredondado e
+   folgado. No mobile o título vai para a barra de voltar e o nome para o bloco de título da ficha. */
+.aj-painel--cabecalho{flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--espaco-12) var(--espaco-16)}
+@media (max-width:1199px){.aj-painel--cabecalho{border-radius:var(--raio-20);padding:20px}}
+[data-visao="tablet"] .aj-painel--cabecalho,[data-visao="mobile"] .aj-painel--cabecalho{border-radius:var(--raio-20);padding:20px}
+[data-visao="desktop"] .aj-painel--cabecalho{border-radius:var(--aj-raio-cartao);padding:var(--aj-cartao-padding)}
+.aj-painel__botoes{display:flex;flex-wrap:wrap;gap:var(--espaco-8)}
+.aj-titulo-da-ficha{display:flex;flex-direction:column;gap:var(--espaco-6)}
+.aj-titulo-da-ficha .aj-titulo{line-height:1.15;overflow-wrap:anywhere}
+.aj-titulo-da-ficha .aj-ajuda{font-variant-numeric:tabular-nums}
+
+/* Abas do mobile: uma por assunto da ficha, com contador; a escolhida sublinhada em verde. O painel de uma aba:
+   no mobile só os da aba escolhida aparecem; no tablet e no desktop, todos. */
+.aj-abas{display:flex;gap:var(--espaco-4);margin:0 calc(-1 * var(--espaco-16));padding:0 var(--espaco-16);overflow-x:auto;scrollbar-width:none;border-bottom:1px solid var(--borda-campo-suave)}
+.aj-abas::-webkit-scrollbar{display:none}
+.aj-abas__aba{flex:0 0 auto;display:inline-flex;align-items:center;gap:var(--espaco-6);min-height:var(--alvo-toque);padding:0 var(--espaco-12);border:0;border-bottom:2.5px solid transparent;background:transparent;color:var(--tinta-suave);font:600 14.5px/1.3 var(--font-sans);cursor:pointer}
+.aj-abas__aba[aria-selected="true"]{border-bottom-color:var(--verde);color:var(--tinta);font-weight:700}
+.aj-abas__aba:focus-visible{outline:2px solid var(--verde);outline-offset:-2px}
+.aj-abas__contador{padding:0 7px;border-radius:var(--raio-pilula);background:var(--superficie-recuada);font-size:12px}
+.aj-aba-painel{display:contents}
+@media (max-width:760px){.aj-aba-painel--oculta{display:none}}
+[data-visao="mobile"] .aj-aba-painel--oculta{display:none}
+
+/* Lista em painel: linhas mais folgadas (as que levam a outra ficha), a linha que é um link, o lado direito com
+   dados (a situação e o último acesso) e o link dentro da linha na cor da marca. */
+.aj-linhas--folgadas>.aj-linha{padding:var(--espaco-10) 0}
+.aj-linha--link{color:var(--tinta);text-decoration:none}
+.aj-linha--link:focus-visible{outline:2px solid var(--verde);outline-offset:2px}
+.aj-linha__lado{flex:0 0 auto;text-align:right;font-variant-numeric:tabular-nums}
+:where(.aj-linha a){color:var(--verde)}
+:where(.aj-linha a:hover){color:var(--tinta)}
+
+/* Filtros com busca: na barra do desktop a busca ocupa o que sobra e a opção marcável tem a altura dos campos da
+   barra; na linha do tablet a busca é branca e ocupa o que sobra, e o chip ao lado tem a altura e o raio do campo. */
+.aj-barra-filtros>.aj-campo-icone{flex:1 1 320px;min-height:var(--campo-filtro)}
+.aj-opcao--filtro{min-height:var(--campo-filtro);font-size:14.5px}
+.aj-opcao__caixa{cursor:pointer}
+.aj-linha-filtros>.aj-campo-icone{flex:1 1 auto;background:var(--superficie)}
+.aj-chip--campo{min-height:var(--aj-campo);border-radius:var(--aj-raio-campo)}
+
+/* Cartão e tabela: o resumo do rodapé (e-mail, parte contrária), cortado com reticências; a situação que não é a
+   normal (processo suspenso, arquivado ou encerrado), apagada. */
+.aj-cartao__resumo{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13.5px;color:var(--tinta-secundaria)}
+.aj-cartao__situacao--apagada{color:var(--tinta-apagada)}
+.aj-tabela td.aj-tabela__apagada{color:var(--tinta-apagada)}
+
+/* Controle segmentado que divide a largura (o tipo de cliente, no mobile). */
+.aj-segmentado--largo{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr)}
+
+/* Formulário: a grade de campos com o mesmo vão nas linhas e nas colunas no tablet; o endereço em seis colunas
+   (duas no mobile); o campo curto (UF) com menos respiro no desktop. */
+.aj-grade-endereco{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:var(--espaco-10) var(--espaco-12)}
+.aj-grade-endereco__logradouro{grid-column:span 4}
+.aj-grade-endereco__numero,.aj-grade-endereco__cep{grid-column:span 2}
+.aj-grade-endereco__complemento,.aj-grade-endereco__bairro,.aj-grade-endereco__cidade{grid-column:span 3}
+.aj-grade-endereco__uf{grid-column:span 1}
+@media (min-width:761px) and (max-width:1199px){.aj-grade-campos--tablet-folgada,.aj-grade-endereco{gap:var(--espaco-12)}}
+@media (max-width:760px){
+  .aj-grade-endereco{grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--espaco-12) var(--espaco-10)}
+  .aj-grade-endereco__logradouro,.aj-grade-endereco__bairro,.aj-grade-endereco__cidade{grid-column:span 2}
+  .aj-grade-endereco__numero,.aj-grade-endereco__complemento,.aj-grade-endereco__uf,.aj-grade-endereco__cep{grid-column:span 1}
+}
+@media (min-width:1200px){.aj-campo--curto{padding:0 var(--espaco-10)}}
+[data-visao="desktop"] .aj-grade-endereco{grid-template-columns:repeat(6,minmax(0,1fr));gap:var(--espaco-10) var(--espaco-12)}
+[data-visao="tablet"] .aj-grade-endereco{grid-template-columns:repeat(6,minmax(0,1fr));gap:var(--espaco-12)}
+[data-visao="tablet"] .aj-grade-campos--tablet-folgada{gap:var(--espaco-12)}
+[data-visao="desktop"] .aj-grade-endereco__logradouro,[data-visao="tablet"] .aj-grade-endereco__logradouro{grid-column:span 4}
+[data-visao="desktop"] :is(.aj-grade-endereco__numero,.aj-grade-endereco__cep),[data-visao="tablet"] :is(.aj-grade-endereco__numero,.aj-grade-endereco__cep){grid-column:span 2}
+[data-visao="desktop"] :is(.aj-grade-endereco__complemento,.aj-grade-endereco__bairro,.aj-grade-endereco__cidade),[data-visao="tablet"] :is(.aj-grade-endereco__complemento,.aj-grade-endereco__bairro,.aj-grade-endereco__cidade){grid-column:span 3}
+[data-visao="desktop"] .aj-grade-endereco__uf,[data-visao="tablet"] .aj-grade-endereco__uf{grid-column:span 1}
+[data-visao="mobile"] .aj-grade-endereco{grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--espaco-12) var(--espaco-10)}
+[data-visao="mobile"] :is(.aj-grade-endereco__logradouro,.aj-grade-endereco__bairro,.aj-grade-endereco__cidade){grid-column:span 2}
+[data-visao="mobile"] :is(.aj-grade-endereco__numero,.aj-grade-endereco__complemento,.aj-grade-endereco__uf,.aj-grade-endereco__cep){grid-column:span 1}
+[data-visao="desktop"] .aj-campo--curto{padding:0 var(--espaco-10)}
+[data-visao="tablet"] .aj-campo--curto,[data-visao="mobile"] .aj-campo--curto{padding:0 var(--espaco-14)}
+
+/* Vínculo com polo (o cliente do processo): o campo do polo branco, dentro do escolhido; o candidato da busca em
+   cartão, com o botão "Adicionar". */
+.aj-campo-filtro--polo{min-width:112px;background:var(--superficie)}
+.aj-candidato{display:flex;align-items:center;justify-content:space-between;gap:var(--espaco-10);padding:var(--espaco-8) var(--espaco-10);border:1px solid var(--borda-opcao);border-radius:var(--raio-12)}
+.aj-candidato__texto{display:flex;flex-direction:column;min-width:0}
+.aj-candidato__titulo{font-weight:600;overflow-wrap:anywhere}
+.aj-candidato__texto .aj-ajuda{font-variant-numeric:tabular-nums}
+.aj-candidato>.aj-botao{flex:0 0 auto}
+
+/* Opções marcáveis em grupo (quem acessa um documento) e o destaque dentro de uma ajuda ("Situação atual: Ativo"). */
+.aj-opcoes{display:flex;flex-wrap:wrap;gap:var(--espaco-8)}
+.aj-opcoes>.aj-opcao{flex:1 1 240px}
+.aj-ajuda strong{color:var(--tinta)}
+
+/* Ajustes da conferência da fase 9D no navegador: o valor longo de uma lista de detalhes (sem encolher o termo) e o nome longo de um
+   arquivo quebram em vez de empurrar a coluna; a opção marcável da barra de filtros mantém a altura do filtro; nos
+   formulários em tela própria, o painel principal fica com a sombra de repouso no mobile e a grade folgada mantém
+   12px entre as linhas. */
+.aj-detalhes dt{flex-shrink:0}
+.aj-detalhes dd{overflow-wrap:anywhere}
+.aj-tabela__principal{overflow-wrap:anywhere}
+.aj-opcao.aj-opcao--filtro{min-height:var(--campo-filtro)}
+@media (max-width:760px){
+  .aj-grade-campos--tablet-folgada{gap:var(--espaco-12)}
+  .aj-lado-a-lado--formulario .aj-painel--principal{box-shadow:var(--sombra-1)}
+}
+[data-visao="mobile"] .aj-grade-campos--tablet-folgada{gap:var(--espaco-12)}
+[data-visao="mobile"] .aj-lado-a-lado--formulario .aj-painel--principal{box-shadow:var(--sombra-1)}

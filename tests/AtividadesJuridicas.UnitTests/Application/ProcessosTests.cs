@@ -49,7 +49,7 @@ public class ProcessosTests
         new AlterarStatusProcessoManipulador(_c.Como(ator), _c.Processos, _c.Unidade)
             .ManipularAsync(new AlterarStatusProcesso(id, status), default);
 
-    private Task<Resultado<Pagina<ProcessoResumo>>> Listar(Usuario? ator, string? busca = null, Guid? cliente = null,
+    private Task<Resultado<PaginaDeProcessos>> Listar(Usuario? ator, string? busca = null, Guid? cliente = null,
         StatusProcesso? status = null, int pagina = 1) =>
         new ListarProcessosManipulador(_c.Como(ator), _c.Processos)
             .ManipularAsync(new ListarProcessos(busca, cliente, status, pagina), default);

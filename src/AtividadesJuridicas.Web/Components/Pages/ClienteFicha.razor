@@ -1,0 +1,432 @@
+@page "/clientes/{Id:guid}"
+@inject IDespachante Despachante
+@inject FusoDoEscritorio Fuso
+@inject Recados Recados
+
+<PageTitle>@(_cliente?.Nome ?? "Cliente")</PageTitle>
+
+@if (!_carregado || _ator is null || _cliente is null)
+{
+    <CabecalhoDeDetalhe Titulo="Cliente" VoltarPara="/clientes" Origem="Clientes" />
+    @if (!_carregado)
+    {
+        <p class="aj-subtitulo" role="status">Carregando…</p>
+    }
+    else if (_ator is null)
+    {
+        <Aviso Tipo="TipoDeAviso.Erro">Seu acesso foi encerrado. Entre novamente.</Aviso>
+    }
+    else if (_naoEncontrado)
+    {
+        <Aviso Tipo="TipoDeAviso.Erro">Cliente não encontrado.</Aviso>
+    }
+    else
+    {
+        <EstadoDaLista Erro="@(_erro ?? "Não foi possível consultar o cliente.")" TextoDeVazio="" TentarDeNovo="CarregarAsync" />
+    }
+}
+else
+{
+    var c = _cliente;
+    <CabecalhoDeFicha Titulo="@c.Nome" Subtitulo="@Subtitulo" Resumo="@Resumo" TituloDaBarra="Cliente" VoltarPara="/clientes" Origem="Clientes"
+                      Acoes="@(Diretoria ? AcoesDoDesktop : null)" />
+
+    @if (_recado is { } recado)
+    {
+        <Aviso Tipo="@recado.Tipo">@recado.Texto</Aviso>
+    }
+    @if (_mensagem is not null)
+    {
+        <Aviso Tipo="@(_falhou ? TipoDeAviso.Erro : TipoDeAviso.Sucesso)">@_mensagem</Aviso>
+    }
+    @if (_confirmandoInativacao)
+    {
+        <Aviso Tipo="TipoDeAviso.Atencao" Rotulo="Confirmar inativação" Titulo="@($"Confirmar a inativação de {c.Nome}?")">
+            <ChildContent>@TextosDoCliente.ConsequenciaDaInativacao(UsuariosAtivos)</ChildContent>
+            <Acoes><button type="button" class="aj-botao aj-botao--secundario" disabled="@_alterando" @onclick="() => _confirmandoInativacao = false">Cancelar</button><button type="button" class="aj-botao aj-botao--primario" disabled="@_alterando" @onclick="ConfirmarInativacaoAsync">Confirmar inativação</button></Acoes>
+        </Aviso>
+    }
+
+    <div class="aj-so-mobile">
+        <Abas Rotulo="Assuntos do cliente" Itens="@AbasDaFicha" Ativa="@_aba" AoEscolher="(string aba) => _aba = aba" />
+    </div>
+
+    <div class="aj-lado-a-lado aj-lado-a-lado--painel-primeiro aj-lado-a-lado--ficha">
+        <div class="aj-lado-a-lado__painel aj-pilha">
+            <div class="@ClasseDaAba("dados")">
+                <section class="aj-painel">
+                    <h2>Dados</h2>
+                    <dl class="aj-detalhes">
+                        @foreach (var (termo, valor) in Detalhes)
+                        {
+                            <div><dt>@termo</dt><dd>@valor</dd></div>
+                        }
+                    </dl>
+                </section>
+                @if (!string.IsNullOrWhiteSpace(c.Observacoes))
+                {
+                    <section class="aj-painel">
+                        <h2>Observações</h2>
+                        <p>@c.Observacoes</p>
+                    </section>
+                }
+            </div>
+        </div>
+
+        <div class="aj-lado-a-lado__lista aj-pilha">
+            <div class="@ClasseDaAba("processos")">
+                <section class="aj-painel">
+                    <h2>Processos do cliente</h2>
+                    <EstadoDaLista Erro="@_erroDosProcessos" Vazio="@(_processos.Itens.Count == 0)" TextoDeVazio="Nenhum processo vinculado." TentarDeNovo="CarregarProcessosAsync">
+                        <div class="aj-so-desktop">
+                            <div class="aj-tabela-caixa aj-tabela-caixa--plana">
+                                <table class="aj-tabela">
+                                    <thead><tr><th scope="col">Título</th><th scope="col">Número</th><th scope="col">Situação</th><th scope="col"><span class="aj-so-leitor">Ações</span></th></tr></thead>
+                                    <tbody>
+                                        @foreach (var processo in _processos.Itens)
+                                        {
+                                            <tr @key="processo.Id">
+                                                <td class="aj-tabela__principal">@processo.Titulo</td>
+                                                <td class="@(processo.NumeroCnj is null ? "aj-tabela__secundaria" : "aj-tabela__data")">@RotulosDeProcesso.Numero(processo.NumeroCnj)</td>
+                                                <td>@RotulosDeProcesso.Situacao(processo.Status)</td>
+                                                <td class="aj-tabela__acao"><a href="@($"/processos/{processo.Id}")" class="aj-botao aj-botao--fantasma aj-botao--seta">Abrir<Icone Nome="avancar" /></a></td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="aj-tablet-mobile">
+                            <div class="aj-linhas aj-linhas--folgadas">
+                                @foreach (var processo in _processos.Itens)
+                                {
+                                    <a href="@($"/processos/{processo.Id}")" class="aj-linha aj-linha--link" @key="processo.Id"><span class="aj-linha__texto"><span class="aj-linha__titulo">@processo.Titulo</span><span class="aj-ajuda">@($"{RotulosDeProcesso.Numero(processo.NumeroCnj)} · {RotulosDeProcesso.Situacao(processo.Status)}")</span></span><Icone Nome="avancar" Classe="aj-cartao__seta" /></a>
+                                }
+                            </div>
+                        </div>
+                        @if (_processos.Total > _processos.Itens.Count)
+                        {
+                            <span class="aj-ajuda">Há mais processos; veja todos em Processos.</span>
+                        }
+                    </EstadoDaLista>
+                </section>
+            </div>
+
+            <div class="@ClasseDaAba("documentos")">
+                <DocumentosDaFicha @key="c.Id" ClienteId="c.Id" PodeGerenciar="Diretoria" AoContar="ContarDocumentos"
+                                   OnAcessoEncerrado="EncerrarAcesso" />
+            </div>
+
+            @if (Diretoria)
+            {
+                <div class="@ClasseDaAba("usuarios")">
+                    <section class="aj-painel">
+                        <h2>Usuários do cliente</h2>
+                        @if (!c.Ativo && _usuarios.Count > 0)
+                        {
+                            <span class="aj-ajuda">Cliente inativo: estes usuários estão sem acesso ao portal até o cliente ser reativado.</span>
+                        }
+                        <EstadoDaLista Erro="@_erroDosUsuarios" Vazio="@(_usuarios.Count == 0)" TextoDeVazio="Nenhum usuário. Crie o acesso do cliente em Usuários." TentarDeNovo="CarregarUsuariosAsync">
+                            <div class="aj-so-desktop">
+                                <div class="aj-tabela-caixa aj-tabela-caixa--plana">
+                                    <table class="aj-tabela">
+                                        <thead><tr><th scope="col">Nome</th><th scope="col">E-mail</th><th scope="col">Situação</th><th scope="col">Último acesso</th></tr></thead>
+                                        <tbody>
+                                            @foreach (var usuario in _usuarios)
+                                            {
+                                                <tr @key="usuario.Id">
+                                                    <td class="aj-tabela__principal">@usuario.Nome</td>
+                                                    <td class="aj-tabela__secundaria">@usuario.Email</td>
+                                                    <td>@(usuario.Ativo ? "Ativo" : "Inativo")</td>
+                                                    <td class="aj-tabela__data">@(usuario.UltimoAcessoEm is null ? "—" : Fuso.Formatar(usuario.UltimoAcessoEm))</td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <span class="aj-ajuda">O acesso do cliente ao portal é criado em Usuários.</span>
+                            </div>
+                            <div class="aj-tablet-mobile">
+                                <div class="aj-linhas">
+                                    @foreach (var usuario in _usuarios)
+                                    {
+                                        <div class="aj-linha" @key="usuario.Id"><span class="aj-linha__texto"><span class="aj-linha__titulo">@usuario.Nome</span><span class="aj-ajuda">@usuario.Email</span></span><span class="aj-ajuda aj-linha__lado">@(usuario.Ativo ? "Ativo" : "Inativo")<br />@Acesso(usuario)</span></div>
+                                    }
+                                </div>
+                            </div>
+                        </EstadoDaLista>
+                    </section>
+                </div>
+            }
+        </div>
+    </div>
+
+    @if (Diretoria)
+    {
+        <div class="aj-tablet-mobile">
+            <div class="aj-acoes aj-acoes--fixa"><button type="button" class="aj-botao aj-botao--secundario" disabled="@_alterando" @onclick="AlternarAtivoAsync">@(c.Ativo ? "Inativar" : "Ativar")</button><a href="@Edicao" class="aj-botao aj-botao--primario">Editar</a></div>
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private bool _carregado;
+    private UsuarioAutenticado? _ator;
+    private ClienteDetalhe? _cliente;
+    private bool _naoEncontrado;
+    private string? _erro;
+    private Pagina<ProcessoResumo> _processos = new([], 0, 1, 1);
+    private string? _erroDosProcessos;
+    private IReadOnlyList<UsuarioDoCliente> _usuarios = [];
+    private string? _erroDosUsuarios;
+    private int? _totalDeDocumentos;
+    private string _aba = "dados";
+    private bool _confirmandoInativacao;
+    private bool _alterando;
+    private string? _mensagem;
+    private bool _falhou;
+    private Recado? _recado;
+    private Guid? _idCarregado;
+
+    private bool Diretoria => _ator?.EhDiretoria == true;
+    private string Edicao => $"/clientes/{Id}/editar";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_idCarregado == Id) return;
+
+        var primeira = _idCarregado is null;
+        _idCarregado = Id;
+        if (primeira) _recado = Recados.Retirar();
+        await CarregarAsync();
+    }
+
+    private async Task CarregarAsync()
+    {
+        _carregado = false;
+        _cliente = null;
+        _naoEncontrado = false;
+        _erro = null;
+        _erroDosProcessos = null;
+        _erroDosUsuarios = null;
+        _processos = new([], 0, 1, 1);
+        _usuarios = [];
+        _totalDeDocumentos = null;
+        _aba = "dados";
+        _confirmandoInativacao = false;
+        _mensagem = null;
+
+        _ator = await Despachante.EnviarAsync(new ObterMeuAcesso());
+        if (_ator is null)
+        {
+            _carregado = true;
+            return;
+        }
+
+        var resultado = await Despachante.EnviarAsync(new ObterCliente(Id));
+        if (resultado.Erro == TipoErro.AcessoNegado)
+        {
+            EncerrarAcesso();
+        }
+        else if (resultado.Erro == TipoErro.NaoEncontrado)
+        {
+            _naoEncontrado = true;
+        }
+        else if (!resultado.Sucesso || resultado.Valor is null)
+        {
+            _erro = resultado.Mensagem ?? "Não foi possível consultar o cliente.";
+        }
+        else
+        {
+            _cliente = resultado.Valor;
+            await CarregarProcessosAsync();
+            if (Diretoria && _ator is not null) await CarregarUsuariosAsync();
+        }
+
+        _carregado = true;
+    }
+
+    private async Task CarregarProcessosAsync()
+    {
+        var resultado = await Despachante.EnviarAsync(new ListarProcessos(ClienteId: Id));
+        if (resultado.Erro == TipoErro.AcessoNegado)
+        {
+            EncerrarAcesso();
+            return;
+        }
+
+        if (!resultado.Sucesso || resultado.Valor is null)
+        {
+            _erroDosProcessos = resultado.Mensagem ?? "Não foi possível consultar os processos do cliente.";
+            return;
+        }
+
+        _erroDosProcessos = null;
+        _processos = resultado.Valor;
+    }
+
+    private async Task CarregarUsuariosAsync()
+    {
+        var resultado = await Despachante.EnviarAsync(new ListarUsuariosDoCliente(Id));
+        if (resultado.Erro == TipoErro.AcessoNegado)
+        {
+            EncerrarAcesso();
+            return;
+        }
+
+        if (!resultado.Sucesso || resultado.Valor is null)
+        {
+            _erroDosUsuarios = resultado.Mensagem ?? "Não foi possível consultar os usuários do cliente.";
+            return;
+        }
+
+        _erroDosUsuarios = null;
+        _usuarios = resultado.Valor;
+    }
+
+    private void EncerrarAcesso()
+    {
+        _ator = null;
+        _cliente = null;
+    }
+
+    private void ContarDocumentos(int total) => _totalDeDocumentos = total;
+
+    private string Situacao => _cliente!.Ativo ? "Ativo" : "Inativo";
+
+    private string Subtitulo =>
+        $"{TextosDoCliente.Tipo(_cliente!.Tipo)} · {TextosDoCliente.Documento(_cliente.Tipo, _cliente.Cpf ?? _cliente.Cnpj ?? "")} · {Situacao}";
+
+    private string Resumo => $"{TextosDoCliente.Tipo(_cliente!.Tipo)} · {Situacao}";
+
+    private static string Ou(string? valor) => string.IsNullOrWhiteSpace(valor) ? "—" : valor;
+
+    private IReadOnlyList<(string Termo, string Valor)> Detalhes
+    {
+        get
+        {
+            var c = _cliente!;
+            var endereco = TextosDoCliente.Endereco(c) ?? "—";
+            return c.Tipo == TipoCliente.PessoaFisica
+                ?
+                [
+                    ("CPF", Ou(c.Cpf)),
+                    ("RG", Ou(c.Rg)),
+                    ("Data de nascimento", c.DataNascimento is { } nascimento ? nascimento.ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture) : "—"),
+                    ("E-mail", Ou(c.Email)),
+                    ("Telefone", Ou(c.Telefone)),
+                    ("Endereço", endereco),
+                ]
+                :
+                [
+                    ("CNPJ", Ou(c.Cnpj)),
+                    ("Nome fantasia", Ou(c.NomeFantasia)),
+                    ("Responsável", Ou(c.NomeResponsavel)),
+                    ("Inscrição estadual", Ou(c.InscricaoEstadual)),
+                    ("Inscrição municipal", Ou(c.InscricaoMunicipal)),
+                    ("E-mail", Ou(c.Email)),
+                    ("Telefone", Ou(c.Telefone)),
+                    ("Endereço", endereco),
+                ];
+        }
+    }
+
+    private IReadOnlyList<Aba> AbasDaFicha
+    {
+        get
+        {
+            List<Aba> abas =
+            [
+                new("dados", "Dados"),
+                new("processos", "Processos", _erroDosProcessos is null ? _processos.Total : null),
+                new("documentos", "Documentos", _totalDeDocumentos),
+            ];
+            if (Diretoria) abas.Add(new("usuarios", "Usuários", _erroDosUsuarios is null ? _usuarios.Count : null));
+            return abas;
+        }
+    }
+
+    private string ClasseDaAba(string aba) => aba == _aba ? "aj-aba-painel" : "aj-aba-painel aj-aba-painel--oculta";
+
+    private RenderFragment AcoesDoDesktop =>
+        @<text><button type="button" class="aj-botao aj-botao--fantasma" disabled="@_alterando" @onclick="AlternarAtivoAsync">@(_cliente!.Ativo ? "Inativar" : "Ativar")</button><a href="@Edicao" class="aj-botao aj-botao--secundario">Editar</a></text>;
+
+    private int? UsuariosAtivos => _erroDosUsuarios is null ? _usuarios.Count(u => u.Ativo) : null;
+
+    private async Task AlternarAtivoAsync()
+    {
+        if (_alterando || _cliente is null) return;
+
+        _recado = null;
+        _mensagem = null;
+        if (_cliente.Ativo)
+        {
+            _confirmandoInativacao = true;
+            return;
+        }
+
+        _alterando = true;
+        try
+        {
+            var resultado = await Despachante.EnviarAsync(new DefinirAtivoCliente(Id, true));
+            if (resultado.Erro == TipoErro.AcessoNegado)
+            {
+                EncerrarAcesso();
+                return;
+            }
+
+            _falhou = !resultado.Sucesso;
+            if (resultado.Sucesso)
+            {
+                _cliente = _cliente with { Ativo = true };
+                _mensagem = "Cliente ativado.";
+            }
+            else
+            {
+                _mensagem = resultado.Mensagem ?? "Não foi possível ativar o cliente.";
+            }
+        }
+        finally
+        {
+            _alterando = false;
+        }
+    }
+
+    private async Task ConfirmarInativacaoAsync()
+    {
+        if (_alterando || _cliente is null) return;
+
+        _alterando = true;
+        try
+        {
+            var resultado = await Despachante.EnviarAsync(new DefinirAtivoCliente(Id, false));
+            if (resultado.Erro == TipoErro.AcessoNegado)
+            {
+                EncerrarAcesso();
+                return;
+            }
+
+            _confirmandoInativacao = false;
+            _falhou = !resultado.Sucesso;
+            if (resultado.Sucesso)
+            {
+                var afetados = UsuariosAtivos ?? 0;
+                _cliente = _cliente with { Ativo = false };
+                _mensagem = TextosDoCliente.Inativado(afetados);
+            }
+            else
+            {
+                _mensagem = resultado.Mensagem ?? "Não foi possível inativar o cliente.";
+            }
+        }
+        finally
+        {
+            _alterando = false;
+        }
+    }
+
+    private string Acesso(UsuarioDoCliente usuario) =>
+        usuario.UltimoAcessoEm is null ? "Sem acesso registrado" : $"Último acesso {Fuso.Formatar(usuario.UltimoAcessoEm)}";
+}

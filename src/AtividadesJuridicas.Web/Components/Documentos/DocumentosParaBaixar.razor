@@ -15,10 +15,10 @@
                         <tr @key="documento.Id">
                             @* Link fora da navegação do Blazor: é um download, não uma página. O atributo "download"
                                é o que impede o roteador do Blazor de interceptar o clique; não o remova. *@
-                            <td class="aj-tabela__principal"><a href="@Endereco(documento)" download data-enhance-nav="false">@documento.Nome</a></td>
+                            <td class="aj-tabela__principal"><a href="@TextosDeDocumento.Endereco(documento.Id)" download data-enhance-nav="false">@documento.Nome</a></td>
                             <td class="aj-tabela__data">@TamanhoDeArquivo.Formatar(documento.TamanhoBytes)</td>
                             <td class="aj-tabela__data">@Fuso.Formatar(documento.EnviadoEm)</td>
-                            <td class="aj-tabela__acao"><a href="@Endereco(documento)" download data-enhance-nav="false" class="aj-botao aj-botao--secundario aj-botao--com-icone aj-botao--compacto"><Icone Nome="baixar" />Baixar</a></td>
+                            <td class="aj-tabela__acao"><a href="@TextosDeDocumento.Endereco(documento.Id)" download data-enhance-nav="false" class="aj-botao aj-botao--secundario aj-botao--com-icone aj-botao--compacto"><Icone Nome="baixar" />Baixar</a></td>
                         </tr>
                     }
                 </tbody>
@@ -34,7 +34,7 @@
             {
                 <div class="aj-linha" @key="documento.Id">
                     <div class="aj-linha__texto"><span class="aj-linha__titulo">@documento.Nome</span><span class="aj-ajuda">@Detalhe(documento)</span></div>
-                    <a href="@Endereco(documento)" download data-enhance-nav="false" class="aj-botao aj-botao--secundario aj-botao--icone" aria-label="@($"Baixar {documento.Nome}")"><Icone Nome="baixar" /></a>
+                    <a href="@TextosDeDocumento.Endereco(documento.Id)" download data-enhance-nav="false" class="aj-botao aj-botao--secundario aj-botao--icone" aria-label="@($"Baixar {documento.Nome}")"><Icone Nome="baixar" /></a>
                 </div>
             }
         </section>
@@ -71,8 +71,6 @@
     private string? Quantos => _carregado && _erroDaLista is null && _pagina.Total > 0
         ? Contagem.De(_pagina.Total, "documento", "documentos")
         : null;
-
-    private static string Endereco(DocumentoDoPortal documento) => $"/documentos/{documento.Id}/baixar";
 
     private string Detalhe(DocumentoDoPortal documento) =>
         $"{TamanhoDeArquivo.Formatar(documento.TamanhoBytes)} · {Fuso.Formatar(documento.EnviadoEm)}";

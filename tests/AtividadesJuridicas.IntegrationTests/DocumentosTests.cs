@@ -81,6 +81,35 @@ public class DocumentosTests(BancoFixture banco) : TesteComBanco(banco)
     }
 
     [Fact]
+    public async Task Listar_documentos_do_cliente_conta_por_area_o_que_cada_um_le()
+    {
+        // Para a Maria: dois gerais (um com acesso do Pedro, o outro só da Diretoria), um contrato e um do cliente.
+        var geralDoPedro = await EnviarAsync(CategoriaDocumento.DocumentoGeral);
+        var geralDaDiretoria = await EnviarAsync(CategoriaDocumento.DocumentoGeral);
+        await EnviarAsync(CategoriaDocumento.ContratoHonorarios);
+        await EnviarAsync(CategoriaDocumento.DocumentoDoCliente);
+        // O documento geral nasce liberado a todos os perfis: aqui cada um passa a ter a lista que o teste descreve.
+        (await ExecutarAsync(_admin, new DefinirAcessoDoDocumento(geralDoPedro, [], [_pedro]))).Sucesso.Should().BeTrue();
+        (await ExecutarAsync(_admin, new DefinirAcessoDoDocumento(geralDaDiretoria, [_perfilDiretor], []))).Sucesso.Should().BeTrue();
+
+        var daDiretoria = (await ExecutarAsync(_admin,
+            new ListarDocumentosDoCliente(_maria, CategoriaDocumento.ContratoHonorarios))).Valor!;
+        var daProducao = (await ExecutarAsync(_pedro,
+            new ListarDocumentosDoCliente(_maria, CategoriaDocumento.DocumentoGeral))).Valor!;
+
+        daDiretoria.PorCategoria.Should().BeEquivalentTo(new Dictionary<CategoriaDocumento, int>
+        {
+            [CategoriaDocumento.DocumentoGeral] = 2, [CategoriaDocumento.ContratoHonorarios] = 1,
+            [CategoriaDocumento.DocumentoAtividade] = 0, [CategoriaDocumento.DocumentoDoCliente] = 1,
+        });
+        daDiretoria.Itens.Should().ContainSingle();
+        daProducao.PorCategoria.Should().BeEquivalentTo(new Dictionary<CategoriaDocumento, int>
+        {
+            [CategoriaDocumento.DocumentoGeral] = 1, [CategoriaDocumento.DocumentoAtividade] = 0,
+        });
+        daProducao.Itens.Select(d => d.Id).Should().Equal(geralDoPedro);
+    }
+    [Fact]
     public async Task Documento_enviado_vai_para_o_disco_e_os_metadados_para_o_banco()
     {
         var id = await EnviarAsync(conteudo: "abc", nome: "Procuração assinada");

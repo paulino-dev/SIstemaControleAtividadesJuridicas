@@ -1,7 +1,9 @@
 using System.Security.Claims;
 using AtividadesJuridicas.Application.Atividades;
+using AtividadesJuridicas.Application.Cadastros;
 using AtividadesJuridicas.Application.Identidade;
 using AtividadesJuridicas.Domain.Auditoria;
+using AtividadesJuridicas.Domain.Cadastros;
 using AtividadesJuridicas.Domain.Identidade;
 using AtividadesJuridicas.Web.Components.Layout;
 using AtividadesJuridicas.Web.Infra;
@@ -394,5 +396,132 @@ public class ResumoDeAuditoriaTests
     public void Resumo_de_dados_fora_da_forma_mostra_o_que_veio(string? dados, string esperado)
     {
         ResumoDeAuditoria.De(dados, _fuso).Should().Be(esperado);
+    }
+}
+
+public class TextosDeDocumentoTests
+{
+    private readonly FusoDoEscritorio _fuso = new("America/Sao_Paulo");
+
+    [Fact]
+    public void Endereco_leva_ao_download()
+    {
+        TextosDeDocumento.Endereco(Guid.Parse("0199a3f2-7c1e-7000-8000-000000000001"))
+            .Should().Be("/documentos/0199a3f2-7c1e-7000-8000-000000000001/baixar");
+    }
+
+    [Fact]
+    public void Detalhe_junta_tamanho_data_e_autor_sem_separador_solto()
+    {
+        var quando = new DateTime(2026, 9, 2, 13, 14, 0, DateTimeKind.Utc);
+
+        TextosDeDocumento.Detalhe(412 * 1024, quando, "Marina Couto", _fuso).Should().Be("412 KB · 02/09/2026 10:14 · Marina Couto");
+        TextosDeDocumento.Detalhe(412 * 1024, quando, null, _fuso).Should().Be("412 KB · 02/09/2026 10:14");
+    }
+}
+
+public class RotulosDeProcessoTests
+{
+    [Theory]
+    [InlineData(StatusProcesso.Ativo, "Ativo", "Ativos")]
+    [InlineData(StatusProcesso.Suspenso, "Suspenso", "Suspensos")]
+    [InlineData(StatusProcesso.Arquivado, "Arquivado", "Arquivados")]
+    [InlineData(StatusProcesso.Encerrado, "Encerrado", "Encerrados")]
+    public void Situacao_no_singular_e_no_plural(StatusProcesso status, string singular, string plural)
+    {
+        RotulosDeProcesso.Situacao(status).Should().Be(singular);
+        RotulosDeProcesso.SituacaoNoPlural(status).Should().Be(plural);
+    }
+
+    [Fact]
+    public void Numero_vazio_e_sem_numero()
+    {
+        RotulosDeProcesso.Numero(null).Should().Be("Sem número");
+        RotulosDeProcesso.Numero("0000000-00.2026.5.19.0002").Should().Be("0000000-00.2026.5.19.0002");
+        RotulosDeProcesso.Polo(PoloProcessual.Terceiro).Should().Be("Terceiro");
+    }
+}
+
+public class TextosDoClienteDaFichaTests
+{
+    private static ClienteDetalhe Cliente(string? logradouro = null, string? numero = null, string? complemento = null,
+        string? bairro = null, string? cidade = null, string? uf = null, string? cep = null) =>
+        new(Guid.NewGuid(), TipoCliente.PessoaJuridica, "Transportes Litoral Ltda.", null, null,
+            logradouro, numero, complemento, bairro, cidade, uf, cep, null, true,
+            null, null, null, "00.000.000/0002-00", null, null, null, null);
+
+    [Fact]
+    public void Tipo_e_documento()
+    {
+        TextosDoCliente.Tipo(TipoCliente.PessoaFisica).Should().Be("Pessoa física");
+        TextosDoCliente.Documento(TipoCliente.PessoaJuridica, "00.000.000/0002-00").Should().Be("CNPJ 00.000.000/0002-00");
+        TextosDoCliente.Documento(TipoCliente.PessoaFisica, "529.982.247-25").Should().Be("CPF 529.982.247-25");
+    }
+
+    [Fact]
+    public void Endereco_so_com_o_que_ha()
+    {
+        TextosDoCliente.Endereco(Cliente("Av. do Porto", "1200", null, "Jaraguá", "Maceió", "AL"))
+            .Should().Be("Av. do Porto, 1200, Jaraguá, Maceió/AL");
+        TextosDoCliente.Endereco(Cliente("Rua A", null, "sala 4", null, "Maceió", null, "57000-000"))
+            .Should().Be("Rua A, sala 4, Maceió, CEP 57000-000");
+        TextosDoCliente.Endereco(Cliente(uf: "AL")).Should().Be("AL");
+        TextosDoCliente.Endereco(Cliente()).Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData(null, "Os usuários do portal deste cliente ficam sem acesso até ele ser reativado.")]
+    [InlineData(0, "O cliente pode ser reativado depois.")]
+    [InlineData(1, "1 usuário do portal fica sem acesso até o cliente ser reativado.")]
+    [InlineData(3, "3 usuários do portal ficam sem acesso até o cliente ser reativado.")]
+    public void Consequencia_da_inativacao(int? usuarios, string esperado)
+    {
+        TextosDoCliente.ConsequenciaDaInativacao(usuarios).Should().Be(esperado);
+    }
+}
+
+public class ValorEmReaisTests
+{
+    [Theory]
+    [InlineData("84.000,00", 84000)]
+    [InlineData("84000", 84000)]
+    [InlineData("84000,5", 84000.5)]
+    [InlineData("1.234.567,89", 1234567.89)]
+    [InlineData("0,50", 0.5)]
+    [InlineData(" 84.000,00 ", 84000)]
+    public void Le_o_formato_brasileiro(string texto, double esperado)
+    {
+        ValorEmReais.TentarLer(texto, out var valor).Should().BeTrue();
+        valor.Should().Be((decimal)esperado);
+    }
+
+    [Theory]
+    [InlineData("84000.50")]
+    [InlineData("1.2.3")]
+    [InlineData("84.00")]
+    [InlineData("abc")]
+    [InlineData("-10")]
+    [InlineData("10,555")]
+    [InlineData("٣")]
+    [InlineData("８４.０００,００")]
+    public void Recusa_o_que_nao_e_o_formato_brasileiro(string texto)
+    {
+        ValorEmReais.TentarLer(texto, out _).Should().BeFalse();
+    }
+
+    [Fact]
+    public void Recusa_sem_lancar_o_que_estoura_o_decimal()
+    {
+        ValorEmReais.TentarLer(new string('1', 30), out var valor).Should().BeFalse();
+        valor.Should().BeNull();
+    }
+
+    [Fact]
+    public void Vazio_e_nulo_e_valido_e_escreve_com_duas_casas()
+    {
+        ValorEmReais.TentarLer("  ", out var vazio).Should().BeTrue();
+        vazio.Should().BeNull();
+        ValorEmReais.Escrever(84000m).Should().Be("84.000,00");
+        ValorEmReais.Escrever(null).Should().BeNull();
     }
 }

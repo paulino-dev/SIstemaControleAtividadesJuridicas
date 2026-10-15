@@ -219,6 +219,9 @@ public sealed class ClienteRepositorioFalso : IClienteRepositorio
     public Task<bool> ExisteCnpjAsync(Cnpj cnpj, Guid? excetoId, CancellationToken ct) =>
         Task.FromResult(Itens.OfType<ClientePessoaJuridica>().Any(c => c.Cnpj == cnpj && c.Id != excetoId));
 
+    public Task<ContagemDeClientes> ContarAsync(CancellationToken ct) =>
+        Task.FromResult(new ContagemDeClientes(Itens.Count, Itens.Count(c => !c.Ativo)));
+
     public Task<Pagina<Cliente>> ListarAsync(string? busca, bool incluirInativos, int pagina, int tamanho, CancellationToken ct)
     {
         IEnumerable<Cliente> consulta = Itens.Where(c => incluirInativos || c.Ativo);
@@ -269,7 +272,10 @@ public sealed class ProcessoRepositorioFalso(AreaAtuacaoRepositorioFalso areas, 
     public Task<bool> ExisteNumeroCnjAsync(NumeroCnj numero, Guid? excetoId, CancellationToken ct) =>
         Task.FromResult(Itens.Any(p => p.NumeroCnj == numero && p.Id != excetoId));
 
-    public Task<Pagina<ProcessoResumo>> ListarAsync(FiltroDeProcessos filtro, int pagina, int tamanho, CancellationToken ct)
+    public Task<int> ContarAsync(FiltroDeProcessos filtro, CancellationToken ct) =>
+        Task.FromResult(Filtrar(filtro).Count());
+
+    private IEnumerable<Processo> Filtrar(FiltroDeProcessos filtro)
     {
         IEnumerable<Processo> consulta = Itens;
         if (filtro.Status is { } status) consulta = consulta.Where(p => p.Status == status);
@@ -280,7 +286,12 @@ public sealed class ProcessoRepositorioFalso(AreaAtuacaoRepositorioFalso areas, 
         else if (!string.IsNullOrWhiteSpace(filtro.Busca))
             consulta = consulta.Where(p => Contem(p.Titulo, filtro.Busca) || Contem(p.ParteContraria, filtro.Busca));
 
-        var todos = consulta.OrderBy(p => p.Titulo).ToList();
+        return consulta;
+    }
+
+    public Task<Pagina<ProcessoResumo>> ListarAsync(FiltroDeProcessos filtro, int pagina, int tamanho, CancellationToken ct)
+    {
+        var todos = Filtrar(filtro).OrderBy(p => p.Titulo).ToList();
         return Task.FromResult(new Pagina<ProcessoResumo>(
             [.. todos.Skip((pagina - 1) * tamanho).Take(tamanho).Select(Resumo)], todos.Count, pagina, tamanho));
     }
@@ -652,6 +663,20 @@ public sealed class DocumentoRepositorioFalso(AtividadeRepositorioFalso? ativida
             .ToList();
 
         return Task.FromResult(Pagina(todos, pagina, tamanho));
+    }
+
+    public Task<IReadOnlyDictionary<CategoriaDocumento, int>> ContarDoClienteAsync(
+        Guid clienteId, FiltroDeAcesso? acesso, CancellationToken ct)
+    {
+        CategoriaDocumento[] lidas = acesso is null
+            ? [CategoriaDocumento.DocumentoGeral, CategoriaDocumento.ContratoHonorarios,
+                CategoriaDocumento.DocumentoAtividade, CategoriaDocumento.DocumentoDoCliente]
+            : [CategoriaDocumento.DocumentoGeral, CategoriaDocumento.DocumentoAtividade];
+
+        return Task.FromResult<IReadOnlyDictionary<CategoriaDocumento, int>>(lidas.ToDictionary(
+            categoria => categoria,
+            categoria => Itens.Count(d => d.ClienteId == clienteId && d.Categoria == categoria
+                && (acesso is null || PodeVer(d, acesso)))));
     }
 
     public Task<Pagina<DocumentoResumo>> ListarDaAtividadeAsync(Guid atividadeId, int pagina, int tamanho, CancellationToken ct) =>

@@ -24,7 +24,7 @@ public class ClientesTests
         new SalvarClientePessoaJuridicaManipulador(_c.Como(ator), _c.Clientes, _c.Unidade).ManipularAsync(
             new SalvarClientePessoaJuridica(id, dados ?? Dados("Acme Ltda", null), cnpj, "Acme", "João", null, null), default);
 
-    private Task<Resultado<Pagina<ClienteResumo>>> Listar(Usuario? ator, string? busca = null, bool inativos = false, int pagina = 1) =>
+    private Task<Resultado<PaginaDeClientes>> Listar(Usuario? ator, string? busca = null, bool inativos = false, int pagina = 1) =>
         new ListarClientesManipulador(_c.Como(ator), _c.Clientes)
             .ManipularAsync(new ListarClientes(busca, inativos, pagina), default);
 

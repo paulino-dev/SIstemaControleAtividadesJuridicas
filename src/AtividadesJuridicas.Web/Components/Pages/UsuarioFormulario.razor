@@ -350,6 +350,7 @@ else
         }
 
         _salvando = true;
+        var navegou = false;
         try
         {
             _erroDoCliente = null;
@@ -377,12 +378,17 @@ else
                 return;
             }
 
-            if (resultado.Sucesso) VoltarParaALista("Usuário salvo.");
+            if (resultado.Sucesso)
+            {
+                navegou = true;
+                VoltarParaALista("Usuário salvo.");
+            }
             else _mensagem = resultado.Mensagem;
         }
         finally
         {
-            _salvando = false;
+            // Depois do sucesso a página vai embora: o botão fica travado para um clique tardio não salvar de novo.
+            if (!navegou) _salvando = false;
         }
     }
 
@@ -399,6 +405,7 @@ else
         }
 
         _salvando = true;
+        var navegou = false;
         try
         {
             var resultado = await Despachante.EnviarAsync(new DefinirAtivoUsuario(id, true));
@@ -408,12 +415,16 @@ else
                 return;
             }
 
-            if (resultado.Sucesso) VoltarParaALista("Usuário ativado.");
+            if (resultado.Sucesso)
+            {
+                navegou = true;
+                VoltarParaALista("Usuário ativado.");
+            }
             else _mensagem = resultado.Mensagem;
         }
         finally
         {
-            _salvando = false;
+            if (!navegou) _salvando = false;
         }
     }
 

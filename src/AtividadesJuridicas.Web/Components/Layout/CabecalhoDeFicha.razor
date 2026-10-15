@@ -1,0 +1,55 @@
+@* Cabeçalho das fichas (cliente, processo): no desktop e no tablet, o voltar acima de um painel com o nome e a linha
+   de contexto, e as ações à direita só no desktop (no tablet e no mobile elas vão para a barra fixa da tela). No
+   mobile, a barra de voltar com o assunto ("Cliente") e, no conteúdo, o nome com o resumo acima dele. *@
+<BarraDeVoltar Titulo="@TituloDaBarra" VoltarPara="@VoltarPara" Rotulo="@($"Voltar para {Origem}")" />
+
+<div class="aj-desktop-tablet">
+    <div><a href="@VoltarPara" class="aj-voltar"><Icone Nome="voltar" />@Origem</a></div>
+    <header class="aj-painel aj-painel--principal aj-painel--cabecalho">
+        <div class="aj-cabecalho__texto aj-cabecalho__texto--folgado">
+            <h1 class="aj-titulo">@Titulo</h1>
+            @if (Subtitulo is not null)
+            {
+                <p class="aj-subtitulo">@Subtitulo</p>
+            }
+        </div>
+        @if (Acoes is not null)
+        {
+            <div class="aj-so-desktop">
+                <div class="aj-painel__botoes">@Acoes</div>
+            </div>
+        }
+    </header>
+</div>
+
+<div class="aj-so-mobile">
+    <div class="aj-titulo-da-ficha">
+        @if (Resumo is not null)
+        {
+            <span class="aj-ajuda">@Resumo</span>
+        }
+        <h2 class="aj-titulo">@Titulo</h2>
+    </div>
+</div>
+
+@code {
+    /// <summary>O nome do cliente ou o título do processo.</summary>
+    [Parameter, EditorRequired] public string Titulo { get; set; } = string.Empty;
+
+    /// <summary>A linha de contexto do desktop e do tablet.</summary>
+    [Parameter] public string? Subtitulo { get; set; }
+
+    /// <summary>A linha curta do mobile, acima do nome.</summary>
+    [Parameter] public string? Resumo { get; set; }
+
+    /// <summary>O assunto, no título da barra de voltar do mobile: "Cliente", "Processo".</summary>
+    [Parameter, EditorRequired] public string TituloDaBarra { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired] public string VoltarPara { get; set; } = string.Empty;
+
+    /// <summary>O nome da tela de destino do voltar: o texto do link e o rótulo do botão do mobile.</summary>
+    [Parameter, EditorRequired] public string Origem { get; set; } = string.Empty;
+
+    /// <summary>Os botões do desktop, à direita do nome.</summary>
+    [Parameter] public RenderFragment? Acoes { get; set; }
+}

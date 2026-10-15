@@ -1,11 +1,11 @@
 # Migração das telas para o design system — fidelidade ao canvas
 
 Data: 2026-10-10
-Estado: aprovada pelo usuário em 2026-10-10; fases 9A e 9B executadas
+Estado: aprovada pelo usuário em 2026-10-10; fases 9A a 9D executadas
 Fontes de desenho:
 
 - Canvas de telas: https://claude.ai/artifact/HzHWv1pgVXAnYHuPEYQDFj (versão lida: `1791598628-21e1`)
-- Design system: https://claude.ai/artifact/G8rFozAhnH4eMqctLNTvbS (versão lida: `1791598661-a3fd`; a fase 9A publicou a `1791646790-3a09`; a fase 9B, a `1791672723-8f5a`)
+- Design system: https://claude.ai/artifact/G8rFozAhnH4eMqctLNTvbS (versão lida: `1791598661-a3fd`; a fase 9A publicou a `1791646790-3a09`; a fase 9B, a `1791672723-8f5a`; a fase 9C, a `1791995411-b333`; a fase 9D, a `1792000330-0298` e, depois da conferência, a `1792023403-0d20` e a `1792024406-465e`)
 
 ## 1. Objetivo
 
@@ -63,7 +63,7 @@ Consequências:
 - O `componentes.css` está três regras atrás do design system (`position:relative` em `.aj-app__coluna`, `.aj-campo-filtro input`, `.aj-etiqueta--andamento`). A fase 9A começa igualando os dois.
 - Cada fase começa pelo design system: os padrões que os quadros da fase usam como estilo embutido viram classes `aj-`, são publicados no artifact e copiados para o código. Só então as telas são escritas.
 - O `app.css` perde, a cada tela migrada, as regras que vestiam a marcação antiga dela. Na fase 9G sobram a base (`box-sizing`, `body`, foco), a faixa de erro do Blazor e nada mais.
-- A cópia do design system instalada no canvas (`project/ds/araujods/`) não é atualizada por esta migração. Os quadros continuam como estão.
+- A cópia do design system instalada no canvas (`project/ds/araujods/`) é sincronizada a cada publicação do design system (emenda de 2026-10-14): o `tokens.json`, o `tokens.css` e o `components/bundle.css` que mudaram são copiados de um artifact para o outro no servidor, e o registro `designSystems` do `canvas.json` passa a levar a versão publicada. Os quadros em si continuam como estão: onde um quadro tem estilo embutido e o design system já tem classe, a marcação do quadro não é reescrita.
 
 ### 4.2 Três visões
 
@@ -332,6 +332,15 @@ Como a fase 9C fez a conferência (emenda de 2026-10-12), além do que está aci
 - O ambiente recebe dados que o quadro não tem, para o Review Focus: nome e e-mail longos sem espaço, cliente inativo, linha inativa na mesma posição do quadro (a ordem alfabética decide: renomear o item é mais simples que reordenar).
 - Com o CSS da fase ainda fora do design system, a publicação descartável usa o `bundle.css` pendente: o `componentes.css` do worktree é trocado só durante o `dotnet publish` e restaurado em seguida, sem commit. O que a conferência pede de CSS muda no pendente, não no código.
 
+Como a fase 9D fez a conferência (emenda de 2026-10-14), além do que está acima:
+
+- Os quadros com repetição e ramos (`sc-for`, `sc-if`, `{{ … }}`) passaram a ser medidos: um roteiro expande o quadro com o `renderVals()` dele antes de medir, e as linhas e os cartões repetidos do quadro são reordenados na ordem em que o sistema os mostra (o sistema ordena por nome, título ou data; o quadro segue o exemplo). A captura lado a lado continua como registro.
+- Quando o DOM vem em outra ordem e a disposição na tela é a mesma (a ficha do cliente, com o painel primeiro na marcação e à direita no desktop), a comparação é feita pela posição na tela, não pela ordem do documento.
+- Os dados do quadro entram pela tela onde isso exercita a própria tela (o cliente e o processo dos quadros principais, pelos formulários) e por SQL no banco descartável no resto (os outros clientes e processos, os documentos, os autores). Os casos de borda (nome, e-mail e nome de arquivo longos) entram por último, depois de medir, para não mudar as contagens dos quadros.
+- O que só se vê depois de um clique se confere no navegador, não no bUnit, porque o bUnit desenha a árvore e não aplica as diferenças a um DOM de verdade: foi assim que apareceu o cliente vinculado pela busca sem a classe (o candidato e o vínculo tinham a mesma chave `@key` no mesmo pai, e o Blazor reaproveitava o elemento).
+- O passo de teclado e de estados vira lista fixa por fase: abas do mobile (toque e Tab), menu de ações (Tab, Esc, fundo), confirmação no topo a 390px, foco ao abrir um painel, barra fixa sem cobrir o último painel, larguras 760, 761, 1199 e 1200, busca da barra do mobile com Enter, e a Produção sem nenhuma ação de cadastro.
+- A máquina reiniciou três vezes durante a fase, uma delas no meio da conferência: as coletas gravadas em disco à medida que se mede deixaram retomar sem refazer nada.
+
 ## 12. Fases
 
 | Fase | Conteúdo |
@@ -408,7 +417,7 @@ O que a fase entregou além das telas da seção 7.2, e que as próximas reutili
 - Nos testes: texto com acento se confere decodificando o HTML na chamada, não dentro de `TelaDeTeste`; `BlocoDeVisao.De` recorta o bloco de uma visão; `DespachanteCombinado` responde o que o banco não produz por encomenda; `ComBarraSuperior` desenha um componente junto com o encaixe da barra superior (sem ele a barra do mobile não chega ao HTML do teste).
 - Regras antigas do `app.css` estreitadas nesta fase, e o padrão para as próximas: `input[type="file"]:not([class*="aj-"])`; as duas regras de `.aj-etiqueta` só dentro de `.aj-app__conteudo:not(:has(> [class^="aj-"]))`, a mesma convenção da regra interina.
 
-Pendente de publicação no design system. A conferência no navegador pediu três acréscimos ao `bundle.css`, e a publicação no artifact não pôde ser feita na sessão que executou a fase. Enquanto não forem publicados e copiados, o `componentes.css` fica como está:
+Publicado no design system em 2026-10-14, junto com o CSS da fase 9C (versão `1791995411-b333`), e copiado para o `componentes.css`. Fica como registro do que estava pendente. A conferência no navegador pediu três acréscimos ao `bundle.css`, e a publicação no artifact não pôde ser feita na sessão que executou a fase:
 
 - `.aj-aviso__texto` e `.aj-painel h2` com `overflow-wrap:anywhere`. Sem isso, um nome de arquivo longo e sem espaços transborda a tela de 390px na confirmação de envio, na confirmação de exclusão e no título do renomear (na lista o nome já quebra).
 - `:where(.aj-tabela a){color:var(--verde)}` e `:where(.aj-tabela a:hover){color:var(--tinta)}`. A cor do link que baixa o arquivo vem hoje do `:where(a)` do `app.css`; quando a 9G tirar a camada antiga, o link ficaria azul.
@@ -454,7 +463,7 @@ O que a fase entregou além das telas da seção 7.3, e que as próximas reutili
 - Formulário de filtros sem botão de envio à vista (a linha do tablet e do mobile): um botão de envio escondido, `class="aj-so-leitor" hidden`, faz o Enter filtrar. `aj-botao` não serve, porque o `display` dele anula o `hidden`.
 - Nos testes: `TelaDeTeste` tem um registro de serviços só, com um `NavigationManager` que não navega, e `RenderizarEAgirAsync`, que chama um método da tela por reflexão e desenha de novo — é como se testa, sem pacote novo, o que acontece depois de um clique (o teste quebra alto se o método mudar de nome).
 
-Pendente de publicação no design system (a conta dona do artifact só volta na quarta-feira, 2026-10-14). O `bundle.css` pronto está fora do repositório, em `design-system-pendente-9c`, e já leva as três pendências da 9B. Até ele ser publicado e copiado, o `componentes.css` do código não tem as classes desta fase: as telas estão certas na marcação e nos testes, mas sem a aparência final, e o branch não entra na `main` antes disso. Além do bloco da fase (Tarefa 1 do plano), a conferência pediu:
+Publicado no design system em 2026-10-14 (versão `1791995411-b333`), com os READMEs e as prévias, e copiado para o `componentes.css`; a suíte inteira rodou com ele antes da entrada na `main`. Fica como registro do que estava pendente (a conta dona do artifact só voltou na quarta-feira, 2026-10-14). O `bundle.css` pronto está fora do repositório, em `design-system-pendente-9c`, e já leva as três pendências da 9B. Até ele ser publicado e copiado, o `componentes.css` do código não tem as classes desta fase: as telas estão certas na marcação e nos testes, mas sem a aparência final, e o branch não entra na `main` antes disso. Além do bloco da fase (Tarefa 1 do plano), a conferência pediu:
 
 - `.aj-barra-superior--voltar>h1` com `letter-spacing:normal`: o `h1 { letter-spacing }` do `app.css` (anotado na 9A) chegava ao título da barra de voltar.
 - `.aj-campo-filtro` com `gap:0`: o `label { gap: 8px }` do `app.css` afastava o nome do campo do controle.
@@ -463,7 +472,7 @@ Pendente de publicação no design system (a conta dona do artifact só volta na
 - `overflow-wrap:anywhere` em `.aj-cartao__titulo`, `.aj-cartao__meta` e `.aj-tabela__secundaria`: um e-mail longo sem espaço passava do cartão a 390px (e o conteúdo rolava de lado) e, no desktop, empurrava a coluna "Ações" para fora da caixa da tabela.
 - Os READMEs e as prévias dos componentes novos e dos que ganharam modificador (Tarefa 1, passo 4) ainda estão por escrever.
 
-Na quarta: publicar, copiar para o `componentes.css`, conferir de novo as seis telas com o CSS do código (a ferramenta guardada faz isso em minutos) e rodar a suíte.
+Feito na quarta, 2026-10-14: publicar, copiar para o `componentes.css` e rodar a suíte.
 
 Para a 9G, junto da revisão de teclado e de leitor de tela:
 
@@ -479,3 +488,45 @@ Observações de desenho, sem ação nesta fase:
 - O título do painel de produtividade encolhe ao texto no tablet e no mobile, porque o cabeçalho do painel é flex; não se vê diferença.
 - As linhas da lista em painel usam algarismos tabulares na ajuda (regra anterior a esta fase); os quadros não. Sem efeito em "Ativa" e "Inativa".
 - A Auditoria abre sem período preenchido, como antes; o quadro mostra um período de exemplo.
+
+### Da fase 9D (emenda de 2026-10-14)
+
+O que a fase entregou além das telas da seção 7.4, e que as próximas reutilizam:
+
+- Peças compartilhadas: `CabecalhoDeFicha` (título, subtítulo, resumo do mobile e ações da ficha), `Abas` e `Aba` (as abas do mobile, com o painel de cada aba num invólucro `aj-aba-painel`), `RotuloDeCampo` com `Classe` (a posição do rótulo na grade), `ValorEmReais` com `[ValorEmReaisValido]` (valor brasileiro em texto, que recusa sem lançar), `TextosDoCliente`, `RotulosDeProcesso`, `TextosDeDocumento`.
+- `GestaoDeDocumentos` passou a guardar a regra de uma coisa aberta por vez e o foco do painel aberto; `DescartarEnvio()` junta a limpeza do envio, como a 9B pedia. `DocumentosDaFicha` é o painel de documentos da ficha do cliente, com os chips por área e o acesso em opções marcáveis. A tela antiga `DocumentosDoCliente` saiu. `Endereco` foi extraído para `TextosDeDocumento`; `Quantos` e a tabela de documentos continuam com dois usos, sem extração.
+- Contadores no backend, dentro das listagens que já existiam (seção 6): o total do cadastro de clientes e os inativos, o total de processos sem filtro de situação, e os documentos por área com o mesmo predicado de acesso da listagem (a Produção conta só o que lê).
+- Formulário em tela própria (cliente e processo, depois do usuário da 9C): depois de salvar com sucesso, o botão de envio fica travado até a navegação chegar (o `finally` só o libera se a tela não navegou). O mesmo conserto entrou no formulário de usuário. Na edição, a ficha é o "voltar"; no novo, a lista.
+- Lista de escolhidos com busca de candidatos no mesmo pai: as chaves `@key` dos dois tipos de linha nunca podem coincidir (o candidato usa uma chave composta).
+- Ficha que recebe o identificador pela rota recarrega quando ele muda na mesma instância (`_idCarregado`).
+- Nos testes: entrou o bUnit 2.11.3, só no projeto de integração, com `TelaInterativa` (atores da Diretoria e da Produção) e o `DespachanteCombinado` com `Recebidas`, `Responde` com função e `RespondeDepois`. É como se prova o que acontece depois de um clique, inclusive o envio duplo; não substitui o navegador quando o defeito está na aplicação das diferenças ao DOM.
+
+Decidido na execução, sem quadro ou contra o quadro, para o usuário rever:
+
+- A ficha do cliente tem o painel Observações também no tablet (o quadro do tablet não tem; o desktop e o mobile têm). No tablet não há outro lugar para ler as observações.
+- Na ficha do cliente, no desktop, o painel de dados vem primeiro na marcação e o CSS o põe à direita (`aj-lado-a-lado--painel-primeiro`): a ordem de leitura e de Tab é Dados, depois Processos, Documentos e Usuários.
+- Nos formulários, perder o acesso no meio da tela mostra "Acesso negado.", como no formulário de usuário da 9C; as listas e as fichas continuam com "Seu acesso foi encerrado. Entre novamente.".
+- A `textarea` de Observações do formulário de cliente tem 4 linhas em todas as visões; os quadros do tablet e do mobile usam 3.
+- A grade folgada (`aj-grade-campos--tablet-folgada`) vale também no mobile; o nome ficou da primeira tela que a usou.
+
+Para as próximas fases:
+
+- Os formulários não oferecem "Tentar de novo" quando a consulta inicial falha (o do usuário da 9C também não); as listas e as fichas oferecem. Extrair o estado de carregamento dos formulários antes de a 9E escrever o de atividade.
+- No formulário de processo, o erro da busca de cliente aparece no aviso do topo, longe do campo.
+- Os formulários carregam em `OnInitializedAsync`: se a mesma instância passar de `/x/novo` para `/x/{id}/editar` (nenhum link leva a isso hoje), não recarregam. As fichas já usam `_idCarregado`.
+- A lista das áreas de documento que cada perfil lê está em três lugares (o repositório, o falso dos testes de unidade e a regra do manipulador).
+- A suíte cobre pouco os caminhos de erro das telas novas (falha ao salvar, acesso negado ao salvar, não encontrado na edição, área inativa no seletor); o código os trata e a revisão os conferiu por leitura.
+
+Para a 9G, junto da revisão de teclado e de leitor de tela:
+
+- `MenuDeAcoes`: com o menu aberto, o Tab sai da lista e o menu continua aberto, e o Esc já não o fecha (o tratador está no invólucro do menu). Só o toque no fundo fecha. Mesma raiz da observação da 9B.
+- As abas do mobile são botões em sequência, sem setas nem `tabindex` móvel de um `tablist`.
+- Regras do `app.css` que ainda alcançam as telas desta fase: `label { … }` muda cor, fonte e altura de linha do rótulo do campo com ícone e do campo compacto (sem efeito visível: o texto é só para leitor de tela ou o controle tem fonte própria); `button:disabled { opacity: .55 }` apaga a opção travada do tipo de cliente na edição (sem quadro da edição; apagada é o esperado para opção travada, e a regra passa ao design system quando a camada antiga sair).
+
+Observações de desenho, sem ação nesta fase:
+
+- As ajudas das linhas em painel (data e tamanho dos documentos, o resumo da barra do mobile) usam algarismos tabulares; os quadros não. Mesma observação da 9C.
+- Lista em painel com uma linha só: o sistema mantém o respiro de 8 a 10px embaixo da linha; o quadro tira o respiro quando a lista tem uma linha (com três, mantém). Mudar mexeria em listas de outras fases medidas sem divergência.
+- No cabeçalho da ficha no tablet o bloco do título não estica (o cabeçalho é flex em linha); o texto ocupa o mesmo lugar.
+- Na lista de clientes, a célula de ação da linha inativa também fica apagada (o quadro apaga só as de dado); a célula não tem texto próprio e o "Abrir" mede igual.
+- Um nome de arquivo longo e sem espaços, na tabela de documentos da ficha do cliente no desktop, quebra em muitas linhas na coluna do nome (a coluna é estreita no lado a lado); as ações ficam à vista, sem rolar. Antes desta fase a tabela rolava de lado.

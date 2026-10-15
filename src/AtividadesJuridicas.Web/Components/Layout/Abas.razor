@@ -1,0 +1,18 @@
+@* As abas do mobile das fichas. Cada painel da ficha fica num invólucro aj-aba-painel, que a tela marca com
+   aj-aba-painel--oculta quando não é da aba escolhida; no tablet e no desktop todos aparecem. *@
+<div class="aj-abas" role="tablist" aria-label="@Rotulo">
+    @foreach (var aba in Itens)
+    {
+        <button type="button" role="tab" class="aj-abas__aba" aria-selected="@(aba.Chave == Ativa ? "true" : "false")" @key="aba.Chave" @onclick="() => AoEscolher.InvokeAsync(aba.Chave)">@aba.Rotulo@if (aba.Contador is { } contador)
+            {<span class="aj-abas__contador">@contador</span>}</button>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<Aba> Itens { get; set; } = [];
+    [Parameter, EditorRequired] public string Ativa { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> AoEscolher { get; set; }
+
+    /// <summary>O nome do grupo para o leitor de tela: "Assuntos do cliente".</summary>
+    [Parameter, EditorRequired] public string Rotulo { get; set; } = string.Empty;
+}

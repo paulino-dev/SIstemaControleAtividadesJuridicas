@@ -1,0 +1,230 @@
+@inherits GestaoDeDocumentos
+@inject FusoDoEscritorio Fuso
+
+@if (_mensagem is not null)
+{
+    <Aviso Tipo="@(_falhou ? TipoDeAviso.Erro : TipoDeAviso.Sucesso)">@_mensagem</Aviso>
+}
+
+@if (AExcluir is { } aExcluir)
+{
+    @* A chave é o documento: pedir a exclusão de outro com a confirmação aberta é uma confirmação nova. *@
+    <Aviso @key="aExcluir.Id" Tipo="TipoDeAviso.Atencao" Rotulo="Confirmar exclusão" Titulo="@($"Confirmar a exclusão de {aExcluir.Nome}?")">
+        <ChildContent>O documento é excluído da ficha do cliente.</ChildContent>
+        <Acoes>
+            <button type="button" class="aj-botao aj-botao--secundario" disabled="@_removendo" @onclick="CancelarExclusao">Cancelar</button>
+            <button type="button" class="aj-botao aj-botao--primario" disabled="@_removendo" @onclick="() => ExcluirAsync(aExcluir.Id)">Confirmar exclusão</button>
+        </Acoes>
+    </Aviso>
+}
+
+<section class="aj-painel">
+    <div class="aj-painel__cabecalho">
+        <h2>Documentos</h2>
+        @if (PodeGerenciar && !DeAtividades)
+        {
+            <button type="button" class="aj-botao aj-botao--secundario aj-botao--com-icone" disabled="@Ocupada" @onclick="AbrirEnvio"><Icone Nome="adicionar" />Enviar documento</button>
+        }
+    </div>
+
+    <div class="aj-chips" role="group" aria-label="Área de documentos">
+        @foreach (var area in Areas)
+        {
+            <button type="button" class="aj-chip" aria-pressed="@(area == _categoria ? "true" : "false")" @key="area" @onclick="() => TrocarAreaAsync(area)">@RotuloDoChip(area)</button>
+        }
+    </div>
+
+    <EstadoDaLista Erro="@_erroDaLista" Carregando="@(!_carregado)" Vazio="@(_pagina.Itens.Count == 0)"
+                   TextoDeVazio="Nenhum documento." TentarDeNovo="() => IrParaAsync(_paginaPedida)">
+        <div class="aj-so-desktop">
+            <div class="aj-tabela-caixa aj-tabela-caixa--plana">
+                <table class="aj-tabela">
+                    <thead><tr><th scope="col">Nome</th><th scope="col">Tamanho</th><th scope="col">Enviado em</th><th scope="col">Por</th>@if (DeAtividades)
+                        {<th scope="col">Atividade</th>}@if (PodeGerenciar)
+                        {<th scope="col"><span class="aj-so-leitor">Ações</span></th>}</tr></thead>
+                    <tbody>
+                        @foreach (var documento in _pagina.Itens)
+                        {
+                            <tr @key="documento.Id">
+                                @* Link fora da navegação do Blazor: é um download, não uma página. O atributo "download"
+                                   é o que impede o roteador do Blazor de interceptar o clique; não o remova. *@
+                                <td class="aj-tabela__principal"><a href="@TextosDeDocumento.Endereco(documento.Id)" download data-enhance-nav="false">@documento.Nome</a></td>
+                                <td class="aj-tabela__data">@TamanhoDeArquivo.Formatar(documento.TamanhoBytes)</td>
+                                <td class="aj-tabela__data">@Fuso.Formatar(documento.EnviadoEm)</td>
+                                <td>@documento.EnviadoPor</td>
+                                @if (DeAtividades)
+                                {
+                                    <td>@documento.AtividadeTitulo</td>
+                                }
+                                @if (PodeGerenciar)
+                                {
+                                    @* Os botões colados: o espaço entre eles seria desenhado. *@
+                                    <td class="aj-tabela__acao aj-tabela__acao--varias"><button type="button" class="aj-botao aj-botao--fantasma aj-botao--menor" disabled="@Ocupada" @onclick="() => RenomearLinha(documento)">Renomear</button>@if (Gerais)
+                                        {<button type="button" class="aj-botao aj-botao--fantasma aj-botao--menor" disabled="@Ocupada" @onclick="() => AbrirAcessoDaLinhaAsync(documento.Id)">Acesso</button>}<button type="button" class="aj-botao aj-botao--perigo aj-botao--menor" disabled="@Ocupada" @onclick="() => ExcluirLinha(documento.Id)">Excluir</button></td>
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="aj-tablet-mobile">
+            <div class="aj-linhas">
+                @foreach (var documento in _pagina.Itens)
+                {
+                    <div class="aj-linha" @key="documento.Id">
+                        <div class="aj-linha__texto"><a href="@TextosDeDocumento.Endereco(documento.Id)" download data-enhance-nav="false" class="aj-linha__titulo">@documento.Nome</a><span class="aj-ajuda">@TextosDeDocumento.Detalhe(documento.TamanhoBytes, documento.EnviadoEm, documento.EnviadoPor, Fuso)</span></div>
+                        @if (PodeGerenciar)
+                        {
+                            <MenuDeAcoes Rotulo="@($"Ações de {documento.Nome}")">
+                                <a href="@TextosDeDocumento.Endereco(documento.Id)" download data-enhance-nav="false" class="aj-menu-acoes__item">Baixar</a>
+                                <button type="button" class="aj-menu-acoes__item" disabled="@Ocupada" @onclick="() => RenomearLinha(documento)">Renomear</button>
+                                @if (Gerais)
+                                {
+                                    <button type="button" class="aj-menu-acoes__item" disabled="@Ocupada" @onclick="() => AbrirAcessoDaLinhaAsync(documento.Id)">Acesso</button>
+                                }
+                                <button type="button" class="aj-menu-acoes__item aj-menu-acoes__item--perigo" disabled="@Ocupada" @onclick="() => ExcluirLinha(documento.Id)">Excluir</button>
+                            </MenuDeAcoes>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+
+        <Paginacao Numero="_pagina.Numero" TotalDePaginas="_pagina.TotalDePaginas" Total="_pagina.Total"
+                   Singular="documento" Plural="documentos" Ocupado="@Ocupada" IrPara="IrParaAsync" />
+    </EstadoDaLista>
+
+    @if (PodeGerenciar && Gerais)
+    {
+        <div class="aj-so-desktop">
+            <span class="aj-ajuda">A Diretoria acessa sempre. Em “Acesso” você escolhe os perfis e os usuários que também veem cada documento geral.</span>
+        </div>
+    }
+</section>
+
+@if (_envioAberto)
+{
+    <section class="aj-painel">
+        <h2>Enviar documento</h2>
+        <span class="aj-ajuda">@($"Vai para {NomeDaArea(_categoria)}.")</span>
+        <label class="aj-rotulo">@RotuloDoArquivo<InputFile @key="_versaoDoCampo" @ref="_campoDeArquivo" OnChange="Escolher" class="aj-campo" /></label>
+        <label class="aj-rotulo">Nome (opcional)<input type="text" class="aj-campo" @bind="_nomeDoEnvio" /></label>
+        <div class="aj-painel__acoes"><button type="button" class="aj-botao aj-botao--secundario" disabled="@_enviando" @onclick="DescartarEnvio">Cancelar</button><button type="button" class="aj-botao aj-botao--primario" disabled="@(_arquivo is null || _enviando)" @onclick="EnviarAsync">@(_enviando ? "Enviando…" : "Enviar")</button></div>
+    </section>
+}
+
+@if (_renomeando is { } renomeando)
+{
+    <section class="aj-painel">
+        <h2>@($"Renomear \"{renomeando.Nome}\"")</h2>
+        <label class="aj-rotulo">Novo nome<input type="text" class="aj-campo" @bind="_novoNome" @ref="_campoDoNovoNome" /></label>
+        <div class="aj-painel__acoes"><button type="button" class="aj-botao aj-botao--secundario" @onclick="FecharRenomear">Cancelar</button><button type="button" class="aj-botao aj-botao--primario" @onclick="RenomearAsync">Salvar nome</button></div>
+    </section>
+}
+
+@if (_acesso is { } acesso)
+{
+    <section class="aj-painel">
+        <h2>@($"Quem acessa \"{acesso.Nome}\"")</h2>
+        <span class="aj-ajuda">A Diretoria acessa sempre. Marque os perfis e os usuários que também podem ver este documento; desmarque para retirar.</span>
+        <h3>Perfis</h3>
+        <div class="aj-opcoes">
+            @foreach (var (perfil, indice) in _perfis.Select((p, i) => (p, i)))
+            {
+                @* A primeira opção do painel leva a referência do foco; o resto da marcação é a mesma. *@
+                @if (indice == 0)
+                {
+                    <label class="aj-opcao" @key="perfil.Id"><input type="checkbox" class="aj-opcao__caixa" @ref="_primeiroDoAcesso" checked="@_perfisMarcados.Contains(perfil.Id)" @onchange="e => Marcar(_perfisMarcados, perfil.Id, e)" />@perfil.Rotulo</label>
+                }
+                else
+                {
+                    <label class="aj-opcao" @key="perfil.Id"><input type="checkbox" class="aj-opcao__caixa" checked="@_perfisMarcados.Contains(perfil.Id)" @onchange="e => Marcar(_perfisMarcados, perfil.Id, e)" />@perfil.Rotulo</label>
+                }
+            }
+        </div>
+        <h3>Usuários</h3>
+        <div class="aj-opcoes">
+            @foreach (var (usuario, indice) in _usuarios.Select((u, i) => (u, i)))
+            {
+                @if (indice == 0 && _perfis.Count == 0)
+                {
+                    <label class="aj-opcao" @key="usuario.Id"><input type="checkbox" class="aj-opcao__caixa" @ref="_primeiroDoAcesso" checked="@_usuariosMarcados.Contains(usuario.Id)" @onchange="e => Marcar(_usuariosMarcados, usuario.Id, e)" />@usuario.Rotulo</label>
+                }
+                else
+                {
+                    <label class="aj-opcao" @key="usuario.Id"><input type="checkbox" class="aj-opcao__caixa" checked="@_usuariosMarcados.Contains(usuario.Id)" @onchange="e => Marcar(_usuariosMarcados, usuario.Id, e)" />@usuario.Rotulo</label>
+                }
+            }
+        </div>
+        <div class="aj-painel__acoes">
+            <button type="button" class="aj-botao aj-botao--secundario" @ref="_cancelarDoAcesso" @onclick="FecharAcesso">Cancelar</button>
+            <button type="button" class="aj-botao aj-botao--primario" @onclick="SalvarAcessoAsync">Salvar acesso</button>
+        </div>
+    </section>
+}
+
+@code {
+    [Parameter, EditorRequired] public Guid ClienteId { get; set; }
+    [Parameter] public bool PodeGerenciar { get; set; }
+
+    /// <summary>A soma dos documentos que o usuário lê no cliente, depois de cada leitura.</summary>
+    [Parameter] public EventCallback<int> AoContar { get; set; }
+
+    private CategoriaDocumento _categoria = CategoriaDocumento.DocumentoGeral;
+    private InputFile? _campoDeArquivo;
+    private ElementReference _campoDoNovoNome;
+    private ElementReference _primeiroDoAcesso;
+    private ElementReference _cancelarDoAcesso;
+
+    protected override CategoriaDocumento CategoriaDosDocumentos => _categoria;
+    protected override Guid? ClienteDosDocumentos => ClienteId;
+
+    // Nenhuma área da ficha pede confirmação de envio: só os Documentos comuns.
+    protected override ValueTask FocarAvisoDeEnvioAsync() => ValueTask.CompletedTask;
+
+    // Uma coisa aberta por vez: o campo é o do painel que está na tela. Sem nenhuma opção de acesso, o foco vai
+    // ao botão "Cancelar" do painel.
+    protected override ValueTask FocarPainelAbertoAsync() =>
+        _renomeando is not null ? _campoDoNovoNome.FocusAsync()
+        : _acesso is not null ? (_perfis.Count + _usuarios.Count > 0 ? _primeiroDoAcesso : _cancelarDoAcesso).FocusAsync()
+        : _envioAberto && _campoDeArquivo?.Element is { } campo ? campo.FocusAsync()
+        : ValueTask.CompletedTask;
+
+    protected override Task AoCarregarAsync() => AoContar.InvokeAsync(_porCategoria.Values.Sum());
+
+    private IReadOnlyList<CategoriaDocumento> Areas => PodeGerenciar
+        ? [CategoriaDocumento.DocumentoGeral, CategoriaDocumento.ContratoHonorarios, CategoriaDocumento.DocumentoAtividade, CategoriaDocumento.DocumentoDoCliente]
+        : [CategoriaDocumento.DocumentoGeral, CategoriaDocumento.DocumentoAtividade];
+
+    private bool Gerais => _categoria == CategoriaDocumento.DocumentoGeral;
+
+    private static string NomeDaArea(CategoriaDocumento area) => area switch
+    {
+        CategoriaDocumento.DocumentoGeral => "Gerais",
+        CategoriaDocumento.ContratoHonorarios => "Contratos de honorários",
+        CategoriaDocumento.DocumentoAtividade => "De atividades",
+        _ => "Do cliente",
+    };
+
+    private string RotuloDoChip(CategoriaDocumento area) =>
+        _porCategoria.TryGetValue(area, out var quantos) ? $"{NomeDaArea(area)} · {quantos}" : NomeDaArea(area);
+
+    private string RotuloDoArquivo => $"Arquivo (até {DocumentosOpcoes.TamanhoMaximoBytes / UmMegabyte} MB)";
+
+    private Linha? AExcluir => _pagina.Itens.FirstOrDefault(documento => documento.Id == _excluindo);
+
+    private async Task TrocarAreaAsync(CategoriaDocumento area)
+    {
+        if (Ocupada || area == _categoria) return;
+
+        // O envio aberto em uma área nunca vai para outra: o arquivo e o painel saem com a troca.
+        if (_envioAberto) DescartarEnvio();
+        FecharRenomear();
+        FecharAcesso();
+        CancelarExclusao();
+        _categoria = area;
+        await IrParaAsync(1);   // apaga o aviso
+    }
+}

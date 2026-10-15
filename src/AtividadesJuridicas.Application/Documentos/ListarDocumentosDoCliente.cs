@@ -7,7 +7,7 @@ using AtividadesJuridicas.Domain.Documentos;
 namespace AtividadesJuridicas.Application.Documentos;
 
 public sealed record ListarDocumentosDoCliente(Guid ClienteId, CategoriaDocumento Categoria, int Pagina = 1)
-    : IRequisicao<Resultado<Pagina<DocumentoResumo>>>, IConsultaAuditavel
+    : IRequisicao<Resultado<PaginaDeDocumentos>>, IConsultaAuditavel
 {
     public string TipoRecurso => "Documento";
     public AcaoDeAcesso Acao => AcaoDeAcesso.Listou;
@@ -15,9 +15,9 @@ public sealed record ListarDocumentosDoCliente(Guid ClienteId, CategoriaDocument
 }
 
 public sealed class ListarDocumentosDoClienteManipulador(IContextoDeAcesso contexto, IDocumentoRepositorio documentos)
-    : IManipulador<ListarDocumentosDoCliente, Resultado<Pagina<DocumentoResumo>>>
+    : IManipulador<ListarDocumentosDoCliente, Resultado<PaginaDeDocumentos>>
 {
-    public async Task<Resultado<Pagina<DocumentoResumo>>> ManipularAsync(ListarDocumentosDoCliente requisicao, CancellationToken ct)
+    public async Task<Resultado<PaginaDeDocumentos>> ManipularAsync(ListarDocumentosDoCliente requisicao, CancellationToken ct)
     {
         if (await contexto.ObterAsync(ct) is not { } ator)
             return Falha(TipoErro.AcessoNegado, "Acesso negado.");
@@ -33,11 +33,15 @@ public sealed class ListarDocumentosDoClienteManipulador(IContextoDeAcesso conte
 
         var acesso = ator.EhDiretoria ? null : new FiltroDeAcesso(ator.Id, ator.PerfilId);
 
-        return Resultado<Pagina<DocumentoResumo>>.Ok(await documentos.ListarDoClienteAsync(
+        var pagina = await documentos.ListarDoClienteAsync(
             requisicao.ClienteId, requisicao.Categoria, acesso,
-            Paginacao.Normalizar(requisicao.Pagina, DocumentosOpcoes.TamanhoDaPagina), DocumentosOpcoes.TamanhoDaPagina, ct));
+            Paginacao.Normalizar(requisicao.Pagina, DocumentosOpcoes.TamanhoDaPagina), DocumentosOpcoes.TamanhoDaPagina, ct);
+        var porCategoria = await documentos.ContarDoClienteAsync(requisicao.ClienteId, acesso, ct);
+
+        return Resultado<PaginaDeDocumentos>.Ok(new PaginaDeDocumentos(
+            pagina.Itens, pagina.Total, pagina.Numero, pagina.Tamanho, porCategoria));
     }
 
-    private static Resultado<Pagina<DocumentoResumo>> Falha(TipoErro erro, string mensagem) =>
-        Resultado<Pagina<DocumentoResumo>>.Falha(erro, mensagem);
+    private static Resultado<PaginaDeDocumentos> Falha(TipoErro erro, string mensagem) =>
+        Resultado<PaginaDeDocumentos>.Falha(erro, mensagem);
 }

@@ -167,8 +167,6 @@ public class LayoutWebTests(BancoFixture banco) : IAsyncLifetime
     [Theory]
     [InlineData("/atividades")]
     [InlineData("/agenda")]
-    [InlineData("/clientes")]
-    [InlineData("/processos")]
     public async Task Tela_ainda_nao_migrada_nao_abre_o_conteudo_com_bloco_do_design_system(string rota)
     {
         var admin = await _app.ClienteAutenticadoAsync();
