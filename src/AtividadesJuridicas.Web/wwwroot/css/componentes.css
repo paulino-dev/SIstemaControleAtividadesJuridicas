@@ -734,10 +734,11 @@ textarea.aj-campo{padding:9px var(--espaco-12);resize:vertical}
 .aj-opcoes>.aj-opcao{flex:1 1 240px}
 .aj-ajuda strong{color:var(--tinta)}
 
-/* Ajustes da conferência da fase 9D no navegador: o valor longo de uma lista de detalhes e o nome longo de um
+/* Ajustes da conferência da fase 9D no navegador: o valor longo de uma lista de detalhes (sem encolher o termo) e o nome longo de um
    arquivo quebram em vez de empurrar a coluna; a opção marcável da barra de filtros mantém a altura do filtro; nos
    formulários em tela própria, o painel principal fica com a sombra de repouso no mobile e a grade folgada mantém
    12px entre as linhas. */
+.aj-detalhes dt{flex-shrink:0}
 .aj-detalhes dd{overflow-wrap:anywhere}
 .aj-tabela__principal{overflow-wrap:anywhere}
 .aj-opcao.aj-opcao--filtro{min-height:var(--campo-filtro)}
