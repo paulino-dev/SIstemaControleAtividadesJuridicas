@@ -79,9 +79,6 @@ td.horario { white-space: nowrap; font-weight: 600; font-variant-numeric: tabula
 .ficha dd { font-weight: 600; }
 .texto-livre { white-space: pre-wrap; }
 .dia > h2 { margin-top: var(--espaco-24); }
-.comentarios { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
-.comentarios li { display: grid; gap: var(--espaco-4); padding: var(--espaco-12) 0; border-top: 1px solid var(--borda-suave); }
-.comentarios li span { font-size: 13px; color: var(--tinta-suave); }
 
 /* ---------- Retorno ---------- */
 .erro, .validation-message { color: var(--erro); }
@@ -97,6 +94,3 @@ strong.erro { margin-left: var(--espaco-6); }
    Só nelas: em tela migrada a etiqueta segue o design system (na tabela, alinhar ao meio encolhe a linha). */
 .aj-app__conteudo:not(:has(> [class^="aj-"])) .aj-etiqueta { vertical-align: middle; }
 .aj-app__conteudo:not(:has(> [class^="aj-"])) .aj-etiqueta + .aj-etiqueta { margin-left: var(--espaco-6); }
-.confirmacao { margin-bottom: var(--espaco-14); padding: var(--espaco-14); border: 1px solid var(--aviso-borda); border-radius: var(--raio-14); background: var(--aviso-fundo); color: var(--aviso-texto); }
-.confirmacao:focus { outline: 2px solid var(--aviso); outline-offset: 2px; }
-.inativo { opacity: .55; }

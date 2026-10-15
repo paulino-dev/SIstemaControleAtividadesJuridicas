@@ -118,6 +118,21 @@ public partial class TelasNoDesignSystemTests
         File.Exists(caminho + ".css").Should().BeFalse("tela migrada não tem CSS próprio: o estilo vem do design system");
     }
 
+    // Toda tela de atividade fica na trava: os componentes de Components/Atividades e as páginas de atividade.
+    // Um componente antigo que sobrou (marcação antiga, fora da lista) faz este teste falhar.
+    [Fact]
+    public void Toda_tela_de_atividade_esta_na_trava()
+    {
+        var web = Path.Combine(GravacoesPorForaTests.RaizDoRepositorio(), "src", "AtividadesJuridicas.Web");
+        var telas = Directory.GetFiles(Path.Combine(web, "Components", "Atividades"), "*.razor")
+            .Concat(Directory.GetFiles(Path.Combine(web, "Components", "Pages"), "Atividade*.razor"))
+            .Select(caminho => Path.GetRelativePath(web, caminho).Replace('\\', '/'))
+            .ToList();
+
+        telas.Should().Contain("Components/Pages/Atividades.razor").And.Contain("Components/Atividades/EtiquetaDeSituacao.razor");
+        telas.Should().BeSubsetOf(Migradas, "tela de atividade fora da trava pode voltar à marcação antiga");
+    }
+
     // A própria trava: o que ela tem de reprovar e o que tem de deixar passar.
     [Theory]
     [InlineData("<p style=\"margin:0\">x</p>", "style")]
