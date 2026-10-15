@@ -1,11 +1,11 @@
 # Migração das telas para o design system — fidelidade ao canvas
 
 Data: 2026-10-10
-Estado: aprovada pelo usuário em 2026-10-10; fases 9A a 9E executadas
+Estado: aprovada pelo usuário em 2026-10-10; fases 9A a 9F executadas
 Fontes de desenho:
 
-- Canvas de telas: https://claude.ai/artifact/HzHWv1pgVXAnYHuPEYQDFj (versão lida: `1791598628-21e1`; a fase 9E leu a `1792026220-8711`)
-- Design system: https://claude.ai/artifact/G8rFozAhnH4eMqctLNTvbS (versão lida: `1791598661-a3fd`; a fase 9A publicou a `1791646790-3a09`; a fase 9B, a `1791672723-8f5a`; a fase 9C, a `1791995411-b333`; a fase 9D, a `1792000330-0298` e, depois da conferência, a `1792023403-0d20` e a `1792024406-465e`; a fase 9E, a `1792033039-b794` e, depois da conferência, a `1792048576-7268`)
+- Canvas de telas: https://claude.ai/artifact/HzHWv1pgVXAnYHuPEYQDFj (versão lida: `1791598628-21e1`; a fase 9E leu a `1792026220-8711`; a fase 9F leu a `1792048623-298d`)
+- Design system: https://claude.ai/artifact/G8rFozAhnH4eMqctLNTvbS (versão lida: `1791598661-a3fd`; a fase 9A publicou a `1791646790-3a09`; a fase 9B, a `1791672723-8f5a`; a fase 9C, a `1791995411-b333`; a fase 9D, a `1792000330-0298` e, depois da conferência, a `1792023403-0d20` e a `1792024406-465e`; a fase 9E, a `1792033039-b794` e, depois da conferência, a `1792048576-7268`; a fase 9F, a `1792086828-2c5f` e, depois da conferência, a `1792101692-3ba2`)
 
 ## 1. Objetivo
 
@@ -352,6 +352,17 @@ Como a fase 9E fez a conferência (emenda de 2026-10-15), além do que está aci
 - O clique duplo foi provado no navegador também onde o bUnit não prova (o bUnit descarta clique em botão desabilitado): Excluir e Comentar, com a contagem de registros no banco e na auditoria. Onde a resposta chega antes de 50 ms, não dá para ver o botão travado; a prova é a contagem.
 - Um dado inventado errado derruba o circuito (um número CNJ com dígito errado lança ao materializar o processo na busca): dado de quadro passa pela mesma validação do domínio antes de entrar por SQL.
 
+Como a fase 9F fez a conferência (emenda de 2026-10-15), além do que está acima:
+
+- Os ramos `sc-if` de um quadro passaram a ser medidos um a um, átomo a átomo, e não só por captura: o `expandir.js` aceita props que substituem as do quadro, e a página de medida recebe `props=JSON` (no `AgendaA`, `visaoInicial` para o Dia e o Mês e `menuEscondido` para o `AgendaMenuEscondido`) e `tirar=seletor` (tira do quadro o aviso de conflito quando o sistema não o mostra naquele estado).
+- Estado que o deslocamento comum das datas não alcança vira um quadro derivado só nos dados, fora do canvas: `AgendaAMes15` (os eventos do mês e o "hoje" deslocados +7 dias, para o Mês casar célula a célula) e `AgendaMobileQua` (a quarta escolhida, o estado a que o sistema volta depois de salvar o evento de quarta).
+- Os eventos entraram todos pelo formulário novo, nenhum por SQL, cada um criado por alguém que participa dele no quadro, porque quem cria sempre participa. O aviso de conflito só aparece logo depois de salvar: o evento que conflita foi salvo uma vez em cada largura e excluído pela ficha antes do seguinte.
+- O Enter das buscas se prova com tecla real no navegador. Os testes enviam o formulário direto e não passam pelo envio implícito, e foi isso que escondeu o defeito da busca de processo: as duas cópias (desktop e tablet/mobile) estavam no mesmo formulário escondido, e um formulário sem botão de envio com dois campos de texto não é enviado pelo Enter (no Chrome, com um campo, um envio; com dois, nenhum). Regra: um formulário escondido por cópia de campo que busca pelo Enter, e um teste de página que confere que cada `form="busca-de-…"` aparece uma vez só no HTML.
+- A altura também se mede. O Chrome sem janela mede 390×844 sem a interface do navegador, e um celular comum tem menos: o Mês do mobile foi medido também em molduras de 375×667 e 360×640 (a lista do dia alcançável pela rolagem, o último cartão fora da barra inferior e do botão flutuante).
+- O nome acessível se lê da árvore de acessibilidade do Chrome (o condutor ganhou `/axnome`, que devolve papel e nome), não do HTML: foi assim que se confirmou o espaço entre a hora e o título do item do Mês, que são `span` vizinhos.
+- No Mês, o texto só para leitor de cada item (`span.aj-so-leitor`, o tipo) sai da moldura antes de medir; sem isso a comparação átomo a átomo escorrega um átomo por item.
+- A consulta repetida se confere pela contagem dos registros de `ListarEventos` por moldura: cada abertura grava dois (a pré-renderização e a interativa); a troca de período dentro do mesmo intervalo, nenhum.
+
 ## 12. Fases
 
 | Fase | Conteúdo |
@@ -579,17 +590,17 @@ A conferência no navegador: 9 dos 15 quadros × visões sem divergência (formu
 
 Para as próximas fases:
 
-- As telas de ação (formulário, responsáveis, devolver e reabrir) repetem a carga (perfil, `ObterAtividade`, acesso negado, não encontrada, falha) e o trio voltar, origem e rótulo do voltar no mobile. O `CargaDoFormulario` tira a parte da marcação e o `OrigemDaAtividade` junta a origem; extrair o resto no quarto uso (a Agenda, na 9F, se repetir).
-- Conflito ao salvar (edição e responsáveis): só o aviso com a mensagem do servidor, que pede recarregar; um novo "Salvar" conflita de novo até a tela ser recarregada.
+- As telas de ação (formulário, responsáveis, devolver e reabrir) repetem a carga (perfil, `ObterAtividade`, acesso negado, não encontrada, falha) e o trio voltar, origem e rótulo do voltar no mobile. O `CargaDoFormulario` tira a parte da marcação e o `OrigemDaAtividade` junta a origem; extrair o resto no quarto uso (a Agenda, na 9F, se repetir). Na 9F a agenda não repetiu o trio: a ficha e o formulário do evento recebem `visao` e `data` e devolvem a origem por `PeriodoDaAgenda.ConsultaDeOrigem`, e o formulário carrega pelo `CargaDoFormulario`. Continua sem quarto uso.
+- Conflito ao salvar (edição e responsáveis): só o aviso com a mensagem do servidor, que pede recarregar; um novo "Salvar" conflita de novo até a tela ser recarregada. O formulário do evento da 9F faz o mesmo (decisão do plano), com o formulário mantido.
 - A suíte não cobre o salvar da atividade com processo escolhido, nem a remoção do processo e do cliente escolhidos, nem o aviso do cliente que saiu do processo; nem o acesso negado no envio das telas de ação, de comentários e de documentos. O código os trata e a revisão os conferiu por leitura; o envio com processo foi exercido no navegador.
-- O "Tentar de novo" do `CargaDoFormulario` não tem guarda contra dois cliques seguidos; nos herdeiros de `GestaoDeDocumentos` da 9D, uma mensagem pode ficar ao lado do "Seu acesso foi encerrado.".
-- O que a Agenda ainda usa do `app.css`: `.aviso` e `p.aviso` (também por expressão), `.ficha`, `.formulario`, `.filtros`, `.grade`, `.acoes`, `.texto-livre`, `.dia`, `td.horario`, e `fieldset` e `legend` no formulário de evento. O formulário de evento lê `ListarAtividades` como `Pagina<AtividadeResumo>` e continua compilando com `PaginaDeAtividades`.
-- Os formulários continuam carregando em `OnInitializedAsync` (sem mudança da 9D sobre `/x/novo` → `/x/{id}/editar`).
+- O "Tentar de novo" do `CargaDoFormulario` não tem guarda contra dois cliques seguidos; nos herdeiros de `GestaoDeDocumentos` da 9D, uma mensagem pode ficar ao lado do "Seu acesso foi encerrado.". Continua; o formulário do evento da 9F também usa o `CargaDoFormulario`.
+- ~~O que a Agenda ainda usa do `app.css`: `.aviso` e `p.aviso` (também por expressão), `.ficha`, `.formulario`, `.filtros`, `.grade`, `.acoes`, `.texto-livre`, `.dia`, `td.horario`, e `fieldset` e `legend` no formulário de evento. O formulário de evento lê `ListarAtividades` como `Pagina<AtividadeResumo>` e continua compilando com `PaginaDeAtividades`.~~ Feito na 9F: a agenda, a ficha e o formulário do evento passaram às classes `aj-`, e a Tarefa 10 apagou do `app.css` essas regras, as outras que só a agenda usava e a regra interina. O formulário novo lê da busca de atividade só `Itens` e `Total`. `fieldset` e `legend` continuam como regras de elemento (seção "Da fase 9F", para a 9G).
+- Os formulários continuam carregando em `OnInitializedAsync` (sem mudança da 9D sobre `/x/novo` → `/x/{id}/editar`). O formulário do evento da 9F também; nenhum caminho leva de um formulário de evento a outro.
 
 Para a 9G, junto da revisão de teclado e de leitor de tela:
 
 - O "Mais ações" da ficha no mobile e o "⋯" dos documentos têm o mesmo problema do `MenuDeAcoes` da 9D: o Tab depois do último item tira o foco do menu e o menu continua aberto, o Esc com o foco fora não fecha, e o fundo cobre a tela até um toque.
-- Regras do `app.css` já sem uso que a 9E não apagou: `strong.erro`, `.validation-message` e a parte `.cartao` do seletor `.cartao, form.formulario:not(.filtros)`.
+- ~~Regras do `app.css` já sem uso que a 9E não apagou: `strong.erro`, `.validation-message` e a parte `.cartao` do seletor `.cartao, form.formulario:not(.filtros)`.~~ Feito na 9F, na Tarefa 10.
 - Regras de elemento que alcançam as telas desta fase, medidas pela conferência: `label { … }` pinta o rótulo do campo com ícone e do campo compacto da lista e do formulário, sem efeito visível; `fieldset` dá o raio ao `aj-conjunto`, sem efeito (borda 0). `label:has(> input[type="checkbox"])`, `legend`, `input[type="checkbox"]`, `input.invalid`/`textarea.invalid` sobre `aj-campo` e `button:disabled` não mudaram nada.
 - No desktop, o modo do revisor de `/responsaveis` tem o painel médio e a barra de ações de largura inteira; no devolver e no reabrir a barra acompanha o painel (`aj-acoes--medio`).
 
@@ -599,3 +610,72 @@ Observações de desenho, sem ação nesta fase:
 - No tablet, o nome longo de documento corta com reticências; no desktop e no mobile, quebra.
 - Na conferência, um clique em "Escolher" da busca de processo não teve efeito uma vez em sete, com três circuitos abrindo ao mesmo tempo; não se reproduziu isolado. Registro como possível corrida sob carga.
 - Artefatos do quadro, não do sistema, para quem redesenhar: no `FichaMobile` a fileira de abas encolhe a 1px (o `main` em coluna com altura fixa e a fileira com `overflow-x:auto` perde o mínimo automático) e os painéis sobem sobre ela; no `FichaTablet` o comentário novo tem 7px a mais pela linha de base da `textarea` dentro do `label`.
+
+### Da fase 9F (emenda de 2026-10-15)
+
+O que a fase entregou além das telas da seção 7.6, e que as próximas reutilizam:
+
+- Lógica de calendário pura e testada: `PeriodoDaAgenda` (o período no endereço, com `?visao=` e `?data=` lidos com tolerância, o intervalo da consulta, as setas, `Consulta` e `ConsultaDeOrigem`, por onde a ficha e o formulário devolvem a origem), `ReguaDoDia` (a régua do Dia, com a extensão e os grupos de simultâneos) e `RotulosDeAgenda` (os textos da agenda, com as três redações do aviso de conflito, `EventosDoDia`, `NumeroDoDia` e `UsuarioNaoEncontrado`).
+- Componentes da agenda: `CartaoDeEvento` (uma forma por largura), `SecaoDoDia`, `ListaDoDia`, `PontosDoDia`, `FaixaDeDias`, `GradeCompactaDoMes` e as três visões, `SemanaDaAgenda`, `DiaDaAgenda` e `MesDaAgenda`, cada uma com a marcação das três larguras sobre os mesmos eventos. `AvisoDeEventoSalvo` mostra "Evento salvo." ou as três redações do conflito, cada uma no seu invólucro de visão.
+- `Recados` leva as sobreposições: o formulário as deixa, e a agenda (evento novo) ou a ficha (edição) as mostra uma vez.
+- Parâmetros novos nas peças compartilhadas: `CabecalhoDePagina.AcaoDoMobile` (botão entre o título e o avatar da barra do mobile) e `SubtituloSoNoDesktop`; `CabecalhoDeDetalhe.IconeDoVoltarNoMobile` e `SubtituloSoNoDesktop`; `BarraDeVoltar.Icone`; `EstadoDaLista.Icone` e `Dica`; `Aviso.Frase` (`aj-aviso--frase`, só no aviso sem ações); `RotuloDeCampo.Complemento` (o `(opcional)` num `small`, junto do texto num `span`); o ícone `filtrar`.
+- `AvatarDePessoa` subiu para `Components/Layout` e ganhou `Classes(nome, proprio)`, que devolve a classe inteira: o avatar do próprio usuário sai dourado (o `aj-avatar` sem modificador, como o do menu); os outros, com a cor da 9E.
+- A régua posiciona os cartões por classes de quartos de hora numa grade CSS, geradas por roteiro e conferidas por contagem (`aj-regua__grade--horas-{n}`, `aj-regua__evento--inicio-{q}`, `--quartos-{q}` e `--parte-{k}-de-{n}`), sem atributo `style`. É o modelo para outra posição calculada.
+- Campo que busca pelo Enter sem botão de envio tem um formulário escondido por cópia (seção 11, "Como a fase 9F fez a conferência").
+- A trava `Toda_tela_da_agenda_esta_na_trava`: todo `Components/Agenda/*.razor` e as páginas `Agenda*` e `Evento*` estão na lista das migradas.
+- A camada antiga saiu: os componentes `FichaDoEvento` e `FormularioDeEvento` e o `EventoGravado`; do `app.css`, as regras que só a agenda usava, a regra interina das telas não migradas e as duas de etiqueta que dependiam dela. O `app.css` ficou com a base e as regras de elemento que saem na 9G.
+
+Decidido na execução, sem quadro ou contra o quadro, para o usuário rever:
+
+- A Semana do desktop tem sempre sete colunas, como a seção 7.6 pede; o quadro usa `auto-fit` (cinco colunas a 1200px com o menu aberto). Os cartões ficam empilhados na ordem de início, sem régua, como no quadro.
+- A régua do Dia vai das 08:00 às 19:00 e se estende até a hora cheia do primeiro início e a seguinte ao último fim (seção 8); evento de outro dia entra recortado ao dia (a régua vai então a 00:00 ou a 24:00). O início arredonda para baixo e o fim para cima, com no mínimo dois quartos (24px). Eventos que se sobrepõem dividem a largura em até quatro colunas, a 8px um do outro; do quinto em diante, o evento divide a última coluna. As linhas das horas são o fundo da grade, sem elemento por hora.
+- O mobile não tem "Hoje" (o quadro não tem; abrir a agenda pelo menu cai em hoje). No Dia e na Semana, as setas andam a faixa de dias uma semana, mantendo o dia da semana escolhido.
+- O Mês mostra até três eventos por célula e `+N`, que leva ao Dia daquela data; o tipo do item vai em texto para leitor de tela; no tablet a grade não tem largura mínima. Na grade compacta do mobile, o dia de fora do mês continua tocável.
+- No Mês do mobile, a grade compacta fica no topo do conteúdo e rola com a lista do dia (Ruling 13); na barra ficam o segmentado e a linha do mês. Na barra, que não rola, ela comia a altura da tela e deixava a lista sem espaço num celular baixo. É desenho novo (seção 9), sem quadro. Enquanto o mês novo carrega e na falha, a grade some junto com a lista (Ruling 16).
+- A consulta lê o filtro aplicado, gravado só no "Filtrar", da barra do desktop ou do painel (Ruling 14). Fechar o painel sem "Filtrar" volta os campos ao filtro aplicado (abrir também); "Limpar" volta os campos a "Todos" sem consultar. A página antiga aplicava os campos na troca de período seguinte, e com o painel fechado nada mostrava o filtro valendo. No desktop, um campo mudado sem "Filtrar" continua mostrando a escolha depois da troca de período, com a lista pelo filtro aplicado (Ruling 15): é o comportamento comum de formulário com o botão à vista. Os filtros não vão para o endereço e sobrevivem à troca de período.
+- O avatar do próprio usuário é dourado nos participantes da ficha e nos chips do formulário (os quadros); `(você)` vence `(inativo)`. Participante sem nome aparece como "Usuário não encontrado", sem `(inativo)` (antes saía com).
+- Exclusão recusada porque o evento sumiu mostra só "Evento não encontrado."; as outras recusas, a mensagem do servidor, com "Não foi possível excluir o evento." de reserva, por analogia com "Não foi possível excluir a atividade." da 9E (Ruling 9).
+- As setas levam o `aria-label` dos quadros, sem verbo ("Período anterior", "Semana anterior"): o rótulo diz o destino (Ruling 7).
+- Depois de salvar, o evento novo volta à agenda na visão de origem e na data do início do evento; a edição volta à ficha com a origem. Dois casos para o usuário decidir: o evento novo começa em hoje, não na data à vista na agenda; depois de editar mudando a data, a ficha volta à agenda no período antigo, onde o evento já não aparece.
+- Formulário: o tipo é `select` no desktop e ladrilhos no tablet e no mobile, e o evento novo começa em "Reunião"; a duração no tablet e no mobile é um `select` com as quatro opções do quadro e "Outra duração", que mostra o campo de minutos; o vínculo Atividade existe também no tablet e no mobile (os quadros não o têm); processo e atividade escolhidos não têm busca de troca (remove-se e a busca volta); "Quem cria o evento sempre participa." só no evento novo; "Cancelar" secundário no tablet. O processo não aparece nos cartões (nenhum quadro o mostra; fica na ficha).
+- `?visao` só vale em minúsculas e sem acento (`dia`, `semana`, `mes`). As setas não travam em 2000–2100: um endereço fora da faixa volta a hoje.
+- Divergências dos quadros antigos mantidas para todas as telas ficarem iguais entre si: o `letter-spacing` do título, a sombra do primário no tablet e na barra fixa, a sombra da opção escolhida do segmentado no desktop, o hover do "Filtros" do tablet; no formulário, o aviso, o voltar do tablet, o vão e o raio dos campos, os painéis do tablet com o respiro comum, as barras com 46px e a busca de vínculo como a da 9E. A cor dos avatares segue a conta da 9E (no formulário, "BL" sai lilás, "CP" verde e "RT" azul; no quadro, azul, âmbar e verde).
+- As outras decisões de redação estão no fim do plano da fase (`docs/superpowers/plans/2026-10-15-fase-9f-agenda.md`, "Decisões tomadas na redação").
+
+A conferência no navegador: 9 dos 12 quadros × visões sem divergência (o `AgendaA` na Semana, no Dia, no Mês e com o menu escondido, o `AgendaTablet`, o `AgendaMobile` e as três visões da ficha). Os três do formulário (`NovoEvento*`) tiveram só diferenças de CSS, e duas foram corrigidas. O "(opcional)" da Descrição ia para uma linha própria, porque o `.aj-rotulo` é coluna e o `small` virava item dela (o painel Evento ficava ~19px mais alto): o `RotuloDeCampo` passou a envolver o texto e o complemento num `span`, como o README do Campo manda (Ruling 17). A ajuda em parágrafo dentro de painel saía com `--tinta-corpo` e 68 caracteres de largura, porque `.aj-painel p` vencia `.aj-ajuda`: o design system ganhou `.aj-painel p.aj-ajuda{max-width:none;color:var(--tinta-suave)}` (`1792101692-3ba2`; Ruling 18). Ficaram, com o motivo (Ruling 19):
+
+- A altura de linha do `aj-rotulo` 1,4 (os quadros têm 1,5: 1,35px por rótulo) e o `h2` do painel com 22,4px (24 nos quadros): as classes, como na 9E.
+- O respiro dos campos no tablet e no mobile (14px; os quadros têm 12, e a Descrição mede 92px contra 98): os quadros antigos do tablet e do mobile divergem do próprio desktop, que tem os 14px.
+- Cliente e Processo empilhados no tablet: o painel Vínculos passa de 157 a 240px e tudo abaixo desce ~83px. Nenhuma classe cobre a grade só no tablet (decisão 5 da redação).
+- No desktop, a barra de ações do formulário (sticky), rolada até o fim, começa 2px acima do fim do último painel: a construção é a do quadro.
+- O aviso de conflito diz "das 11:00 às 11:30" onde o quadro diz "das 10:00 às 11:30": o servidor recorta a sobreposição ao intervalo do evento salvo (`SalvarEvento.RecortarEFundir`), comportamento anterior à fase.
+
+O resto da lista passou: o Enter das três buscas (nenhuma salva), os filtros como as Rulings 14 e 15, o Mês do mobile nas três alturas, o aviso nas três redações (na agenda e na ficha), o clique duplo (pela contagem), os casos de borda, as larguras 760, 761, 1199 e 1200 e a Produção só com os seus eventos e o filtro Tipo.
+
+Para as próximas fases (a 9G é a última):
+
+- Código de produção que só os testes usam: `RotulosDeAgenda.MensagemDeSalvo` e `Sobreposicao`, e `AvatarDePessoa.Classe(nome, proprio)`, substituído por `Classes`. Para tirar, os testes são reescritos sobre as redações novas, não apagados.
+- `AvisoDeEventoSalvo` escreve "Evento salvo." à mão no ramo com conflito e ignora o `Recado.Texto` (só o salvar produz sobreposição).
+- O rótulo do `+N` do Mês é o único texto da agenda fora de `RotulosDeAgenda`, com `InvariantCulture` e o plural à mão; "Cliente indisponível" e "Processo indisponível" são literais repetidos na ficha e no formulário.
+- A agenda repete a marcação do erro com "Tentar de novo" que o `EstadoDaLista` emite (a ficha usa o componente).
+- No caminho sem `visao`, a página põe invólucros de visão em volta da Semana e do Dia, que têm os seus; a regra de `flex-shrink:0` dos filhos de invólucro não alcança os netos. Sem efeito hoje (nenhum neto nesse caminho tem `overflow` diferente de `visible`); fica o registro de fragilidade.
+- A trava da agenda não é recursiva, como a das atividades.
+- Atividades e Auditoria seguem o padrão que a agenda deixou: o que está nos campos de filtro vale na consulta seguinte, mesmo sem "Filtrar". Decidir se passam ao filtro aplicado da Ruling 14.
+
+Para a 9G, junto da revisão de teclado e de leitor de tela:
+
+- A troca de período não leva o foco ao título nem anuncia o período novo: o `FocoNoTitulo` só age quando muda a página, o foco fica na seta (o que serve ao clique repetido) e o subtítulo não tem região viva. Enter num dia de fora do mês na grade compacta leva ao outro mês e o foco cai no `body` (a grade some durante a carga). Esc não fecha o painel de filtros, que fecha pelo mesmo botão. (Ruling 20.)
+- O foco também cai no `body` depois do `+N` do Mês (a grade dá lugar ao Dia) e do "Filtrar" do painel (o painel fecha); no painel, o esperado é devolvê-lo ao botão que o abriu.
+- `aria-controls="filtros-da-agenda"` aponta para um id que não existe com o painel fechado (o mesmo da Auditoria); o grupo das setas e do "Hoje" não tem `role="group"` com rótulo, ao contrário do segmentado; o erro do grupo de participantes não tem `aria-invalid` nem `aria-describedby` (a seção 8 pede `aria-invalid`). No mobile, o botão flutuante "Novo evento" vem antes dos cartões do dia na ordem de tabulação.
+- A regra `label:has(> input[type="checkbox"]), label:has(> input[type="radio"])` do `app.css`: os ladrilhos do tipo e os chips de pessoa usam seletores de duas classes para vencê-la. É a próxima a sair; com ela, os seletores de duas classes deixam de ser necessários.
+- Regras de elemento que ficaram no `app.css` (lista na Tarefa 10 do plano da fase): `box-sizing`, `body`, foco, links, `h1`–`h3`, `p`, `label`, `button:disabled`, `.aj-campo-icone input:focus…`, `input.invalid…`, `input[type="checkbox"]…`, `label:has(> input…)`, `fieldset`, `legend` e `td code`. Os `h2` da agenda levam o `font` inteiro e `margin:0` por causa da regra `h2`. Medidas pela conferência: `label { … }` pinta o `aj-campo-filtro` da agenda e o `aj-campo-icone` do formulário, e `fieldset` dá o raio ao `aj-conjunto`, sem efeito visível; `input[type="checkbox"]` zera a margem das caixas de marcar dos participantes do desktop (`aj-opcao__caixa`): sem o `app.css`, elas ganham 3px em cima e embaixo, e o quadro tem `margin:0`. O design system precisa da margem zero antes de a regra sair.
+- `MenuDeAcoes`: o Tab e o Esc anotados na 9D e na 9E continuam como estão; a agenda não usa o menu.
+
+Observações de desenho, sem ação nesta fase:
+
+- Processo e atividade escolhidos no formulário, sem avatar: o nome começa a 9px da borda (8px de respiro e 1px de borda); o do cliente, depois do avatar, a 53px no desktop, 49 no tablet e 51 no mobile. As três caixas têm a mesma altura.
+- O nome acessível do item do Mês é "Reunião, 10:00 Alinhamento com o cliente", com espaço entre a hora e o título; no dia seguinte de um evento de dois dias, sem a hora ("Outro, Plantão de virada").
+- Uma cadeia de três simultâneos (09:00–10:30, 10:00–11:30, 11:00–12:00) fica em duas colunas: o terceiro volta à primeira.
+- A 375×667 e a 360×640, a lista do dia do Mês do mobile começa abaixo da dobra; a rolagem chega a ela.
+- Nenhum quadro desenha indicação de filtro ativo nos botões "Filtros" e "Filtrar agenda"; com o painel fechado, só a lista mostra o filtro aplicado.
+- Abrir a agenda grava duas consultas (a pré-renderização e a interativa), como nas outras telas.
