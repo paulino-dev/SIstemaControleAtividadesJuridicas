@@ -42,6 +42,7 @@ public partial class TelasNoDesignSystemTests
         "Components/Pages/Atividades.razor",
         "Components/Pages/AtividadeFicha.razor",
         "Components/Pages/AtividadeFormulario.razor",
+        "Components/Pages/AtividadeResponsaveis.razor",
         "Components/Pages/Auditoria.razor",
         "Components/Pages/Clientes.razor",
         "Components/Pages/ClienteFicha.razor",

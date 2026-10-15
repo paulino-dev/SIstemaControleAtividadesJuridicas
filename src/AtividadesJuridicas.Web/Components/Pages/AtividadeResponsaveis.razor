@@ -1,0 +1,296 @@
+@page "/atividades/{Id:guid}/responsaveis"
+@inject IDespachante Despachante
+@inject NavigationManager Navegacao
+@inject Recados Recados
+
+<PageTitle>@Titulo</PageTitle>
+
+<CabecalhoDeDetalhe Titulo="@Titulo" Subtitulo="@Subtitulo" VoltarPara="@Voltar" Origem="@Origem"
+                    RotuloDoVoltarNoMobile="@RotuloDoVoltarNoMobile" />
+
+<CargaDoFormulario Estado="_estado" Erro="@_erroDaConsulta" TextoNaoEncontrado="Atividade não encontrada." TentarDeNovo="CarregarAsync">
+    @if (!Permitida)
+    {
+        <Aviso Tipo="TipoDeAviso.Atencao">Esta atividade não permite mais essa ação.</Aviso>
+    }
+    else
+    {
+        @if (_mensagem is not null)
+        {
+            <Aviso Tipo="TipoDeAviso.Erro">@_mensagem</Aviso>
+        }
+
+        @* A barra de voltar do mobile não tem subtítulo: ele vira a ajuda no topo do conteúdo. *@
+        <div class="aj-so-mobile">
+            <span class="aj-ajuda">@Subtitulo</span>
+        </div>
+
+        <EditForm Model="_form" OnSubmit="SalvarAsync" FormName="responsaveis" id="formulario-de-responsaveis" class="aj-lado-a-lado aj-lado-a-lado--formulario">
+            @if (ModoCompleto)
+            {
+                <section class="aj-painel aj-painel--principal aj-painel--sempre-destacado aj-lado-a-lado__lista">
+                    <h2>@_detalhe!.Titulo</h2>
+                    @* A opção e o direcionamento são irmãos no mesmo pai (o vão do painel separa todos): as chaves dos dois
+                       tipos nunca coincidem, senão o Blazor reaproveita a opção para o direcionamento ao marcar. *@
+                    @foreach (var linha in _form.Linhas)
+                    {
+                        <label class="aj-opcao" @key="linha.UsuarioId"><input type="checkbox" class="aj-opcao__caixa" checked="@linha.Marcado" disabled="@_salvando" @onchange="e => Marcar(linha, e)" />@linha.Nome<span class="aj-opcao__nota">@linha.Nota</span></label>
+                        @if (linha.Marcado)
+                        {
+                            <label class="aj-rotulo aj-rotulo--recuado" @key='("direcionamento", linha.UsuarioId)'>@($"Direcionamento de {linha.Nome}")<textarea class="aj-campo" rows="2" maxlength="@AtividadeResponsavel.TamanhoMaximoDirecionamento" disabled="@_salvando" @bind="linha.Direcionamento"></textarea></label>
+                        }
+                    }
+                </section>
+
+                <section class="aj-painel aj-lado-a-lado__painel">
+                    <h2>Revisor</h2>
+                    <label class="aj-rotulo"><span class="aj-so-leitor">Revisor</span><select class="aj-campo" disabled="@_salvando" @bind="_form.RevisorId"><option value="@Guid.Empty">@TextoDoManter</option>@foreach (var diretor in _diretores)
+                        {<option value="@diretor.Id">@diretor.Nome</option>}</select></label>
+                </section>
+            }
+            else
+            {
+                <section class="aj-painel aj-painel--principal aj-painel--sempre-destacado aj-painel--medio aj-lado-a-lado__lista">
+                    <h2>Revisor</h2>
+                    <label class="@ClasseDoRevisor"><span class="aj-so-leitor">Revisor</span><select class="aj-campo" disabled="@_salvando" @bind="_form.RevisorId"><option value="@Guid.Empty">Selecione…</option>@foreach (var diretor in _diretores)
+                        {<option value="@diretor.Id">@diretor.Nome</option>}</select>@if (_erroDoRevisor is not null)
+                        {<span class="aj-campo-erro">@_erroDoRevisor</span>}</label>
+                </section>
+            }
+        </EditForm>
+
+        @* As barras de ação ficam fora do formulário e o enviam pelo atributo form. *@
+        <div class="aj-so-desktop">
+            <div class="aj-acoes aj-acoes--fixa"><a href="@Voltar" class="aj-botao aj-botao--fantasma">Cancelar</a><button type="submit" class="aj-botao aj-botao--primario aj-botao--com-icone" form="formulario-de-responsaveis" disabled="@_salvando"><Icone Nome="confirmar" />@TextoDoSalvar</button></div>
+        </div>
+        <div class="aj-so-tablet">
+            <div class="aj-acoes aj-acoes--fixa"><a href="@Voltar" class="aj-botao aj-botao--secundario">Cancelar</a><button type="submit" class="aj-botao aj-botao--primario aj-botao--com-icone" form="formulario-de-responsaveis" disabled="@_salvando"><Icone Nome="confirmar" />@TextoDoSalvar</button></div>
+        </div>
+        <div class="aj-so-mobile">
+            <div class="aj-acoes aj-acoes--fixa"><a href="@Voltar" class="aj-botao aj-botao--secundario">Cancelar</a><button type="submit" class="aj-botao aj-botao--primario aj-botao--com-icone" form="formulario-de-responsaveis" disabled="@_salvando"><Icone Nome="confirmar" />Salvar</button></div>
+        </div>
+    }
+</CargaDoFormulario>
+
+@code {
+    private const string TextoDaAjuda =
+        "Marque quem é responsável e escreva o direcionamento de cada um. Quem está desmarcado deixa de ser responsável.";
+
+    [Parameter] public Guid Id { get; set; }
+
+    private EstadoDeCarga _estado = EstadoDeCarga.Carregando;
+    private string? _erroDaConsulta;
+    private AtividadeDetalhe? _detalhe;
+    private IReadOnlyList<UsuarioResumo> _diretores = [];
+    private Formulario _form = new();
+    private string? _mensagem;
+    private string? _erroDoRevisor;
+    private bool _salvando;
+
+    private bool Carregada => _estado == EstadoDeCarga.Pronto && _detalhe is not null;
+
+    // Com DefinirResponsaveis, a tela inteira (o painel Revisor dela também troca o revisor); só com TrocarRevisor
+    // (atividade feita ou corrigida), só o revisor; sem as duas, o aviso.
+    private bool ModoCompleto => Carregada && _detalhe!.Acoes.DefinirResponsaveis;
+    private bool ModoDoRevisor => Carregada && !_detalhe!.Acoes.DefinirResponsaveis && _detalhe.Acoes.TrocarRevisor;
+    private bool Permitida => ModoCompleto || ModoDoRevisor;
+
+    private string Titulo => ModoDoRevisor ? "Trocar revisor" : "Responsáveis";
+
+    // O subtítulo só acompanha o formulário: na tela inteira, a ajuda do quadro; na troca de revisor, o título da
+    // atividade (o painel principal com o título não existe nesse modo).
+    private string? Subtitulo => ModoCompleto ? TextoDaAjuda : ModoDoRevisor ? _detalhe!.Titulo : null;
+
+    // Sem a atividade para voltar a ela, o voltar vai para a lista.
+    private string Voltar => _estado == EstadoDeCarga.NaoEncontrado ? "/atividades" : $"/atividades/{Id}";
+    private string Origem => _estado == EstadoDeCarga.NaoEncontrado ? "Atividades" : _detalhe?.Titulo ?? "Atividade";
+    private string? RotuloDoVoltarNoMobile => _estado == EstadoDeCarga.NaoEncontrado ? null : "Voltar para a atividade";
+
+    private string TextoDoSalvar => ModoCompleto ? "Salvar responsáveis" : "Trocar revisor";
+    private string TextoDoManter => _detalhe?.RevisorNome is { } atual ? $"Manter / deduzir (atual: {atual})" : "Manter / deduzir";
+    private string ClasseDoRevisor => _erroDoRevisor is null ? "aj-rotulo" : "aj-rotulo aj-rotulo--erro";
+
+    protected override Task OnInitializedAsync() => CarregarAsync();
+
+    // A carga inteira, também pelo "Tentar de novo": o perfil, a atividade e, se ela ainda permite a ação, os usuários.
+    private async Task CarregarAsync()
+    {
+        _estado = EstadoDeCarga.Carregando;
+        _erroDaConsulta = null;
+        _mensagem = null;
+        _erroDoRevisor = null;
+        _detalhe = null;
+
+        // O perfil vem antes de tudo: a Produção não consulta a atividade.
+        if (await Despachante.EnviarAsync(new ObterMeuAcesso()) is not { EhDiretoria: true })
+        {
+            _estado = EstadoDeCarga.AcessoNegado;
+            return;
+        }
+
+        var atividade = await Despachante.EnviarAsync(new ObterAtividade(Id));
+        if (atividade.Erro == TipoErro.AcessoNegado)
+        {
+            _estado = EstadoDeCarga.AcessoNegado;
+            return;
+        }
+
+        if (atividade.Erro == TipoErro.NaoEncontrado)
+        {
+            _estado = EstadoDeCarga.NaoEncontrado;
+            return;
+        }
+
+        if (atividade.Valor is not { } detalhe)
+        {
+            _erroDaConsulta = atividade.Mensagem ?? "Não foi possível consultar a atividade.";
+            _estado = EstadoDeCarga.Falhou;
+            return;
+        }
+
+        // Sem nenhuma das duas permissões a tela só avisa: os usuários nem são consultados.
+        if (detalhe.Acoes.DefinirResponsaveis || detalhe.Acoes.TrocarRevisor)
+        {
+            var usuarios = await Despachante.EnviarAsync(new ListarUsuarios());
+            if (usuarios.Erro == TipoErro.AcessoNegado)
+            {
+                _estado = EstadoDeCarga.AcessoNegado;
+                return;
+            }
+
+            if (usuarios.Valor is not { } lista)
+            {
+                _erroDaConsulta = usuarios.Mensagem ?? "Não foi possível consultar os usuários.";
+                _estado = EstadoDeCarga.Falhou;
+                return;
+            }
+
+            _diretores = [.. lista.Where(u => u.Ativo && u.TipoPerfil == TipoPerfil.Diretoria)
+                .OrderBy(u => u.Nome, StringComparer.CurrentCultureIgnoreCase)];
+            _form = new Formulario
+            {
+                Linhas = Linhas(detalhe, lista),
+                // Na tela inteira o revisor começa em "manter / deduzir"; na troca, no atual, se ele ainda é opção.
+                RevisorId = !detalhe.Acoes.DefinirResponsaveis && _diretores.Any(d => d.Id == detalhe.RevisorId)
+                    ? detalhe.RevisorId!.Value
+                    : Guid.Empty,
+            };
+        }
+
+        _detalhe = detalhe;
+        _estado = EstadoDeCarga.Pronto;
+    }
+
+    /// <summary>
+    /// As opções: os usuários ativos que não são de cliente, por nome, marcados se já são responsáveis; depois os
+    /// responsáveis de hoje que não entraram (inativos, ou fora da lista), sempre marcados.
+    /// </summary>
+    private static List<Linha> Linhas(AtividadeDetalhe detalhe, IReadOnlyList<UsuarioResumo> usuarios)
+    {
+        var atuais = detalhe.Responsaveis.ToDictionary(r => r.UsuarioId);
+        var linhas = new List<Linha>();
+
+        foreach (var usuario in usuarios.Where(u => u.Ativo && u.TipoPerfil != TipoPerfil.Cliente)
+                     .OrderBy(u => u.Nome, StringComparer.CurrentCultureIgnoreCase))
+        {
+            atuais.TryGetValue(usuario.Id, out var atual);
+            linhas.Add(new Linha
+            {
+                UsuarioId = usuario.Id, Nome = usuario.Nome, Nota = $"({usuario.PerfilNome})",
+                Marcado = atual is not null, Direcionamento = atual?.Direcionamento,
+            });
+        }
+
+        foreach (var atual in detalhe.Responsaveis.Where(r => linhas.All(l => l.UsuarioId != r.UsuarioId)))
+        {
+            var usuario = usuarios.FirstOrDefault(u => u.Id == atual.UsuarioId);
+            linhas.Add(new Linha
+            {
+                UsuarioId = atual.UsuarioId, Nome = usuario?.Nome ?? atual.Nome,
+                Nota = usuario is null ? "(usuário indisponível)" : "(inativo)",
+                Marcado = true, Direcionamento = atual.Direcionamento,
+            });
+        }
+
+        return linhas;
+    }
+
+    private static void Marcar(Linha linha, ChangeEventArgs e) => linha.Marcado = e.Value is true;
+
+    private async Task SalvarAsync()
+    {
+        if (_salvando || _detalhe is not { } detalhe) return;
+
+        var completo = detalhe.Acoes.DefinirResponsaveis;
+        _erroDoRevisor = null;
+        if (!completo && _form.RevisorId == Guid.Empty)
+        {
+            _erroDoRevisor = "Escolha o novo revisor.";
+            return;
+        }
+
+        _salvando = true;
+        var navegou = false;
+        try
+        {
+            _mensagem = null;
+            Resultado resultado;
+            string recado;
+            if (completo)
+            {
+                // Exatamente as linhas marcadas na tela; direcionamento em branco vai como nulo.
+                List<ResponsavelEntrada> enviados = [.. _form.Linhas.Where(l => l.Marcado).Select(l => new ResponsavelEntrada(
+                    l.UsuarioId, string.IsNullOrWhiteSpace(l.Direcionamento) ? null : l.Direcionamento.Trim()))];
+                resultado = await Despachante.EnviarAsync(new DefinirResponsaveisDaAtividade(
+                    Id, enviados, _form.RevisorId == Guid.Empty ? null : _form.RevisorId, detalhe.Versao));
+                recado = "Responsáveis salvos.";
+            }
+            else
+            {
+                resultado = await Despachante.EnviarAsync(new TrocarRevisorDaAtividade(Id, _form.RevisorId, detalhe.Versao));
+                recado = "Revisor alterado.";
+            }
+
+            if (resultado.Erro == TipoErro.AcessoNegado)
+            {
+                _estado = EstadoDeCarga.AcessoNegado;
+                return;
+            }
+
+            if (!resultado.Sucesso)
+            {
+                // Conflito, não encontrada ou validação: a mensagem do servidor no topo, e o formulário fica como está.
+                _mensagem = resultado.Mensagem;
+                return;
+            }
+
+            Recados.Deixar(recado);
+            navegou = true;
+            Navegacao.NavigateTo(Voltar);
+        }
+        finally
+        {
+            // Depois do sucesso a página vai embora: o botão fica travado para um clique tardio não salvar de novo.
+            if (!navegou) _salvando = false;
+        }
+    }
+
+    /// <summary>Uma opção da tela: tudo o que consta na lista aparece aqui, e só o que está marcado é enviado.</summary>
+    private sealed class Linha
+    {
+        public Guid UsuarioId { get; init; }
+        public string Nome { get; init; } = string.Empty;
+
+        /// <summary>O complemento do nome: o perfil, "(inativo)" ou "(usuário indisponível)".</summary>
+        public string Nota { get; init; } = string.Empty;
+
+        public bool Marcado { get; set; }
+        public string? Direcionamento { get; set; }
+    }
+
+    private sealed class Formulario
+    {
+        public List<Linha> Linhas { get; init; } = [];
+        public Guid RevisorId { get; set; }
+    }
+}
