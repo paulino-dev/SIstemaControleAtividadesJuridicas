@@ -130,7 +130,13 @@ public class AgendaInterativaTests : TelaInterativa
         Pressionada(tela, VisoesDoTablet).Should().Be("Mês");
         Pressionada(tela, VisoesDoMobile).Should().Be("Mês");
         tela.FindAll(".aj-mes").Should().ContainSingle();
-        tela.FindAll(".aj-barra-superior .aj-faixa-dias--mes").Should().ContainSingle();
+        // A grade compacta fica no topo do bloco do mobile, antes da lista do dia, e rola com ela; a barra fica com o
+        // segmentado e a linha do mês.
+        tela.FindAll("div.aj-so-mobile > .aj-faixa-dias--mes").Should().ContainSingle()
+            .Which.NextElementSibling!.ClassName.Should().Be("aj-dia-escolhido");
+        tela.FindAll(".aj-barra-superior .aj-faixa-dias").Should().BeEmpty();
+        tela.Find("header.aj-barra-superior").Children.Select(c => c.ClassName).Should().Equal(
+            "aj-barra-superior__linha", "aj-segmentado aj-segmentado--recuado aj-segmentado--claro", "aj-barra-superior__periodo");
         tela.FindAll(".aj-semana").Should().BeEmpty();
         tela.FindAll($"{Mobile} button").Select(b => b.GetAttribute("aria-label")).Should().Equal("Mês anterior", "Próximo mês");
         tela.Find("header.aj-cabecalho a.aj-botao--primario").GetAttribute("href").Should().Be("/agenda/novo?visao=mes&data=2026-10-15");
@@ -224,7 +230,7 @@ public class AgendaInterativaTests : TelaInterativa
     {
         var tela = Agenda("/agenda?visao=mes&data=2026-10-08");
 
-        tela.FindAll(".aj-faixa-dias--mes .aj-faixa-dias__dia")
+        tela.FindAll("div.aj-so-mobile > .aj-faixa-dias--mes .aj-faixa-dias__dia")
             .Single(d => !d.ClassList.Contains("aj-faixa-dias__dia--fora") && Texto(d.QuerySelector(".aj-faixa-dias__numero")!) == "20")
             .Click();
 
@@ -321,26 +327,108 @@ public class AgendaInterativaTests : TelaInterativa
         Texto(tela.Find("form#filtros-da-agenda .aj-painel__acoes")).Should().Be("Limpar Filtrar");
 
         CampoDoPainel(tela, "Tipo").Change(nameof(TipoEvento.Audiencia));
+        CampoDoPainel(tela, "Participante").Change(Pedro.Id.ToString());
         tela.Find("form#filtros-da-agenda").Submit();
 
         Consultas.Should().HaveCount(2);
         Consultas[1].Tipo.Should().Be(TipoEvento.Audiencia);
+        Consultas[1].ParticipanteId.Should().Be(Pedro.Id);
         tela.FindAll("form#filtros-da-agenda").Should().BeEmpty();
         tela.Find($"{Tablet} button[aria-controls=filtros-da-agenda]").GetAttribute("aria-expanded").Should().Be("false");
 
         tela.Find($"{Tablet} button[aria-controls=filtros-da-agenda]").Click();
         CampoDoPainel(tela, "Tipo").QuerySelector("option[selected]")!.TextContent.Should().Be("Audiência");
+        CampoDoPainel(tela, "Participante").QuerySelector("option[selected]")!.TextContent.Should().Be("Pedro Produção");
         tela.Find("form#filtros-da-agenda").QuerySelectorAll("button").Single(b => b.TextContent == "Limpar").Click();
 
         Consultas.Should().HaveCount(2);   // limpar não consulta
-        // Com o valor do @bind nulo, o bUnit não marca opção nenhuma (antes do Limpar a marcada era "Audiência"); no
-        // navegador, o Blazor escreve "" no campo, e ele mostra a opção de valor vazio, "Todos".
+        // Com o valor do @bind nulo, o bUnit não marca opção nenhuma (antes do Limpar as marcadas eram "Audiência" e
+        // "Pedro Produção"); no navegador, o Blazor escreve "" no campo, e ele mostra a opção de valor vazio, "Todos".
         CampoDoPainel(tela, "Tipo").QuerySelector("option[selected]").Should().BeNull();
         CampoDoPainel(tela, "Tipo").QuerySelector("option[value='']")!.TextContent.Should().Be("Todos");
+        CampoDoPainel(tela, "Participante").QuerySelector("option[selected]").Should().BeNull();
+        CampoDoPainel(tela, "Participante").QuerySelector("option[value='']")!.TextContent.Should().Be("Todos");
         tela.Find("form#filtros-da-agenda").Submit();
         Consultas.Should().HaveCount(3);
         Consultas[2].Tipo.Should().BeNull();
         Consultas[2].ParticipanteId.Should().BeNull();
+    }
+
+    // A consulta lê o filtro aplicado (o do último "Filtrar"): o que se escolhe no painel e não se aplica não vale na
+    // troca de período, e fechar o painel sem filtrar volta os campos ao aplicado.
+    [Fact]
+    public void Filtro_escolhido_no_painel_e_nao_aplicado_nao_vale_na_troca_de_periodo_e_fechar_volta_ao_aplicado()
+    {
+        var tela = Agenda("/agenda?data=2026-10-08");
+        var filtros = $"{Tablet} button[aria-controls=filtros-da-agenda]";
+        var filtrarAgenda = ".aj-barra-superior button[aria-label='Filtrar agenda']";
+
+        tela.Find(filtros).Click();
+        CampoDoPainel(tela, "Tipo").Change(nameof(TipoEvento.Prazo));
+        tela.Find(filtros).Click();   // fecha sem filtrar
+        tela.FindAll("form#filtros-da-agenda").Should().BeEmpty();
+
+        Botao(tela, Tablet, "Próxima semana").Click();
+
+        Consultas.Should().HaveCount(2);
+        Consultas[1].DeUtc.Should().Be(Fuso.InicioDoDiaEmUtc(new DateOnly(2026, 10, 12)));
+        Consultas[1].Tipo.Should().BeNull();
+
+        // Reaberto, o painel mostra o filtro aplicado (nenhum: nenhuma opção marcada, como depois do "Limpar"), e não o
+        // que ficou escolhido.
+        tela.Find(filtros).Click();
+        CampoDoPainel(tela, "Tipo").QuerySelector("option[selected]").Should().BeNull();
+
+        CampoDoPainel(tela, "Tipo").Change(nameof(TipoEvento.Prazo));
+        tela.Find("form#filtros-da-agenda").Submit();
+
+        Consultas.Should().HaveCount(3);
+        Consultas[2].DeUtc.Should().Be(Consultas[1].DeUtc);
+        Consultas[2].Tipo.Should().Be(TipoEvento.Prazo);
+
+        // Com um filtro aplicado, o mesmo pelo "Filtrar agenda" do mobile: escolher outros, fechar sem filtrar e trocar
+        // de semana consulta com o aplicado, e o painel reaberto o mostra.
+        tela.Find(filtrarAgenda).Click();
+        CampoDoPainel(tela, "Tipo").Change(nameof(TipoEvento.Reuniao));
+        CampoDoPainel(tela, "Participante").Change(Pedro.Id.ToString());
+        tela.Find(filtrarAgenda).Click();
+
+        Botao(tela, Mobile, "Semana anterior").Click();
+
+        Consultas.Should().HaveCount(4);
+        Consultas[3].DeUtc.Should().Be(Fuso.InicioDoDiaEmUtc(new DateOnly(2026, 10, 5)));
+        Consultas[3].Tipo.Should().Be(TipoEvento.Prazo);
+        Consultas[3].ParticipanteId.Should().BeNull();
+        tela.Find(filtrarAgenda).Click();
+        CampoDoPainel(tela, "Tipo").QuerySelector("option[selected]")!.TextContent.Should().Be("Prazo");
+        CampoDoPainel(tela, "Participante").QuerySelector("option[selected]").Should().BeNull();
+    }
+
+    [Fact]
+    public void Campos_da_barra_do_desktop_trocados_sem_filtrar_nao_valem_na_troca_de_visao_nem_de_periodo()
+    {
+        var tela = Agenda("/agenda?data=2026-10-08");
+        CampoDaBarra(tela, "Tipo").Change(nameof(TipoEvento.Prazo));
+        CampoDaBarra(tela, "Participante").Change(Pedro.Id.ToString());
+
+        // A mesma semana em outra visão: o pedido é o mesmo, sem consulta nova.
+        Opcao(tela, VisoesDoDesktop, "Dia").Click();
+        Consultas.Should().ContainSingle();
+
+        Opcao(tela, VisoesDoDesktop, "Semana").Click();
+        Botao(tela, Desktop, "Próximo período").Click();
+
+        Consultas.Should().HaveCount(2);
+        Consultas[1].DeUtc.Should().Be(Fuso.InicioDoDiaEmUtc(new DateOnly(2026, 10, 12)));
+        Consultas[1].Tipo.Should().BeNull();
+        Consultas[1].ParticipanteId.Should().BeNull();
+
+        tela.Find("form.aj-barra-filtros__grupo").Submit();
+
+        Consultas.Should().HaveCount(3);
+        Consultas[2].DeUtc.Should().Be(Consultas[1].DeUtc);
+        Consultas[2].Tipo.Should().Be(TipoEvento.Prazo);
+        Consultas[2].ParticipanteId.Should().Be(Pedro.Id);
     }
 
     [Fact]

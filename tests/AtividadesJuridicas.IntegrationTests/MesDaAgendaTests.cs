@@ -8,19 +8,21 @@ namespace AtividadesJuridicas.IntegrationTests;
 
 /// <summary>
 /// O Mês da agenda com os eventos do quadro: a grade de semanas inteiras do desktop e do tablet (4, 5 ou 6 linhas,
-/// dias de fora apagados e sem eventos, até três eventos por dia e o "+N", evento de vários dias em cada dia) e a
-/// lista do dia da data no mobile.
+/// dias de fora apagados e sem eventos, até três eventos por dia e o "+N", evento de vários dias em cada dia) e, no
+/// mobile, a grade compacta no topo e a lista do dia da data embaixo.
 /// </summary>
 public class MesDaAgendaTests : TelaInterativa
 {
     private DateOnly? _aberto;
+    private DateOnly? _escolhido;
 
     private IRenderedComponent<MesDaAgenda> Mes(DateOnly data, IReadOnlyList<EventoResumo> eventos) =>
         Desenhar<MesDaAgenda>(p => p
             .Add(c => c.Periodo, new PeriodoDaAgenda(VisaoDaAgenda.Mes, data, true))
             .Add(c => c.Eventos, eventos)
             .Add(c => c.Hoje, QuadroDaAgenda.Hoje)
-            .Add(c => c.AoAbrirDia, (DateOnly dia) => _aberto = dia));
+            .Add(c => c.AoAbrirDia, (DateOnly dia) => _aberto = dia)
+            .Add(c => c.AoEscolherDia, (DateOnly dia) => _escolhido = dia));
 
     private static IReadOnlyList<IElement> Celulas(IRenderedComponent<MesDaAgenda> mes) =>
         mes.FindAll("div.aj-desktop-tablet > div.aj-mes > div.aj-mes__rolagem > div.aj-mes__grade > div");
@@ -179,6 +181,29 @@ public class MesDaAgendaTests : TelaInterativa
         sabado.QuerySelectorAll("a.aj-evento").Should().BeEmpty();
     }
 
+    // A grade compacta sai da barra superior (que não rola) e abre o bloco do mobile, antes da lista do dia: rola com o
+    // conteúdo. Tocar num dia avisa a página com a data.
+    [Fact]
+    public void No_mobile_a_grade_compacta_vem_antes_da_lista_do_dia_e_tocar_num_dia_avisa_a_pagina()
+    {
+        var mes = Mes(QuadroDaAgenda.Hoje, QuadroDaAgenda.Semana);
+        var mobile = mes.Find("div.aj-so-mobile");
+
+        mobile.Children.Select(c => c.ClassName).Should().StartWith(new[] { "aj-faixa-dias aj-faixa-dias--mes", "aj-dia-escolhido" });
+        var dias = mobile.QuerySelectorAll("div.aj-faixa-dias--mes > button.aj-faixa-dias__dia");
+        dias.Should().HaveCount(35);
+        dias[10].GetAttribute("aria-label").Should().Be("Quinta, 08/10, hoje");
+        dias[10].GetAttribute("aria-pressed").Should().Be("true");
+        // A grade é só do mobile: o desktop e o tablet têm a grade grande.
+        mes.FindAll(".aj-faixa-dias").Should().ContainSingle();
+        mes.Find("div.aj-desktop-tablet").QuerySelector(".aj-faixa-dias").Should().BeNull();
+
+        mes.Find("div.aj-so-mobile > div.aj-faixa-dias--mes > button[aria-label='Terça, 20/10']").Click();
+
+        _escolhido.Should().Be(new DateOnly(2026, 10, 20));
+        _aberto.Should().BeNull();
+    }
+
     [Fact]
     public void No_mobile_o_cartao_da_lista_leva_a_ficha_com_a_origem_do_mes()
     {
@@ -191,7 +216,7 @@ public class MesDaAgendaTests : TelaInterativa
 }
 
 /// <summary>
-/// A grade compacta do mês na barra do mobile: a linha das siglas, um botão por dia das semanas do mês (sem sigla),
+/// A grade compacta do mês no mobile (no topo do Mês): a linha das siglas, um botão por dia das semanas do mês (sem sigla),
 /// os dias de fora apagados e sem pontos, o escolhido, o hoje e o toque que avisa a página.
 /// </summary>
 public class GradeCompactaDoMesTests : TelaInterativa

@@ -25,11 +25,9 @@
                     <button type="button" class="aj-botao aj-botao--fantasma aj-botao--icone" aria-label="@RotuloDoProximo(PassoNoMobile)" @onclick="() => IrPara(Periodo.Proximo(PassoNoMobile))"><Icone Nome="avancar" /></button>
                 </div>
             </div>
-            @if (Periodo.NoMobile == VisaoDaAgenda.Mes)
-            {
-                <GradeCompactaDoMes Periodo="Periodo" Eventos="_eventos" Hoje="_hoje" AoEscolher="EscolherNaGrade" />
-            }
-            else
+            @* No Dia e na Semana, a faixa de uma semana fica na barra. No Mês, a barra para na linha do mês: a grade
+               compacta é alta demais para a barra, que não rola, e vai no topo do MesDaAgenda. *@
+            @if (Periodo.NoMobile != VisaoDaAgenda.Mes)
             {
                 <FaixaDeDias Periodo="Periodo" Eventos="_eventos" Hoje="_hoje" AoEscolher="EscolherNaFaixa" />
             }
@@ -138,7 +136,7 @@ else
     }
     else
     {
-        <MesDaAgenda Periodo="Periodo" Eventos="_eventos" Hoje="_hoje" AoAbrirDia="AbrirDia" />
+        <MesDaAgenda Periodo="Periodo" Eventos="_eventos" Hoje="_hoje" AoAbrirDia="AbrirDia" AoEscolherDia="EscolherNaGrade" />
     }
 }
 
@@ -161,6 +159,7 @@ else
     private string? _erroDosUsuarios;
     private Recado? _recado;
     private readonly Filtro _filtro = new();
+    private FiltroAplicado _filtroAplicado = FiltroAplicado.Nenhum;
     private IReadOnlyList<OpcaoDeUsuario> _usuarios = [];
     private ElementReference _tipoDoPainel;
 
@@ -237,11 +236,12 @@ else
             .Select(u => new OpcaoDeUsuario(u.Id, u.Ativo ? u.Nome : $"{u.Nome} (inativo)"))];
     }
 
-    // Uma consulta por intervalo e filtro: o Dia, a Semana e o Mês do mesmo período usam os mesmos eventos.
+    // Uma consulta por intervalo e filtro aplicado: o Dia, a Semana e o Mês do mesmo período usam os mesmos eventos.
+    // O que está nos campos e não foi aplicado não entra.
     private async Task ConsultarAsync()
     {
-        var pedido = new Pedido(Periodo.InicioDaConsulta, Periodo.FimDaConsulta, _filtro.Tipo,
-            _ator?.EhDiretoria == true ? _filtro.ParticipanteId : null);
+        var pedido = new Pedido(Periodo.InicioDaConsulta, Periodo.FimDaConsulta, _filtroAplicado.Tipo,
+            _ator?.EhDiretoria == true ? _filtroAplicado.ParticipanteId : null);
         if (pedido == _pedido) return;
 
         _pedido = pedido;
@@ -285,8 +285,10 @@ else
     // "Tentar de novo" repete o último pedido (o mesmo intervalo e o mesmo filtro), uma vez por clique.
     private Task TentarDeNovoAsync() => _carregando || _pedido is null ? Task.CompletedTask : CarregarAsync(_pedido);
 
+    // "Filtrar" (na barra do desktop e no painel) é o único lugar que grava o filtro aplicado.
     private Task FiltrarAsync()
     {
+        _filtroAplicado = _filtro.Aplicar();
         _recado = null;
         return ConsultarAsync();
     }
@@ -297,17 +299,21 @@ else
         await FiltrarAsync();
     }
 
-    // Volta os campos a "Todos"; só vale ao filtrar.
+    // Volta os campos a "Todos" sem consultar: o filtro aplicado só muda no "Filtrar". Fechar o painel sem filtrar
+    // devolve aos campos o filtro aplicado.
     private void LimparFiltros()
     {
         _filtro.Tipo = null;
         _filtro.ParticipanteId = null;
     }
 
+    // Abrir ou fechar o painel pelo botão ("Filtros", "Filtrar agenda") descarta o que se escolheu e não se aplicou: os
+    // campos voltam ao filtro aplicado, o que a agenda está mostrando.
     private void AlternarFiltros()
     {
         _filtrosAbertos = !_filtrosAbertos;
         _focarPainel = _filtrosAbertos;
+        _filtro.Voltar(_filtroAplicado);
     }
 
     private void IrPara(PeriodoDaAgenda periodo) => Navegacao.NavigateTo(periodo.Endereco);
@@ -382,12 +388,26 @@ else
     private sealed record OpcaoDeUsuario(Guid Id, string Rotulo);
 
     /// <summary>
-    /// O estado único dos filtros: a barra do desktop e o painel o mostram e o mudam; ele sobrevive à troca de período
-    /// (não vai ao endereço). A consulta lê o que está nos campos.
+    /// O filtro em edição: a barra do desktop e o painel o mostram e o mudam. A consulta não o lê: lê o
+    /// <see cref="FiltroAplicado"/>, que só o "Filtrar" grava. Os dois sobrevivem à troca de período (não vão ao endereço).
     /// </summary>
     private sealed class Filtro
     {
         public TipoEvento? Tipo { get; set; }
         public Guid? ParticipanteId { get; set; }
+
+        public FiltroAplicado Aplicar() => new(Tipo, ParticipanteId);
+
+        public void Voltar(FiltroAplicado aplicado)
+        {
+            Tipo = aplicado.Tipo;
+            ParticipanteId = aplicado.ParticipanteId;
+        }
+    }
+
+    /// <summary>O filtro do último "Filtrar", o que a agenda está mostrando.</summary>
+    private sealed record FiltroAplicado(TipoEvento? Tipo, Guid? ParticipanteId)
+    {
+        public static readonly FiltroAplicado Nenhum = new(null, null);
     }
 }

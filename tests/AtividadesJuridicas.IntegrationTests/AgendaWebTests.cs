@@ -117,7 +117,7 @@ public class AgendaWebTests(BancoFixture banco) : IAsyncLifetime
             "<button type=\"button\" class=\"aj-segmentado__opcao\" aria-pressed=\"false\"[^>]*>Mês</button>\\s*</div>\\s*</div>\\s*" +
             "<form class=\"aj-barra-filtros__grupo\" role=\"search\"[^>]*>\\s*" +
             "<label class=\"aj-campo-filtro aj-campo-filtro--tipo\">\\s*<span>Tipo</span>\\s*<select class=\"aj-campo-filtro__controle\"[^>]*>\\s*" +
-            "<option value(?:=\"\")?[^>]*>Todos</option>\\s*<option value=\"Audiencia\"[^>]*>Audiência</option>\\s*<option value=\"Reuniao\"[^>]*>Reunião</option>\\s*" +
+            "<option value(?:=\"\")?>Todos</option>\\s*<option value=\"Audiencia\"[^>]*>Audiência</option>\\s*<option value=\"Reuniao\"[^>]*>Reunião</option>\\s*" +
             "<option value=\"Prazo\"[^>]*>Prazo</option>\\s*<option value=\"Outro\"[^>]*>Outro</option>\\s*</select>\\s*</label>\\s*" +
             "<label class=\"aj-campo-filtro aj-campo-filtro--pessoa\">\\s*<span>Participante</span>\\s*<select class=\"aj-campo-filtro__controle\"[^>]*>.*?</select>\\s*</label>\\s*" +
             "<button type=\"submit\" class=\"aj-botao aj-botao--secundario aj-botao--com-icone-pequeno\">\\s*<svg[^>]*>.*?</svg>\\s*Filtrar</button>\\s*</form>\\s*</div>");
@@ -253,8 +253,14 @@ public class AgendaWebTests(BancoFixture banco) : IAsyncLifetime
         html.Should().Contain("<p class=\"aj-subtitulo\">Outubro de 2026</p>").And.Contain("aj-mes__grade")
             .And.Contain("<a href=\"/agenda/novo?visao=mes&data=2026-10-15\" class=\"aj-fab\" aria-label=\"Novo evento\">");
         BlocoDeVisao.De(html, "aj-so-desktop").Should().MatchRegex("aria-pressed=\"true\"[^>]*>Mês</button>");
-        BarraDoMobile(html).Should().Contain("<strong>Outubro 2026</strong>").And.Contain("aj-faixa-dias--mes")
-            .And.Contain("aria-label=\"Mês anterior\"").And.Contain("aria-label=\"Próximo mês\"");
+        BarraDoMobile(html).Should().Contain("<strong>Outubro 2026</strong>")
+            .And.Contain("aria-label=\"Mês anterior\"").And.Contain("aria-label=\"Próximo mês\"")
+            .And.NotContain("aj-faixa-dias");
+        // A grade compacta fica no conteúdo do mobile, antes da lista do dia, com um botão por dia das semanas do mês.
+        var grade = Regex.Match(BlocoDeVisao.De(html, "aj-so-mobile"),
+            "(?s)<div class=\"aj-faixa-dias aj-faixa-dias--mes\">(.*?)<div class=\"aj-dia-escolhido\">");
+        grade.Success.Should().BeTrue("a grade compacta do Mês vem antes da lista do dia, no bloco do mobile");
+        Regex.Matches(grade.Groups[1].Value, "<button type=\"button\" class=\"aj-faixa-dias__dia[\" ]").Count.Should().Be(35);
         var consulta = (await ConsultasDaAgendaAsync(_pedro)).Should().ContainSingle().Which;
         PeriodoConsultado(consulta).Should().Be(
             (_fuso.InicioDoDiaEmUtc(new DateOnly(2026, 9, 28)), _fuso.InicioDoDiaEmUtc(new DateOnly(2026, 11, 2))));

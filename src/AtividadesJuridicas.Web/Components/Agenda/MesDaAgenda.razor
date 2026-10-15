@@ -3,8 +3,8 @@
 @* O Mês da agenda. Desktop e tablet: a linha dos dias da semana e a grade das semanas inteiras (de segunda a
    domingo) que cobrem o mês da data, em 4, 5 ou 6 linhas; dia de outro mês apagado e sem eventos; hoje com o número
    no círculo; até três eventos por dia, na ordem de início, e o "+N" com os outros, que leva ao Dia daquela data;
-   evento de vários dias em cada dia que toca, com a hora só no dia em que começa. Mobile: a lista do dia da data
-   (ListaDoDia); a grade compacta fica na barra superior. *@
+   evento de vários dias em cada dia que toca, com a hora só no dia em que começa. Mobile: no topo, a grade compacta
+   (fora da barra superior, que não rola: rola com o conteúdo), e embaixo a lista do dia da data (ListaDoDia). *@
 <div class="aj-desktop-tablet">
     <div class="aj-mes">
         <div class="aj-mes__cabeca" aria-hidden="true"><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span><span>Dom</span></div>
@@ -45,6 +45,7 @@
     </div>
 </div>
 <div class="aj-so-mobile">
+    <GradeCompactaDoMes Periodo="Periodo" Eventos="Eventos" Hoje="Hoje" AoEscolher="AoEscolherDia" />
     <ListaDoDia Dia="Periodo.Data" Eventos="_doDiaEscolhido" Hoje="Periodo.Data == Hoje" Consulta="@Periodo.Consulta" />
 </div>
 
@@ -60,6 +61,9 @@
 
     /// <summary>O "+N" de um dia: a página leva ao Dia daquela data.</summary>
     [Parameter] public EventCallback<DateOnly> AoAbrirDia { get; set; }
+
+    /// <summary>O dia tocado na grade compacta do mobile: a página leva a data ao endereço e fica no Mês.</summary>
+    [Parameter] public EventCallback<DateOnly> AoEscolherDia { get; set; }
 
     private Dictionary<DateOnly, IReadOnlyList<EventoResumo>> _porDia = new();
     private IReadOnlyList<EventoResumo> _doDiaEscolhido = [];
