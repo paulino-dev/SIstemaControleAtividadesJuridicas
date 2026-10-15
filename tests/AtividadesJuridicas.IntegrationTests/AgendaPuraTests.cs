@@ -152,6 +152,15 @@ public class AgendaPuraTests
     }
 
     [Theory]
+    [InlineData("2026-10-01", true)]
+    [InlineData("2026-10-31", true)]
+    [InlineData("2026-09-30", false)]
+    [InlineData("2026-11-01", false)]
+    [InlineData("2025-10-15", false)]
+    public void NoMes_diz_se_o_dia_e_do_mes_da_data(string dia, bool esperado) =>
+        PeriodoDaAgenda.Ler("mes", "2026-10-08", Hoje).NoMes(D(dia)).Should().Be(esperado);
+
+    [Theory]
     [InlineData(null, null, "", "/agenda")]
     [InlineData("semana", null, "?visao=semana", "/agenda?visao=semana")]
     [InlineData(null, "2026-10-08", "?data=2026-10-08", "/agenda?data=2026-10-08")]

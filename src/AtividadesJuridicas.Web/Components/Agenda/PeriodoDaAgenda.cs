@@ -45,6 +45,9 @@ public sealed record PeriodoDaAgenda(VisaoDaAgenda? Visao, DateOnly Data, bool D
     /// </summary>
     public IReadOnlyList<DateOnly> SemanasDoMes => Dias(InicioDaGradeDoMes, FimDaGradeDoMes.DayNumber - InicioDaGradeDoMes.DayNumber);
 
+    /// <summary>O dia é do mês de <see cref="Data"/> (na grade do mês, o que não é fica apagado e sem eventos).</summary>
+    public bool NoMes(DateOnly dia) => dia.Year == Data.Year && dia.Month == Data.Month;
+
     /// <summary>
     /// O que vai depois de <c>/agenda</c>: <c>""</c>, <c>?visao=semana</c>, <c>?data=2026-10-08</c> ou
     /// <c>?visao=dia&amp;data=2026-10-08</c>. A visão quando houver; a data quando estiver no endereço.

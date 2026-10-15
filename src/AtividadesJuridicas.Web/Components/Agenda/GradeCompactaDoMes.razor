@@ -10,12 +10,7 @@
     {
         <button type="button" class="@ClasseDoDia(dia)" aria-pressed="@(dia == Periodo.Data ? "true" : "false")" aria-label="@RotulosDeAgenda.RotuloCurto(dia, EHoje(dia))" @key="dia" @onclick="() => AoEscolher.InvokeAsync(dia)">
             <span class="aj-faixa-dias__numero">@RotulosDeAgenda.NumeroDoDia(dia)</span>
-            <span class="aj-pontos-evento" aria-hidden="true">
-                @foreach (var tipo in Pontos(dia))
-                {
-                    <span class="@ClasseDoPonto(tipo)"></span>
-                }
-            </span>
+            <PontosDoDia Eventos="DoDia(dia)" />
         </button>
     }
 </div>
@@ -28,23 +23,15 @@
     /// <summary>O dia tocado; a página leva a data ao endereço e fica no Mês.</summary>
     [Parameter] public EventCallback<DateOnly> AoEscolher { get; set; }
 
-    private bool Fora(DateOnly dia) => dia.Year != Periodo.Data.Year || dia.Month != Periodo.Data.Month;
-
     // Como na grade do desktop, o dia de fora não leva a marca de hoje.
-    private bool EHoje(DateOnly dia) => dia == Hoje && !Fora(dia);
+    private bool EHoje(DateOnly dia) => dia == Hoje && Periodo.NoMes(dia);
 
     private string ClasseDoDia(DateOnly dia) =>
-        Fora(dia) ? "aj-faixa-dias__dia aj-faixa-dias__dia--fora"
+        !Periodo.NoMes(dia) ? "aj-faixa-dias__dia aj-faixa-dias__dia--fora"
         : EHoje(dia) ? "aj-faixa-dias__dia aj-faixa-dias__dia--hoje"
         : "aj-faixa-dias__dia";
 
-    // Um ponto por evento que toca o dia, na ordem de início, no máximo seis; dia de fora sem pontos.
-    private IEnumerable<TipoEvento> Pontos(DateOnly dia) =>
-        Fora(dia)
-            ? Enumerable.Empty<TipoEvento>()
-            : RotulosDeAgenda.EventosDoDia(Fuso, Eventos.OrderBy(evento => evento.InicioEm), dia)
-                .Take(6)
-                .Select(evento => evento.Tipo);
-
-    private static string ClasseDoPonto(TipoEvento tipo) => $"aj-ponto-evento aj-ponto-evento--{CartaoDeEvento.Sufixo(tipo)}";
+    // Os eventos que tocam o dia, na ordem de início; o dia de fora do mês fica sem pontos.
+    private IReadOnlyList<EventoResumo> DoDia(DateOnly dia) =>
+        Periodo.NoMes(dia) ? RotulosDeAgenda.EventosDoDia(Fuso, Eventos.OrderBy(evento => evento.InicioEm), dia) : [];
 }

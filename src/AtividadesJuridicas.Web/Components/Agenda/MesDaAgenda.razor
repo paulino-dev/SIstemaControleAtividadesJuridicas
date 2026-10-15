@@ -12,7 +12,7 @@
             <div class="aj-mes__grade">
                 @foreach (var dia in Periodo.SemanasDoMes)
                 {
-                    if (Fora(dia))
+                    if (!Periodo.NoMes(dia))
                     {
                         <div class="aj-mes__celula aj-mes__celula--fora" @key='("fora", dia)'><span class="aj-mes__numero">@RotulosDeAgenda.NumeroDoDia(dia)</span></div>
                     }
@@ -69,11 +69,8 @@
         // Cada evento em todo dia que toca, na ordem de início (no empate, a do servidor: o OrderBy é estável).
         var ordenados = Eventos.OrderBy(evento => evento.InicioEm).ToList();
         _porDia = Periodo.SemanasDoMes.ToDictionary(dia => dia, dia => RotulosDeAgenda.EventosDoDia(Fuso, ordenados, dia));
-        _doDiaEscolhido = RotulosDeAgenda.EventosDoDia(Fuso, ordenados, Periodo.Data);
+        _doDiaEscolhido = _porDia[Periodo.Data];
     }
-
-    // Dia de outro mês na grade: apagado, sem eventos e sem a marca de hoje (o quadro).
-    private bool Fora(DateOnly dia) => dia.Year != Periodo.Data.Year || dia.Month != Periodo.Data.Month;
 
     private static string RotuloDoMais(DateOnly dia, int outros)
     {

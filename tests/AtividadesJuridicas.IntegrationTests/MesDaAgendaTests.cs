@@ -218,6 +218,7 @@ public class GradeCompactaDoMesTests : TelaInterativa
         var grade = Grade(new DateOnly(2026, 10, 7), QuadroDaAgenda.Semana);
 
         grade.Find("div.aj-faixa-dias").ClassName.Should().Be("aj-faixa-dias aj-faixa-dias--mes");
+        grade.Find("div.aj-faixa-dias--mes").FirstElementChild!.ClassName.Should().Be("aj-faixa-dias__cabeca");
         var cabeca = grade.Find("div.aj-faixa-dias--mes > div.aj-faixa-dias__cabeca");
         cabeca.GetAttribute("aria-hidden").Should().Be("true");
         cabeca.Children.Select(s => s.TextContent).Should().Equal("Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom");
@@ -263,5 +264,35 @@ public class GradeCompactaDoMesTests : TelaInterativa
 
         Dias(grade)[34].Click();
         _escolhido.Should().Be(new DateOnly(2026, 11, 1));
+    }
+
+    [Fact]
+    public void Dia_com_sete_eventos_mostra_seis_pontos()
+    {
+        var sete = Enumerable.Range(0, 7).Select(i =>
+            QuadroDaAgenda.Evento(new DateTime(2026, 10, 14, 8 + i, 0, 0), 30, TipoEvento.Reuniao, $"Reunião {i + 1}"));
+        var seis = Enumerable.Range(0, 6).Select(i =>
+            QuadroDaAgenda.Evento(new DateTime(2026, 10, 15, 8 + i, 0, 0), 30, TipoEvento.Prazo, $"Prazo {i + 1}"));
+
+        var dias = Dias(Grade(QuadroDaAgenda.Hoje, [.. sete, .. seis]));
+
+        Pontos(dias[16]).Should().HaveCount(6).And.OnlyContain(p => p == "aj-ponto-evento aj-ponto-evento--reuniao");
+        Pontos(dias[17]).Should().HaveCount(6).And.OnlyContain(p => p == "aj-ponto-evento aj-ponto-evento--prazo");
+    }
+
+    [Fact]
+    public void Hoje_num_dia_de_fora_nao_leva_a_marca_e_um_dia_de_dentro_continua_sem_ela()
+    {
+        // Hoje é 01/11/2026, de fora na grade de outubro: sem a marca; 15/10 (de dentro) segue sem ela também.
+        var grade = Desenhar<GradeCompactaDoMes>(p => p
+            .Add(c => c.Periodo, new PeriodoDaAgenda(VisaoDaAgenda.Mes, new DateOnly(2026, 10, 7), true))
+            .Add(c => c.Eventos, QuadroDaAgenda.Semana)
+            .Add(c => c.Hoje, new DateOnly(2026, 11, 1)));
+
+        var dias = Dias(grade);
+        dias[34].ClassName.Should().Be("aj-faixa-dias__dia aj-faixa-dias__dia--fora");
+        dias[34].GetAttribute("aria-label").Should().Be("Domingo, 01/11");
+        dias[17].ClassName.Should().Be("aj-faixa-dias__dia");
+        dias.Should().NotContain(d => d.ClassList.Contains("aj-faixa-dias__dia--hoje"));
     }
 }
