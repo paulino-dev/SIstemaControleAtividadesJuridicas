@@ -63,9 +63,10 @@ else
             }
             @* O Enter na busca envia o formulário "busca-de-cliente", que fica no fim da tela, e não o do processo. *@
             <label class="aj-campo-icone"><Icone Nome="buscar" /><span class="aj-so-leitor">Adicionar cliente (nome, CPF ou CNPJ)</span><input type="search" class="aj-campo-icone__controle" form="busca-de-cliente" placeholder="Adicionar cliente por nome, CPF ou CNPJ" @bind="_buscaDeCliente" @bind:event="oninput" /></label>
+            @* A chave do candidato não pode ser o Id do cliente: é a mesma do vínculo (mesmo pai), e ao adicionar o Blazor reaproveitaria o elemento do candidato e deixaria o class do vínculo vazio. *@
             @foreach (var candidato in _candidatos)
             {
-                <div class="aj-candidato" @key="candidato.Id"><span class="aj-candidato__texto"><span class="aj-candidato__titulo">@candidato.Nome</span><span class="aj-ajuda">@TextosDoCliente.Documento(candidato.Tipo, candidato.Documento)</span></span><button type="button" class="aj-botao aj-botao--secundario" @onclick="() => Vincular(candidato)">Adicionar</button></div>
+                <div class="aj-candidato" @key='("candidato", candidato.Id)'><span class="aj-candidato__texto"><span class="aj-candidato__titulo">@candidato.Nome</span><span class="aj-ajuda">@TextosDoCliente.Documento(candidato.Tipo, candidato.Documento)</span></span><button type="button" class="aj-botao aj-botao--secundario" @onclick="() => Vincular(candidato)">Adicionar</button></div>
             }
             @if (_nenhumClienteEncontrado)
             {
