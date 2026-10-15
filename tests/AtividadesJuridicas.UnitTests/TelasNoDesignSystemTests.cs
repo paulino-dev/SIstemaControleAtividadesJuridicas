@@ -36,6 +36,7 @@ public partial class TelasNoDesignSystemTests
         "Components/Layout/RotuloDeCampo.razor",
         "Components/Pages/Andamento.razor",
         "Components/Pages/Areas.razor",
+        "Components/Pages/Atividades.razor",
         "Components/Pages/Auditoria.razor",
         "Components/Pages/Clientes.razor",
         "Components/Pages/ClienteFicha.razor",

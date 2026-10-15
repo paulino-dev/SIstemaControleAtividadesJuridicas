@@ -1,261 +1,371 @@
 @page "/atividades"
 @inject IDespachante Despachante
+@inject Recados Recados
 
 <PageTitle>Atividades</PageTitle>
 
-<h1>Atividades</h1>
+<CabecalhoDePagina Titulo="Atividades" Subtitulo="@Subtitulo" Alerta="@Alerta"
+                   Acao="@(_ator?.EhDiretoria == true ? "Nova atividade" : null)" AcaoHref="/atividades/nova">
+    <LinhaDoMobile>
+        @if (_carregado && _ator is not null)
+        {
+            @* O Enter na busca envia o formulário "busca-de-atividades", que fica no fim da tela. *@
+            <div class="aj-barra-superior__busca">
+                <label class="aj-campo-icone"><Icone Nome="buscar" /><span class="aj-so-leitor">Buscar atividade</span><input type="search" class="aj-campo-icone__controle" form="busca-de-atividades" placeholder="Buscar pelo título" @bind="_filtro.Busca" /></label>
+                <button type="button" class="aj-botao aj-botao--secundario aj-botao--icone" aria-label="Mais filtros" aria-expanded="@Expandido" aria-controls="filtros-de-atividades" @onclick="AlternarFiltros"><Icone Nome="filtros" /></button>
+            </div>
+            <div class="aj-chips aj-chips--barra" role="group" aria-label="Filtrar por situação">@Chips(ChipsDoMobile)</div>
+        }
+    </LinhaDoMobile>
+</CabecalhoDePagina>
 
 @if (!_carregado)
 {
-    <p>Carregando…</p>
+    <p class="aj-subtitulo" role="status">Carregando…</p>
 }
 else if (_ator is null)
 {
-    <p class="erro">Seu acesso foi encerrado. Entre novamente.</p>
+    <Aviso Tipo="TipoDeAviso.Erro">Seu acesso foi encerrado. Entre novamente.</Aviso>
 }
 else
 {
-    <EditForm Model="_busca" OnSubmit="BuscarAsync" FormName="busca-atividades" class="formulario filtros">
-        <label>Busca <InputText @bind-Value="_busca.Texto" placeholder="Título da atividade" /></label>
-        <label>
-            Situação
-            <InputSelect @bind-Value="_busca.Status">
-                <option value="">Todas</option>
-                @foreach (var status in Enum.GetValues<StatusAtividade>())
-                {
-                    <option value="@status">@RotulosDeAtividade.Status(status)</option>
-                }
-            </InputSelect>
-        </label>
-        @if (_ator.EhDiretoria)
-        {
-            <label>
-                Responsável
-                <InputSelect @bind-Value="_busca.ResponsavelId">
-                    <option value="">Todos</option>
-                    @foreach (var usuario in _usuarios)
-                    {
-                        <option value="@usuario.Id">@usuario.Nome@(usuario.Ativo ? "" : " (inativo)")</option>
-                    }
-                </InputSelect>
-            </label>
-            <label>
-                Revisor
-                <InputSelect @bind-Value="_busca.RevisorId">
-                    <option value="">Todos</option>
-                    @foreach (var diretor in _usuarios.Where(u => u.TipoPerfil == TipoPerfil.Diretoria))
-                    {
-                        <option value="@diretor.Id">@diretor.Nome@(diretor.Ativo ? "" : " (inativo)")</option>
-                    }
-                </InputSelect>
-            </label>
-        }
-        <label><InputCheckbox @bind-Value="_busca.SomenteAtrasadas" /> Só atrasadas</label>
-        <button type="submit">Buscar</button>
-    </EditForm>
-
-    @if (_mensagem is not null)
+    @if (_recado is { } recado)
     {
-        <p class="@(_falhou ? "erro" : "ok")" role="status">@_mensagem</p>
+        <Aviso Tipo="@recado.Tipo">@recado.Texto</Aviso>
+    }
+    @if (_erroDosUsuarios is not null)
+    {
+        <Aviso Tipo="TipoDeAviso.Erro">@_erroDosUsuarios</Aviso>
     }
 
-    @if (_erroDaLista is not null)
+    @* Desktop: os campos aplicam ao clicar "Buscar"; a paginação e os chips consultam com o que está nos campos (como em Processos.razor). *@
+    <div class="aj-so-desktop">
+        <form class="aj-barra-filtros" role="search" @onsubmit="BuscarAsync" @onsubmit:preventDefault>
+            <label class="aj-campo-icone aj-campo-icone--filtro"><Icone Nome="buscar" /><span class="aj-so-leitor">Busca</span><input type="text" class="aj-campo-icone__controle" placeholder="Buscar pelo título da atividade" @bind="_filtro.Busca" /></label>
+            @CampoDeSituacao
+            @if (_ator.EhDiretoria)
+            {
+                @CamposDePessoas
+            }
+            <label class="aj-opcao aj-opcao--solta"><input type="checkbox" class="aj-opcao__caixa" @bind="_filtro.SoAtrasadas" />Só atrasadas</label>
+            <button type="submit" class="aj-botao aj-botao--secundario">Buscar</button>
+        </form>
+    </div>
+
+    <div class="aj-so-tablet">
+        <form class="aj-linha-filtros aj-linha-filtros--busca" role="search" @onsubmit="BuscarAsync" @onsubmit:preventDefault>
+            <label class="aj-campo-icone"><Icone Nome="buscar" /><span class="aj-so-leitor">Buscar atividade</span><input type="search" class="aj-campo-icone__controle" placeholder="Buscar pelo título da atividade" @bind="_filtro.Busca" /></label>
+            <button type="button" class="aj-botao aj-botao--secundario aj-botao--com-icone" aria-expanded="@Expandido" aria-controls="filtros-de-atividades" @onclick="AlternarFiltros"><Icone Nome="filtros" />@RotuloDoBotaoDeFiltros</button>
+        </form>
+    </div>
+
+    @* O painel abre logo abaixo da linha do tablet e, no mobile, no topo do conteúdo, sob a barra superior. *@
+    @if (_filtrosAbertos)
     {
-        @* Falha na consulta não é "nenhuma atividade": mostra o erro no lugar da lista. *@
-        <p class="erro">@_erroDaLista</p>
-        <div class="acoes">
-            <button type="button" class="secundario" @onclick="TentarDeNovoAsync">Tentar de novo</button>
+        <div class="aj-tablet-mobile">
+            <form id="filtros-de-atividades" class="aj-painel aj-painel--filtros" @onsubmit="FiltrarDoPainelAsync" @onsubmit:preventDefault>
+                @CampoDeSituacao
+                @if (_ator.EhDiretoria)
+                {
+                    @CamposDePessoas
+                }
+                <label class="aj-opcao"><input type="checkbox" class="aj-opcao__caixa" @bind="_filtro.SoAtrasadas" />Só atrasadas</label>
+                <div class="aj-painel__acoes">
+                    <button type="button" class="aj-botao aj-botao--fantasma" @onclick="LimparFiltros">Limpar</button>
+                    <button type="submit" class="aj-botao aj-botao--primario">Filtrar</button>
+                </div>
+            </form>
         </div>
     }
-    else if (_pagina.Itens.Count == 0)
-    {
-        <p>Nenhuma atividade.</p>
-    }
-    else
-    {
-        <table>
-            <thead>
-                <tr><th>Título</th><th>Situação</th><th>Entrega</th><th>Complexidade</th><th>Cliente</th><th>Processo</th><th>Responsáveis</th><th>Revisor</th><th></th></tr>
-            </thead>
-            <tbody>
+
+    <div class="aj-so-tablet">
+        <div class="aj-chips" role="group" aria-label="Filtrar por situação">@Chips(ChipsDoTablet)</div>
+    </div>
+
+    <EstadoDaLista Erro="@_erro" Vazio="@(_pagina.Itens.Count == 0)" TextoDeVazio="Nenhuma atividade." TentarDeNovo="() => CarregarAsync(_paginaPedida)">
+        <div class="aj-so-desktop">
+            <div class="aj-tabela-caixa">
+                <table class="aj-tabela aj-tabela--larga">
+                    <thead><tr><th scope="col">Título</th><th scope="col">Situação</th><th scope="col">Entrega</th><th scope="col">Complexidade</th><th scope="col">Cliente</th><th scope="col">Processo</th><th scope="col">Responsáveis</th><th scope="col">Revisor</th><th scope="col"><span class="aj-so-leitor">Ações</span></th></tr></thead>
+                    <tbody>
+                        @foreach (var atividade in _pagina.Itens)
+                        {
+                            <tr @key="atividade.Id">
+                                <td class="aj-tabela__principal">@atividade.Titulo</td>
+                                <td><div class="aj-etiquetas"><EtiquetaDeSituacao Status="atividade.Status" Atrasada="atividade.Atrasada" NaTabela="true" /></div></td>
+                                <td class="@ClasseDaEntrega(atividade)">@RotulosDeAtividade.Data(atividade.DataEntrega)</td>
+                                <td>@atividade.Complexidade</td>
+                                <td class="@ClasseOu(atividade.ClienteNome, null)">@Ou(atividade.ClienteNome)</td>
+                                <td class="@ClasseOu(atividade.ProcessoTitulo, "aj-tabela__secundaria")">@Ou(atividade.ProcessoTitulo)</td>
+                                <td class="@ClasseOu(Responsaveis(atividade), null)">@Ou(Responsaveis(atividade))</td>
+                                <td class="@ClasseOu(atividade.RevisorNome, null)">@Ou(atividade.RevisorNome)</td>
+                                <td class="aj-tabela__acao"><a href="@Ficha(atividade)" class="aj-botao aj-botao--fantasma aj-botao--seta">Abrir<Icone Nome="avancar" /></a></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <Paginacao Numero="_pagina.Numero" TotalDePaginas="_pagina.TotalDePaginas" Total="_pagina.Total" Singular="atividade" Plural="atividades"
+                       ComSetas="true" SempreVisivel="true" Ocupado="_ocupado" IrPara="CarregarAsync" />
+        </div>
+
+        <div class="aj-tablet-mobile">
+            <div class="aj-grade">
                 @foreach (var atividade in _pagina.Itens)
                 {
-                    <tr @key="atividade.Id">
-                        <td>@atividade.Titulo</td>
-                        <td><EtiquetaDeSituacao Status="atividade.Status" Atrasada="atividade.Atrasada" NaTabela="true" /></td>
-                        <td>@RotulosDeAtividade.Data(atividade.DataEntrega)</td>
-                        <td>@atividade.Complexidade</td>
-                        <td>@atividade.ClienteNome</td>
-                        <td>@atividade.ProcessoTitulo</td>
-                        <td>@string.Join(", ", atividade.Responsaveis)</td>
-                        <td>@atividade.RevisorNome</td>
-                        <td class="acoes">
-                            <button type="button" class="secundario" @onclick="() => Abrir(atividade.Id)">Abrir</button>
-                        </td>
-                    </tr>
+                    <a href="@Ficha(atividade)" class="aj-cartao aj-cartao--atividade" @key="atividade.Id">
+                        <span class="aj-cartao__topo"><span class="aj-cartao__etiquetas"><EtiquetaDeSituacao Status="atividade.Status" Atrasada="atividade.Atrasada" /></span><span class="aj-so-mobile"><Icone Nome="avancar" Classe="aj-cartao__seta" /></span></span>
+                        <span class="aj-cartao__titulo">@atividade.Titulo</span>
+                        <span class="aj-cartao__meta">@OuSem(atividade.ClienteNome, "Sem cliente")<br />@OuSem(atividade.ProcessoTitulo, "Sem processo vinculado")</span>
+                        <span class="aj-cartao__rodape"><span class="@ClasseDaData(atividade)"><Icone Nome="agenda" />@RotulosDeAtividade.Data(atividade.DataEntrega)</span>@if (atividade.Responsaveis.Count == 0)
+                            {<span class="aj-cartao__vazio">Sem responsável</span>}
+                            else
+                            {<span class="aj-avatares">@foreach (var nome in atividade.Responsaveis)
+                                {<span class="aj-avatar aj-avatar--p @AvatarDePessoa.Classe(nome)" title="@nome">@AvatarDePessoa.Sigla(nome)</span>}</span>}</span>
+                    </a>
                 }
-            </tbody>
-        </table>
-
-        <div class="acoes">
-            <button type="button" class="secundario" disabled="@(_pagina.Numero <= 1)" @onclick="() => IrParaAsync(_pagina.Numero - 1)">Anterior</button>
-            <span>Página @_pagina.Numero de @_pagina.TotalDePaginas (@_pagina.Total atividades)</span>
-            <button type="button" class="secundario" disabled="@(_pagina.Numero >= _pagina.TotalDePaginas)" @onclick="() => IrParaAsync(_pagina.Numero + 1)">Próxima</button>
+            </div>
         </div>
-    }
-
-    @if (_ator.EhDiretoria)
-    {
-        <div class="acoes">
-            <button type="button" @onclick="Nova">Nova atividade</button>
+        <div class="aj-so-tablet">
+            <Paginacao Numero="_pagina.Numero" TotalDePaginas="_pagina.TotalDePaginas" Total="_pagina.Total" Singular="atividade" Plural="atividades"
+                       ComSetas="true" SempreVisivel="true" Ocupado="_ocupado" IrPara="CarregarAsync" />
         </div>
+        <div class="aj-so-mobile">
+            <Paginacao Numero="_pagina.Numero" TotalDePaginas="_pagina.TotalDePaginas" Total="_pagina.Total" Singular="atividade" Plural="atividades"
+                       ComSetas="true" Ocupado="_ocupado" IrPara="CarregarAsync" />
+        </div>
+    </EstadoDaLista>
 
-        @if (_criando)
-        {
-            <FormularioDeAtividade @key="_versaoDoFormulario" AtividadeId="null" OnSalvo="CriadaAsync"
-                                   OnCancelado="CancelarCriacao" OnAcessoEncerrado="EncerrarAcesso" />
-        }
-    }
-
-    @if (_abertaId is { } id)
-    {
-        @* Os avisos levam o id da ficha que os enviou: o de uma ficha que já não é a aberta é ignorado. *@
-        <FichaDaAtividade @key="id" AtividadeId="id" OnMudou="AtualizarListaAsync" OnAcessoEncerrado="EncerrarAcesso"
-                          OnFechar="() => FecharFicha(id)" />
-    }
+    <form id="busca-de-atividades" hidden @onsubmit="BuscarAsync" @onsubmit:preventDefault></form>
 }
 
 @code {
-    private static readonly Pagina<AtividadeResumo> Vazia = new([], 0, 1, AtividadesOpcoes.TamanhoDaPagina);
+    private static readonly PaginaDeAtividades Vazia = new([], 0, 1, AtividadesOpcoes.TamanhoDaPagina, 0, 0);
+
+    // Os chips de situação de cada visão, como nos quadros: o mobile não tem "Corrigidas"; Criada e Reaberta só no painel.
+    private static readonly StatusAtividade[] ChipsDoTablet =
+        [StatusAtividade.Direcionada, StatusAtividade.Feita, StatusAtividade.ParaCorrecao, StatusAtividade.Corrigida, StatusAtividade.Concluida];
+    private static readonly StatusAtividade[] ChipsDoMobile =
+        [StatusAtividade.Direcionada, StatusAtividade.Feita, StatusAtividade.ParaCorrecao, StatusAtividade.Concluida];
 
     private bool _carregado;
-    private bool _falhou;
-    private bool _criando;
-    private int _versaoDoFormulario;
-    private string? _mensagem;
-    private string? _erroDaLista;
-    private int _paginaPedida = 1;
+    private bool _ocupado;
+    private bool _filtrosAbertos;
     private UsuarioAutenticado? _ator;
-    private Busca _busca = new();
-    private Pagina<AtividadeResumo> _pagina = Vazia;
-    private IReadOnlyList<UsuarioResumo> _usuarios = [];
-    private Guid? _abertaId;
+    private readonly Filtro _filtro = new();
+    private PaginaDeAtividades _pagina = Vazia;
+    private int _paginaPedida = 1;
+    private string? _erro;
+    private string? _erroDosUsuarios;
+    private Recado? _recado;
+    private IReadOnlyList<UsuarioResumo> _responsaveis = [];
+    private IReadOnlyList<UsuarioResumo> _revisores = [];
 
     protected override async Task OnInitializedAsync()
     {
         _ator = await Despachante.EnviarAsync(new ObterMeuAcesso());
+        if (_ator is { EhDiretoria: true }) await CarregarUsuariosAsync();
         if (_ator is not null)
         {
-            if (_ator.EhDiretoria) await CarregarResponsaveisAsync();
-            if (_ator is not null) await CarregarAsync(1);
+            _recado = Recados.Retirar();
+            await CarregarAsync(1);
         }
 
         _carregado = true;
     }
 
-    /// <summary>Usuários (inclusive inativos, que ainda constam em atividades) para os filtros; só a Diretoria pode listá-los.</summary>
-    private async Task CarregarResponsaveisAsync()
+    /// <summary>
+    /// Os nomes dos filtros de responsável e revisor; só a Diretoria pode listar usuários. Inativos ficam, com
+    /// " (inativo)", porque ainda constam em atividades.
+    /// </summary>
+    private async Task CarregarUsuariosAsync()
     {
         var resultado = await Despachante.EnviarAsync(new ListarUsuarios());
-        if (AcessoEncerrado(resultado)) return;
+        if (resultado.Erro == TipoErro.AcessoNegado)
+        {
+            EncerrarAcesso();
+            return;
+        }
 
-        _usuarios = [.. (resultado.Valor ?? [])
+        if (!resultado.Sucesso || resultado.Valor is null)
+        {
+            _erroDosUsuarios = resultado.Mensagem ?? "Não foi possível consultar os usuários.";
+            return;
+        }
+
+        _responsaveis = [.. resultado.Valor
             .Where(u => u.TipoPerfil != TipoPerfil.Cliente)
             .OrderBy(u => u.Nome, StringComparer.CurrentCultureIgnoreCase)];
-        if (!resultado.Sucesso) Avisar(resultado.Mensagem, falhou: true);
+        _revisores = [.. _responsaveis.Where(u => u.TipoPerfil == TipoPerfil.Diretoria)];
     }
 
-    private Task BuscarAsync() => IrParaAsync(1);
-
-    private Task TentarDeNovoAsync() => IrParaAsync(_paginaPedida);
-
-    /// <summary>Troca de página, nova busca ou nova tentativa: o aviso de uma ação anterior não vale mais.</summary>
-    private async Task IrParaAsync(int pagina)
-    {
-        _mensagem = null;
-        await CarregarAsync(pagina);
-    }
-
+    // Uma consulta por vez: o clique duplo num chip ou na paginação não dispara outra.
     private async Task CarregarAsync(int pagina)
+    {
+        if (_ocupado) return;
+
+        _ocupado = true;
+        try
+        {
+            await ConsultarAsync(pagina);
+        }
+        finally
+        {
+            _ocupado = false;
+        }
+    }
+
+    private async Task ConsultarAsync(int pagina)
     {
         _paginaPedida = pagina;
         var resultado = await Despachante.EnviarAsync(new ListarAtividades(
-            _busca.Status, _busca.ResponsavelId, _busca.RevisorId, null, null, _busca.SomenteAtrasadas, _busca.Texto, pagina));
-        if (AcessoEncerrado(resultado)) return;
+            _filtro.Situacao, _filtro.ResponsavelId, _filtro.RevisorId, null, null, _filtro.SoAtrasadas, _filtro.Busca, pagina));
 
-        _pagina = resultado.Valor ?? Vazia;
-        _erroDaLista = resultado.Sucesso ? null : resultado.Mensagem ?? "Não foi possível consultar as atividades.";
+        if (resultado.Erro == TipoErro.AcessoNegado)
+        {
+            EncerrarAcesso();
+            return;
+        }
 
-        // Depois de mudar um filtro ou excluir, a página atual pode ter deixado de existir.
-        if (resultado.Sucesso && _pagina.Itens.Count == 0 && _pagina.Total > 0 && pagina > _pagina.TotalDePaginas)
-            await CarregarAsync(_pagina.TotalDePaginas);
+        // Falha na consulta não é "nenhuma atividade": o erro fica no lugar da lista, sem os números.
+        if (!resultado.Sucesso || resultado.Valor is null)
+        {
+            _erro = resultado.Mensagem ?? "Não foi possível consultar as atividades.";
+            _pagina = Vazia;
+            return;
+        }
+
+        _erro = null;
+        _pagina = resultado.Valor;
+
+        // Depois de mudar um filtro, a página pedida pode ter deixado de existir: volta à última.
+        if (_pagina.Itens.Count == 0 && _pagina.Total > 0 && pagina > _pagina.TotalDePaginas)
+            await ConsultarAsync(_pagina.TotalDePaginas);
     }
 
-    /// <summary>
-    /// A ficha avisou que algo mudou: a lista é sempre recarregada, na página que foi pedida por último (e não na
-    /// primeira, que é o que sobra depois de uma consulta com erro). Só fechar o painel depende de a ficha que
-    /// avisou ainda ser a aberta (<see cref="FecharFicha"/>).
-    /// </summary>
-    private async Task AtualizarListaAsync()
+    private Task BuscarAsync()
     {
-        await CarregarAsync(_paginaPedida);
+        if (_ocupado) return Task.CompletedTask;
+
+        _recado = null;
+        return CarregarAsync(1);
     }
 
-    private void Abrir(Guid id) => _abertaId = id;
+    private Task EscolherTodasAsync() => EscolherAsync(null, somenteAtrasadas: false);
 
-    private void FecharFicha(Guid idDaFicha)
+    private Task EscolherAtrasadasAsync() => EscolherAsync(null, somenteAtrasadas: true);
+
+    private Task EscolherSituacaoAsync(StatusAtividade situacao) => EscolherAsync(situacao, somenteAtrasadas: false);
+
+    // O chip troca a situação e o "só atrasadas" e busca na hora; a busca digitada, o responsável e o revisor ficam.
+    // Com outra consulta em curso, o chip não muda nada (senão marcaria um filtro que não foi aplicado).
+    private Task EscolherAsync(StatusAtividade? situacao, bool somenteAtrasadas)
     {
-        if (_abertaId == idDaFicha) _abertaId = null;
+        if (_ocupado) return Task.CompletedTask;
+
+        _filtro.Situacao = situacao;
+        _filtro.SoAtrasadas = somenteAtrasadas;
+        return BuscarAsync();
     }
 
-    private void Nova()
+    private void AlternarFiltros() => _filtrosAbertos = !_filtrosAbertos;
+
+    // Esvazia o que o painel traz; a busca digitada fica. Só vale ao filtrar.
+    private void LimparFiltros()
     {
-        _mensagem = null;
-        _versaoDoFormulario++;   // formulário novo, vazio, mesmo que o anterior ainda estivesse aberto
-        _criando = true;
+        _filtro.Situacao = null;
+        _filtro.ResponsavelId = null;
+        _filtro.RevisorId = null;
+        _filtro.SoAtrasadas = false;
     }
 
-    private void CancelarCriacao() => _criando = false;
-
-    private async Task CriadaAsync(Guid id)
+    private async Task FiltrarDoPainelAsync()
     {
-        _criando = false;
-        _abertaId = id;
-        await CarregarAsync(1);
+        if (_ocupado) return;
+
+        _filtrosAbertos = false;
+        await BuscarAsync();
     }
 
-    /// <summary>Uma resposta de acesso negado encerra a tela: nada do que estava aberto continua visível.</summary>
-    private bool AcessoEncerrado(Resultado resultado)
-    {
-        if (resultado.Erro != TipoErro.AcessoNegado) return false;
-
-        EncerrarAcesso();
-        return true;
-    }
-
+    /// <summary>Uma resposta de acesso negado encerra a tela: nada do que estava à vista continua.</summary>
     private void EncerrarAcesso()
     {
         _ator = null;
         _pagina = Vazia;
-        _usuarios = [];
-        _erroDaLista = null;
-        _criando = false;
-        _abertaId = null;
-        _mensagem = null;
+        _responsaveis = [];
+        _revisores = [];
+        _erro = null;
+        _erroDosUsuarios = null;
+        _recado = null;
+        _filtrosAbertos = false;
     }
 
-    private void Avisar(string? mensagem, bool falhou)
-    {
-        _mensagem = mensagem;
-        _falhou = falhou;
-    }
+    // O subtítulo conta o escopo do usuário (nunca o filtro), só com a lista carregada, sem erro e com atividade.
+    private string? Subtitulo =>
+        _carregado && _ator is not null && _erro is null && _pagina.NoEscopo > 0
+            ? TextosDeAtividade.Contagem(_pagina.NoEscopo)
+            : null;
 
-    private sealed class Busca
+    private string? Alerta => Subtitulo is null ? null : TextosDeAtividade.Atrasadas(_pagina.Atrasadas);
+
+    // Os chips mostram os números do escopo com a consulta respondida; na falha, só os nomes.
+    private string RotuloDeTodas => _erro is null ? $"Todas · {_pagina.NoEscopo}" : "Todas";
+
+    private string RotuloDeAtrasadas => _erro is null ? $"Atrasadas · {_pagina.Atrasadas}" : "Atrasadas";
+
+    private string PressionadoTodas => _filtro.Situacao is null && !_filtro.SoAtrasadas ? "true" : "false";
+
+    private string PressionadoAtrasadas => _filtro.SoAtrasadas ? "true" : "false";
+
+    private string Pressionado(StatusAtividade situacao) => _filtro.Situacao == situacao ? "true" : "false";
+
+    private string Expandido => _filtrosAbertos ? "true" : "false";
+
+    private string RotuloDoBotaoDeFiltros => _ator?.EhDiretoria == true ? "Responsável, revisor" : "Mais filtros";
+
+    // "Todas", "Atrasadas" e as situações da visão. As chaves das situações não coincidem com nada no mesmo pai.
+    private RenderFragment Chips(IReadOnlyList<StatusAtividade> situacoes) => @<text><button type="button" class="aj-chip" aria-pressed="@PressionadoTodas" @onclick="EscolherTodasAsync">@RotuloDeTodas</button><button type="button" class="aj-chip aj-chip--alerta" aria-pressed="@PressionadoAtrasadas" @onclick="EscolherAtrasadasAsync">@RotuloDeAtrasadas</button>@foreach (var situacao in situacoes)
+        {<button type="button" class="aj-chip" aria-pressed="@Pressionado(situacao)" @key="situacao" @onclick="() => EscolherSituacaoAsync(situacao)">@RotulosDeAtividade.SituacaoNoPlural(situacao)</button>}</text>;
+
+    // O campo de situação da barra do desktop e do painel: as oito opções, inclusive Criada e Reaberta, que não têm chip.
+    private RenderFragment CampoDeSituacao => @<label class="aj-campo-filtro"><span>Situação</span><select class="aj-campo-filtro__controle" @bind="_filtro.Situacao"><option value="">Todas</option>@foreach (var situacao in Enum.GetValues<StatusAtividade>())
+        {<option value="@situacao">@RotulosDeAtividade.Status(situacao)</option>}</select></label>;
+
+    // Responsável (os não clientes) e revisor (a Diretoria): só para a Diretoria, na barra e no painel.
+    private RenderFragment CamposDePessoas => @<text><label class="aj-campo-filtro"><span>Responsável</span><select class="aj-campo-filtro__controle" @bind="_filtro.ResponsavelId"><option value="">Todos</option>@foreach (var usuario in _responsaveis)
+        {<option value="@usuario.Id">@Rotulo(usuario)</option>}</select></label><label class="aj-campo-filtro"><span>Revisor</span><select class="aj-campo-filtro__controle" @bind="_filtro.RevisorId"><option value="">Todos</option>@foreach (var diretor in _revisores)
+        {<option value="@diretor.Id">@Rotulo(diretor)</option>}</select></label></text>;
+
+    private static string Ficha(AtividadeResumo atividade) => $"/atividades/{atividade.Id}";
+
+    private static string Rotulo(UsuarioResumo usuario) => usuario.Ativo ? usuario.Nome : $"{usuario.Nome} (inativo)";
+
+    // Os nomes na ordem da atividade, unidos por vírgula; nulo sem responsável.
+    private static string? Responsaveis(AtividadeResumo atividade) =>
+        atividade.Responsaveis.Count == 0 ? null : string.Join(", ", atividade.Responsaveis);
+
+    private static string Ou(string? valor) => string.IsNullOrWhiteSpace(valor) ? "—" : valor;
+
+    private static string OuSem(string? valor, string semValor) => string.IsNullOrWhiteSpace(valor) ? semValor : valor;
+
+    // O "—" de célula vazia tem a cor apagada do quadro; com valor, a classe da coluna (ou nenhuma).
+    private static string? ClasseOu(string? valor, string? classe) => string.IsNullOrWhiteSpace(valor) ? "aj-tabela__vazia" : classe;
+
+    private static string ClasseDaEntrega(AtividadeResumo atividade) =>
+        atividade.DataEntrega is null ? "aj-tabela__vazia"
+        : atividade.Atrasada ? "aj-tabela__data aj-tabela__data--atrasada"
+        : "aj-tabela__data";
+
+    private static string ClasseDaData(AtividadeResumo atividade) =>
+        atividade.Atrasada ? "aj-cartao__data aj-cartao__data--atrasada" : "aj-cartao__data";
+
+    /// <summary>O estado único dos filtros: as três visões o mostram e o mudam.</summary>
+    private sealed class Filtro
     {
-        public string? Texto { get; set; }
-        public StatusAtividade? Status { get; set; }
+        public string? Busca { get; set; }
+        public StatusAtividade? Situacao { get; set; }
         public Guid? ResponsavelId { get; set; }
         public Guid? RevisorId { get; set; }
-        public bool SomenteAtrasadas { get; set; }
+        public bool SoAtrasadas { get; set; }
     }
 }
