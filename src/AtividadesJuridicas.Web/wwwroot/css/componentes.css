@@ -748,3 +748,364 @@ textarea.aj-campo{padding:9px var(--espaco-12);resize:vertical}
 }
 [data-visao="mobile"] .aj-grade-campos--tablet-folgada{gap:var(--espaco-12)}
 [data-visao="mobile"] .aj-lado-a-lado--formulario .aj-painel--principal{box-shadow:var(--sombra-1)}
+
+/* ---------- Atividades (fase 9E) ---------- */
+/* Visibilidade: o bloco que existe no desktop e no mobile, mas não no tablet (o novo comentário com o rótulo visível).
+   Mesmo padrão das outras cinco: a variável por visão e o invólucro que some do layout quando mostrado. */
+:root{--aj-ver-desktop-mobile:contents}
+@media (max-width:1199px){:root{--aj-ver-desktop-mobile:none}}
+@media (max-width:760px){:root{--aj-ver-desktop-mobile:contents}}
+[data-visao="desktop"]{--aj-ver-desktop-mobile:contents}
+[data-visao="tablet"]{--aj-ver-desktop-mobile:none}
+[data-visao="mobile"]{--aj-ver-desktop-mobile:contents}
+.aj-desktop-mobile{display:var(--aj-ver-desktop-mobile)}
+.aj-app__conteudo>.aj-desktop-mobile>*{flex-shrink:0}
+
+/* Cabeçalho de página: a parte de alerta do subtítulo ("1 atrasada") fica em vermelho no tablet e no mobile (a regra
+   .aj-subtitulo strong) e em texto comum no desktop. */
+@media (min-width:1200px){.aj-subtitulo strong.aj-subtitulo__alerta{font-weight:400;color:inherit}}
+[data-visao="desktop"] .aj-subtitulo strong.aj-subtitulo__alerta{font-weight:400;color:inherit}
+[data-visao="tablet"] .aj-subtitulo strong.aj-subtitulo__alerta,[data-visao="mobile"] .aj-subtitulo strong.aj-subtitulo__alerta{font-weight:600;color:var(--erro)}
+
+/* Filtros da lista de atividades. Barra do desktop: a busca com base menor e texto do tamanho dos filtros; a opção
+   marcável sem caixa. Linha do tablet: busca e botão de filtros com 48px. Barra superior do mobile: a linha de busca
+   com o botão de ícone e os chips que vão até a borda da tela. */
+.aj-barra-filtros>.aj-campo-icone--filtro{flex-basis:240px}
+.aj-campo-icone--filtro input{font-size:14.5px}
+.aj-opcao--solta,.aj-opcao--solta:has(input:checked){min-height:var(--campo-desktop);padding:0 var(--espaco-12);border-color:transparent;background:transparent;font-size:14.5px}
+.aj-linha-filtros--busca>.aj-campo-icone{min-height:48px}
+.aj-linha-filtros--busca .aj-botao{min-height:48px;padding:0 var(--espaco-16);font-size:14.5px}
+.aj-linha-filtros--busca .aj-botao svg{stroke-width:1.75}
+.aj-barra-superior__busca{display:flex;gap:var(--espaco-8)}
+.aj-barra-superior__busca>.aj-campo-icone{flex:1 1 auto;min-height:var(--controle-toque);border-radius:var(--raio-14)}
+.aj-barra-superior__busca .aj-botao{border-color:var(--borda-campo-suave);color:var(--verde)}
+.aj-barra-superior__busca .aj-botao:hover{border-color:var(--borda-campo-suave);background:var(--superficie-recuada)}
+.aj-barra-superior__busca .aj-botao svg{width:20px;height:20px;stroke-width:1.75}
+.aj-chips--barra{margin:0 calc(-1 * var(--espaco-16));padding:0 var(--espaco-16)}
+.aj-chips--barra>.aj-chip{padding:0 var(--espaco-14)}
+
+/* Paginação com setas (lista de atividades): a linha quebra, o texto tem o corpo da página e os botões levam seta;
+   desabilitado, o botão fica apagado sem a transparência. */
+.aj-paginacao--com-setas{flex-wrap:wrap;gap:var(--espaco-8) var(--espaco-16)}
+.aj-paginacao--com-setas .aj-subtitulo{font-size:15px}
+.aj-paginacao--com-setas .aj-botao{gap:var(--espaco-6);font-size:14px}
+.aj-paginacao--com-setas .aj-botao svg{width:16px;height:16px}
+.aj-paginacao--com-setas .aj-botao:disabled{opacity:1;border-color:var(--borda-opcao);background:var(--superficie-campo);color:var(--tinta-apagada)}
+.aj-paginacao__anterior{padding:0 var(--espaco-16) 0 var(--espaco-12)}
+.aj-paginacao__proxima{padding:0 var(--espaco-12) 0 var(--espaco-16)}
+
+/* Tabela de atividades: largura mínima, o grupo de etiquetas da situação e o traço de célula vazia. */
+.aj-tabela--larga{min-width:980px}
+.aj-tabela td.aj-tabela__vazia{color:var(--tinta-icone)}
+.aj-etiquetas{display:flex;flex-wrap:wrap;gap:var(--espaco-6)}
+/* Etiqueta com ícone no lugar do ponto (Concluída na tabela, com o visto mais grosso) e com ponto no lugar do ícone
+   (Atrasada nos cartões e na ficha). */
+.aj-etiqueta--com-icone::before{display:none}
+.aj-etiqueta--concluida.aj-etiqueta--com-icone svg{stroke-width:3}
+.aj-etiqueta--com-ponto::before{display:block}
+
+/* Cartão de atividade: título um pouco maior no tablet e meta mais justa no mobile; a linha de cima com as etiquetas
+   e a seta (no mobile); o texto no lugar dos avatares. */
+@media (min-width:761px) and (max-width:1199px){.aj-cartao--atividade .aj-cartao__titulo{font-size:16.5px}}
+@media (max-width:760px){.aj-cartao--atividade .aj-cartao__meta{line-height:1.4}}
+[data-visao="desktop"] .aj-cartao--atividade .aj-cartao__titulo,[data-visao="mobile"] .aj-cartao--atividade .aj-cartao__titulo{font-size:16px}
+[data-visao="tablet"] .aj-cartao--atividade .aj-cartao__titulo{font-size:16.5px}
+[data-visao="desktop"] .aj-cartao--atividade .aj-cartao__meta,[data-visao="tablet"] .aj-cartao--atividade .aj-cartao__meta{line-height:1.45}
+[data-visao="mobile"] .aj-cartao--atividade .aj-cartao__meta{line-height:1.4}
+.aj-cartao__topo{display:flex;align-items:center;gap:var(--espaco-6)}
+.aj-cartao__topo>.aj-cartao__etiquetas{flex:1 1 auto}
+.aj-cartao__vazio{font-size:13px;color:var(--tinta-apagada)}
+
+/* Formulário da atividade: o controle segmentado dentro do rótulo (complexidade) e o vínculo escolhido com três
+   linhas (o processo, com a área definida por ele). */
+.aj-rotulo>.aj-segmentado{align-self:flex-start}
+.aj-vinculo__escolhido--detalhado{padding:var(--espaco-8) var(--espaco-6) var(--espaco-8) var(--espaco-12)}
+.aj-vinculo__texto{flex:1 1 auto;min-width:0;display:flex;flex-direction:column}
+.aj-vinculo__titulo{font-weight:600;overflow-wrap:anywhere}
+
+/* Responsáveis (tela própria): o complemento do nome na opção, o direcionamento recuado sob a opção marcada e o
+   painel principal que mantém o destaque no mobile. */
+.aj-opcao__nota{font-weight:400;color:var(--tinta-suave)}
+.aj-rotulo--recuado{padding:0 0 var(--espaco-6) var(--espaco-14)}
+@media (max-width:760px){.aj-lado-a-lado--formulario .aj-painel--principal.aj-painel--sempre-destacado{box-shadow:var(--sombra-painel)}}
+[data-visao="mobile"] .aj-lado-a-lado--formulario .aj-painel--principal.aj-painel--sempre-destacado{box-shadow:var(--sombra-painel)}
+
+/* Devolver e reabrir: painel e barra de ações de 680px no desktop; as opções em coluna num fieldset sem moldura. */
+@media (min-width:1200px){.aj-painel--medio{max-width:680px}}
+[data-visao="desktop"] .aj-painel--medio{max-width:680px}
+[data-visao="tablet"] .aj-painel--medio,[data-visao="mobile"] .aj-painel--medio{max-width:none}
+.aj-acoes--medio{max-width:680px}
+.aj-conjunto{display:flex;flex-direction:column;gap:var(--espaco-8);min-width:0;margin:0;padding:0;border:0}
+.aj-conjunto>legend{padding:0 0 var(--espaco-8)}
+
+/* Ficha da atividade. Lado a lado com o painel estreito: o painel de detalhes com base de 280px e a coluna principal
+   com o resto. */
+@media (min-width:1200px){
+  .aj-lado-a-lado--painel-estreito .aj-lado-a-lado__lista{flex:999 1 520px}
+  .aj-lado-a-lado--painel-estreito .aj-lado-a-lado__painel{flex:1 1 280px}
+}
+[data-visao="desktop"] .aj-lado-a-lado--painel-estreito .aj-lado-a-lado__lista{flex:999 1 520px}
+[data-visao="desktop"] .aj-lado-a-lado--painel-estreito .aj-lado-a-lado__painel{flex:1 1 280px}
+[data-visao="tablet"] .aj-lado-a-lado--painel-estreito :is(.aj-lado-a-lado__lista,.aj-lado-a-lado__painel),
+[data-visao="mobile"] .aj-lado-a-lado--painel-estreito :is(.aj-lado-a-lado__lista,.aj-lado-a-lado__painel){flex:0 0 auto}
+
+/* Cabeçalho da ficha em coluna, com a faixa de ações embaixo: no desktop é o aj-painel--principal; no tablet, mais
+   folgado e arredondado, com a sombra de repouso. */
+@media (max-width:1199px){.aj-painel--cabecalho-com-faixa{gap:var(--espaco-14);padding:20px;border-radius:var(--raio-20);box-shadow:var(--sombra-1)}}
+[data-visao="desktop"] .aj-painel--cabecalho-com-faixa{gap:var(--espaco-12);padding:var(--aj-cartao-padding);border-radius:var(--aj-raio-cartao);box-shadow:var(--sombra-painel)}
+[data-visao="tablet"] .aj-painel--cabecalho-com-faixa,[data-visao="mobile"] .aj-painel--cabecalho-com-faixa{gap:var(--espaco-14);padding:20px;border-radius:var(--raio-20);box-shadow:var(--sombra-1)}
+
+/* Bloco do título com a linha de situação (etiquetas e entrega) acima do nome. O tamanho do nome é o das fichas da 9D
+   (26px no mobile). */
+.aj-titulo-da-ficha--com-situacao{gap:var(--espaco-12)}
+.aj-titulo-da-ficha__situacao{display:flex;flex-wrap:wrap;align-items:center;gap:var(--espaco-8) var(--espaco-14)}
+.aj-titulo-da-ficha__situacao>.aj-etiqueta{--aj-fonte-etiqueta:12.5px}
+.aj-titulo-da-ficha__entrega{font-size:13.5px;line-height:1.5;color:var(--tinta-suave);font-variant-numeric:tabular-nums}
+@media (max-width:1199px){
+  .aj-titulo-da-ficha--com-situacao{gap:var(--espaco-14)}
+  .aj-titulo-da-ficha__situacao{gap:var(--espaco-6) var(--espaco-12)}
+}
+@media (max-width:760px){
+  .aj-titulo-da-ficha--com-situacao{gap:var(--espaco-8)}
+  .aj-titulo-da-ficha__situacao{gap:var(--espaco-6) var(--espaco-10)}
+  .aj-titulo-da-ficha__entrega{font-size:13px}
+}
+[data-visao="desktop"] .aj-titulo-da-ficha--com-situacao{gap:var(--espaco-12)}
+[data-visao="desktop"] .aj-titulo-da-ficha__situacao{gap:var(--espaco-8) var(--espaco-14)}
+[data-visao="desktop"] .aj-titulo-da-ficha__entrega,[data-visao="tablet"] .aj-titulo-da-ficha__entrega{font-size:13.5px}
+[data-visao="tablet"] .aj-titulo-da-ficha--com-situacao{gap:var(--espaco-14)}
+[data-visao="tablet"] .aj-titulo-da-ficha__situacao{gap:var(--espaco-6) var(--espaco-12)}
+[data-visao="mobile"] .aj-titulo-da-ficha--com-situacao{gap:var(--espaco-8)}
+[data-visao="mobile"] .aj-titulo-da-ficha__situacao{gap:var(--espaco-6) var(--espaco-10)}
+[data-visao="mobile"] .aj-titulo-da-ficha__entrega{font-size:13px}
+
+/* Faixa de ações do cabeçalho da ficha, separada do título por uma borda: o divisor entre as ações principais e as de
+   cadastro, o Excluir empurrado para a direita (no desktop com o ícone de 16px). No tablet, primário e secundário com
+   raio 12 e o Excluir só com o ícone de 20px. */
+.aj-painel__botoes--faixa{align-items:center;padding-top:var(--espaco-12);border-top:1px solid var(--borda-suave)}
+.aj-painel__divisor{flex:0 0 auto;width:1px;height:24px;margin:0 var(--espaco-6);background:var(--borda-opcao)}
+.aj-botao--ao-fim{margin-left:auto}
+.aj-botao--com-icone-menor{gap:var(--espaco-6);padding-left:var(--espaco-12)}
+.aj-botao--com-icone-menor svg{width:16px;height:16px}
+@media (max-width:1199px){
+  .aj-painel__botoes--faixa{padding-top:var(--espaco-14)}
+  .aj-painel__botoes--faixa :is(.aj-botao--primario,.aj-botao--secundario){border-radius:var(--raio-12)}
+  .aj-painel__botoes--faixa .aj-botao--icone svg{width:20px;height:20px;stroke-width:1.75}
+}
+[data-visao="desktop"] .aj-painel__botoes--faixa{padding-top:var(--espaco-12)}
+[data-visao="desktop"] .aj-painel__botoes--faixa :is(.aj-botao--primario,.aj-botao--secundario){border-radius:var(--aj-raio-botao)}
+[data-visao="desktop"] .aj-painel__botoes--faixa .aj-botao--icone svg{width:18px;height:18px;stroke-width:2}
+[data-visao="tablet"] .aj-painel__botoes--faixa,[data-visao="mobile"] .aj-painel__botoes--faixa{padding-top:var(--espaco-14)}
+[data-visao="tablet"] .aj-painel__botoes--faixa :is(.aj-botao--primario,.aj-botao--secundario),[data-visao="mobile"] .aj-painel__botoes--faixa :is(.aj-botao--primario,.aj-botao--secundario){border-radius:var(--raio-12)}
+[data-visao="tablet"] .aj-painel__botoes--faixa .aj-botao--icone svg,[data-visao="mobile"] .aj-painel__botoes--faixa .aj-botao--icone svg{width:20px;height:20px;stroke-width:1.75}
+
+/* Painel da ficha da atividade: no desktop, 16px de respiro e raio 14; no tablet e no mobile, sem sombra e com o título
+   de 15,5px (tablet) e 15px (mobile). */
+@media (min-width:1200px){.aj-painel--ficha{padding:var(--espaco-16);border-radius:var(--raio-14)}}
+@media (max-width:1199px){.aj-painel--ficha{box-shadow:none}.aj-painel--ficha h2{font-size:15.5px}}
+@media (max-width:760px){.aj-painel--ficha h2{font-size:15px}}
+[data-visao="desktop"] .aj-painel--ficha{padding:var(--espaco-16);border-radius:var(--raio-14);box-shadow:var(--sombra-1)}
+[data-visao="desktop"] .aj-painel--ficha h2{font-size:16px}
+[data-visao="tablet"] .aj-painel--ficha,[data-visao="mobile"] .aj-painel--ficha{padding:var(--aj-cartao-padding);border-radius:var(--aj-raio-cartao);box-shadow:none}
+[data-visao="tablet"] .aj-painel--ficha h2{font-size:15.5px}
+[data-visao="mobile"] .aj-painel--ficha h2{font-size:15px}
+
+/* Descrição: o texto mantém as quebras; no tablet e no mobile o título fica mais perto; no mobile o texto tem 14,5px. */
+.aj-painel--descricao p{white-space:pre-wrap}
+@media (max-width:1199px){.aj-painel--descricao{gap:var(--espaco-6)}}
+@media (max-width:760px){.aj-painel--descricao p{font-size:14.5px}}
+[data-visao="desktop"] .aj-painel--descricao{gap:var(--espaco-12)}
+[data-visao="desktop"] .aj-painel--descricao p,[data-visao="tablet"] .aj-painel--descricao p{font-size:15px}
+[data-visao="tablet"] .aj-painel--descricao,[data-visao="mobile"] .aj-painel--descricao{gap:var(--espaco-6)}
+[data-visao="mobile"] .aj-painel--descricao p{font-size:14.5px}
+
+/* Detalhes (Dados no tablet e no mobile): título a 6px da lista no desktop e a última linha sem respiro embaixo; no
+   tablet e no mobile, o painel mais justo em cima e embaixo, o título com respiro próprio e as linhas mais altas. */
+.aj-painel--detalhes{gap:var(--espaco-6)}
+.aj-painel--detalhes .aj-detalhes>div:last-child{padding-bottom:0}
+@media (max-width:1199px){
+  .aj-painel--detalhes{gap:0;padding:var(--espaco-8) var(--espaco-16)}
+  .aj-painel--detalhes h2{padding:var(--espaco-8) 0 var(--espaco-4)}
+  .aj-painel--detalhes .aj-detalhes>div{gap:var(--espaco-12);padding:var(--espaco-8) 0}
+  .aj-painel--detalhes .aj-detalhes>div:last-child{padding-bottom:var(--espaco-4)}
+}
+@media (max-width:760px){
+  .aj-painel--detalhes{padding:var(--espaco-6) var(--espaco-14)}
+  .aj-painel--detalhes .aj-detalhes>div,.aj-painel--detalhes .aj-detalhes>div:last-child{padding:var(--espaco-10) 0}
+}
+[data-visao="desktop"] .aj-painel--detalhes{gap:var(--espaco-6);padding:var(--espaco-16)}
+[data-visao="desktop"] .aj-painel--detalhes h2{padding:0}
+[data-visao="desktop"] .aj-painel--detalhes .aj-detalhes>div{gap:var(--espaco-10);padding:7px 0}
+[data-visao="desktop"] .aj-painel--detalhes .aj-detalhes>div:last-child{padding-bottom:0}
+[data-visao="tablet"] .aj-painel--detalhes{gap:0;padding:var(--espaco-8) var(--espaco-16)}
+[data-visao="tablet"] .aj-painel--detalhes h2,[data-visao="mobile"] .aj-painel--detalhes h2{padding:var(--espaco-8) 0 var(--espaco-4)}
+[data-visao="tablet"] .aj-painel--detalhes .aj-detalhes>div{gap:var(--espaco-12);padding:var(--espaco-8) 0}
+[data-visao="tablet"] .aj-painel--detalhes .aj-detalhes>div:last-child{padding-bottom:var(--espaco-4)}
+[data-visao="mobile"] .aj-painel--detalhes{gap:0;padding:var(--espaco-6) var(--espaco-14)}
+[data-visao="mobile"] .aj-painel--detalhes .aj-detalhes>div,[data-visao="mobile"] .aj-painel--detalhes .aj-detalhes>div:last-child{gap:var(--espaco-12);padding:var(--espaco-10) 0}
+
+/* Vãos dos outros painéis da ficha. Responsáveis: 14 no desktop, 8 no tablet e no mobile. Histórico: 14. Comentários:
+   10 (12 no tablet). Documentos: 14 (8 no tablet). O mobile sem quadro segue o desktop. */
+.aj-painel--responsaveis,.aj-painel--historico,.aj-painel--documentos{gap:var(--espaco-14)}
+.aj-painel--comentarios{gap:var(--espaco-10)}
+@media (max-width:1199px){.aj-painel--responsaveis{gap:var(--espaco-8)}}
+@media (min-width:761px) and (max-width:1199px){.aj-painel--documentos{gap:var(--espaco-8)}.aj-painel--comentarios{gap:var(--espaco-12)}}
+[data-visao="desktop"] .aj-painel--responsaveis{gap:var(--espaco-14)}
+[data-visao="tablet"] .aj-painel--responsaveis,[data-visao="mobile"] .aj-painel--responsaveis{gap:var(--espaco-8)}
+[data-visao="desktop"] .aj-painel--documentos,[data-visao="mobile"] .aj-painel--documentos{gap:var(--espaco-14)}
+[data-visao="tablet"] .aj-painel--documentos{gap:var(--espaco-8)}
+[data-visao="desktop"] .aj-painel--comentarios,[data-visao="mobile"] .aj-painel--comentarios{gap:var(--espaco-10)}
+[data-visao="tablet"] .aj-painel--comentarios{gap:var(--espaco-12)}
+
+/* Responsáveis da atividade: um cartão por pessoa, com avatar, nome, estado da parte e direcionamento. Lista no desktop
+   e no mobile, grade de duas colunas no tablet. */
+.aj-responsaveis{display:flex;flex-direction:column;gap:var(--espaco-8);margin:0;padding:0;list-style:none}
+.aj-responsavel{display:flex;flex-wrap:wrap;align-items:flex-start;gap:var(--espaco-12) var(--espaco-14);padding:var(--espaco-10);border-radius:var(--raio-14);background:var(--superficie-suave)}
+.aj-responsavel>.aj-avatar{width:36px;height:36px;font-size:12.5px}
+.aj-responsavel strong{font-weight:600}
+.aj-responsavel__texto{flex:1 1 260px;min-width:0;display:flex;flex-direction:column;gap:var(--espaco-2)}
+.aj-responsavel__cabeca{display:flex;flex-wrap:wrap;align-items:center;gap:var(--espaco-4) var(--espaco-10)}
+.aj-responsavel__estado{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:600;color:var(--sucesso);font-variant-numeric:tabular-nums}
+.aj-responsavel__estado svg{flex:0 0 auto;width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.aj-responsavel__estado--pendente{color:var(--tinta-apagada)}
+.aj-responsavel__direcionamento{font-size:14px;color:var(--tinta-secundaria);white-space:pre-wrap;overflow-wrap:anywhere}
+@media (max-width:1199px){
+  .aj-responsaveis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+  .aj-responsavel{flex-wrap:nowrap;gap:var(--espaco-12);padding:var(--espaco-12)}
+  .aj-responsavel>.aj-avatar{font-size:12px}
+  .aj-responsavel__texto{flex:0 1 auto;gap:1px}
+  .aj-responsavel__cabeca{flex-direction:column;align-items:flex-start;gap:1px}
+  .aj-responsavel__estado svg{display:none}
+  .aj-responsavel__direcionamento{font-size:13.5px}
+}
+@media (max-width:760px){
+  .aj-responsaveis{display:flex}
+  .aj-responsavel{padding:var(--espaco-10);border-radius:var(--raio-12)}
+  .aj-responsavel>.aj-avatar{width:34px;height:34px}
+  .aj-responsavel__estado svg{display:block;width:12px;height:12px}
+}
+[data-visao="desktop"] .aj-responsaveis{display:flex}
+[data-visao="desktop"] .aj-responsavel{flex-wrap:wrap;gap:var(--espaco-12) var(--espaco-14);padding:var(--espaco-10);border-radius:var(--raio-14)}
+[data-visao="desktop"] .aj-responsavel>.aj-avatar{width:36px;height:36px;font-size:12.5px}
+[data-visao="desktop"] .aj-responsavel__texto{flex:1 1 260px;gap:var(--espaco-2)}
+[data-visao="desktop"] .aj-responsavel__cabeca{flex-direction:row;align-items:center;gap:var(--espaco-4) var(--espaco-10)}
+[data-visao="desktop"] .aj-responsavel__estado svg{display:block;width:13px;height:13px}
+[data-visao="desktop"] .aj-responsavel__direcionamento{font-size:14px}
+[data-visao="tablet"] .aj-responsaveis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+[data-visao="tablet"] .aj-responsavel{flex-wrap:nowrap;gap:var(--espaco-12);padding:var(--espaco-12);border-radius:var(--raio-14)}
+[data-visao="tablet"] .aj-responsavel>.aj-avatar{width:36px;height:36px;font-size:12px}
+[data-visao="tablet"] .aj-responsavel__estado svg{display:none}
+[data-visao="mobile"] .aj-responsaveis{display:flex}
+[data-visao="mobile"] .aj-responsavel{flex-wrap:nowrap;gap:var(--espaco-12);padding:var(--espaco-10);border-radius:var(--raio-12)}
+[data-visao="mobile"] .aj-responsavel>.aj-avatar{width:34px;height:34px;font-size:12px}
+[data-visao="mobile"] .aj-responsavel__estado svg{display:block;width:12px;height:12px}
+[data-visao="tablet"] .aj-responsavel__texto,[data-visao="mobile"] .aj-responsavel__texto{flex:0 1 auto;gap:1px}
+[data-visao="tablet"] .aj-responsavel__cabeca,[data-visao="mobile"] .aj-responsavel__cabeca{flex-direction:column;align-items:flex-start;gap:1px}
+[data-visao="tablet"] .aj-responsavel__direcionamento,[data-visao="mobile"] .aj-responsavel__direcionamento{font-size:13.5px}
+
+/* Histórico da atividade em linha do tempo: um ponto por mudança, na cor da situação nova, ligado ao seguinte por um
+   traço; o último (a situação atual) cheio. A situação também está escrita no texto. */
+.aj-historico{display:flex;flex-direction:column;margin:0;padding:0;list-style:none}
+.aj-historico__item{display:flex;gap:var(--espaco-14)}
+.aj-historico__marca{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;padding-top:var(--espaco-6)}
+.aj-historico__ponto{flex:0 0 auto;width:10px;height:10px;border:2px solid currentColor;border-radius:var(--raio-pilula);background:var(--superficie);color:var(--tinta-icone)}
+.aj-historico__ponto--direcionada{color:var(--situacao-direcionada-texto)}
+.aj-historico__ponto--feita{color:var(--situacao-feita-texto)}
+.aj-historico__ponto--correcao{color:var(--situacao-correcao-texto)}
+.aj-historico__ponto--corrigida{color:var(--situacao-corrigida-texto)}
+.aj-historico__ponto--concluida{color:var(--verde)}
+.aj-historico__ponto--reaberta{color:var(--situacao-reaberta-texto)}
+.aj-historico__ponto--atual{border:0;background:currentColor}
+.aj-historico__linha{flex:1 1 auto;width:2px;margin-top:var(--espaco-4);background:var(--borda)}
+.aj-historico__item:last-child .aj-historico__linha{display:none}
+.aj-historico__texto{display:flex;flex-direction:column;gap:1px;min-width:0;padding-bottom:var(--espaco-10)}
+.aj-historico__item:last-child .aj-historico__texto{padding-bottom:0}
+.aj-historico__mudanca{font-weight:600}
+.aj-historico__autor{font-size:13.5px;color:var(--tinta-suave);font-variant-numeric:tabular-nums}
+.aj-historico .aj-historico__motivo{margin-top:var(--espaco-2);font-size:14px;color:var(--tinta-secundaria);white-space:pre-wrap;overflow-wrap:anywhere}
+
+/* Comentários em balões: avatar, balão com nome, data e texto. No tablet, avatar menor, balão sem vão interno e data
+   menor. */
+.aj-comentarios{display:flex;flex-direction:column;gap:var(--espaco-10);margin:0;padding:0;list-style:none}
+.aj-comentario{display:flex;gap:var(--espaco-12)}
+.aj-comentario>.aj-avatar{width:36px;height:36px;font-size:12.5px}
+.aj-comentario strong{font-weight:600}
+.aj-comentario__balao{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:var(--espaco-6);padding:9px var(--espaco-12);border-radius:4px var(--raio-14) var(--raio-14) var(--raio-14);background:var(--superficie-suave)}
+.aj-comentario__cabeca{display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--espaco-4) var(--espaco-10)}
+.aj-comentario__data{font-size:13px;color:var(--tinta-apagada);font-variant-numeric:tabular-nums}
+.aj-comentario__texto{max-width:68ch;white-space:pre-wrap;color:var(--tinta-corpo);overflow-wrap:anywhere}
+@media (min-width:761px) and (max-width:1199px){
+  .aj-comentarios{gap:var(--espaco-12)}
+  .aj-comentario{gap:var(--espaco-10)}
+  .aj-comentario>.aj-avatar{width:34px;height:34px;font-size:12px}
+  .aj-comentario__balao{gap:0;padding:var(--espaco-10) var(--espaco-12)}
+  .aj-comentario__cabeca{flex-wrap:nowrap;gap:var(--espaco-10)}
+  .aj-comentario__data{font-size:12.5px}
+}
+[data-visao="tablet"] .aj-comentarios{gap:var(--espaco-12)}
+[data-visao="tablet"] .aj-comentario{gap:var(--espaco-10)}
+[data-visao="tablet"] .aj-comentario>.aj-avatar{width:34px;height:34px;font-size:12px}
+[data-visao="tablet"] .aj-comentario__balao{gap:0;padding:var(--espaco-10) var(--espaco-12)}
+[data-visao="tablet"] .aj-comentario__cabeca{flex-wrap:nowrap;gap:var(--espaco-10)}
+[data-visao="tablet"] .aj-comentario__data{font-size:12.5px}
+[data-visao="desktop"] .aj-comentarios,[data-visao="mobile"] .aj-comentarios{gap:var(--espaco-10)}
+[data-visao="desktop"] .aj-comentario,[data-visao="mobile"] .aj-comentario{gap:var(--espaco-12)}
+[data-visao="desktop"] .aj-comentario>.aj-avatar,[data-visao="mobile"] .aj-comentario>.aj-avatar{width:36px;height:36px;font-size:12.5px}
+[data-visao="desktop"] .aj-comentario__balao,[data-visao="mobile"] .aj-comentario__balao{gap:var(--espaco-6);padding:9px var(--espaco-12)}
+[data-visao="desktop"] .aj-comentario__cabeca,[data-visao="mobile"] .aj-comentario__cabeca{flex-wrap:wrap;gap:var(--espaco-4) var(--espaco-10)}
+[data-visao="desktop"] .aj-comentario__data,[data-visao="mobile"] .aj-comentario__data{font-size:13px}
+
+/* Novo comentário no desktop e no mobile: abaixo dos balões, separado por uma borda, com o botão à direita. */
+.aj-comentarios__novo{display:flex;flex-direction:column;gap:var(--espaco-10);padding-top:var(--espaco-16);border-top:1px solid var(--borda-suave)}
+.aj-comentarios__novo>.aj-botao{align-self:flex-end;padding:0 20px}
+
+/* Novo comentário no tablet (dentro de aj-campo-com-botao): o campo com mais respiro e o botão de enviar quadrado de
+   48px. */
+textarea.aj-campo--folgado{padding:var(--espaco-10) var(--espaco-14)}
+.aj-campo-com-botao>.aj-botao--enviar{width:48px;min-height:48px;padding:0;border-radius:var(--raio-14)}
+.aj-botao--enviar svg{width:20px;height:20px}
+
+/* Documentos da atividade: ladrilho com o ícone do tipo, nome (o link que baixa), tamanho, autor e data, e as ações.
+   Lista no desktop e no mobile (no mobile, o "⋯" fica na mesma linha do nome); no tablet, grade de duas colunas com o
+   nome cortado e sem a data. */
+.aj-documentos{display:flex;flex-direction:column;gap:var(--espaco-8);margin:0;padding:0;list-style:none}
+.aj-documento{display:flex;flex-wrap:wrap;align-items:center;gap:var(--espaco-8) var(--espaco-14);min-width:0;padding:var(--espaco-10) var(--espaco-8) var(--espaco-10) var(--espaco-12);border:1px solid var(--borda-suave);border-radius:var(--raio-14);color:var(--tinta)}
+.aj-documento__icone{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:var(--raio-10);background:var(--situacao-criada-fundo);color:var(--situacao-criada-texto)}
+.aj-documento__icone svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.aj-documento__icone--texto{background:var(--situacao-direcionada-fundo);color:var(--situacao-direcionada-texto)}
+.aj-documento__icone--planilha{background:var(--situacao-feita-fundo);color:var(--situacao-feita-texto)}
+.aj-documento__texto{flex:1 1 220px;min-width:0;display:flex;flex-direction:column;gap:1px}
+.aj-documento__nome{font-weight:600;text-decoration:none;overflow-wrap:anywhere}
+:where(.aj-documento a){color:var(--verde)}
+:where(.aj-documento a:hover){color:var(--tinta)}
+.aj-documento__meta{font-size:13px;color:var(--tinta-suave);font-variant-numeric:tabular-nums}
+.aj-documento__acoes{display:flex;gap:var(--espaco-2)}
+.aj-documento__acoes>.aj-botao{padding:0 var(--espaco-12);font-size:14px}
+@media (min-width:761px) and (max-width:1199px){
+  .aj-documentos{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+  .aj-documento{flex-wrap:nowrap;gap:var(--espaco-12);padding:var(--espaco-10) var(--espaco-12)}
+  .aj-documento__texto{flex:1 1 auto;gap:0}
+  .aj-documento__nome{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;overflow-wrap:normal}
+  .aj-documento a.aj-documento__nome{color:var(--tinta)}
+  .aj-documento__meta{font-size:12.5px;font-variant-numeric:normal}
+}
+@media (max-width:760px){.aj-documento{flex-wrap:nowrap}}
+[data-visao="tablet"] .aj-documentos{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+[data-visao="tablet"] .aj-documento{flex-wrap:nowrap;gap:var(--espaco-12);padding:var(--espaco-10) var(--espaco-12)}
+[data-visao="tablet"] .aj-documento__texto{flex:1 1 auto;gap:0}
+[data-visao="tablet"] .aj-documento__nome{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;overflow-wrap:normal}
+[data-visao="tablet"] .aj-documento a.aj-documento__nome{color:var(--tinta)}
+[data-visao="tablet"] .aj-documento__meta{font-size:12.5px;font-variant-numeric:normal}
+[data-visao="desktop"] .aj-documentos,[data-visao="mobile"] .aj-documentos{display:flex}
+[data-visao="desktop"] .aj-documento,[data-visao="mobile"] .aj-documento{gap:var(--espaco-8) var(--espaco-14);padding:var(--espaco-10) var(--espaco-8) var(--espaco-10) var(--espaco-12)}
+[data-visao="desktop"] .aj-documento{flex-wrap:wrap}
+[data-visao="mobile"] .aj-documento{flex-wrap:nowrap}
+[data-visao="desktop"] .aj-documento__texto,[data-visao="mobile"] .aj-documento__texto{flex:1 1 220px;gap:1px}
+[data-visao="desktop"] .aj-documento__nome,[data-visao="mobile"] .aj-documento__nome{overflow:visible;text-overflow:clip;white-space:normal;overflow-wrap:anywhere}
+[data-visao="desktop"] .aj-documento a.aj-documento__nome,[data-visao="mobile"] .aj-documento a.aj-documento__nome{color:var(--verde)}
+[data-visao="desktop"] .aj-documento__meta,[data-visao="mobile"] .aj-documento__meta{font-size:13px;font-variant-numeric:tabular-nums}
+
+/* Barra de voltar com uma ação à direita (o "Mais ações" da ficha da atividade): o botão do menu mede o alvo de toque,
+   como o voltar. */
+.aj-barra-superior--voltar>.aj-menu-acoes>.aj-botao{width:var(--alvo-toque);min-height:var(--alvo-toque)}
+.aj-barra-superior--voltar>.aj-menu-acoes>.aj-botao svg{width:22px;height:22px}
