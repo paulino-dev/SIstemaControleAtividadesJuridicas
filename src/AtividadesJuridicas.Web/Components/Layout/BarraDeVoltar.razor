@@ -1,12 +1,20 @@
 @using Microsoft.AspNetCore.Components.Sections
 
-@* A barra superior do mobile das fichas e dos formulários: voltar, o título no meio e um vazio do tamanho do botão.
-   Com ela na tela, o layout esconde a barra inferior. *@
+@* A barra superior do mobile das fichas e dos formulários: voltar, o título no meio e, à direita, a ação da tela
+   (o "Mais ações" da ficha da atividade) ou um vazio do tamanho do botão. Com ela na tela, o layout esconde a barra
+   inferior. *@
 <SectionContent SectionName="@Encaixes.BarraSuperior">
     <header class="aj-barra-superior aj-barra-superior--voltar">
         <a href="@VoltarPara" class="aj-botao aj-botao--fantasma aj-botao--icone" aria-label="@Rotulo"><Icone Nome="voltar" /></a>
         <h1>@Titulo</h1>
-        <span class="aj-barra-superior__vazio" aria-hidden="true"></span>
+        @if (Acao is not null)
+        {
+            @Acao
+        }
+        else
+        {
+            <span class="aj-barra-superior__vazio" aria-hidden="true"></span>
+        }
     </header>
 </SectionContent>
 
@@ -16,4 +24,7 @@
 
     /// <summary>O rótulo acessível do voltar: "Voltar para Clientes".</summary>
     [Parameter, EditorRequired] public string Rotulo { get; set; } = string.Empty;
+
+    /// <summary>A ação à direita do título (um <c>MenuDeAcoes</c>). Sem ela, o vazio que centraliza o título.</summary>
+    [Parameter] public RenderFragment? Acao { get; set; }
 }

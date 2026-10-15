@@ -82,7 +82,7 @@ else
                 {
                     <tr @key="atividade.Id">
                         <td>@atividade.Titulo</td>
-                        <td><EtiquetaDeSituacao Status="atividade.Status" Atrasada="atividade.Atrasada" /></td>
+                        <td><EtiquetaDeSituacao Status="atividade.Status" Atrasada="atividade.Atrasada" NaTabela="true" /></td>
                         <td>@RotulosDeAtividade.Data(atividade.DataEntrega)</td>
                         <td>@atividade.Complexidade</td>
                         <td>@atividade.ClienteNome</td>

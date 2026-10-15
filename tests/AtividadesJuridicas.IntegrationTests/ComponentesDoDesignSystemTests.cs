@@ -1,5 +1,7 @@
 using System.Net;
 using System.Text.RegularExpressions;
+using AtividadesJuridicas.Domain.Atividades;
+using AtividadesJuridicas.Web.Components.Atividades;
 using AtividadesJuridicas.Web.Components.Layout;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
@@ -23,6 +25,9 @@ public class ComponentesDoDesignSystemTests
     [InlineData("baixar")]
     [InlineData("atencao")]
     [InlineData("erro")]
+    [InlineData("enviar")]
+    [InlineData("planilha")]
+    [InlineData("texto")]
     public async Task Icone_do_design_system_tem_tracado(string nome)
     {
         var html = await TelaDeTeste.RenderizarSemDadosAsync<Icone>(new() { ["Nome"] = nome });
@@ -322,6 +327,130 @@ public class ComponentesDoDesignSystemTests
         });
 
         html.Should().Contain("<label class=\"aj-rotulo aj-grade-endereco__logradouro\">");
+    }
+
+    [Fact]
+    public async Task Icones_da_ficha_da_atividade_tem_os_tracados_do_quadro()
+    {
+        var enviar = await TelaDeTeste.RenderizarSemDadosAsync<Icone>(new() { ["Nome"] = "enviar" });
+        var planilha = await TelaDeTeste.RenderizarSemDadosAsync<Icone>(new() { ["Nome"] = "planilha" });
+        var texto = await TelaDeTeste.RenderizarSemDadosAsync<Icone>(new() { ["Nome"] = "texto" });
+
+        enviar.Should().Contain("<path d=\"M4 12l16-8-6 16-2.5-6.5z\"></path>");
+        planilha.Should().Contain(
+            "<path d=\"M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z\"></path><path d=\"M14 3v5h5\"></path><path d=\"M8 12h8v6H8z\"></path><path d=\"M12 12v6\"></path>");
+        texto.Should().Contain(
+            "<path d=\"M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z\"></path><path d=\"M14 3v5h5\"></path><path d=\"M9 13h6\"></path><path d=\"M9 17h4\"></path>");
+    }
+
+    [Fact]
+    public async Task Cabecalho_com_alerta_termina_o_subtitulo_e_o_da_barra_com_o_destaque()
+    {
+        var html = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarSemDadosAsync<ComBarraSuperior<CabecalhoDePagina>>(
+            new() { ["Titulo"] = "Atividades", ["Subtitulo"] = "8 atividades", ["Alerta"] = "1 atrasada" }));
+
+        BlocoDeVisao.De(html, "aj-desktop-tablet").Should().Contain(
+            "<p class=\"aj-subtitulo\">8 atividades · <strong class=\"aj-subtitulo__alerta\">1 atrasada</strong></p>");
+        BarraDaTela(html).Should().Contain(
+            "<span class=\"aj-subtitulo\">8 atividades · <strong class=\"aj-subtitulo__alerta\">1 atrasada</strong></span>");
+    }
+
+    [Fact]
+    public async Task Cabecalho_sem_alerta_fica_so_com_o_subtitulo()
+    {
+        var html = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarSemDadosAsync<ComBarraSuperior<CabecalhoDePagina>>(
+            new() { ["Titulo"] = "Atividades", ["Subtitulo"] = "8 atividades" }));
+
+        html.Should().Contain("<p class=\"aj-subtitulo\">8 atividades</p>")
+            .And.Contain("<span class=\"aj-subtitulo\">8 atividades</span>")
+            .And.NotContain("aj-subtitulo__alerta");
+    }
+
+    [Fact]
+    public async Task Cabecalho_de_detalhe_leva_o_rotulo_proprio_ao_voltar_da_barra_do_mobile()
+    {
+        var html = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarSemDadosAsync<ComBarraSuperior<CabecalhoDeDetalhe>>(new()
+        {
+            ["Titulo"] = "Editar atividade", ["VoltarPara"] = "/atividades/0199a3f2-7c1e-7000-8000-000000000001",
+            ["Origem"] = "Minuta de acordo trabalhista", ["RotuloDoVoltarNoMobile"] = "Voltar para a atividade",
+        }));
+
+        html.Should().MatchRegex(
+            "<header class=\"aj-barra-superior aj-barra-superior--voltar\">\\s*<a href=\"/atividades/0199a3f2-7c1e-7000-8000-000000000001\" class=\"aj-botao aj-botao--fantasma aj-botao--icone\" aria-label=\"Voltar para a atividade\">")
+            .And.NotContain("Voltar para Minuta de acordo trabalhista");
+        // O voltar do desktop e do tablet continua com a origem por extenso.
+        BlocoDeVisao.De(html, "aj-desktop-tablet").Should().MatchRegex(
+            "(?s)<a href=\"/atividades/0199a3f2-7c1e-7000-8000-000000000001\" class=\"aj-voltar\">\\s*<svg[^>]*>.*?</svg>\\s*Minuta de acordo trabalhista</a>");
+    }
+
+    [Fact]
+    public async Task Barra_de_voltar_com_acao_poe_a_acao_no_lugar_do_vazio()
+    {
+        RenderFragment acao = c => c.AddMarkupContent(0, "<div class=\"aj-menu-acoes\">Mais ações</div>");
+
+        var comAcao = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarSemDadosAsync<ComBarraSuperior<BarraDeVoltar>>(new()
+        {
+            ["Titulo"] = "Atividade", ["VoltarPara"] = "/atividades", ["Rotulo"] = "Voltar para Atividades", ["Acao"] = acao,
+        }));
+        var semAcao = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarSemDadosAsync<ComBarraSuperior<BarraDeVoltar>>(new()
+        {
+            ["Titulo"] = "Atividade", ["VoltarPara"] = "/atividades", ["Rotulo"] = "Voltar para Atividades",
+        }));
+
+        comAcao.Should().MatchRegex(
+            "(?s)<header class=\"aj-barra-superior aj-barra-superior--voltar\">.*?<h1>Atividade</h1>\\s*<div class=\"aj-menu-acoes\">Mais ações</div>\\s*</header>")
+            .And.NotContain("aj-barra-superior__vazio");
+        semAcao.Should().MatchRegex(
+            "(?s)<h1>Atividade</h1>\\s*<span class=\"aj-barra-superior__vazio\" aria-hidden=\"true\"></span>\\s*</header>");
+    }
+
+    [Fact]
+    public async Task Paginacao_com_setas_traz_a_seta_de_cada_lado_e_trava_as_pontas()
+    {
+        var html = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarSemDadosAsync<Paginacao>(new()
+        {
+            ["Numero"] = 1, ["TotalDePaginas"] = 3, ["Total"] = 45, ["Singular"] = "atividade", ["Plural"] = "atividades",
+            ["ComSetas"] = true,
+        }));
+
+        html.Should().Contain("<div class=\"aj-paginacao aj-paginacao--com-setas\">")
+            .And.Contain("<span class=\"aj-subtitulo\">Página 1 de 3 · 45 atividades</span>")
+            .And.MatchRegex("<button type=\"button\" class=\"aj-botao aj-botao--secundario aj-paginacao__anterior\"[^>]*>\\s*<svg[^>]*>\\s*<path d=\"M15 6l-6 6 6 6\"></path>\\s*</svg>\\s*Anterior</button>")
+            .And.MatchRegex("<button type=\"button\" class=\"aj-botao aj-botao--secundario aj-paginacao__proxima\"[^>]*>\\s*Próxima\\s*<svg[^>]*>\\s*<path d=\"M9 6l6 6-6 6\"></path>\\s*</svg>\\s*</button>");
+        Regex.IsMatch(html, "aj-paginacao__anterior\"[^>]*disabled").Should().BeTrue();
+        Regex.IsMatch(html, "aj-paginacao__proxima\"[^>]*disabled").Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Etiqueta_na_tabela_traz_o_visto_na_concluida_e_o_relogio_na_atrasada()
+    {
+        var concluida = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarSemDadosAsync<EtiquetaDeSituacao>(
+            new() { ["Status"] = StatusAtividade.Concluida, ["NaTabela"] = true }));
+        var atrasada = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarSemDadosAsync<EtiquetaDeSituacao>(
+            new() { ["Status"] = StatusAtividade.Direcionada, ["Atrasada"] = true, ["NaTabela"] = true }));
+
+        concluida.Should().MatchRegex(
+            "<span class=\"aj-etiqueta aj-etiqueta--concluida aj-etiqueta--com-icone\">\\s*<svg[^>]*>\\s*<path d=\"M5 12.5l4.5 4.5L19 7.5\"></path>\\s*</svg>\\s*Concluída</span>");
+        atrasada.Should().MatchRegex(
+            "<span class=\"aj-etiqueta aj-etiqueta--direcionada\">Direcionada</span>\\s*<span class=\"aj-etiqueta aj-etiqueta--atrasada\">\\s*<svg[^>]*>\\s*<circle cx=\"12\" cy=\"12\" r=\"9\"></circle>")
+            .And.NotContain("aj-etiqueta--com-ponto");
+    }
+
+    [Fact]
+    public async Task Etiqueta_fora_da_tabela_fica_com_o_ponto_em_todas_e_sem_icone()
+    {
+        var concluida = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarSemDadosAsync<EtiquetaDeSituacao>(
+            new() { ["Status"] = StatusAtividade.Concluida }));
+        var atrasada = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarSemDadosAsync<EtiquetaDeSituacao>(
+            new() { ["Status"] = StatusAtividade.Direcionada, ["Atrasada"] = true }));
+        var noPrazo = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarSemDadosAsync<EtiquetaDeSituacao>(
+            new() { ["Status"] = StatusAtividade.Criada }));
+
+        concluida.Should().Contain("<span class=\"aj-etiqueta aj-etiqueta--concluida\">Concluída</span>").And.NotContain("<svg");
+        atrasada.Should().MatchRegex(
+            "<span class=\"aj-etiqueta aj-etiqueta--direcionada\">Direcionada</span>\\s*<span class=\"aj-etiqueta aj-etiqueta--atrasada aj-etiqueta--com-ponto\">Atrasada</span>")
+            .And.NotContain("<svg");
+        noPrazo.Should().Contain("<span class=\"aj-etiqueta aj-etiqueta--criada\">Criada</span>").And.NotContain("Atrasada");
     }
 
     [Fact]

@@ -20,7 +20,7 @@ else
                     <h1 class="aj-titulo">@Titulo</h1>
                     @if (SubtituloDaBarra is { } subtituloMobile)
                     {
-                        <span class="aj-subtitulo">@subtituloMobile</span>
+                        <span class="aj-subtitulo">@subtituloMobile@ParteDoAlerta</span>
                     }
                 </div>
                 <a href="/minha-senha" class="aj-avatar" aria-label="Minha conta">@Contexto?.Iniciais</a>
@@ -41,7 +41,7 @@ else
                 <h1 class="aj-titulo">@Titulo</h1>
                 @if (Subtitulo is not null)
                 {
-                    <p class="aj-subtitulo">@Subtitulo</p>
+                    <p class="aj-subtitulo">@Subtitulo@ParteDoAlerta</p>
                 }
             </div>
         </div>
@@ -86,6 +86,12 @@ else
     /// </summary>
     [Parameter] public string? SubtituloMobile { get; set; }
 
+    /// <summary>
+    /// A parte de alerta do subtítulo ("1 atrasada"), depois de um " · ", num strong que o design system pinta de
+    /// vermelho no tablet e no mobile. O <see cref="Subtitulo"/> leva só a primeira parte ("8 atividades").
+    /// </summary>
+    [Parameter] public string? Alerta { get; set; }
+
     /// <summary>Subtítulo em frase: o quadro afasta um pouco mais o título.</summary>
     [Parameter] public bool Folgado { get; set; }
 
@@ -114,6 +120,19 @@ else
 
     private string? SubtituloDaBarra =>
         SubtituloMobile is null ? Subtitulo : SubtituloMobile.Length == 0 ? null : SubtituloMobile;
+
+    // O separador vai como texto do próprio fragmento: escrito na marcação, o compilador do Razor poderia aparar o
+    // espaço da ponta. Sem alerta, nada é emitido e o subtítulo fica como era.
+    private RenderFragment ParteDoAlerta => construtor =>
+    {
+        if (Alerta is null) return;
+
+        construtor.AddContent(0, " · ");
+        construtor.OpenElement(1, "strong");
+        construtor.AddAttribute(2, "class", "aj-subtitulo__alerta");
+        construtor.AddContent(3, Alerta);
+        construtor.CloseElement();
+    };
 
     private Task ExibirMenuAsync() => Contexto is { } contexto ? contexto.AlternarMenu.InvokeAsync() : Task.CompletedTask;
 }

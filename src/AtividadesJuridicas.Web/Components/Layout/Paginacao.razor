@@ -1,11 +1,20 @@
-@* A linha de paginação do design system, ao fim da lista. *@
+@* A linha de paginação do design system, ao fim da lista. Com setas (a lista de atividades), cada botão leva a seta
+   do lado para onde vai. *@
 @if (SempreVisivel || TotalDePaginas > 1)
 {
-    <div class="aj-paginacao">
+    <div class="@(ComSetas ? "aj-paginacao aj-paginacao--com-setas" : "aj-paginacao")">
         <span class="aj-subtitulo">@Texto</span>
         <div class="aj-paginacao__botoes">
-            <button type="button" class="aj-botao aj-botao--secundario" disabled="@(Ocupado || Numero <= 1)" @onclick="() => IrPara.InvokeAsync(Numero - 1)">Anterior</button>
-            <button type="button" class="aj-botao aj-botao--secundario" disabled="@(Ocupado || Numero >= TotalDePaginas)" @onclick="() => IrPara.InvokeAsync(Numero + 1)">Próxima</button>
+            @if (ComSetas)
+            {
+                <button type="button" class="aj-botao aj-botao--secundario aj-paginacao__anterior" disabled="@(Ocupado || Numero <= 1)" @onclick="() => IrPara.InvokeAsync(Numero - 1)"><Icone Nome="voltar" />Anterior</button>
+                <button type="button" class="aj-botao aj-botao--secundario aj-paginacao__proxima" disabled="@(Ocupado || Numero >= TotalDePaginas)" @onclick="() => IrPara.InvokeAsync(Numero + 1)">Próxima<Icone Nome="avancar" /></button>
+            }
+            else
+            {
+                <button type="button" class="aj-botao aj-botao--secundario" disabled="@(Ocupado || Numero <= 1)" @onclick="() => IrPara.InvokeAsync(Numero - 1)">Anterior</button>
+                <button type="button" class="aj-botao aj-botao--secundario" disabled="@(Ocupado || Numero >= TotalDePaginas)" @onclick="() => IrPara.InvokeAsync(Numero + 1)">Próxima</button>
+            }
         </div>
     </div>
 }
@@ -24,6 +33,9 @@
 
     /// <summary>Uma consulta está em curso: os dois botões esperam.</summary>
     [Parameter] public bool Ocupado { get; set; }
+
+    /// <summary>Os botões com as setas e a linha que quebra (o quadro da lista de atividades).</summary>
+    [Parameter] public bool ComSetas { get; set; }
 
     [Parameter] public EventCallback<int> IrPara { get; set; }
 
