@@ -1,0 +1,68 @@
+@using System.Globalization
+@inject FusoDoEscritorio Fuso
+
+@* O Dia da agenda (o dia da data do período). Desktop: a caixa com o número, o nome do dia e o total, e a régua de
+   horas, com os cartões em linha posicionados por classes de grade (início e altura em quartos de hora; eventos
+   simultâneos dividem a largura em partes). Tablet: uma seção como as da Semana (SecaoDoDia). Mobile: a lista do dia
+   (ListaDoDia). Os três leem os mesmos eventos (só os que tocam o dia). *@
+<div class="aj-so-desktop">
+    <section class="@(EHoje ? "aj-dia aj-dia--hoje" : "aj-dia")" aria-label="@RotulosDeAgenda.RotuloLongo(Dia, false)">
+        <h2 class="aj-dia__cabeca"><span class="aj-dia__numero">@RotulosDeAgenda.NumeroDoDia(Dia)</span><span>@RotulosDeAgenda.TituloDoDiaNoDesktop(Dia, EHoje)</span><span class="aj-dia__total">@RotulosDeAgenda.TotalDeEventos(_doDia.Count)</span></h2>
+        <div class="aj-regua">
+            <div class="aj-regua__horas" aria-hidden="true">
+                @for (var hora = _regua.HoraInicial; hora < _regua.HoraFinal; hora++)
+                {
+                    <span class="aj-regua__hora">@Hora(hora)</span>
+                }
+            </div>
+            <div class="@ClasseDaGrade">
+                @foreach (var item in _regua.Eventos)
+                {
+                    <CartaoDeEvento @key="item.Evento.Id" Evento="item.Evento" Dia="Dia" Forma="FormaDoCartao.Linha" Href="@Ficha(item.Evento)" ClassesDaRegua="@ClassesDaRegua(item)" />
+                }
+            </div>
+        </div>
+    </section>
+</div>
+<div class="aj-so-tablet">
+    <SecaoDoDia Dia="Dia" Eventos="_doDia" Hoje="EHoje" Consulta="@Periodo.Consulta" />
+</div>
+<div class="aj-so-mobile">
+    <ListaDoDia Dia="Dia" Eventos="_doDia" Hoje="EHoje" Consulta="@Periodo.Consulta" />
+</div>
+
+@code {
+    [Parameter, EditorRequired] public PeriodoDaAgenda Periodo { get; set; } = default!;
+
+    /// <summary>Os eventos da consulta da página (a semana inteira); o Dia mostra só os que tocam a data.</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<EventoResumo> Eventos { get; set; } = [];
+
+    [Parameter, EditorRequired] public DateOnly Hoje { get; set; }
+
+    private IReadOnlyList<EventoResumo> _doDia = [];
+    private ReguaDoDia _regua = default!;
+
+    private DateOnly Dia => Periodo.Data;
+    private bool EHoje => Dia == Hoje;
+
+    protected override void OnParametersSet()
+    {
+        // A ordem é a do início; no empate fica a do servidor (o OrderBy é estável).
+        _doDia = RotulosDeAgenda.EventosDoDia(Fuso, Eventos.OrderBy(evento => evento.InicioEm), Dia);
+        _regua = ReguaDoDia.Montar(Fuso, Dia, _doDia);
+    }
+
+    private string ClasseDaGrade => $"aj-regua__grade aj-regua__grade--horas-{_regua.Horas}";
+    private string Ficha(EventoResumo evento) => PeriodoDaAgenda.Ficha(evento.Id, Periodo.Consulta);
+
+    private static string Hora(int hora) => hora.ToString("00", CultureInfo.InvariantCulture) + ":00";
+
+    /// <summary>
+    /// As classes de posição do cartão na régua: o início e a altura em quartos de hora e, num grupo de eventos
+    /// simultâneos, a parte da largura que ele ocupa. Evento sozinho (uma parte) não leva a classe de parte.
+    /// </summary>
+    public static string ClassesDaRegua(EventoNaRegua item) =>
+        item.Partes > 1
+            ? $"aj-regua__evento aj-regua__evento--inicio-{item.InicioEmQuartos} aj-regua__evento--quartos-{item.Quartos} aj-regua__evento--parte-{item.Parte}-de-{item.Partes}"
+            : $"aj-regua__evento aj-regua__evento--inicio-{item.InicioEmQuartos} aj-regua__evento--quartos-{item.Quartos}";
+}
