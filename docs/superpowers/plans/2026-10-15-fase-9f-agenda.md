@@ -8608,7 +8608,7 @@ Em `tests/AtividadesJuridicas.UnitTests/TelasNoDesignSystemTests.cs` (fim de lin
 
 Run: `dotnet build -m:1`
 Run: `dotnet test tests/AtividadesJuridicas.UnitTests --no-build --filter "FullyQualifiedName~TelasNoDesignSystemTests.Toda_tela_da_agenda_esta_na_trava"`
-Expected: falha, com estes treze arquivos fora de `Migradas`: `Components/Agenda/CartaoDeEvento.razor`, `DiaDaAgenda.razor`, `FaixaDeDias.razor`, `FichaDoEvento.razor`, `FormularioDeEvento.razor`, `GradeCompactaDoMes.razor`, `ListaDoDia.razor`, `MesDaAgenda.razor`, `SecaoDoDia.razor`, `SemanaDaAgenda.razor` e `Components/Pages/Agenda.razor`, `EventoFicha.razor`, `EventoFormulario.razor`. Se aparecer outro arquivo, ou faltar um dos novos, uma tarefa anterior criou ou deixou de criar algo fora do contrato: pare e relate.
+Expected: falha, com estes catorze arquivos fora de `Migradas`: `Components/Agenda/CartaoDeEvento.razor`, `DiaDaAgenda.razor`, `FaixaDeDias.razor`, `FichaDoEvento.razor`, `FormularioDeEvento.razor`, `GradeCompactaDoMes.razor`, `ListaDoDia.razor`, `MesDaAgenda.razor`, `PontosDoDia.razor`, `SecaoDoDia.razor`, `SemanaDaAgenda.razor` e `Components/Pages/Agenda.razor`, `EventoFicha.razor`, `EventoFormulario.razor`. Se aparecer outro arquivo, ou faltar um dos novos, uma tarefa anterior criou ou deixou de criar algo fora do contrato: pare e relate.
 
 - [ ] **Step 2: As telas novas na trava**
 
@@ -8623,6 +8623,7 @@ Em `Migradas`, acrescente, na ordem alfabética da lista:
         "Components/Agenda/GradeCompactaDoMes.razor",
         "Components/Agenda/ListaDoDia.razor",
         "Components/Agenda/MesDaAgenda.razor",
+        "Components/Agenda/PontosDoDia.razor",
         "Components/Agenda/SecaoDoDia.razor",
         "Components/Agenda/SemanaDaAgenda.razor",
 ```
@@ -8634,7 +8635,7 @@ Em `Migradas`, acrescente, na ordem alfabética da lista:
 
 Run: `dotnet build -m:1`
 Run: `dotnet test tests/AtividadesJuridicas.UnitTests --no-build --filter "FullyQualifiedName~TelasNoDesignSystemTests"`
-Expected: o theory `Tela_migrada_nao_tem_estilo_embutido_nem_classe_fora_do_design_system` passa para os onze arquivos novos (o `AvisoDeEventoSalvo.razor` já entrou na Tarefa 3) (nenhum `style`, `<style>`, `.razor.css`, classe fora de `aj-` nem `button`/`table`/`input`/`select`/`textarea` sem classe); `Toda_tela_da_agenda_esta_na_trava` continua falhando, agora só com `Components/Agenda/FichaDoEvento.razor` e `Components/Agenda/FormularioDeEvento.razor`. Se o theory reprovar um arquivo novo, a tarefa que o criou deixou marcação fora do design system: pare e relate (não o tire da lista).
+Expected: o theory `Tela_migrada_nao_tem_estilo_embutido_nem_classe_fora_do_design_system` passa para os doze arquivos novos (o `AvisoDeEventoSalvo.razor` já entrou na Tarefa 3) (nenhum `style`, `<style>`, `.razor.css`, classe fora de `aj-` nem `button`/`table`/`input`/`select`/`textarea` sem classe); `Toda_tela_da_agenda_esta_na_trava` continua falhando, agora só com `Components/Agenda/FichaDoEvento.razor` e `Components/Agenda/FormularioDeEvento.razor`. Se o theory reprovar um arquivo novo, a tarefa que o criou deixou marcação fora do design system: pare e relate (não o tire da lista).
 
 Confira também, na revisão, as classes montadas por expressão (ponto cego da trava) nos arquivos novos: com a ferramenta Grep, `class="@` em `src/AtividadesJuridicas.Web/Components/Agenda` e em `Components/Pages/Agenda.razor`, `EventoFicha.razor`, `EventoFormulario.razor`, e leia cada expressão: todo valor que ela pode produzir começa por `aj-`. Registre a lista no relatório.
 
