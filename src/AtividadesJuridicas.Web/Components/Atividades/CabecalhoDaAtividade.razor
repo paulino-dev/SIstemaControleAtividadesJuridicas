@@ -2,7 +2,7 @@
    acima de um painel com a linha de situação (etiqueta e entrega), o título e, embaixo, a faixa de ações. No mobile, a
    barra de voltar com "Atividade" e, à direita, a ação da barra; no conteúdo, a linha de situação com a entrega curta e o
    título em h2 (o h1 é o da barra). Os dois encaixes ficam vazios quando a tela não tem o que pôr neles. *@
-<BarraDeVoltar Titulo="Atividade" VoltarPara="@VoltarPara" Rotulo="@(RotuloDoVoltarNoMobile ?? $"Voltar para {Origem}")" Acao="@AcaoDaBarra" />
+<BarraDeVoltar Titulo="Atividade" VoltarPara="@VoltarPara" Rotulo="@($"Voltar para {Origem}")" Acao="@AcaoDaBarra" />
 
 <div class="aj-desktop-tablet">
     <div><a href="@VoltarPara" class="aj-voltar"><Icone Nome="voltar" />@Origem</a></div>
@@ -33,8 +33,6 @@
     /// <summary>O nome da tela de destino do voltar: "Atividades" ou "Produtores".</summary>
     [Parameter, EditorRequired] public string Origem { get; set; } = string.Empty;
 
-    /// <summary>O rótulo do voltar da barra do mobile; nulo = "Voltar para {Origem}".</summary>
-    [Parameter] public string? RotuloDoVoltarNoMobile { get; set; }
 
     /// <summary>A faixa de ações do desktop e do tablet, abaixo do título. Nula: sem faixa (e sem a borda dela).</summary>
     [Parameter] public RenderFragment? Faixa { get; set; }

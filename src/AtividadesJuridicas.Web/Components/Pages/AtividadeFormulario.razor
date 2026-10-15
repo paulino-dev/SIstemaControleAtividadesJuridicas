@@ -109,6 +109,12 @@
 @code {
     [Parameter] public Guid? Id { get; set; }
 
+    /// <summary>De onde a ficha foi aberta (<c>?de=produtores</c>): a edição devolve essa origem à ficha.</summary>
+    [SupplyParameterFromQuery(Name = "de")] public string? De { get; set; }
+
+    /// <summary>O produtor do painel de onde se veio (<c>?produtor=</c>).</summary>
+    [SupplyParameterFromQuery(Name = "produtor")] public string? Produtor { get; set; }
+
     private EstadoDeCarga _estado = EstadoDeCarga.Carregando;
     private string? _erroDaCarga;
     private bool _salvando;
@@ -138,8 +144,8 @@
 
     private string Titulo => Id is null ? "Nova atividade" : "Editar atividade";
 
-    // Depois de salvar: a nova volta à lista; a edição, à ficha.
-    private string Voltar => Id is null ? "/atividades" : $"/atividades/{Id}";
+    // Depois de salvar: a nova volta à lista; a edição, à ficha (com a origem de Produtores, se veio de lá).
+    private string Voltar => Id is { } id ? OrigemDaAtividade.Ficha(id, De, Produtor) : "/atividades";
 
     // Sem processo escolhido, a busca escolhe um; com processo, troca o escolhido (o exemplo do quadro).
     private string ExemploDaBuscaDeProcesso => _processo is null

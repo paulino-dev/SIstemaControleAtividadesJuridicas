@@ -1,7 +1,11 @@
 @page "/atividades/{Id:guid}/devolver"
 
-<MotivoComResponsaveis Id="Id" Reabrir="false" />
+<MotivoComResponsaveis Id="Id" Reabrir="false" De="@De" Produtor="@Produtor" />
 
 @code {
     [Parameter] public Guid Id { get; set; }
+
+    [SupplyParameterFromQuery(Name = "de")] public string? De { get; set; }
+
+    [SupplyParameterFromQuery(Name = "produtor")] public string? Produtor { get; set; }
 }

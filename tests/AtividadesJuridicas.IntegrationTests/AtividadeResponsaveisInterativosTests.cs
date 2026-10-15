@@ -244,4 +244,18 @@ public class AtividadeResponsaveisInterativosTests : TelaInterativa
         Despachante.Recebidas.OfType<DefinirResponsaveisDaAtividade>().Should().ContainSingle();
         tela.FindAll("button[type=submit]").Should().HaveCount(3).And.OnlyContain(b => b.HasAttribute("disabled"));
     }
+
+    [Fact]
+    public void Aberta_de_produtores_salva_e_volta_para_a_ficha_com_a_origem()
+    {
+        var produtor = Guid.Parse("0199a3f2-7c1e-7000-8000-0000000000d1");
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"/atividades/{Id}/responsaveis?de=produtores&produtor={produtor}");
+        var tela = Tela(Completa);
+        var ficha = $"/atividades/{Id}?de=produtores&produtor={produtor}";
+        tela.FindAll("a.aj-botao").Where(a => a.TextContent == "Cancelar").Should().HaveCount(3).And.OnlyContain(a => a.GetAttribute("href") == ficha);
+
+        tela.Find("form#formulario-de-responsaveis").Submit();
+
+        tela.WaitForAssertion(() => Destino.Should().EndWith(ficha));
+    }
 }

@@ -327,7 +327,8 @@ public class ProdutoresWebTests(BancoFixture banco) : IAsyncLifetime
         BlocoDeVisao.De(html, "aj-tablet-mobile").Should()
             .Contain($"<a href=\"{ficha}\" class=\"aj-linha aj-linha--link\"><span class=\"aj-linha__texto\"><span class=\"aj-linha__titulo\">Petição simples</span>");
         html.Should().Contain("Concluída em").And.NotContain("aj-linha--botao")
-            .And.NotContain("<button type=\"button\" class=\"aj-botao aj-botao--fantasma aj-botao--seta\"");        html.Should().NotContain("Tentar de novo").And.NotContain("Carregando");
+            .And.NotContain("<button type=\"button\" class=\"aj-botao aj-botao--fantasma aj-botao--seta\"");
+        html.Should().NotContain("Tentar de novo").And.NotContain("Carregando");
     }
 
     [Fact]

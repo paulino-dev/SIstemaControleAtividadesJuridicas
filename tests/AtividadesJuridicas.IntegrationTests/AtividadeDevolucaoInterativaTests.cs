@@ -186,4 +186,20 @@ public class AtividadeDevolucaoInterativaTests : TelaInterativa
         tela.FindAll("form#formulario-do-motivo").Should().BeEmpty();
         Despachante.Recebidas.Should().ContainSingle().Which.Should().BeOfType<ObterMeuAcesso>();
     }
+
+    [Fact]
+    public void Devolver_aberta_de_produtores_envia_e_volta_para_a_ficha_com_a_origem()
+    {
+        var produtor = Guid.Parse("0199a3f2-7c1e-7000-8000-0000000000d1");
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"/atividades/{Id}/devolver?de=produtores&produtor={produtor}");
+        var tela = Devolver();
+        var ficha = $"/atividades/{Id}?de=produtores&produtor={produtor}";
+        tela.FindAll("a.aj-botao").Where(a => a.TextContent == "Cancelar").Should().HaveCount(3).And.OnlyContain(a => a.GetAttribute("href") == ficha);
+        Escrever(tela, "Conferir a cláusula de quitação.");
+
+        tela.Find("form#formulario-do-motivo").Submit();
+
+        tela.WaitForAssertion(() => Destino.Should().EndWith(ficha));
+        Despachante.Recebidas.OfType<DevolverAtividade>().Should().ContainSingle();
+    }
 }

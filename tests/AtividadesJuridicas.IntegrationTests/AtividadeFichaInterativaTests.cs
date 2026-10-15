@@ -595,4 +595,57 @@ public class AtividadeFichaInterativaTests : TelaInterativa
         ficha.Markup.Should().NotContain("Minuta de acordo trabalhista").And.NotContain("Acesso negado.");
         Despachante.Recebidas.OfType<ObterAtividade>().Should().ContainSingle();
     }
+
+    private static readonly Guid ProdutorDeOrigem = Guid.Parse("0199a3f2-7c1e-7000-8000-0000000000d1");
+
+    private static IEnumerable<string> LinksDeAcao(IRenderedComponent<AtividadeFicha> ficha) =>
+        ficha.FindAll($"a[href^='/atividades/{Id}/']").Select(a => a.GetAttribute("href")!).Distinct();
+
+    [Fact]
+    public void Vindo_de_produtores_os_links_de_acao_levam_a_origem_adiante()
+    {
+        Combinar(Detalhe(acoes: Acoes(editar: true, responsaveis: true, trocarRevisor: true, aprovar: true)));
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"/atividades/{Id}?de=produtores&produtor={ProdutorDeOrigem}");
+
+        var ficha = Ficha();
+
+        var consulta = $"?de=produtores&produtor={ProdutorDeOrigem}";
+        LinksDeAcao(ficha).Should().BeEquivalentTo(
+            [$"/atividades/{Id}/editar{consulta}", $"/atividades/{Id}/responsaveis{consulta}", $"/atividades/{Id}/devolver{consulta}"]);
+    }
+
+    [Fact]
+    public void Vindo_de_produtores_o_reabrir_leva_a_origem_adiante()
+    {
+        Combinar(Detalhe(StatusAtividade.Concluida, Acoes(editar: true, reabrir: true)));
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"/atividades/{Id}?de=produtores&produtor={ProdutorDeOrigem}");
+
+        var ficha = Ficha();
+
+        LinksDeAcao(ficha).Should().Contain($"/atividades/{Id}/reabrir?de=produtores&produtor={ProdutorDeOrigem}");
+    }
+
+    [Fact]
+    public void Vindo_de_produtores_sem_produtor_valido_so_o_de_segue_adiante()
+    {
+        Combinar(Detalhe(acoes: Acoes(editar: true)));
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"/atividades/{Id}?de=produtores&produtor=nao-e-um-id");
+
+        var ficha = Ficha();
+
+        LinksDeAcao(ficha).Should().BeEquivalentTo([$"/atividades/{Id}/editar?de=produtores"]);
+    }
+
+    [Fact]
+    public void Fora_de_produtores_os_links_de_acao_vao_sem_query()
+    {
+        Combinar(Detalhe(acoes: Acoes(editar: true, responsaveis: true, aprovar: true)));
+        // Um "produtor" solto, sem "de=produtores", não conta como origem.
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"/atividades/{Id}?produtor={ProdutorDeOrigem}");
+
+        var ficha = Ficha();
+
+        LinksDeAcao(ficha).Should().BeEquivalentTo(
+            [$"/atividades/{Id}/editar", $"/atividades/{Id}/responsaveis", $"/atividades/{Id}/devolver"]);
+    }
 }

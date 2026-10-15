@@ -237,7 +237,7 @@ else
         _mensagem = null;
     }
 
-    private string Rota(string acao) => $"/atividades/{Id}/{acao}";
+    private string Rota(string acao) => $"/atividades/{Id}/{acao}{OrigemDaAtividade.Consulta(De, Produtor)}";
 
     private static bool TemAcaoPrincipal(AcoesDaAtividade a) => a.ConcluirMinhaParte || a.AprovarOuDevolver || a.Reabrir;
 
@@ -396,6 +396,7 @@ else
             if (!navegou) _ocupado = false;
         }
     }
+
     private void ContarComentarios(int total) => _totalDeComentarios = total;
 
     private void ContarDocumentos(int total) => _totalDeDocumentos = total;

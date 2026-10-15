@@ -228,4 +228,20 @@ public class AtividadeFormularioInterativoTests : TelaInterativa
         tela.FindAll("form#formulario-da-atividade").Should().BeEmpty();
         Despachante.Recebidas.Should().ContainSingle().Which.Should().BeOfType<ObterMeuAcesso>();
     }
+
+    [Fact]
+    public void Edicao_aberta_de_produtores_salva_e_volta_para_a_ficha_com_a_origem()
+    {
+        var produtor = Guid.Parse("0199a3f2-7c1e-7000-8000-0000000000d1");
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"/atividades/{AtividadeId}/editar?de=produtores&produtor={produtor}");
+        Respostas().Responde<ObterAtividade, Resultado<AtividadeDetalhe>>(Resultado<AtividadeDetalhe>.Ok(Minuta(7)));
+        var tela = Desenhar<AtividadeFormulario>(p => p.Add(x => x.Id, (Guid?)AtividadeId));
+        var ficha = $"/atividades/{AtividadeId}?de=produtores&produtor={produtor}";
+        tela.FindAll("a.aj-botao").Where(a => a.TextContent == "Cancelar").Should().HaveCount(3).And.OnlyContain(a => a.GetAttribute("href") == ficha);
+        tela.Find("a.aj-voltar").GetAttribute("href").Should().Be(ficha);
+
+        tela.Find("form#formulario-da-atividade").Submit();
+
+        tela.WaitForAssertion(() => Endereco.Should().EndWith(ficha));
+    }
 }

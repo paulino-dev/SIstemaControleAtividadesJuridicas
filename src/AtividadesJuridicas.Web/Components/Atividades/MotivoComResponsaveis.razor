@@ -63,6 +63,12 @@
     /// <summary>Verdadeiro na tela de reabrir (atividade concluída); falso na de devolver (feita ou corrigida).</summary>
     [Parameter] public bool Reabrir { get; set; }
 
+    /// <summary>De onde a ficha foi aberta (<c>?de=produtores</c>), repassado pela página da rota.</summary>
+    [Parameter] public string? De { get; set; }
+
+    /// <summary>O produtor do painel de onde se veio (<c>?produtor=</c>), repassado pela página da rota.</summary>
+    [Parameter] public string? Produtor { get; set; }
+
     private EstadoDeCarga _estado = EstadoDeCarga.Carregando;
     private string? _erroDaConsulta;
     private AtividadeDetalhe? _detalhe;
@@ -85,7 +91,7 @@
     private string? Subtitulo => Permitida ? _detalhe!.Titulo : null;
 
     // Sem a atividade para voltar a ela, o voltar vai para a lista.
-    private string Voltar => _estado == EstadoDeCarga.NaoEncontrado ? "/atividades" : $"/atividades/{Id}";
+    private string Voltar => _estado == EstadoDeCarga.NaoEncontrado ? "/atividades" : OrigemDaAtividade.Ficha(Id, De, Produtor);
     private string Origem => _estado == EstadoDeCarga.NaoEncontrado ? "Atividades" : _detalhe?.Titulo ?? "Atividade";
     private string? RotuloDoVoltarNoMobile => _estado == EstadoDeCarga.NaoEncontrado ? null : "Voltar para a atividade";
 
