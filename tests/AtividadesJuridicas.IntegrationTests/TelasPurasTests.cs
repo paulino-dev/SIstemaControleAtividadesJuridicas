@@ -626,6 +626,23 @@ public class AvatarDePessoaTests
     {
         AvatarDePessoa.Classe(nome, proprio: true).Should().BeEmpty();
     }
+
+    // A classe inteira, para as telas não montarem a string (nem aparar o espaço da classe vazia).
+    [Theory]
+    [InlineData("Rafael Teles", "aj-avatar aj-avatar--azul")]
+    [InlineData("Beatriz Lins", "aj-avatar aj-avatar--lilas")]
+    public void Classes_de_outra_pessoa_junta_o_avatar_e_a_cor(string nome, string classes)
+    {
+        AvatarDePessoa.Classes(nome, proprio: false).Should().Be(classes);
+    }
+
+    [Theory]
+    [InlineData("Rafael Teles")]
+    [InlineData("")]
+    public void Classes_do_proprio_usuario_e_so_o_avatar_dourado_sem_espaco_sobrando(string nome)
+    {
+        AvatarDePessoa.Classes(nome, proprio: true).Should().Be("aj-avatar");
+    }
 }
 
 public class TextosDeAtividadeTests

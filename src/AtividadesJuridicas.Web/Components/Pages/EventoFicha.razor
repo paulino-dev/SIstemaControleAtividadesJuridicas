@@ -266,7 +266,7 @@ else
 
     // O próprio usuário tem o avatar dourado (classe de cor vazia); os outros, a cor da regra (AvatarDePessoa).
     private string ClasseDoAvatar(ParticipanteDetalhe p) =>
-        $"aj-avatar {AvatarDePessoa.Classe(p.Nome ?? "", proprio: EhVoce(p))}".TrimEnd();
+        AvatarDePessoa.Classes(p.Nome ?? "", proprio: EhVoce(p));
 
     // Métodos, e não lambdas de atribuição, nos @onclick: a confirmação tem regras.
     private void PedirExclusao()

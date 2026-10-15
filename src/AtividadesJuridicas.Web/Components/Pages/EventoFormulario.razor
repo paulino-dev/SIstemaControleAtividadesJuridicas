@@ -88,7 +88,7 @@
                         <span class="aj-vinculo__rotulo" id="rotulo-do-cliente">Cliente</span>
                         @if (_clienteId is not null)
                         {
-                            <div class="aj-vinculo__escolhido aj-vinculo__escolhido--com-avatar"><span class="aj-vinculo__avatar" aria-hidden="true">@AvatarDePessoa.Sigla(_clienteNome ?? string.Empty)</span><strong class="aj-vinculo__nome">@_clienteNome</strong><button type="button" class="aj-botao aj-botao--fantasma aj-botao--icone" aria-label="Remover cliente" disabled="@_salvando" @onclick="RemoverCliente"><Icone Nome="fechar" /></button></div>
+                            <div class="aj-vinculo__escolhido aj-vinculo__escolhido--com-avatar"><span class="aj-vinculo__avatar" aria-hidden="true">@AvatarDePessoa.Sigla(_clienteIndisponivel ? string.Empty : _clienteNome ?? string.Empty)</span><strong class="aj-vinculo__nome">@_clienteNome</strong><button type="button" class="aj-botao aj-botao--fantasma aj-botao--icone" aria-label="Remover cliente" disabled="@_salvando" @onclick="RemoverCliente"><Icone Nome="fechar" /></button></div>
                             @* Com cliente, só o desktop tem a busca para trocá-lo (o quadro); no tablet e no mobile, remover e escolher. *@
                             <div class="aj-so-desktop">
                                 <label class="aj-campo-icone"><Icone Nome="buscar" /><span class="aj-so-leitor">Trocar cliente</span><input type="search" class="aj-campo-icone__controle" form="busca-de-cliente" placeholder="Trocar cliente: nome, CPF ou CNPJ" @bind="_buscaDeCliente" @bind:event="oninput" /></label>
@@ -128,7 +128,7 @@
                                 <label class="aj-campo-icone"><Icone Nome="buscar" /><span class="aj-so-leitor">Escolher processo (título, parte contrária ou número CNJ)</span><input type="search" class="aj-campo-icone__controle" form="busca-de-processo" placeholder="Título, parte contrária ou número CNJ" @bind="_buscaDeProcesso" @bind:event="oninput" /></label>
                             </div>
                             <div class="aj-tablet-mobile">
-                                <label class="aj-campo-icone"><Icone Nome="buscar" /><span class="aj-so-leitor">Escolher processo (título, parte contrária ou número CNJ)</span><input type="search" class="aj-campo-icone__controle" form="busca-de-processo" placeholder="Título, parte ou número CNJ" @bind="_buscaDeProcesso" @bind:event="oninput" /></label>
+                                <label class="aj-campo-icone"><Icone Nome="buscar" /><span class="aj-so-leitor">Escolher processo (título, parte contrária ou número CNJ)</span><input type="search" class="aj-campo-icone__controle" form="busca-de-processo-curta" placeholder="Título, parte ou número CNJ" @bind="_buscaDeProcesso" @bind:event="oninput" /></label>
                             </div>
                             @if (_processosEncontrados.Count > 0)
                             {
@@ -226,7 +226,9 @@
         </div>
 
         <form id="busca-de-cliente" hidden @onsubmit="ProcurarClientesAsync" @onsubmit:preventDefault></form>
+        @* Um formulário escondido por cópia da busca de processo: com duas cópias no mesmo formulário (dois campos e nenhum botão), o Enter não o envia. *@
         <form id="busca-de-processo" hidden @onsubmit="ProcurarProcessosAsync" @onsubmit:preventDefault></form>
+        <form id="busca-de-processo-curta" hidden @onsubmit="ProcurarProcessosAsync" @onsubmit:preventDefault></form>
         <form id="busca-de-atividade" hidden @onsubmit="ProcurarAtividadesAsync" @onsubmit:preventDefault></form>
     }
 </CargaDoFormulario>
@@ -273,6 +275,7 @@
 
     private Guid? _clienteId;
     private string? _clienteNome;
+    private bool _clienteIndisponivel;
     private Guid? _processoId;
     private string? _processoTitulo;
     private Guid? _atividadeId;
@@ -334,6 +337,7 @@
         _marcados = [];
         _clienteId = null;
         _clienteNome = null;
+        _clienteIndisponivel = false;
         _processoId = null;
         _processoTitulo = null;
         _atividadeId = null;
@@ -398,6 +402,7 @@
             _versao = atual.Versao;
             _clienteId = atual.ClienteId;
             _clienteNome = atual.ClienteId is null ? null : atual.ClienteNome ?? "Cliente indisponível";
+            _clienteIndisponivel = atual.ClienteId is not null && atual.ClienteNome is null;   // o avatar mostra "?", não a sigla do texto de reserva
             _processoId = atual.ProcessoId;
             _processoTitulo = atual.ProcessoId is null ? null : atual.ProcessoTitulo ?? "Processo indisponível";
             _atividadeId = atual.AtividadeId;
@@ -509,7 +514,7 @@
 
     // O próprio usuário em dourado (o avatar sem modificador, como o do menu); os outros pela cor do nome. A regra é do AvatarDePessoa.
     private string ClasseDoAvatar(Pessoa pessoa) =>
-        $"aj-avatar {AvatarDePessoa.Classe(pessoa.Nome ?? string.Empty, proprio: EhVoce(pessoa))}".TrimEnd();
+        AvatarDePessoa.Classes(pessoa.Nome ?? string.Empty, proprio: EhVoce(pessoa));
 
     private static string SiglaDe(Pessoa pessoa) => AvatarDePessoa.Sigla(pessoa.Nome ?? string.Empty);
 

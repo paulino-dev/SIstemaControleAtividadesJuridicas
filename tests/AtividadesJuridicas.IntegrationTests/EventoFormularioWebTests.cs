@@ -119,7 +119,7 @@ public class EventoFormularioWebTests(BancoFixture banco) : IAsyncLifetime
                 "<label class=\"aj-escolha__opcao\"><input[^>]*value=\"Outro\"(?![^>]*checked)[^>]*>Outro</label></div></fieldset>")
             .And.MatchRegex($"(?s)<label class=\"aj-rotulo\">\\s*Data\\s*<input(?=[^>]*type=\"date\")(?=[^>]*value=\"{hoje}\")[^>]*>")
             .And.MatchRegex("(?s)<label class=\"aj-rotulo\">\\s*Hora\\s*<input(?=[^>]*type=\"time\")[^>]*>")
-            .And.Contain("form=\"busca-de-processo\" placeholder=\"Título, parte ou número CNJ\"");
+            .And.Contain("form=\"busca-de-processo-curta\" placeholder=\"Título, parte ou número CNJ\"");
         tabletEMobile.Should().NotContain("Duração (minutos)").And.NotContain("Data e hora no horário do escritório.");
 
         // Tablet: Duração em lista ("1h30"); a descrição de 3 linhas no painel; chips com avatar e o nome inteiro (o "você"
@@ -149,6 +149,20 @@ public class EventoFormularioWebTests(BancoFixture banco) : IAsyncLifetime
             ".*?<label class=\"aj-rotulo\">\\s*Descrição\\s*<small>\\(opcional\\)</small>\\s*<textarea(?=[^>]*rows=\"3\")[^>]*>" +
             ".*?<div class=\"aj-acoes aj-acoes--fixa\"><button type=\"submit\" class=\"aj-botao aj-botao--primario aj-botao--com-icone\" form=\"formulario-do-evento\"[^>]*><svg[^>]*>.*?</svg>Salvar evento</button></div>");
         mobile.Should().NotContain("Cancelar").And.NotContain("Quem cria o evento sempre participa.");
+    }
+
+    // Chromium não envia pelo Enter um formulário sem botão com mais de um campo que bloqueia o envio implícito (conta os
+    // campos sem olhar a visibilidade): cada busca tem o seu formulário escondido, e cada um tem um campo só.
+    [Fact]
+    public async Task Cada_busca_tem_o_seu_formulario_com_um_unico_campo()
+    {
+        var html = await PaginaAsync("/agenda/novo");
+
+        var campos = System.Text.RegularExpressions.Regex.Matches(html, "<input[^>]*\\sform=\"(busca-de-[^\"]+)\"").Select(m => m.Groups[1].Value).ToList();
+
+        campos.Should().BeEquivalentTo(["busca-de-cliente", "busca-de-processo", "busca-de-processo-curta", "busca-de-atividade"]);
+        campos.Should().OnlyHaveUniqueItems();
+        foreach (var busca in campos) html.Should().Contain($"<form id=\"{busca}\" hidden");
     }
 
     [Fact]

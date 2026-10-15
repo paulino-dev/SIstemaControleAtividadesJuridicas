@@ -125,6 +125,29 @@ public class EventoFormularioInterativoTests : TelaInterativa
     }
 
     [Fact]
+    public void Enter_na_busca_de_processo_do_tablet_e_do_mobile_tambem_busca_e_nao_salva()
+    {
+        var tela = Novo();
+
+        Procurar(tela, "busca-de-processo-curta", "litoral");
+
+        Despachante.Recebidas.OfType<ListarProcessos>().Should().ContainSingle().Which.Busca.Should().Be("litoral");
+        tela.Find("ul.aj-resultados .aj-resultados__titulo").TextContent.Should().Be("Litoral — reclamação trabalhista");
+        Despachante.Recebidas.OfType<SalvarEvento>().Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Cliente_indisponivel_na_edicao_mostra_o_texto_e_o_avatar_com_interrogacao()
+    {
+        Respostas().Responde<ObterEvento, Resultado<EventoDetalhe>>(Resultado<EventoDetalhe>.Ok(Audiencia() with { ClienteNome = null }));
+        var tela = Desenhar<EventoFormulario>(p => p.Add(x => x.Id, (Guid?)EventoId));
+
+        var escolhido = tela.FindAll("div.aj-vinculo__escolhido").First();
+        escolhido.QuerySelector(".aj-vinculo__avatar")!.TextContent.Should().Be("?");
+        escolhido.QuerySelector(".aj-vinculo__nome")!.TextContent.Should().Be("Cliente indisponível");
+    }
+
+    [Fact]
     public void Escolher_o_cliente_mostra_o_escolhido_com_avatar_e_a_troca_so_no_desktop_e_remover_volta_a_busca()
     {
         var tela = Novo();
@@ -174,14 +197,14 @@ public class EventoFormularioInterativoTests : TelaInterativa
             .Should().Equal("Litoral — reclamação trabalhista", "Minuta de acordo trabalhista");
         tela.FindAll("div.aj-vinculo__escolhido .aj-vinculo__avatar").Should().BeEmpty();   // só o cliente tem avatar
         // Escolhidos, o processo e a atividade não têm busca; o cliente segue sem escolha (os vínculos são independentes).
-        tela.FindAll("input[form=busca-de-processo]").Should().BeEmpty();
+        tela.FindAll("input[form=busca-de-processo], input[form=busca-de-processo-curta]").Should().BeEmpty();
         tela.FindAll("input[form=busca-de-atividade]").Should().BeEmpty();
         tela.Find("input[form=busca-de-cliente]").GetAttribute("placeholder").Should().Be("Escolher cliente: nome, CPF ou CNPJ");
 
         tela.Find("button[aria-label='Remover processo']").Click();
 
         // A busca volta, com o exemplo de cada visão (desktop; tablet e mobile).
-        tela.FindAll("input[form=busca-de-processo]").Select(b => b.GetAttribute("placeholder"))
+        tela.FindAll("input[form=busca-de-processo], input[form=busca-de-processo-curta]").Select(b => b.GetAttribute("placeholder"))
             .Should().Equal("Título, parte contrária ou número CNJ", "Título, parte ou número CNJ");
         Enviar(tela);
         tela.WaitForAssertion(() => Endereco.Should().Contain("/agenda?data="));
