@@ -17,6 +17,7 @@ public partial class TelasNoDesignSystemTests
     private static readonly string[] Migradas =
     [
         "Components/Atividades/ComentariosDaAtividade.razor",
+        "Components/Atividades/DocumentosDaAtividade.razor",
         "Components/Atividades/EtiquetaDeSituacao.razor",
         "Components/Documentos/DocumentosComunsDaDiretoria.razor",
         "Components/Documentos/DocumentosDaFicha.razor",

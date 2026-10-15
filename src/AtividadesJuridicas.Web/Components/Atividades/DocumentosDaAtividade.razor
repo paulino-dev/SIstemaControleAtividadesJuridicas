@@ -1,375 +1,221 @@
-@inject IDespachante Despachante
+@inherits GestaoDeDocumentos
 @inject FusoDoEscritorio Fuso
 
-<section class="ficha">
-    <h3>Documentos</h3>
+@* O painel "Documentos" da ficha da atividade: a ficha o põe na coluna do desktop e na aba "Documentos" do tablet e
+   do mobile, uma vez só. Avisos e a confirmação de exclusão logo acima dele; os painéis de envio e de renomear logo
+   abaixo. O que muda por visão vai em invólucros dentro do painel. *@
+@if (_mensagem is not null && !Encerrado)
+{
+    <Aviso Tipo="@(_falhou ? TipoDeAviso.Erro : TipoDeAviso.Sucesso)">@_mensagem</Aviso>
+}
 
-    @if (_mensagem is not null)
-    {
-        <p class="@(_falhou ? "erro" : "ok")" role="status">@_mensagem</p>
-    }
+@if (AExcluir is { } aExcluir)
+{
+    @* A chave é o documento: pedir a exclusão de outro com a confirmação aberta é uma confirmação nova. *@
+    <Aviso @key="aExcluir.Id" Tipo="TipoDeAviso.Atencao" Rotulo="Confirmar exclusão" Titulo="@($"Confirmar a exclusão de {aExcluir.Nome}?")">
+        <ChildContent>O documento é excluído da atividade.</ChildContent>
+        <Acoes>
+            <button type="button" class="aj-botao aj-botao--secundario" disabled="@_removendo" @onclick="CancelarExclusao">Cancelar</button>
+            <button type="button" class="aj-botao aj-botao--primario" disabled="@_removendo" @onclick="() => ExcluirAsync(aExcluir.Id)">Confirmar exclusão</button>
+        </Acoes>
+    </Aviso>
+}
 
-    @if (!_carregado)
+<section class="aj-painel aj-painel--ficha aj-painel--documentos">
+    <div class="aj-painel__cabecalho">
+        <h2>Documentos</h2>
+        @* Quem vê a atividade envia (a Produção responsável também); só renomear e excluir pedem PodeGerenciar. *@
+        @if (!Encerrado)
+        {
+            <button type="button" class="aj-botao aj-botao--secundario aj-botao--com-icone" disabled="@Ocupada" @onclick="AbrirEnvio"><Icone Nome="adicionar" />Enviar documento</button>
+        }
+    </div>
+
+    @if (_acessoEncerrado)
     {
-        <p>Carregando…</p>
-    }
-    else if (_acessoEncerrado)
-    {
-        @* A página foi avisada; se ela não retirar a seção, ela não finge uma lista vazia. *@
-        <p class="erro">Você não tem mais acesso a esta atividade.</p>
+        @* A página foi avisada; se ela não retirar o painel, ele não finge uma lista vazia. *@
+        <Aviso Tipo="TipoDeAviso.Erro">Você não tem mais acesso a esta atividade.</Aviso>
     }
     else if (_naoEncontrada)
     {
-        @* Perdeu a visibilidade da atividade: a mensagem do caso de uso ocupa o lugar da seção. *@
-        <p>@_mensagemNaoEncontrada</p>
+        @* Perdeu a visibilidade da atividade: a mensagem do caso de uso ocupa o lugar da lista. *@
+        <div class="aj-estado-lista"><strong>@_mensagemNaoEncontrada</strong></div>
     }
     else
     {
-        @if (_erroDaLista is not null)
-        {
-            <p class="erro">@_erroDaLista</p>
-            <div class="acoes">
-                <button type="button" class="secundario" disabled="@_ocupado" @onclick="() => IrParaAsync(_paginaPedida)">Tentar de novo</button>
-            </div>
-        }
-        else if (_pagina.Itens.Count == 0)
-        {
-            <p>Nenhum documento.</p>
-        }
-        else
-        {
-            <table>
-                <thead>
-                    <tr><th>Nome</th><th>Tamanho</th><th>Enviado em</th><th>Por</th><th></th></tr>
-                </thead>
-                <tbody>
+        <EstadoDaLista Erro="@_erroDaLista" Carregando="@(!_carregado)" Vazio="@(_pagina.Itens.Count == 0)"
+                       TextoDeVazio="Nenhum documento." TentarDeNovo="() => IrParaAsync(_paginaPedida)">
+            <div class="aj-so-desktop">
+                <ul class="aj-documentos">
                     @foreach (var documento in _pagina.Itens)
                     {
-                        <tr @key="documento.Id">
-                            <td>
-                                @* Link fora da navegação do Blazor: é um download, não uma página. O atributo "download"
-                                   é o que impede o roteador do Blazor de interceptar o clique; não o remova. *@
-                                <a href="@($"/documentos/{documento.Id}/baixar")" download data-enhance-nav="false">@documento.Nome</a>
-                            </td>
-                            <td>@TamanhoDeArquivo.Formatar(documento.TamanhoBytes)</td>
-                            <td>@Fuso.Formatar(documento.EnviadoEm)</td>
-                            <td>@documento.EnviadoPor</td>
-                            <td class="acoes">
-                                @if (PodeGerenciar)
-                                {
-                                    <button type="button" class="secundario" disabled="@_ocupado" @onclick="() => AbrirRenomear(documento)">Renomear</button>
-                                    @if (_excluindo == documento.Id)
-                                    {
-                                        <button type="button" disabled="@_ocupado" @onclick="() => ExcluirAsync(documento.Id)">Confirmar exclusão</button>
-                                        <button type="button" class="secundario" disabled="@_ocupado" @onclick="CancelarExclusao">Cancelar</button>
-                                    }
-                                    else
-                                    {
-                                        <button type="button" class="secundario" disabled="@_ocupado" @onclick="() => PedirExclusao(documento.Id)">Excluir</button>
-                                    }
-                                }
-                            </td>
-                        </tr>
+                        <li class="aj-documento" @key="documento.Id">
+                            @if (EhPlanilha(documento))
+                            {
+                                <span class="aj-documento__icone aj-documento__icone--planilha" aria-hidden="true"><Icone Nome="planilha" /></span>
+                            }
+                            else
+                            {
+                                <span class="aj-documento__icone aj-documento__icone--texto" aria-hidden="true"><Icone Nome="texto" /></span>
+                            }
+                            @* Link fora da navegação do Blazor: é um download, não uma página. O atributo "download"
+                               é o que impede o roteador do Blazor de interceptar o clique; não o remova. *@
+                            <div class="aj-documento__texto"><a href="@TextosDeDocumento.Endereco(documento.Id)" download data-enhance-nav="false" class="aj-documento__nome">@documento.Nome</a><span class="aj-documento__meta">@MetaCompleta(documento)</span></div>
+                            @if (PodeGerenciar)
+                            {
+                                @* Os botões colados: o espaço entre eles seria desenhado. *@
+                                <div class="aj-documento__acoes"><button type="button" class="aj-botao aj-botao--fantasma" disabled="@Ocupada" @onclick="() => RenomearLinha(documento)">Renomear</button><button type="button" class="aj-botao aj-botao--perigo" disabled="@Ocupada" @onclick="() => ExcluirLinha(documento.Id)">Excluir</button></div>
+                            }
+                        </li>
                     }
-                </tbody>
-            </table>
-
-            @if (_pagina.TotalDePaginas > 1)
-            {
-                <div class="acoes">
-                    <button type="button" class="secundario" disabled="@(_pagina.Numero <= 1 || _ocupado)" @onclick="() => IrParaAsync(_pagina.Numero - 1)">Anterior</button>
-                    <span>Página @_pagina.Numero de @_pagina.TotalDePaginas</span>
-                    <button type="button" class="secundario" disabled="@(_pagina.Numero >= _pagina.TotalDePaginas || _ocupado)" @onclick="() => IrParaAsync(_pagina.Numero + 1)">Próxima</button>
-                </div>
-            }
-        }
-
-        @if (PodeGerenciar && _renomeando is not null)
-        {
-            <div class="formulario">
-                <strong>Renomear "@_renomeando.Nome"</strong>
-                <label>Novo nome <input type="text" @bind="_novoNome" disabled="@_ocupado" /></label>
-                <div class="acoes">
-                    <button type="button" disabled="@_ocupado" @onclick="RenomearAsync">Salvar nome</button>
-                    <button type="button" class="secundario" disabled="@_ocupado" @onclick="FecharRenomear">Cancelar</button>
-                </div>
+                </ul>
             </div>
-        }
 
-        <div class="formulario">
-            <strong>Enviar documento</strong>
-            <label>Arquivo (até @(DocumentosOpcoes.TamanhoMaximoBytes / UmMegabyte) MB) <InputFile @key="_versaoDoCampo" OnChange="Escolher" /></label>
-            <label>Nome (opcional) <input type="text" @bind="_nomeDoEnvio" /></label>
-            <div class="acoes">
-                <button type="button" disabled="@(_arquivo is null || _ocupado)" @onclick="EnviarAsync">
-                    @(_enviando ? "Enviando…" : "Enviar")
-                </button>
+            <div class="aj-tablet-mobile">
+                <ul class="aj-documentos">
+                    @foreach (var documento in _pagina.Itens)
+                    {
+                        <li class="aj-documento" @key="documento.Id">
+                            @if (EhPlanilha(documento))
+                            {
+                                <span class="aj-documento__icone aj-documento__icone--planilha" aria-hidden="true"><Icone Nome="planilha" /></span>
+                            }
+                            else
+                            {
+                                <span class="aj-documento__icone aj-documento__icone--texto" aria-hidden="true"><Icone Nome="texto" /></span>
+                            }
+                            <div class="aj-documento__texto"><a href="@TextosDeDocumento.Endereco(documento.Id)" download data-enhance-nav="false" class="aj-documento__nome">@documento.Nome</a><span class="aj-documento__meta">@MetaCurta(documento)</span></div>
+                            @if (PodeGerenciar)
+                            {
+                                <MenuDeAcoes Rotulo="@($"Ações de {documento.Nome}")">
+                                    <button type="button" class="aj-menu-acoes__item" disabled="@Ocupada" @onclick="() => RenomearLinha(documento)">Renomear</button>
+                                    <button type="button" class="aj-menu-acoes__item aj-menu-acoes__item--perigo" disabled="@Ocupada" @onclick="() => ExcluirLinha(documento.Id)">Excluir</button>
+                                </MenuDeAcoes>
+                            }
+                        </li>
+                    }
+                </ul>
             </div>
-        </div>
+
+            <Paginacao Numero="_pagina.Numero" TotalDePaginas="_pagina.TotalDePaginas" Total="_pagina.Total"
+                       Singular="documento" Plural="documentos" Ocupado="@Ocupada" IrPara="IrParaAsync" />
+        </EstadoDaLista>
     }
 </section>
 
-@code {
-    private const long UmMegabyte = 1024 * 1024;
+@if (_envioAberto && !Encerrado)
+{
+    <section class="aj-painel">
+        <h2>Enviar documento</h2>
+        <label class="aj-rotulo">@RotuloDoArquivo<InputFile @key="_versaoDoCampo" @ref="_campoDeArquivo" OnChange="Escolher" class="aj-campo" /></label>
+        <label class="aj-rotulo">Nome (opcional)<input type="text" class="aj-campo" @bind="_nomeDoEnvio" /></label>
+        <div class="aj-painel__acoes"><button type="button" class="aj-botao aj-botao--secundario" disabled="@_enviando" @onclick="DescartarEnvio">Cancelar</button><button type="button" class="aj-botao aj-botao--primario" disabled="@(_arquivo is null || _enviando)" @onclick="EnviarAsync">@(_enviando ? "Enviando…" : "Enviar")</button></div>
+    </section>
+}
 
-    private static readonly Pagina<DocumentoResumo> Vazia = new([], 0, 1, DocumentosOpcoes.TamanhoDaPagina);
+@if (_renomeando is { } renomeando && !Encerrado)
+{
+    <section class="aj-painel">
+        <h2>@($"Renomear \"{renomeando.Nome}\"")</h2>
+        <label class="aj-rotulo">Novo nome<input type="text" class="aj-campo" @bind="_novoNome" @ref="_campoDoNovoNome" /></label>
+        <div class="aj-painel__acoes"><button type="button" class="aj-botao aj-botao--secundario" @onclick="FecharRenomear">Cancelar</button><button type="button" class="aj-botao aj-botao--primario" @onclick="RenomearAsync">Salvar nome</button></div>
+    </section>
+}
+
+@code {
+    private static readonly HashSet<string> Planilhas = new(StringComparer.OrdinalIgnoreCase) { ".xlsx", ".xls", ".csv", ".ods" };
 
     [Parameter, EditorRequired] public Guid AtividadeId { get; set; }
 
     /// <summary>Renomear e excluir; quem decide é a ficha (o servidor confirma em cada chamada).</summary>
     [Parameter] public bool PodeGerenciar { get; set; }
 
-    /// <summary>Avisado quando um caso de uso responde acesso negado: a página decide o que mostrar.</summary>
-    [Parameter] public EventCallback OnAcessoEncerrado { get; set; }
+    /// <summary>O total de documentos da atividade, a cada leitura bem-sucedida (o contador da aba "Documentos").</summary>
+    [Parameter] public EventCallback<int> AoContar { get; set; }
 
     /// <summary>Avisado quando a atividade não existe (ou não é mais visível): a página recarrega o registro.</summary>
     [Parameter] public EventCallback OnAtividadeNaoEncontrada { get; set; }
 
-    private bool _carregado;
     private bool _naoEncontrada;
     private bool _acessoEncerrado;
-    private bool _falhou;
-
-    // Uma única ação em andamento por vez (envio, renomear, excluir ou troca de página): duas recargas não se sobrepõem.
-    private bool _ocupado;
-
-    // Só o rótulo do botão de envio; quem impede a sobreposição é _ocupado.
-    private bool _enviando;
-    private int _paginaPedida = 1;
-    private string? _mensagem;
     private string? _mensagemNaoEncontrada;
-    private string? _erroDaLista;
-    private Pagina<DocumentoResumo> _pagina = Vazia;
+    private InputFile? _campoDeArquivo;
+    private ElementReference _campoDoNovoNome;
 
-    private IBrowserFile? _arquivo;
-    private string? _nomeDoEnvio;
-    private int _versaoDoCampo;
+    // O arquivo enviado de cada documento da página: o nome pode ter sido trocado sem a extensão, e o tipo do ícone
+    // é o do arquivo.
+    private IReadOnlyDictionary<Guid, string> _arquivos = new Dictionary<Guid, string>();
 
-    private Guid? _excluindo;
-    private DocumentoResumo? _renomeando;
-    private string _novoNome = string.Empty;
+    // Os documentos da atividade ficam na categoria de atividade (a ficha do cliente os mostra em "De atividades"); a
+    // base não pede confirmação de envio nessa categoria, como hoje.
+    protected override CategoriaDocumento CategoriaDosDocumentos => CategoriaDocumento.DocumentoAtividade;
 
-    protected override async Task OnInitializedAsync()
+    // A tela não conhece o cliente: o servidor grava o documento no cliente que a atividade tiver no momento (que pode
+    // não haver), e a lista e o envio vão pela atividade (os dois ganchos abaixo), sem usar o cliente.
+    protected override Guid? ClienteDosDocumentos => null;
+
+    // O envio da atividade não pede confirmação: o aviso de envio nunca abre.
+    protected override ValueTask FocarAvisoDeEnvioAsync() => ValueTask.CompletedTask;
+
+    // Uma coisa aberta por vez: o campo é o do painel que está na tela.
+    protected override ValueTask FocarPainelAbertoAsync() =>
+        _renomeando is not null ? _campoDoNovoNome.FocusAsync()
+        : _envioAberto && _campoDeArquivo?.Element is { } campo ? campo.FocusAsync()
+        : ValueTask.CompletedTask;
+
+    protected override async Task<Resultado<Pagina<DocumentoResumo>>> ListarPaginaAsync(int pagina)
     {
-        await CarregarAsync(1);
-        _carregado = true;
-    }
-
-    /// <summary>Troca de página ou nova tentativa: o aviso de uma ação anterior não vale mais.</summary>
-    private async Task IrParaAsync(int pagina)
-    {
-        if (_ocupado) return;
-
-        _ocupado = true;
-        _mensagem = null;
-        try
-        {
-            await CarregarAsync(pagina);
-        }
-        finally
-        {
-            _ocupado = false;
-        }
-    }
-
-    private async Task CarregarAsync(int pagina)
-    {
-        _paginaPedida = pagina;
-        _excluindo = null;
         var resultado = await Despachante.EnviarAsync(new ListarDocumentosDaAtividade(AtividadeId, pagina));
-        if (await EncerradoAsync(resultado)) return;
-
-        _pagina = resultado.Valor ?? Vazia;
-        // Falha na consulta não é "nenhum documento": mostra o erro no lugar da lista.
-        _erroDaLista = resultado.Sucesso ? null : resultado.Mensagem ?? "Não foi possível consultar os documentos.";
-
-        // A página ficou além do fim (por exemplo, ao excluir o único item dela): volta à última.
-        if (resultado.Sucesso && _pagina.Itens.Count == 0 && _pagina.Total > 0 && _pagina.Numero > _pagina.TotalDePaginas)
-            await CarregarAsync(_pagina.TotalDePaginas);
+        if (resultado.Valor is { } lida) _arquivos = lida.Itens.ToDictionary(d => d.Id, d => d.NomeArquivoOriginal);
+        await AtividadeComoAlvoAsync(resultado);
+        return resultado;
     }
+
+    protected override async Task<Resultado<Guid>> EnviarArquivoAsync(string? nome, string nomeArquivo, string? tipoConteudo, Stream conteudo)
+    {
+        var resultado = await Despachante.EnviarAsync(new EnviarDocumentoDaAtividade(AtividadeId, nome, nomeArquivo, tipoConteudo, conteudo));
+        await AtividadeComoAlvoAsync(resultado);
+        return resultado;
+    }
+
+    protected override Task AoCarregarAsync() => AoContar.InvokeAsync(_pagina.Total);
 
     /// <summary>
-    /// Acesso negado avisa a página; "não encontrado" da atividade (perdeu a visibilidade) troca a seção pela mensagem.
-    /// Só vale para as chamadas que têm a atividade como alvo (não para renomear/excluir um documento).
+    /// Listar e enviar têm a atividade como alvo: "não encontrado" é a atividade que sumiu (ou deixou de ser visível),
+    /// e a mensagem ocupa o lugar da lista e a ficha é avisada; acesso negado marca o painel (a base avisa a página).
+    /// Renomear e excluir respondem "não encontrado" pelo documento e não passam por aqui (a base recarrega a lista).
     /// </summary>
-    private async Task<bool> EncerradoAsync(Resultado resultado, bool atividadeComoAlvo = true)
+    private async Task AtividadeComoAlvoAsync(Resultado resultado)
     {
-        if (atividadeComoAlvo && resultado.Erro == TipoErro.NaoEncontrado)
+        if (resultado.Erro == TipoErro.AcessoNegado)
         {
-            _naoEncontrada = true;
-            _mensagemNaoEncontrada = resultado.Mensagem;
-            _pagina = Vazia;
-            _erroDaLista = null;
-            _renomeando = null;
-            _excluindo = null;
-            await OnAtividadeNaoEncontrada.InvokeAsync();
-            return true;
-        }
-
-        if (resultado.Erro != TipoErro.AcessoNegado) return false;
-
-        _pagina = Vazia;
-        _erroDaLista = null;
-        _renomeando = null;
-        _excluindo = null;
-        _acessoEncerrado = true;
-        await OnAcessoEncerrado.InvokeAsync();
-        return true;
-    }
-
-    private void Escolher(InputFileChangeEventArgs e)
-    {
-        // Cancelar o diálogo de arquivos dispara a troca com zero arquivos.
-        _arquivo = e.FileCount > 0 ? e.File : null;
-        _mensagem = null;
-    }
-
-    private async Task EnviarAsync()
-    {
-        if (_arquivo is not { } arquivo || _ocupado) return;
-
-        _mensagem = null;
-        if (arquivo.Size > DocumentosOpcoes.TamanhoMaximoBytes)
-        {
-            Avisar($"O arquivo passa do limite de {DocumentosOpcoes.TamanhoMaximoBytes / UmMegabyte} MB.", falhou: true);
+            _acessoEncerrado = true;
             return;
         }
 
-        _ocupado = true;
-        _enviando = true;
-        try
-        {
-            await using var conteudo = arquivo.OpenReadStream(DocumentosOpcoes.TamanhoMaximoBytes);
-            var resultado = await Despachante.EnviarAsync(new EnviarDocumentoDaAtividade(
-                AtividadeId, _nomeDoEnvio, arquivo.Name, arquivo.ContentType, conteudo));
-            if (await EncerradoAsync(resultado)) return;
+        if (resultado.Erro != TipoErro.NaoEncontrado) return;
 
-            if (!resultado.Sucesso)
-            {
-                Avisar(resultado.Mensagem, falhou: true);
-                return;
-            }
-
-            // Se outro arquivo foi escolhido enquanto este subia, a escolha nova é preservada.
-            if (ReferenceEquals(_arquivo, arquivo))
-            {
-                _arquivo = null;
-                _nomeDoEnvio = null;
-                _versaoDoCampo++;   // recria o campo de arquivo, vazio
-            }
-
-            await CarregarAsync(1);
-            if (_naoEncontrada) return;
-
-            if (_erroDaLista is null) Avisar("Documento enviado.", falhou: false);
-            else Avisar("Documento enviado, mas não foi possível atualizar a lista.", falhou: true);
-        }
-        catch (Exception ex) when (ex is IOException or JSException or TimeoutException or OperationCanceledException)
-        {
-            // A leitura do arquivo no navegador foi interrompida (conexão caiu, arquivo removido, tempo esgotado).
-            Avisar("Não foi possível enviar o arquivo. Escolha-o de novo e tente outra vez.", falhou: true);
-        }
-        finally
-        {
-            _enviando = false;
-            _ocupado = false;
-        }
+        _naoEncontrada = true;
+        _mensagemNaoEncontrada = resultado.Mensagem;
+        await OnAtividadeNaoEncontrada.InvokeAsync();
     }
 
-    private void AbrirRenomear(DocumentoResumo documento)
-    {
-        if (_ocupado) return;
+    private bool Encerrado => _naoEncontrada || _acessoEncerrado;
 
-        _mensagem = null;
-        _renomeando = documento;
-        _novoNome = documento.Nome;
-    }
+    private Linha? AExcluir => _pagina.Itens.FirstOrDefault(documento => documento.Id == _excluindo);
 
-    private async Task RenomearAsync()
-    {
-        if (_renomeando is not { } documento || _ocupado) return;
+    private string RotuloDoArquivo => $"Arquivo (até {DocumentosOpcoes.TamanhoMaximoBytes / UmMegabyte} MB)";
 
-        _ocupado = true;
-        _mensagem = null;
-        try
-        {
-            var resultado = await Despachante.EnviarAsync(new RenomearDocumento(documento.Id, _novoNome));
-            if (await EncerradoAsync(resultado, atividadeComoAlvo: false)) return;
+    private bool EhPlanilha(Linha documento) =>
+        Planilhas.Contains(Path.GetExtension(_arquivos.GetValueOrDefault(documento.Id, documento.Nome)));
 
-            if (!resultado.Sucesso)
-            {
-                Avisar(resultado.Mensagem, falhou: true);
-                if (resultado.Erro == TipoErro.NaoEncontrado)
-                {
-                    // O documento já não existe: fecha o painel e atualiza a lista, mantendo a mensagem.
-                    if (ReferenceEquals(_renomeando, documento)) _renomeando = null;
-                    await CarregarAsync(_pagina.Numero);
-                }
+    // Desktop: tamanho, autor e data; tablet e mobile: tamanho e autor. Sem autor conhecido, sem a parte dele.
+    private string MetaCompleta(Linha documento) =>
+        Juntar(TamanhoDeArquivo.Formatar(documento.TamanhoBytes), documento.EnviadoPor, Fuso.Formatar(documento.EnviadoEm));
 
-                return;
-            }
+    private static string MetaCurta(Linha documento) =>
+        Juntar(TamanhoDeArquivo.Formatar(documento.TamanhoBytes), documento.EnviadoPor);
 
-            if (ReferenceEquals(_renomeando, documento)) _renomeando = null;
-            await CarregarAsync(_pagina.Numero);
-            if (_naoEncontrada) return;
-
-            if (_erroDaLista is null) Avisar("Nome alterado.", falhou: false);
-            else Avisar("Nome alterado, mas não foi possível atualizar a lista.", falhou: true);
-        }
-        finally
-        {
-            _ocupado = false;
-        }
-    }
-
-    // Métodos, e não lambdas de atribuição, nos @onclick: a exclusão pede um segundo clique.
-    private void PedirExclusao(Guid id) => _excluindo = id;
-
-    private void CancelarExclusao() => _excluindo = null;
-
-    private void FecharRenomear()
-    {
-        if (_ocupado) return;
-        _renomeando = null;
-    }
-
-    private async Task ExcluirAsync(Guid id)
-    {
-        // Um segundo clique em "Confirmar exclusão" receberia "não encontrado" e apagaria o aviso de sucesso.
-        if (_ocupado) return;
-
-        _ocupado = true;
-        _mensagem = null;
-        try
-        {
-            var resultado = await Despachante.EnviarAsync(new ExcluirDocumento(id));
-            if (await EncerradoAsync(resultado, atividadeComoAlvo: false)) return;
-
-            if (!resultado.Sucesso)
-            {
-                Avisar(resultado.Mensagem, falhou: true);
-                // O documento pode já não existir: a lista é atualizada para refletir o servidor.
-                if (resultado.Erro == TipoErro.NaoEncontrado) await CarregarAsync(_pagina.Numero);
-                return;
-            }
-
-            if (_renomeando?.Id == id) _renomeando = null;
-            await CarregarAsync(_pagina.Numero);
-            if (_naoEncontrada) return;
-
-            if (_erroDaLista is null) Avisar("Documento excluído.", falhou: false);
-            else Avisar("Documento excluído, mas não foi possível atualizar a lista.", falhou: true);
-        }
-        finally
-        {
-            _ocupado = false;
-            _excluindo = null;
-        }
-    }
-
-    private void Avisar(string? mensagem, bool falhou)
-    {
-        _mensagem = mensagem;
-        _falhou = falhou;
-    }
+    private static string Juntar(params string?[] partes) =>
+        string.Join(" · ", partes.Where(parte => !string.IsNullOrWhiteSpace(parte)));
 }
