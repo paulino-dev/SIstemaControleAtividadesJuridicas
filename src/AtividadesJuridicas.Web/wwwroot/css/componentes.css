@@ -1109,3 +1109,11 @@ textarea.aj-campo--folgado{padding:var(--espaco-10) var(--espaco-14)}
    como o voltar. */
 .aj-barra-superior--voltar>.aj-menu-acoes>.aj-botao{width:var(--alvo-toque);min-height:var(--alvo-toque)}
 .aj-barra-superior--voltar>.aj-menu-acoes>.aj-botao svg{width:22px;height:22px}
+
+/* Ajustes da conferência da fase 9E no navegador: na tabela larga (atividades) o texto longo quebra só a palavra
+   que não cabe, sem estreitar a coluna do título; no tablet o texto do comentário ocupa o balão inteiro, como no
+   quadro. */
+.aj-tabela--larga :is(.aj-tabela__principal,.aj-tabela__secundaria){overflow-wrap:break-word}
+@media (min-width:761px) and (max-width:1199px){.aj-comentario__texto{max-width:none}}
+[data-visao="tablet"] .aj-comentario__texto{max-width:none}
+[data-visao="desktop"] .aj-comentario__texto,[data-visao="mobile"] .aj-comentario__texto{max-width:68ch}
