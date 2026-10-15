@@ -9,24 +9,7 @@
 
 <CabecalhoDeDetalhe Titulo="@Titulo" Subtitulo="@SubtituloDoFormulario" VoltarPara="@VoltarDoCabecalho" Origem="@OrigemDoCabecalho" />
 
-@if (!_carregado)
-{
-    <p class="aj-subtitulo" role="status">Carregando…</p>
-}
-else if (!_autorizado)
-{
-    <Aviso Tipo="TipoDeAviso.Erro">Acesso negado.</Aviso>
-}
-else if (_naoEncontrado)
-{
-    <Aviso Tipo="TipoDeAviso.Erro">Processo não encontrado.</Aviso>
-}
-else if (_erroDaConsulta is not null)
-{
-    <Aviso Tipo="TipoDeAviso.Erro">@_erroDaConsulta</Aviso>
-}
-else
-{
+<CargaDoFormulario Estado="_estado" Erro="@_erroDaCarga" TextoNaoEncontrado="Processo não encontrado." TentarDeNovo="CarregarTudoAsync">
     @if (_mensagem is not null)
     {
         <Aviso Tipo="TipoDeAviso.Erro">@_mensagem</Aviso>
@@ -92,16 +75,14 @@ else
     </div>
 
     <form id="busca-de-cliente" hidden @onsubmit="ProcurarClientesAsync" @onsubmit:preventDefault></form>
-}
+</CargaDoFormulario>
 
 @code {
     [Parameter] public Guid? Id { get; set; }
 
-    private bool _carregado;
-    private bool _autorizado;
-    private bool _naoEncontrado;
+    private EstadoDeCarga _estado;
+    private string? _erroDaCarga;
     private bool _salvando;
-    private string? _erroDaConsulta;
     private string? _mensagem;
     private Formulario _form = new();
     private IReadOnlyList<AreaAtuacaoResumo> _areas = [];
@@ -115,20 +96,28 @@ else
     private string Origem => Id is null ? "Processos" : "Processo";
 
     // Sem o processo para voltar a ele, o voltar vai para a lista.
-    private string VoltarDoCabecalho => _naoEncontrado ? "/processos" : Voltar;
-    private string OrigemDoCabecalho => _naoEncontrado ? "Processos" : Origem;
+    private string VoltarDoCabecalho => _estado == EstadoDeCarga.NaoEncontrado ? "/processos" : Voltar;
+    private string OrigemDoCabecalho => _estado == EstadoDeCarga.NaoEncontrado ? "Processos" : Origem;
 
-    // O subtítulo só acompanha o formulário: sobre "Acesso negado." ou "Processo não encontrado." ele sobra.
+    // O subtítulo só acompanha o formulário: sobre "Acesso negado.", "Processo não encontrado." ou um erro ele sobra.
     private string? SubtituloDoFormulario =>
-        _carregado && _autorizado && !_naoEncontrado && _erroDaConsulta is null
-            ? "Preencha os dados e vincule os clientes do processo."
-            : null;
+        _estado == EstadoDeCarga.Pronto ? "Preencha os dados e vincule os clientes do processo." : null;
 
-    protected override async Task OnInitializedAsync()
+    protected override Task OnInitializedAsync() => CarregarTudoAsync();
+
+    // A carga inteira: o perfil de quem está na tela, o processo (na edição) e as áreas. "Tentar de novo" repete tudo.
+    private async Task CarregarTudoAsync()
     {
-        _autorizado = await Despachante.EnviarAsync(new ObterMeuAcesso()) is { EhDiretoria: true };
-        if (_autorizado) await CarregarAsync();
-        _carregado = true;
+        _estado = EstadoDeCarga.Carregando;
+        _erroDaCarga = null;
+        if (await Despachante.EnviarAsync(new ObterMeuAcesso()) is not { EhDiretoria: true })
+        {
+            _estado = EstadoDeCarga.AcessoNegado;
+            return;
+        }
+
+        await CarregarAsync();
+        if (_estado == EstadoDeCarga.Carregando) _estado = EstadoDeCarga.Pronto;
     }
 
     private async Task CarregarAsync()
@@ -139,14 +128,18 @@ else
             var resultado = await Despachante.EnviarAsync(new ObterProcesso(id));
             if (resultado.Erro == TipoErro.AcessoNegado)
             {
-                _autorizado = false;
+                _estado = EstadoDeCarga.AcessoNegado;
                 return;
             }
 
             if (resultado.Valor is not { } p)
             {
-                if (resultado.Erro == TipoErro.NaoEncontrado) _naoEncontrado = true;
-                else _erroDaConsulta = resultado.Mensagem ?? "Não foi possível consultar o processo.";
+                if (resultado.Erro == TipoErro.NaoEncontrado) _estado = EstadoDeCarga.NaoEncontrado;
+                else
+                {
+                    _estado = EstadoDeCarga.Falhou;
+                    _erroDaCarga = resultado.Mensagem ?? "Não foi possível consultar o processo.";
+                }
                 return;
             }
 
@@ -165,13 +158,14 @@ else
         var areas = await Despachante.EnviarAsync(new ListarAreasAtuacao());
         if (areas.Erro == TipoErro.AcessoNegado)
         {
-            _autorizado = false;
+            _estado = EstadoDeCarga.AcessoNegado;
             return;
         }
 
         if (!areas.Sucesso)
         {
-            _erroDaConsulta = areas.Mensagem ?? "Não foi possível consultar as áreas de atuação.";
+            _estado = EstadoDeCarga.Falhou;
+            _erroDaCarga = areas.Mensagem ?? "Não foi possível consultar as áreas de atuação.";
             return;
         }
 
@@ -183,7 +177,7 @@ else
         var resultado = await Despachante.EnviarAsync(new ListarClientes(_buscaDeCliente));
         if (resultado.Erro == TipoErro.AcessoNegado)
         {
-            _autorizado = false;
+            _estado = EstadoDeCarga.AcessoNegado;
             return;
         }
 
@@ -226,7 +220,7 @@ else
 
             if (resultado.Erro == TipoErro.AcessoNegado)
             {
-                _autorizado = false;
+                _estado = EstadoDeCarga.AcessoNegado;
                 return;
             }
 

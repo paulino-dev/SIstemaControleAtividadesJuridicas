@@ -10,28 +10,7 @@
 <CabecalhoDeDetalhe Titulo="@Titulo" Subtitulo="@SubtituloDoFormulario"
                     VoltarPara="/usuarios" Origem="Usuários" />
 
-@if (!_carregado)
-{
-    <p class="aj-subtitulo" role="status">Carregando…</p>
-}
-else if (!_autorizado)
-{
-    <Aviso Tipo="TipoDeAviso.Erro">Acesso negado.</Aviso>
-}
-else if (_erroDosPerfis is not null)
-{
-    <Aviso Tipo="TipoDeAviso.Erro">@_erroDosPerfis</Aviso>
-}
-else if (_erroDaConsulta is not null)
-{
-    <Aviso Tipo="TipoDeAviso.Erro">@_erroDaConsulta</Aviso>
-}
-else if (_naoEncontrado)
-{
-    <Aviso Tipo="TipoDeAviso.Erro">Usuário não encontrado.</Aviso>
-}
-else
-{
+<CargaDoFormulario Estado="_estado" Erro="@_erroDaCarga" TextoNaoEncontrado="Usuário não encontrado." TentarDeNovo="TentarDeNovoAsync">
     @if (_mensagem is not null)
     {
         <Aviso Tipo="TipoDeAviso.Erro">@_mensagem</Aviso>
@@ -40,7 +19,7 @@ else
     @if (_inativando)
     {
         <ConfirmacaoDeInativacao @key="Id" UsuarioId="Id!.Value" Nome="@_nomeCarregado" OnConcluido="AoInativar"
-                                 OnCancelar="() => _inativando = false" OnAcessoEncerrado="() => _autorizado = false" />
+                                 OnCancelar="() => _inativando = false" OnAcessoEncerrado="() => _estado = EstadoDeCarga.AcessoNegado" />
     }
 
     <EditForm Model="_form" OnValidSubmit="SalvarAsync" FormName="usuario" id="formulario-do-usuario" class="aj-painel aj-painel--formulario">
@@ -149,16 +128,16 @@ else
     }
 
     <form id="busca-de-cliente" hidden @onsubmit="BuscarClientesAsync" @onsubmit:preventDefault></form>
-}
+</CargaDoFormulario>
 
 @code {
     [Parameter] public Guid? Id { get; set; }
 
-    private bool _carregado;
-    private bool _autorizado;
-    private bool _naoEncontrado;
-    private string? _erroDaConsulta;
-    private string? _erroDosPerfis;
+    private EstadoDeCarga _estado;
+    private string? _erroDaCarga;
+
+    // Os perfis chegaram: só então há usuário a carregar.
+    private bool _perfisProntos;
     private Guid? _idCarregado;
     private bool _usuarioCarregado;
     private string _nomeCarregado = string.Empty;
@@ -185,21 +164,9 @@ else
 
     // O subtítulo só acompanha o formulário: sobre "Acesso negado.", "Usuário não encontrado." ou um erro de consulta ele sobra.
     private string? SubtituloDoFormulario =>
-        _carregado && _autorizado && _erroDosPerfis is null && _erroDaConsulta is null && !_naoEncontrado
-            ? "Escolha o perfil. Para um usuário de cliente, indique o cliente."
-            : null;
+        _estado == EstadoDeCarga.Pronto ? "Escolha o perfil. Para um usuário de cliente, indique o cliente." : null;
 
-    protected override async Task OnInitializedAsync()
-    {
-        _autorizado = await Despachante.EnviarAsync(new ObterMeuAcesso()) is { EhDiretoria: true };
-        if (_autorizado)
-        {
-            var perfis = await Despachante.EnviarAsync(new ListarPerfis());
-            if (perfis.Erro == TipoErro.AcessoNegado) _autorizado = false;
-            else if (!perfis.Sucesso) _erroDosPerfis = perfis.Mensagem ?? "Não foi possível consultar os perfis.";
-            _perfis = perfis.Valor ?? [];
-        }
-    }
+    protected override Task OnInitializedAsync() => CarregarPerfisAsync();
 
     // O usuário vem da rota: se o Id mudar com a página montada, a tela carrega o novo, não grava um sobre os dados do outro.
     protected override async Task OnParametersSetAsync()
@@ -208,16 +175,51 @@ else
 
         _usuarioCarregado = true;
         _idCarregado = Id;
-        if (_autorizado && _erroDosPerfis is null)
+        await CarregarUsuarioAsync();
+    }
+
+    // "Tentar de novo": a carga inteira, do acesso de quem está na tela ao usuário da rota.
+    private async Task TentarDeNovoAsync()
+    {
+        _estado = EstadoDeCarga.Carregando;
+        _erroDaCarga = null;
+        await CarregarPerfisAsync();
+        await CarregarUsuarioAsync();
+    }
+
+    private async Task CarregarPerfisAsync()
+    {
+        _perfisProntos = false;
+        if (await Despachante.EnviarAsync(new ObterMeuAcesso()) is not { EhDiretoria: true })
         {
-            _naoEncontrado = false;
-            _erroDaConsulta = null;
-            _mensagem = null;
-            _inativando = false;
-            if (Id is null) Limpar();
-            else await CarregarAsync(Id.Value);
+            _estado = EstadoDeCarga.AcessoNegado;
+            return;
         }
-        _carregado = true;
+
+        var perfis = await Despachante.EnviarAsync(new ListarPerfis());
+        _perfis = perfis.Valor ?? [];
+        if (perfis.Erro == TipoErro.AcessoNegado) _estado = EstadoDeCarga.AcessoNegado;
+        else if (!perfis.Sucesso)
+        {
+            _estado = EstadoDeCarga.Falhou;
+            _erroDaCarga = perfis.Mensagem ?? "Não foi possível consultar os perfis.";
+        }
+        else _perfisProntos = true;
+    }
+
+    // Sem os perfis, ou com o acesso encerrado, não há usuário a carregar: fica o estado de antes.
+    private async Task CarregarUsuarioAsync()
+    {
+        if (!_perfisProntos || _estado == EstadoDeCarga.AcessoNegado) return;
+
+        // Na troca de usuário com a tela montada, o formulário fica à vista enquanto o outro chega, como antes.
+        if (_estado != EstadoDeCarga.Carregando) _estado = EstadoDeCarga.Pronto;
+        _erroDaCarga = null;
+        _mensagem = null;
+        _inativando = false;
+        if (Id is null) Limpar();
+        else await CarregarAsync(Id.Value);
+        if (_estado == EstadoDeCarga.Carregando) _estado = EstadoDeCarga.Pronto;
     }
 
     // Não há consulta de um só usuário: ele vem da lista.
@@ -226,19 +228,20 @@ else
         var lista = await Despachante.EnviarAsync(new ListarUsuarios());
         if (lista.Erro == TipoErro.AcessoNegado)
         {
-            _autorizado = false;
+            _estado = EstadoDeCarga.AcessoNegado;
             return;
         }
 
         if (!lista.Sucesso)
         {
-            _erroDaConsulta = lista.Mensagem ?? "Não foi possível consultar os usuários.";
+            _estado = EstadoDeCarga.Falhou;
+            _erroDaCarga = lista.Mensagem ?? "Não foi possível consultar os usuários.";
             return;
         }
 
         if (lista.Valor?.FirstOrDefault(u => u.Id == id) is not { } usuario)
         {
-            _naoEncontrado = true;
+            _estado = EstadoDeCarga.NaoEncontrado;
             return;
         }
 
@@ -313,7 +316,7 @@ else
             var resultado = await Despachante.EnviarAsync(new ListarClientes(_buscaDeCliente));
             if (resultado.Erro == TipoErro.AcessoNegado)
             {
-                _autorizado = false;
+                _estado = EstadoDeCarga.AcessoNegado;
                 return;
             }
 
@@ -374,7 +377,7 @@ else
 
             if (resultado.Erro == TipoErro.AcessoNegado)
             {
-                _autorizado = false;
+                _estado = EstadoDeCarga.AcessoNegado;
                 return;
             }
 
@@ -411,7 +414,7 @@ else
             var resultado = await Despachante.EnviarAsync(new DefinirAtivoUsuario(id, true));
             if (resultado.Erro == TipoErro.AcessoNegado)
             {
-                _autorizado = false;
+                _estado = EstadoDeCarga.AcessoNegado;
                 return;
             }
 
@@ -432,7 +435,7 @@ else
     {
         if (resultado.Erro == TipoErro.AcessoNegado)
         {
-            _autorizado = false;
+            _estado = EstadoDeCarga.AcessoNegado;
             return;
         }
 

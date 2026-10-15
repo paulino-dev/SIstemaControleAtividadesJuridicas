@@ -25,6 +25,7 @@ public partial class TelasNoDesignSystemTests
         "Components/Layout/CabecalhoDeDetalhe.razor",
         "Components/Layout/CabecalhoDeFicha.razor",
         "Components/Layout/CabecalhoDePagina.razor",
+        "Components/Layout/CargaDoFormulario.razor",
         "Components/Layout/CartaoAtalho.razor",
         "Components/Layout/EstadoDaLista.razor",
         "Components/Layout/Icone.razor",

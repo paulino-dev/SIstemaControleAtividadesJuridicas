@@ -9,24 +9,7 @@
 
 <CabecalhoDeDetalhe Titulo="@Titulo" Subtitulo="@SubtituloDoFormulario" VoltarPara="@VoltarDoCabecalho" Origem="@OrigemDoCabecalho" />
 
-@if (!_carregado)
-{
-    <p class="aj-subtitulo" role="status">Carregando…</p>
-}
-else if (!_autorizado)
-{
-    <Aviso Tipo="TipoDeAviso.Erro">Acesso negado.</Aviso>
-}
-else if (_naoEncontrado)
-{
-    <Aviso Tipo="TipoDeAviso.Erro">Cliente não encontrado.</Aviso>
-}
-else if (_erroDaConsulta is not null)
-{
-    <Aviso Tipo="TipoDeAviso.Erro">@_erroDaConsulta</Aviso>
-}
-else
-{
+<CargaDoFormulario Estado="_estado" Erro="@_erroDaCarga" TextoNaoEncontrado="Cliente não encontrado." TentarDeNovo="CarregarTudoAsync">
     @if (_mensagem is not null)
     {
         <Aviso Tipo="TipoDeAviso.Erro">@_mensagem</Aviso>
@@ -98,16 +81,14 @@ else
     <div class="aj-so-mobile">
         <div class="aj-acoes aj-acoes--fixa"><a href="@Voltar" class="aj-botao aj-botao--secundario">Cancelar</a><button type="submit" class="aj-botao aj-botao--primario aj-botao--com-icone" form="formulario-do-cliente" disabled="@_salvando"><Icone Nome="confirmar" />Salvar</button></div>
     </div>
-}
+</CargaDoFormulario>
 
 @code {
     [Parameter] public Guid? Id { get; set; }
 
-    private bool _carregado;
-    private bool _autorizado;
-    private bool _naoEncontrado;
+    private EstadoDeCarga _estado;
+    private string? _erroDaCarga;
     private bool _salvando;
-    private string? _erroDaConsulta;
     private string? _mensagem;
     private Formulario _form = new();
 
@@ -116,14 +97,12 @@ else
     private string Origem => Id is null ? "Clientes" : "Cliente";
 
     // Sem o cliente para voltar a ele, o voltar vai para a lista.
-    private string VoltarDoCabecalho => _naoEncontrado ? "/clientes" : Voltar;
-    private string OrigemDoCabecalho => _naoEncontrado ? "Clientes" : Origem;
+    private string VoltarDoCabecalho => _estado == EstadoDeCarga.NaoEncontrado ? "/clientes" : Voltar;
+    private string OrigemDoCabecalho => _estado == EstadoDeCarga.NaoEncontrado ? "Clientes" : Origem;
 
-    // O subtítulo só acompanha o formulário: sobre "Acesso negado." ou "Cliente não encontrado." ele sobra.
+    // O subtítulo só acompanha o formulário: sobre "Acesso negado.", "Cliente não encontrado." ou um erro ele sobra.
     private string? SubtituloDoFormulario =>
-        _carregado && _autorizado && !_naoEncontrado && _erroDaConsulta is null
-            ? "Só o nome e o CPF ou CNPJ são obrigatórios."
-            : null;
+        _estado == EstadoDeCarga.Pronto ? "Só o nome e o CPF ou CNPJ são obrigatórios." : null;
 
     private RenderFragment OpcoesDeTipo => @<text><button type="button" class="aj-segmentado__opcao" aria-pressed="@Marcado(TipoCliente.PessoaFisica)" disabled="@TipoTravado(TipoCliente.PessoaFisica)" @onclick="() => _form.Tipo = TipoCliente.PessoaFisica">Pessoa física</button><button type="button" class="aj-segmentado__opcao" aria-pressed="@Marcado(TipoCliente.PessoaJuridica)" disabled="@TipoTravado(TipoCliente.PessoaJuridica)" @onclick="() => _form.Tipo = TipoCliente.PessoaJuridica">Pessoa jurídica</button></text>;
 
@@ -132,11 +111,21 @@ else
     // Na edição o tipo não troca: o backend não muda um cliente de pessoa física para jurídica.
     private bool TipoTravado(TipoCliente tipo) => Id is not null && _form.Tipo != tipo;
 
-    protected override async Task OnInitializedAsync()
+    protected override Task OnInitializedAsync() => CarregarTudoAsync();
+
+    // A carga inteira: o perfil de quem está na tela e, na edição, o cliente. "Tentar de novo" repete tudo.
+    private async Task CarregarTudoAsync()
     {
-        _autorizado = await Despachante.EnviarAsync(new ObterMeuAcesso()) is { EhDiretoria: true };
-        if (_autorizado && Id is { } id) await CarregarAsync(id);
-        _carregado = true;
+        _estado = EstadoDeCarga.Carregando;
+        _erroDaCarga = null;
+        if (await Despachante.EnviarAsync(new ObterMeuAcesso()) is not { EhDiretoria: true })
+        {
+            _estado = EstadoDeCarga.AcessoNegado;
+            return;
+        }
+
+        if (Id is { } id) await CarregarAsync(id);
+        if (_estado == EstadoDeCarga.Carregando) _estado = EstadoDeCarga.Pronto;
     }
 
     private async Task CarregarAsync(Guid id)
@@ -144,14 +133,18 @@ else
         var resultado = await Despachante.EnviarAsync(new ObterCliente(id));
         if (resultado.Erro == TipoErro.AcessoNegado)
         {
-            _autorizado = false;
+            _estado = EstadoDeCarga.AcessoNegado;
             return;
         }
 
         if (resultado.Valor is not { } c)
         {
-            if (resultado.Erro == TipoErro.NaoEncontrado) _naoEncontrado = true;
-            else _erroDaConsulta = resultado.Mensagem ?? "Não foi possível consultar o cliente.";
+            if (resultado.Erro == TipoErro.NaoEncontrado) _estado = EstadoDeCarga.NaoEncontrado;
+            else
+            {
+                _estado = EstadoDeCarga.Falhou;
+                _erroDaCarga = resultado.Mensagem ?? "Não foi possível consultar o cliente.";
+            }
             return;
         }
 
@@ -188,7 +181,7 @@ else
 
             if (resultado.Erro == TipoErro.AcessoNegado)
             {
-                _autorizado = false;
+                _estado = EstadoDeCarga.AcessoNegado;
                 return;
             }
 
