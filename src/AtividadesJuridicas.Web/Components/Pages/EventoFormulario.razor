@@ -545,6 +545,7 @@
 
         _clienteId = cliente.Id;
         _clienteNome = cliente.Nome;
+        _clienteIndisponivel = false;
         LimparBuscaDeCliente();
     }
 
@@ -554,6 +555,7 @@
 
         _clienteId = null;
         _clienteNome = null;
+        _clienteIndisponivel = false;
     }
 
     private async Task ProcurarProcessosAsync()

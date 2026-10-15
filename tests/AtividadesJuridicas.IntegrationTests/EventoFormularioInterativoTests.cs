@@ -148,6 +148,22 @@ public class EventoFormularioInterativoTests : TelaInterativa
     }
 
     [Fact]
+    public void Trocar_o_cliente_indisponivel_por_outro_mostra_a_sigla_do_escolhido()
+    {
+        Respostas().Responde<ObterEvento, Resultado<EventoDetalhe>>(Resultado<EventoDetalhe>.Ok(Audiencia() with { ClienteNome = null }));
+        var tela = Desenhar<EventoFormulario>(p => p.Add(x => x.Id, (Guid?)EventoId));
+        tela.Find("div.aj-vinculo__escolhido .aj-vinculo__avatar").TextContent.Should().Be("?");
+
+        tela.Find("button[aria-label=\"Remover cliente\"]").Click();
+        Procurar(tela, "busca-de-cliente", "litoral");
+        tela.Find("ul.aj-resultados button.aj-resultados__item").Click();
+
+        var escolhido = tela.FindAll("div.aj-vinculo__escolhido").First();
+        escolhido.QuerySelector(".aj-vinculo__avatar")!.TextContent.Should().Be("TL");
+        escolhido.QuerySelector(".aj-vinculo__nome")!.TextContent.Should().Be("Transportes Litoral Ltda.");
+    }
+
+    [Fact]
     public void Escolher_o_cliente_mostra_o_escolhido_com_avatar_e_a_troca_so_no_desktop_e_remover_volta_a_busca()
     {
         var tela = Novo();
