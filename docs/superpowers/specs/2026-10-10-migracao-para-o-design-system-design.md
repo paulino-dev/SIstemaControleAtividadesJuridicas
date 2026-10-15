@@ -1,11 +1,11 @@
 # Migração das telas para o design system — fidelidade ao canvas
 
 Data: 2026-10-10
-Estado: aprovada pelo usuário em 2026-10-10; fases 9A a 9D executadas
+Estado: aprovada pelo usuário em 2026-10-10; fases 9A a 9E executadas
 Fontes de desenho:
 
-- Canvas de telas: https://claude.ai/artifact/HzHWv1pgVXAnYHuPEYQDFj (versão lida: `1791598628-21e1`)
-- Design system: https://claude.ai/artifact/G8rFozAhnH4eMqctLNTvbS (versão lida: `1791598661-a3fd`; a fase 9A publicou a `1791646790-3a09`; a fase 9B, a `1791672723-8f5a`; a fase 9C, a `1791995411-b333`; a fase 9D, a `1792000330-0298` e, depois da conferência, a `1792023403-0d20` e a `1792024406-465e`)
+- Canvas de telas: https://claude.ai/artifact/HzHWv1pgVXAnYHuPEYQDFj (versão lida: `1791598628-21e1`; a fase 9E leu a `1792026220-8711`)
+- Design system: https://claude.ai/artifact/G8rFozAhnH4eMqctLNTvbS (versão lida: `1791598661-a3fd`; a fase 9A publicou a `1791646790-3a09`; a fase 9B, a `1791672723-8f5a`; a fase 9C, a `1791995411-b333`; a fase 9D, a `1792000330-0298` e, depois da conferência, a `1792023403-0d20` e a `1792024406-465e`; a fase 9E, a `1792033039-b794` e, depois da conferência, a `1792048576-7268`)
 
 ## 1. Objetivo
 
@@ -341,6 +341,17 @@ Como a fase 9D fez a conferência (emenda de 2026-10-14), além do que está aci
 - O passo de teclado e de estados vira lista fixa por fase: abas do mobile (toque e Tab), menu de ações (Tab, Esc, fundo), confirmação no topo a 390px, foco ao abrir um painel, barra fixa sem cobrir o último painel, larguras 760, 761, 1199 e 1200, busca da barra do mobile com Enter, e a Produção sem nenhuma ação de cadastro.
 - A máquina reiniciou três vezes durante a fase, uma delas no meio da conferência: as coletas gravadas em disco à medida que se mede deixaram retomar sem refazer nada.
 
+Como a fase 9E fez a conferência (emenda de 2026-10-15), além do que está acima:
+
+- O "hoje" do sistema é o do relógio, e o contador de atrasadas depende dele: todas as datas do quadro (entregas, histórico, conclusões, comentários, documentos) foram deslocadas pelo mesmo número de dias (+7) para o "hoje" do quadro cair no dia da conferência. Só assim o `8 atividades · 1 atrasada` do quadro sai igual.
+- A atividade principal do quadro foi criada e levada até Feita pelas próprias telas da fase, com três perfis entrando (a Diretoria cria e define os responsáveis; duas pessoas da Produção enviam documento, comentam e concluem). Por SQL entraram só as horas, para baterem com o quadro, e as outras sete atividades da lista.
+- Os quadros antigos de estilo embutido (lista e ficha) foram medidos pelo mesmo `ref.html` dos novos: sem `.aj-app__coluna`, a raiz da medida é o `main` (ou o pai dele, quando há barra superior antes), e a navegação e o botão flutuante embutidos ficam fora dos átomos. O ponto de 6px das etiquetas (um `span` no quadro antigo, um `::before` no design system) fica fora da comparação.
+- O que o plano já decidiu diferente do quadro e desalinharia a comparação átomo a átomo (a coluna e a linha Complexidade, o "Enviar documento", o painel Histórico do tablet) sai do DOM das molduras antes de medir, nunca do código; as medidas com e sem isso ficam nas coletas.
+- O texto de um filho com `display: contents` (os invólucros de visão) conta como texto do pai; sem isso, texto dentro de um invólucro sumia da medida.
+- No Chrome sem janela, a captura de uma aba em segundo plano não volta nunca: a aba vem para a frente (`/json/activate`) antes de cada captura.
+- O clique duplo foi provado no navegador também onde o bUnit não prova (o bUnit descarta clique em botão desabilitado): Excluir e Comentar, com a contagem de registros no banco e na auditoria. Onde a resposta chega antes de 50 ms, não dá para ver o botão travado; a prova é a contagem.
+- Um dado inventado errado derruba o circuito (um número CNJ com dígito errado lança ao materializar o processo na busca): dado de quadro passa pela mesma validação do domínio antes de entrar por SQL.
+
 ## 12. Fases
 
 | Fase | Conteúdo |
@@ -494,7 +505,7 @@ Observações de desenho, sem ação nesta fase:
 O que a fase entregou além das telas da seção 7.4, e que as próximas reutilizam:
 
 - Peças compartilhadas: `CabecalhoDeFicha` (título, subtítulo, resumo do mobile e ações da ficha), `Abas` e `Aba` (as abas do mobile, com o painel de cada aba num invólucro `aj-aba-painel`), `RotuloDeCampo` com `Classe` (a posição do rótulo na grade), `ValorEmReais` com `[ValorEmReaisValido]` (valor brasileiro em texto, que recusa sem lançar), `TextosDoCliente`, `RotulosDeProcesso`, `TextosDeDocumento`.
-- `GestaoDeDocumentos` passou a guardar a regra de uma coisa aberta por vez e o foco do painel aberto; `DescartarEnvio()` junta a limpeza do envio, como a 9B pedia. `DocumentosDaFicha` é o painel de documentos da ficha do cliente, com os chips por área e o acesso em opções marcáveis. A tela antiga `DocumentosDoCliente` saiu. `Endereco` foi extraído para `TextosDeDocumento`; `Quantos` e a tabela de documentos continuam com dois usos, sem extração.
+- `GestaoDeDocumentos` passou a guardar a regra de uma coisa aberta por vez e o foco do painel aberto; `DescartarEnvio()` junta a limpeza do envio, como a 9B pedia. `DocumentosDaFicha` é o painel de documentos da ficha do cliente, com os chips por área e o acesso em opções marcáveis. A tela antiga `DocumentosDoCliente` saiu. `Endereco` foi extraído para `TextosDeDocumento`; `Quantos` e a tabela de documentos continuam com dois usos, sem extração. (Emenda da 9E: os documentos da atividade não usam `Quantos`, porque a contagem vai para a aba do mobile pelo `AoContar`, e a tabela deles tem outras colunas e ações; continuam dois usos.)
 - Contadores no backend, dentro das listagens que já existiam (seção 6): o total do cadastro de clientes e os inativos, o total de processos sem filtro de situação, e os documentos por área com o mesmo predicado de acesso da listagem (a Produção conta só o que lê).
 - Formulário em tela própria (cliente e processo, depois do usuário da 9C): depois de salvar com sucesso, o botão de envio fica travado até a navegação chegar (o `finally` só o libera se a tela não navegou). O mesmo conserto entrou no formulário de usuário. Na edição, a ficha é o "voltar"; no novo, a lista.
 - Lista de escolhidos com busca de candidatos no mesmo pai: as chaves `@key` dos dois tipos de linha nunca podem coincidir (o candidato usa uma chave composta).
@@ -511,7 +522,7 @@ Decidido na execução, sem quadro ou contra o quadro, para o usuário rever:
 
 Para as próximas fases:
 
-- Os formulários não oferecem "Tentar de novo" quando a consulta inicial falha (o do usuário da 9C também não); as listas e as fichas oferecem. Extrair o estado de carregamento dos formulários antes de a 9E escrever o de atividade.
+- ~~Os formulários não oferecem "Tentar de novo" quando a consulta inicial falha (o do usuário da 9C também não); as listas e as fichas oferecem. Extrair o estado de carregamento dos formulários antes de a 9E escrever o de atividade.~~ Feito na 9E: `CargaDoFormulario` e `EstadoDeCarga`, nos formulários de cliente, processo, usuário e atividade e nas telas de responsáveis, devolver e reabrir.
 - No formulário de processo, o erro da busca de cliente aparece no aviso do topo, longe do campo.
 - Os formulários carregam em `OnInitializedAsync`: se a mesma instância passar de `/x/novo` para `/x/{id}/editar` (nenhum link leva a isso hoje), não recarregam. As fichas já usam `_idCarregado`.
 - A lista das áreas de documento que cada perfil lê está em três lugares (o repositório, o falso dos testes de unidade e a regra do manipulador).
@@ -530,3 +541,61 @@ Observações de desenho, sem ação nesta fase:
 - No cabeçalho da ficha no tablet o bloco do título não estica (o cabeçalho é flex em linha); o texto ocupa o mesmo lugar.
 - Na lista de clientes, a célula de ação da linha inativa também fica apagada (o quadro apaga só as de dado); a célula não tem texto próprio e o "Abrir" mede igual.
 - Um nome de arquivo longo e sem espaços, na tabela de documentos da ficha do cliente no desktop, quebra em muitas linhas na coluna do nome (a coluna é estreita no lado a lado); as ações ficam à vista, sem rolar. Antes desta fase a tabela rolava de lado.
+
+### Da fase 9E (emenda de 2026-10-15)
+
+O que a fase entregou além das telas da seção 7.5, e que as próximas reutilizam:
+
+- Estado de carregamento das telas de formulário: `CargaDoFormulario` e `EstadoDeCarga` ("Carregando…", "Acesso negado.", o não encontrado e o erro com "Tentar de novo"), nos quatro formulários (cliente, processo, usuário, atividade) e nas telas de responsáveis, devolver e reabrir.
+- Contadores no backend (seção 6): `ListarAtividades` devolve `PaginaDeAtividades`, derivada de `Pagina<AtividadeResumo>`, com `NoEscopo` (o que o usuário pode listar, sem filtro) e `Atrasadas` (do mesmo escopo), contados por `IAtividadeRepositorio.ContarAsync`. A Diretoria conta o escritório inteiro; a Produção, as atividades em que é responsável.
+- Parâmetros novos nas peças compartilhadas: `CabecalhoDePagina.Alerta` (a parte das atrasadas no subtítulo), `CabecalhoDeDetalhe.RotuloDoVoltarNoMobile`, `BarraDeVoltar.Acao` (o "Mais ações" na barra do mobile), `Paginacao.ComSetas`, `EtiquetaDeSituacao.NaTabela` (o ícone só na tabela; nos cartões e na ficha, o ponto).
+- Peças novas: `AvatarDePessoa` (sigla e cor pelo nome), `TextosDeAtividade`, `RotulosDeAtividade.SituacaoNoPlural`, `CabecalhoDaAtividade` (a linha de situação e a faixa de ações), `MotivoComResponsaveis` (uma tela para as rotas de devolver e de reabrir, com páginas finas), `OrigemDaAtividade` (de onde a ficha foi aberta, repassada às telas de ação e devolvida no voltar, no Cancelar e depois de salvar).
+- `GestaoDeDocumentos` ganhou os ganchos protegidos de listar e de enviar, com o comportamento de antes como padrão; os documentos da atividade são a terceira herdeira e contam para a aba do mobile pelo `AoContar` (como os comentários).
+- A classe de visibilidade `aj-desktop-mobile` no design system (o comentário novo é o mesmo no desktop e no mobile e outro no tablet).
+- A trava `Toda_tela_de_atividade_esta_na_trava`: toda tela da pasta de atividades está na lista das migradas.
+
+Decidido na execução, sem quadro ou contra o quadro, para o usuário rever:
+
+- Vindo de Produtores, o voltar da ficha leva ao produtor escolhido, mas o mês do painel volta ao corrente (o mês não está no endereço). As telas de ação abertas da ficha (editar, responsáveis, trocar revisor, devolver, reabrir) levam a origem e voltam com ela; Excluir volta sempre a `/atividades` com "Atividade excluída.", também vindo de Produtores, que não lê recados.
+- "Trocar revisor" só aparece quando a atividade não permite redefinir os responsáveis (quando permite, o painel "Revisor" da tela de responsáveis já troca o revisor); no mobile entra também no "Mais ações", senão a função some.
+- A Diretoria vê no subtítulo e nos chips o escritório inteiro mesmo com um responsável escolhido no filtro.
+- A cor do avatar sai de uma conta estável sobre o nome e não reproduz a do quadro ("Beatriz Lins" sai lilás; no quadro é azul).
+- A coluna Complexidade vem depois de Entrega na tabela; a linha Complexidade vem depois de Área nos Detalhes do desktop e por último nos Dados do tablet e do mobile. A tabela tem 980px de largura mínima e rola de lado com as nove colunas.
+- As etiquetas de situação com ícone (o visto da Concluída, o relógio da Atrasada) só na tabela; nos cartões e na ficha, com ponto.
+- Os documentos do tablet e do mobile têm o nome como link de download e as ações num "⋯"; no desktop, os botões do quadro. "Enviar documento" (sem quadro) é botão secundário no título do painel nas três visões, e o painel de envio fecha depois de um envio bem-sucedido.
+- O comentário novo do tablet é em linha, com o botão de ícone "Enviar comentário", como o quadro; no desktop e no mobile, o rótulo visível, a caixa de três linhas e "Comentar".
+- Concluir minha parte, Aprovar e Excluir pedem confirmação num aviso de atenção no topo da ficha, com o foco nele.
+- O terceiro estado das telas de ação (a atividade já não permite a ação) é um aviso de atenção, sem formulário e sem barras. Quando a atividade carregou, o voltar mostra o título dela e leva à ficha com a origem; o plano dizia "Atividade", que fica só antes da carga e na Produção.
+- O modo do revisor da tela de responsáveis tem o painel médio, o título da atividade no subtítulo e "Salvar" no mobile; a opção de responsável traz o nome do perfil entre parênteses (com os perfis semeados, `(Diretor)`; o quadro mostra `(Diretoria)`).
+- Devolver e reabrir: o `form` é o painel; os erros de motivo e de responsáveis aparecem juntos, cada um no seu campo; o motivo vai aparado e os responsáveis na ordem da atividade.
+- Divergências dos quadros antigos mantidas para todas as telas ficarem iguais entre si: o `Aviso` com o ícone solto (o quadro desenha um selo), o `h1` da barra de voltar do mobile, o voltar do tablet e o respiro de cima pelas variáveis, a barra fixa do mobile com 46px (o quadro tem 50), o hover do perigo, o `letter-spacing` do título, o nome no título da ficha do mobile com 26px (o quadro tem 27), o respiro do "Buscar", a sombra do primário no tablet e também na barra fixa do mobile, o vão de 12px entre os cartões do mobile.
+- As outras decisões de redação estão no fim do plano da fase (`docs/superpowers/plans/2026-10-14-fase-9e-atividades.md`, "Decisões tomadas na redação").
+
+A conferência no navegador: 9 dos 15 quadros × visões sem divergência (formulário, responsáveis e devolver nas três). Nos outros seis, diferenças de CSS de 1 a 3px. Duas foram corrigidas no design system (`1792048576-7268`): na tabela larga, o título e a coluna secundária passaram de `overflow-wrap:anywhere` a `break-word` (com `anywhere`, o mínimo da coluna caía e os títulos quebravam em três linhas, com as linhas da tabela 22px mais altas que no quadro); e o texto do comentário no tablet perdeu o limite de 68 caracteres (o quadro não tem). Ficaram, com o motivo:
+
+- O `h2` dos painéis com altura de linha 1,4 (os quadros antigos usam 1,5): cada painel fica 1,6px mais baixo; a classe é a das fases anteriores.
+- Algarismos tabulares em `.aj-subtitulo`, `.aj-detalhes dd` e na data do comentário (os quadros só na entrega): até 4px num número; mesma observação da 9C e da 9D.
+- O contador da aba no mobile com 15,6px de altura (o quadro tem 18): a classe da 9D.
+
+Para as próximas fases:
+
+- As telas de ação (formulário, responsáveis, devolver e reabrir) repetem a carga (perfil, `ObterAtividade`, acesso negado, não encontrada, falha) e o trio voltar, origem e rótulo do voltar no mobile. O `CargaDoFormulario` tira a parte da marcação e o `OrigemDaAtividade` junta a origem; extrair o resto no quarto uso (a Agenda, na 9F, se repetir).
+- Conflito ao salvar (edição e responsáveis): só o aviso com a mensagem do servidor, que pede recarregar; um novo "Salvar" conflita de novo até a tela ser recarregada.
+- A suíte não cobre o salvar da atividade com processo escolhido, nem a remoção do processo e do cliente escolhidos, nem o aviso do cliente que saiu do processo; nem o acesso negado no envio das telas de ação, de comentários e de documentos. O código os trata e a revisão os conferiu por leitura; o envio com processo foi exercido no navegador.
+- O "Tentar de novo" do `CargaDoFormulario` não tem guarda contra dois cliques seguidos; nos herdeiros de `GestaoDeDocumentos` da 9D, uma mensagem pode ficar ao lado do "Seu acesso foi encerrado.".
+- O que a Agenda ainda usa do `app.css`: `.aviso` e `p.aviso` (também por expressão), `.ficha`, `.formulario`, `.filtros`, `.grade`, `.acoes`, `.texto-livre`, `.dia`, `td.horario`, e `fieldset` e `legend` no formulário de evento. O formulário de evento lê `ListarAtividades` como `Pagina<AtividadeResumo>` e continua compilando com `PaginaDeAtividades`.
+- Os formulários continuam carregando em `OnInitializedAsync` (sem mudança da 9D sobre `/x/novo` → `/x/{id}/editar`).
+
+Para a 9G, junto da revisão de teclado e de leitor de tela:
+
+- O "Mais ações" da ficha no mobile e o "⋯" dos documentos têm o mesmo problema do `MenuDeAcoes` da 9D: o Tab depois do último item tira o foco do menu e o menu continua aberto, o Esc com o foco fora não fecha, e o fundo cobre a tela até um toque.
+- Regras do `app.css` já sem uso que a 9E não apagou: `strong.erro`, `.validation-message` e a parte `.cartao` do seletor `.cartao, form.formulario:not(.filtros)`.
+- Regras de elemento que alcançam as telas desta fase, medidas pela conferência: `label { … }` pinta o rótulo do campo com ícone e do campo compacto da lista e do formulário, sem efeito visível; `fieldset` dá o raio ao `aj-conjunto`, sem efeito (borda 0). `label:has(> input[type="checkbox"])`, `legend`, `input[type="checkbox"]`, `input.invalid`/`textarea.invalid` sobre `aj-campo` e `button:disabled` não mudaram nada.
+- No desktop, o modo do revisor de `/responsaveis` tem o painel médio e a barra de ações de largura inteira; no devolver e no reabrir a barra acompanha o painel (`aj-acoes--medio`).
+
+Observações de desenho, sem ação nesta fase:
+
+- A 390px a aba "Histórico" da ficha fica fora da tela e só aparece rolando a fileira de abas (com "Documentos 3", a fileira não cabe). O quadro tem a mesma fileira.
+- No tablet, o nome longo de documento corta com reticências; no desktop e no mobile, quebra.
+- Na conferência, um clique em "Escolher" da busca de processo não teve efeito uma vez em sete, com três circuitos abrindo ao mesmo tempo; não se reproduziu isolado. Registro como possível corrida sob carga.
+- Artefatos do quadro, não do sistema, para quem redesenhar: no `FichaMobile` a fileira de abas encolhe a 1px (o `main` em coluna com altura fixa e a fileira com `overflow-x:auto` perde o mínimo automático) e os painéis sobem sobre ela; no `FichaTablet` o comentário novo tem 7px a mais pela linha de base da `textarea` dentro do `label`.
