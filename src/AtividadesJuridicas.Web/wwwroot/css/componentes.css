@@ -1515,3 +1515,7 @@ a.aj-evento{text-decoration:none}
 .aj-participante__nome{min-width:0;font-weight:600;overflow-wrap:anywhere}
 .aj-botao--secundario.aj-botao--destrutivo{color:var(--erro)}
 .aj-texto-livre{white-space:pre-wrap;overflow-wrap:anywhere}
+
+/* Ajustes da conferência da fase 9F no navegador: a ajuda em parágrafo dentro de um painel ("Quem cria o evento
+   sempre participa.") fica com a cor e a largura da ajuda, não com as do texto corrido do painel. */
+.aj-painel p.aj-ajuda{max-width:none;color:var(--tinta-suave)}
