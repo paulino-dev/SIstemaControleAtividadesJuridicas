@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Components;
+using AngleSharp.Dom;
 using AtividadesJuridicas.Application.Atividades;
 using AtividadesJuridicas.Application.Comum;
 using AtividadesJuridicas.Application.Documentos;
@@ -241,5 +243,356 @@ public class AtividadeFichaInterativaTests : TelaInterativa
         ficha.WaitForAssertion(() => ficha.Markup.Should().Contain("Seu acesso foi encerrado. Entre novamente."));
         ficha.Markup.Should().NotContain("Minuta de acordo trabalhista").And.NotContain("<h2>Comentários</h2>").And.NotContain("<h2>Documentos</h2>");
         ficha.FindAll(".aj-abas").Should().BeEmpty();
+    }
+
+    // ---- Ações da ficha ----
+
+    private const string NaFaixa = ".aj-painel__botoes--faixa button";
+    private const string NaConfirmacao = "[role=alertdialog] button";
+
+    private static AcoesDaAtividade Acoes(bool editar = false, bool responsaveis = false, bool trocarRevisor = false,
+        bool concluir = false, bool aprovar = false, bool reabrir = false, bool excluir = false) =>
+        new(editar, responsaveis, trocarRevisor, concluir, aprovar, reabrir, excluir);
+
+    private static void Clicar<T>(IRenderedComponent<T> tela, string seletor, string texto) where T : IComponent =>
+        tela.FindAll(seletor).First(e => e.TextContent == texto).Click();
+
+    private static List<string> Textos(IEnumerable<IElement> elementos) =>
+        [.. elementos.Select(e => e.TextContent.Trim()).Where(t => t.Length > 0)];
+
+    private static List<string> Lista(string textos) => textos.Length == 0 ? [] : [.. textos.Split('|')];
+
+    private IRenderedComponent<ComBarraSuperior<AtividadeFicha>> FichaComBarra() =>
+        Desenhar<ComBarraSuperior<AtividadeFicha>>(p => p.AddUnmatched(nameof(AtividadeFicha.Id), Id));
+
+    [Theory]
+    // Permissões (editar, responsáveis, trocar revisor, concluir, aprovar/devolver, reabrir, excluir) → faixa, divisor,
+    // "Mais ações" e barra fixa do mobile. Os casos A a F da tabela da tarefa e as bordas do divisor.
+    [InlineData(false, false, false, false, false, false, false, "", false, "", "")]
+    [InlineData(false, false, false, true, false, false, false, "Concluir minha parte", false, "", "Concluir minha parte")]
+    [InlineData(false, false, false, false, true, false, false, "Aprovar|Devolver", false, "", "Devolver|Aprovar")]
+    [InlineData(true, false, true, false, true, false, true, "Aprovar|Devolver|Editar|Trocar revisor|Excluir", true, "Editar|Trocar revisor|Excluir", "Devolver|Aprovar")]
+    [InlineData(true, true, true, false, false, false, true, "Editar|Responsáveis|Excluir", false, "Editar|Responsáveis|Excluir", "")]
+    [InlineData(true, true, true, true, false, false, true, "Concluir minha parte|Editar|Responsáveis|Excluir", true, "Editar|Responsáveis|Excluir", "Concluir minha parte")]
+    [InlineData(true, false, false, false, false, true, true, "Reabrir|Editar|Excluir", true, "Editar|Excluir", "Reabrir")]
+    [InlineData(true, false, true, false, false, false, true, "Editar|Trocar revisor|Excluir", false, "Editar|Trocar revisor|Excluir", "")]
+    public void Cada_acao_aparece_so_com_a_sua_permissao(
+        bool editar, bool responsaveis, bool trocarRevisor, bool concluir, bool aprovar, bool reabrir, bool excluir,
+        string faixa, bool divisor, string maisAcoes, string barraFixa)
+    {
+        Combinar(Detalhe(acoes: new(editar, responsaveis, trocarRevisor, concluir, aprovar, reabrir, excluir)));
+
+        var ficha = FichaComBarra();
+
+        ficha.Find(".aj-barra-superior h1").TextContent.Should().Be("Atividade");
+        ficha.Find("h1.aj-titulo").TextContent.Should().Be("Minuta de acordo trabalhista");
+        ficha.FindAll(".aj-painel__botoes--faixa").Should().HaveCount(faixa.Length == 0 ? 0 : 1);
+        Textos(ficha.FindAll(".aj-painel__botoes--faixa a, .aj-painel__botoes--faixa button")).Should().Equal(Lista(faixa));
+        ficha.FindAll(".aj-painel__divisor").Should().HaveCount(divisor ? 1 : 0);
+        ficha.FindAll(".aj-painel__botoes--faixa button[aria-label='Excluir atividade']").Should().HaveCount(excluir ? 1 : 0);
+        ficha.FindAll(".aj-barra-superior button[aria-label='Mais ações']").Should().HaveCount(maisAcoes.Length == 0 ? 0 : 1);
+        Textos(ficha.FindAll(".aj-barra-superior .aj-menu-acoes__item")).Should().Equal(Lista(maisAcoes));
+        ficha.FindAll(".aj-barra-superior .aj-menu-acoes__item--perigo").Should().HaveCount(excluir ? 1 : 0);
+        Textos(ficha.FindAll(".aj-acoes--fixa a, .aj-acoes--fixa button")).Should().Equal(Lista(barraFixa));
+    }
+
+    [Fact]
+    public void Concluir_minha_parte_pede_a_confirmacao_e_confirmar_envia_recarrega_e_avisa()
+    {
+        var concluida = false;
+        Combinar(ator: AtorDaProducao);
+        Despachante
+            .Responde<ObterAtividade, Resultado<AtividadeDetalhe>>(_ => Resultado<AtividadeDetalhe>.Ok(concluida
+                ? Detalhe(StatusAtividade.Feita)
+                : Detalhe(StatusAtividade.Direcionada, Acoes(concluir: true))))
+            .Responde<ConcluirMinhaParte, Resultado>(_ =>
+            {
+                concluida = true;
+                return Resultado.Ok();
+            });
+        var ficha = Ficha();
+
+        Clicar(ficha, NaFaixa, "Concluir minha parte");
+
+        ficha.Find("[role=alertdialog]").GetAttribute("aria-label").Should().Be("Confirmar conclusão");
+        ficha.Find("[role=alertdialog] strong").TextContent.Should().Be("Concluir a sua parte em Minuta de acordo trabalhista?");
+        ficha.Find("[role=alertdialog] .aj-aviso__texto").TextContent.Should().Contain("A sua parte fica registrada como concluída.");
+        Textos(ficha.FindAll(NaConfirmacao)).Should().Equal("Cancelar", "Concluir minha parte");
+
+        Clicar(ficha, NaConfirmacao, "Concluir minha parte");
+
+        ficha.WaitForAssertion(() => ficha.Find("p.aj-aviso--sucesso").TextContent.Should().Be("Sua parte foi concluída."));
+        Despachante.Recebidas.OfType<ConcluirMinhaParte>().Should().ContainSingle().Which.Should().Be(new ConcluirMinhaParte(Id));
+        Despachante.Recebidas.OfType<ObterAtividade>().Should().HaveCount(2);
+        ficha.FindAll("[role=alertdialog]").Should().BeEmpty();
+        // A ficha recarregada é a de agora: Feita, e sem a ação que acabou de ser feita.
+        ficha.Find("h1.aj-titulo").TextContent.Should().Be("Minuta de acordo trabalhista");
+        ficha.FindAll(".aj-painel__botoes--faixa").Should().BeEmpty();
+        ficha.Markup.Should().MatchRegex("aj-etiqueta--feita[^\"]*\">Feita</span>");
+    }
+
+    [Fact]
+    public void Aprovar_pede_a_confirmacao_e_confirmar_envia_recarrega_e_avisa()
+    {
+        var aprovada = false;
+        Combinar();
+        Despachante
+            .Responde<ObterAtividade, Resultado<AtividadeDetalhe>>(_ => Resultado<AtividadeDetalhe>.Ok(aprovada
+                ? Detalhe(StatusAtividade.Concluida, Acoes(editar: true, reabrir: true, excluir: true))
+                : Detalhe(acoes: Acoes(editar: true, trocarRevisor: true, aprovar: true, excluir: true))))
+            .Responde<AprovarAtividade, Resultado>(_ =>
+            {
+                aprovada = true;
+                return Resultado.Ok();
+            });
+        var ficha = Ficha();
+
+        Clicar(ficha, NaFaixa, "Aprovar");
+
+        ficha.Find("[role=alertdialog]").GetAttribute("aria-label").Should().Be("Confirmar aprovação");
+        ficha.Find("[role=alertdialog] strong").TextContent.Should().Be("Aprovar Minuta de acordo trabalhista?");
+        ficha.Find("[role=alertdialog] .aj-aviso__texto").TextContent.Should().Contain("A atividade fica concluída.");
+        Textos(ficha.FindAll(NaConfirmacao)).Should().Equal("Cancelar", "Aprovar");
+
+        Clicar(ficha, NaConfirmacao, "Aprovar");
+
+        ficha.WaitForAssertion(() => ficha.Find("p.aj-aviso--sucesso").TextContent.Should().Be("Atividade aprovada."));
+        Despachante.Recebidas.OfType<AprovarAtividade>().Should().ContainSingle().Which.Should().Be(new AprovarAtividade(Id));
+        Despachante.Recebidas.OfType<ObterAtividade>().Should().HaveCount(2);
+        ficha.FindAll("[role=alertdialog]").Should().BeEmpty();
+        Textos(ficha.FindAll(".aj-painel__botoes--faixa a, .aj-painel__botoes--faixa button")).Should().Equal("Reabrir", "Editar", "Excluir");
+    }
+
+    [Fact]
+    public void Excluir_pede_a_confirmacao_e_confirmar_envia_com_a_versao_e_volta_a_lista_com_o_recado()
+    {
+        Combinar(Detalhe(acoes: Acoes(editar: true, excluir: true)));
+        Despachante.Responde<ExcluirAtividade, Resultado>(Resultado.Ok());
+        var ficha = Ficha();
+
+        Clicar(ficha, NaFaixa, "Excluir");
+
+        ficha.Find("[role=alertdialog]").GetAttribute("aria-label").Should().Be("Confirmar exclusão");
+        ficha.Find("[role=alertdialog] strong").TextContent.Should().Be("Confirmar a exclusão de Minuta de acordo trabalhista?");
+        ficha.Find("[role=alertdialog] .aj-aviso__texto").TextContent.Should()
+            .Contain("A atividade sai das listas com os responsáveis e o histórico.");
+        Textos(ficha.FindAll(NaConfirmacao)).Should().Equal("Cancelar", "Confirmar exclusão");
+
+        Clicar(ficha, NaConfirmacao, "Confirmar exclusão");
+
+        ficha.WaitForAssertion(() => Services.GetRequiredService<NavigationManager>().Uri.Should().EndWith("/atividades"));
+        Despachante.Recebidas.OfType<ExcluirAtividade>().Should().ContainSingle().Which.Should().Be(new ExcluirAtividade(Id, 7));
+        Services.GetRequiredService<Recados>().Retirar()!.Texto.Should().Be("Atividade excluída.");
+    }
+
+    [Fact]
+    public void Excluir_vindo_de_produtores_tambem_volta_a_lista_de_atividades_com_o_recado()
+    {
+        var produtor = Guid.Parse("0199a3f2-7c1e-7000-8000-0000000000d1");
+        Combinar(Detalhe(acoes: Acoes(editar: true, excluir: true)));
+        Despachante.Responde<ExcluirAtividade, Resultado>(Resultado.Ok());
+        // A ficha lê "de" e "produtor" do endereço: a navegação de teste começa nele.
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"/atividades/{Id}?de=produtores&produtor={produtor}");
+        var ficha = Ficha();
+        // O voltar é o de Produtores: o endereço chegou à ficha.
+        ficha.Find("a.aj-voltar").GetAttribute("href").Should().Be($"/produtores?produtor={produtor}");
+
+        Clicar(ficha, NaFaixa, "Excluir");
+        Clicar(ficha, NaConfirmacao, "Confirmar exclusão");
+
+        // Produtores não lê recados: a exclusão volta sempre à lista de atividades, que mostra o recado.
+        ficha.WaitForAssertion(() => Services.GetRequiredService<NavigationManager>().Uri.Should().EndWith("/atividades"));
+        Services.GetRequiredService<Recados>().Retirar()!.Texto.Should().Be("Atividade excluída.");
+    }
+
+    [Fact]
+    public void Depois_de_excluir_com_sucesso_o_botao_fica_travado_ate_a_navegacao()
+    {
+        Combinar(Detalhe(acoes: Acoes(editar: true, excluir: true)));
+        Despachante.Responde<ExcluirAtividade, Resultado>(Resultado.Ok());
+        var ficha = Ficha();
+        Clicar(ficha, NaFaixa, "Excluir");
+        Clicar(ficha, NaConfirmacao, "Confirmar exclusão");
+        ficha.WaitForAssertion(() => Services.GetRequiredService<NavigationManager>().Uri.Should().EndWith("/atividades"));
+
+        Clicar(ficha, NaConfirmacao, "Confirmar exclusão");
+
+        Despachante.Recebidas.OfType<ExcluirAtividade>().Should().ContainSingle();
+        ficha.FindAll(NaConfirmacao).Should().OnlyContain(b => b.HasAttribute("disabled"));
+    }
+
+    [Fact]
+    public void Excluir_pelo_mais_acoes_do_mobile_abre_a_mesma_confirmacao()
+    {
+        Combinar(Detalhe(acoes: Acoes(editar: true, excluir: true)));
+        var ficha = FichaComBarra();
+
+        ficha.Find(".aj-barra-superior button[aria-label='Mais ações']").Click();
+        ficha.Find(".aj-barra-superior .aj-menu-acoes__item--perigo").Click();
+
+        ficha.Find("[role=alertdialog]").GetAttribute("aria-label").Should().Be("Confirmar exclusão");
+        Despachante.Recebidas.OfType<ExcluirAtividade>().Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData("Concluir minha parte", "Confirmar conclusão")]
+    [InlineData("Aprovar", "Confirmar aprovação")]
+    [InlineData("Excluir", "Confirmar exclusão")]
+    public void Cancelar_fecha_a_confirmacao_e_nao_envia_nada(string acao, string rotulo)
+    {
+        var acoes = acao switch
+        {
+            "Concluir minha parte" => Acoes(concluir: true),
+            "Aprovar" => Acoes(aprovar: true),
+            _ => Acoes(editar: true, excluir: true),
+        };
+        Combinar(Detalhe(acoes: acoes));
+        var ficha = Ficha();
+        Clicar(ficha, NaFaixa, acao);
+        ficha.Find("[role=alertdialog]").GetAttribute("aria-label").Should().Be(rotulo);
+
+        Clicar(ficha, NaConfirmacao, "Cancelar");
+
+        ficha.FindAll("[role=alertdialog]").Should().BeEmpty();
+        ficha.FindAll(NaFaixa).Should().Contain(b => b.TextContent == acao);
+        Despachante.Recebidas.OfType<ConcluirMinhaParte>().Should().BeEmpty();
+        Despachante.Recebidas.OfType<AprovarAtividade>().Should().BeEmpty();
+        Despachante.Recebidas.OfType<ExcluirAtividade>().Should().BeEmpty();
+        Despachante.Recebidas.OfType<ObterAtividade>().Should().ContainSingle();
+    }
+
+    [Fact]
+    public void Pedir_outra_confirmacao_troca_a_aberta_e_tira_o_recado()
+    {
+        Combinar(Detalhe(acoes: Acoes(editar: true, aprovar: true, excluir: true)));
+        Services.GetRequiredService<Recados>().Deixar("Responsáveis salvos.");
+        var ficha = Ficha();
+        ficha.Find("p.aj-aviso--sucesso").TextContent.Should().Be("Responsáveis salvos.");
+
+        Clicar(ficha, NaFaixa, "Aprovar");
+        Clicar(ficha, NaFaixa, "Excluir");
+
+        ficha.FindAll("[role=alertdialog]").Should().ContainSingle()
+            .Which.GetAttribute("aria-label").Should().Be("Confirmar exclusão");
+        ficha.FindAll("p.aj-aviso--sucesso").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Clique_duplo_em_concluir_minha_parte_envia_uma_vez()
+    {
+        var resposta = new TaskCompletionSource<Resultado>();
+        Combinar(Detalhe(StatusAtividade.Direcionada, Acoes(concluir: true)), ator: AtorDaProducao);
+        Despachante.RespondeDepois<ConcluirMinhaParte, Resultado>(resposta.Task);
+        var ficha = Ficha();
+        Clicar(ficha, NaFaixa, "Concluir minha parte");
+
+        Clicar(ficha, NaConfirmacao, "Concluir minha parte");
+        ficha.FindAll(NaConfirmacao).Should().OnlyContain(b => b.HasAttribute("disabled"));
+        ficha.FindAll(NaFaixa).Should().OnlyContain(b => b.HasAttribute("disabled"));
+        Clicar(ficha, NaConfirmacao, "Concluir minha parte");
+        Clicar(ficha, NaFaixa, "Concluir minha parte");
+        resposta.SetResult(Resultado.Ok());
+
+        ficha.WaitForAssertion(() => ficha.Markup.Should().Contain("Sua parte foi concluída."));
+        Despachante.Recebidas.OfType<ConcluirMinhaParte>().Should().ContainSingle();
+    }
+
+    [Fact]
+    public void Clique_duplo_em_aprovar_envia_uma_vez()
+    {
+        var resposta = new TaskCompletionSource<Resultado>();
+        Combinar(Detalhe(acoes: Acoes(aprovar: true)));
+        Despachante.RespondeDepois<AprovarAtividade, Resultado>(resposta.Task);
+        var ficha = Ficha();
+        Clicar(ficha, NaFaixa, "Aprovar");
+
+        Clicar(ficha, NaConfirmacao, "Aprovar");
+        ficha.FindAll(NaConfirmacao).Should().OnlyContain(b => b.HasAttribute("disabled"));
+        Clicar(ficha, NaConfirmacao, "Aprovar");
+        Clicar(ficha, NaFaixa, "Aprovar");
+        resposta.SetResult(Resultado.Ok());
+
+        ficha.WaitForAssertion(() => ficha.Markup.Should().Contain("Atividade aprovada."));
+        Despachante.Recebidas.OfType<AprovarAtividade>().Should().ContainSingle();
+    }
+
+    [Fact]
+    public void Recusa_mostra_o_erro_e_traz_a_ficha_como_esta_agora()
+    {
+        var leituras = 0;
+        Combinar();
+        Despachante
+            .Responde<ObterAtividade, Resultado<AtividadeDetalhe>>(_ => Resultado<AtividadeDetalhe>.Ok(++leituras == 1
+                ? Detalhe(acoes: Acoes(aprovar: true))
+                : Detalhe(StatusAtividade.Concluida)))
+            .Responde<AprovarAtividade, Resultado>(Resultado.Falha(TipoErro.Validacao,
+                "A atividade só pode ser aprovada ou devolvida quando está feita ou corrigida."));
+        var ficha = Ficha();
+        Clicar(ficha, NaFaixa, "Aprovar");
+
+        Clicar(ficha, NaConfirmacao, "Aprovar");
+
+        ficha.WaitForAssertion(() => ficha.Find("[role=alert]").TextContent.Should()
+            .Contain("A atividade só pode ser aprovada ou devolvida quando está feita ou corrigida."));
+        Despachante.Recebidas.OfType<ObterAtividade>().Should().HaveCount(2);
+        ficha.FindAll("[role=alertdialog]").Should().BeEmpty();
+        ficha.Find("h1.aj-titulo").TextContent.Should().Be("Minuta de acordo trabalhista");
+        ficha.FindAll(".aj-painel__botoes--faixa").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Exclusao_recusada_mostra_o_erro_recarrega_e_nao_sai_da_ficha()
+    {
+        Combinar(Detalhe(acoes: Acoes(editar: true, excluir: true)));
+        Despachante.Responde<ExcluirAtividade, Resultado>(Resultado.Falha(TipoErro.Conflito,
+            "A atividade foi alterada por outra pessoa. Recarregue e tente novamente."));
+        var ficha = Ficha();
+        Clicar(ficha, NaFaixa, "Excluir");
+
+        Clicar(ficha, NaConfirmacao, "Confirmar exclusão");
+
+        ficha.WaitForAssertion(() => ficha.Find("[role=alert]").TextContent.Should()
+            .Contain("A atividade foi alterada por outra pessoa. Recarregue e tente novamente."));
+        Despachante.Recebidas.OfType<ObterAtividade>().Should().HaveCount(2);
+        ficha.FindAll("[role=alertdialog]").Should().BeEmpty();
+        ficha.FindAll(NaFaixa).Should().OnlyContain(b => !b.HasAttribute("disabled"));
+        Services.GetRequiredService<NavigationManager>().Uri.Should().NotEndWith("/atividades");
+        Services.GetRequiredService<Recados>().Retirar().Should().BeNull();
+    }
+
+    [Fact]
+    public void Recarga_que_falha_depois_do_sucesso_avisa_que_a_ficha_nao_foi_atualizada()
+    {
+        var leituras = 0;
+        Combinar();
+        Despachante
+            .Responde<ObterAtividade, Resultado<AtividadeDetalhe>>(_ => ++leituras == 1
+                ? Resultado<AtividadeDetalhe>.Ok(Detalhe(acoes: Acoes(aprovar: true)))
+                : Resultado<AtividadeDetalhe>.Falha(TipoErro.Validacao, "Falha de teste."))
+            .Responde<AprovarAtividade, Resultado>(Resultado.Ok());
+        var ficha = Ficha();
+        Clicar(ficha, NaFaixa, "Aprovar");
+
+        Clicar(ficha, NaConfirmacao, "Aprovar");
+
+        ficha.WaitForAssertion(() => ficha.Markup.Should().Contain("Atividade aprovada, mas não foi possível atualizar a ficha."));
+        // Dados antigos não ficam na tela: no lugar da ficha, o erro da consulta com "Tentar de novo".
+        ficha.Markup.Should().Contain("Falha de teste.").And.Contain("Tentar de novo");
+        ficha.FindAll(".aj-abas").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Acesso_negado_numa_acao_encerra_a_tela()
+    {
+        Combinar(Detalhe(acoes: Acoes(aprovar: true)));
+        Despachante.Responde<AprovarAtividade, Resultado>(Resultado.Falha(TipoErro.AcessoNegado, "Acesso negado."));
+        var ficha = Ficha();
+        Clicar(ficha, NaFaixa, "Aprovar");
+
+        Clicar(ficha, NaConfirmacao, "Aprovar");
+
+        ficha.WaitForAssertion(() => ficha.Markup.Should().Contain("Seu acesso foi encerrado. Entre novamente."));
+        ficha.Markup.Should().NotContain("Minuta de acordo trabalhista").And.NotContain("Acesso negado.");
+        Despachante.Recebidas.OfType<ObterAtividade>().Should().ContainSingle();
     }
 }

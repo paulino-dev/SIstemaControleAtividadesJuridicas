@@ -3,12 +3,18 @@
 @inject IDespachante Despachante
 @inject FusoDoEscritorio Fuso
 @inject Recados Recados
+@inject NavigationManager Navegacao
 
 <PageTitle>@(_detalhe?.Titulo ?? "Atividade")</PageTitle>
 
 @if (!_carregado || _ator is null || _detalhe is null)
 {
     <CabecalhoDeDetalhe Titulo="Atividade" VoltarPara="@Voltar" Origem="@Origem" />
+    @* O resultado de uma ação cuja recarga deixou a ficha fora da tela ("…, mas não foi possível atualizar a ficha."). *@
+    @if (_mensagem is not null)
+    {
+        <Aviso Tipo="@(_falhou ? TipoDeAviso.Erro : TipoDeAviso.Sucesso)">@_mensagem</Aviso>
+    }
     @if (!_carregado)
     {
         <p class="aj-subtitulo" role="status">Carregando…</p>
@@ -31,13 +37,40 @@
 else
 {
     var a = _detalhe;
-    <CabecalhoDaAtividade Detalhe="a" VoltarPara="@Voltar" Origem="@Origem" />
+    <CabecalhoDaAtividade Detalhe="a" VoltarPara="@Voltar" Origem="@Origem"
+                          Faixa="@(TemAcaoPrincipal(a.Acoes) || TemAcaoDeCadastro(a.Acoes) ? FaixaDeAcoes(a.Acoes) : null)"
+                          AcaoDaBarra="@(TemAcaoDeCadastro(a.Acoes) ? MaisAcoes(a.Acoes) : null)" />
 
     @if (_recado is { } recado)
     {
         <Aviso Tipo="@recado.Tipo">@recado.Texto</Aviso>
     }
-
+    @if (_mensagem is not null)
+    {
+        <Aviso Tipo="@(_falhou ? TipoDeAviso.Erro : TipoDeAviso.Sucesso)">@_mensagem</Aviso>
+    }
+    @* Uma confirmação por vez, no topo. A chave é a confirmação: pedir outra recria o aviso, que leva o foco a si. *@
+    @if (_confirmando == Confirmacao.Concluir)
+    {
+        <Aviso @key="_confirmando" Tipo="TipoDeAviso.Atencao" Rotulo="Confirmar conclusão" Titulo="@($"Concluir a sua parte em {a.Titulo}?")">
+            <ChildContent>A sua parte fica registrada como concluída.</ChildContent>
+            <Acoes><button type="button" class="aj-botao aj-botao--secundario" disabled="@_ocupado" @onclick="CancelarConfirmacao">Cancelar</button><button type="button" class="aj-botao aj-botao--primario" disabled="@_ocupado" @onclick="ConcluirMinhaParteAsync">Concluir minha parte</button></Acoes>
+        </Aviso>
+    }
+    else if (_confirmando == Confirmacao.Aprovar)
+    {
+        <Aviso @key="_confirmando" Tipo="TipoDeAviso.Atencao" Rotulo="Confirmar aprovação" Titulo="@($"Aprovar {a.Titulo}?")">
+            <ChildContent>A atividade fica concluída.</ChildContent>
+            <Acoes><button type="button" class="aj-botao aj-botao--secundario" disabled="@_ocupado" @onclick="CancelarConfirmacao">Cancelar</button><button type="button" class="aj-botao aj-botao--primario" disabled="@_ocupado" @onclick="AprovarAsync">Aprovar</button></Acoes>
+        </Aviso>
+    }
+    else if (_confirmando == Confirmacao.Excluir)
+    {
+        <Aviso @key="_confirmando" Tipo="TipoDeAviso.Atencao" Rotulo="Confirmar exclusão" Titulo="@($"Confirmar a exclusão de {a.Titulo}?")">
+            <ChildContent>A atividade sai das listas com os responsáveis e o histórico.</ChildContent>
+            <Acoes><button type="button" class="aj-botao aj-botao--secundario" disabled="@_ocupado" @onclick="CancelarConfirmacao">Cancelar</button><button type="button" class="aj-botao aj-botao--primario" disabled="@_ocupado" @onclick="ExcluirAsync">Confirmar exclusão</button></Acoes>
+        </Aviso>
+    }
     <div class="aj-so-mobile">
         <Abas Rotulo="Seções da atividade" Itens="@AbasDaFicha" Ativa="@_aba" AoEscolher="(string aba) => _aba = aba" />
     </div>
@@ -84,6 +117,14 @@ else
             </div>
         </div>
     </div>
+
+    @* Barra fixa do mobile: Devolver e a ação primária, nessa ordem (o quadro); sem ação primária, sem barra. *@
+    @if (TemAcaoPrincipal(a.Acoes))
+    {
+        <div class="aj-so-mobile">
+            <div class="aj-acoes aj-acoes--fixa">@BotaoDevolver(a.Acoes)@AcaoPrimaria(a.Acoes)</div>
+        </div>
+    }
 }
 
 @code {
@@ -106,6 +147,14 @@ else
     private Recado? _recado;
     private Guid? _idCarregado;
 
+    private enum Confirmacao { Nenhuma, Concluir, Aprovar, Excluir }
+
+    private Confirmacao _confirmando;
+    // A versão da atividade com que a confirmação foi aberta: a exclusão a manda como versão esperada.
+    private uint _versaoDaConfirmacao;
+    private bool _ocupado;
+    private string? _mensagem;
+    private bool _falhou;
     private bool DeProdutores => string.Equals(De, "produtores", StringComparison.Ordinal);
 
     private string Voltar => !DeProdutores
@@ -134,6 +183,8 @@ else
         _totalDeComentarios = null;
         _totalDeDocumentos = null;
         _aba = "detalhes";
+        _mensagem = null;
+        _confirmando = Confirmacao.Nenhuma;
 
         _ator = await Despachante.EnviarAsync(new ObterMeuAcesso());
         if (_ator is not null) await RecarregarAsync();
@@ -182,8 +233,169 @@ else
     {
         _ator = null;
         _detalhe = null;
+        _confirmando = Confirmacao.Nenhuma;
+        _mensagem = null;
     }
 
+    private string Rota(string acao) => $"/atividades/{Id}/{acao}";
+
+    private static bool TemAcaoPrincipal(AcoesDaAtividade a) => a.ConcluirMinhaParte || a.AprovarOuDevolver || a.Reabrir;
+
+    // Quando a atividade permite redefinir os responsáveis, o painel "Revisor" da tela de responsáveis já troca o revisor.
+    private static bool SoTrocaORevisor(AcoesDaAtividade a) => a.TrocarRevisor && !a.DefinirResponsaveis;
+
+    private static bool TemAcaoDeCadastro(AcoesDaAtividade a) =>
+        a.Editar || a.DefinirResponsaveis || SoTrocaORevisor(a) || a.Excluir;
+
+    /// <summary>A ação primária: Concluir minha parte, ou Aprovar, ou Reabrir (as regras do servidor não deixam duas valerem juntas).</summary>
+    private RenderFragment AcaoPrimaria(AcoesDaAtividade acoes) => @<text>@if (acoes.ConcluirMinhaParte)
+        {<button type="button" class="aj-botao aj-botao--primario aj-botao--com-icone" disabled="@_ocupado" @onclick="PedirConclusao"><Icone Nome="confirmar" />Concluir minha parte</button>}
+        else if (acoes.AprovarOuDevolver)
+        {<button type="button" class="aj-botao aj-botao--primario aj-botao--com-icone" disabled="@_ocupado" @onclick="PedirAprovacao"><Icone Nome="confirmar" />Aprovar</button>}
+        else if (acoes.Reabrir)
+        {<a href="@Rota("reabrir")" class="aj-botao aj-botao--secundario">Reabrir</a>}</text>;
+
+    private RenderFragment BotaoDevolver(AcoesDaAtividade acoes) => @<text>@if (acoes.AprovarOuDevolver)
+        {<a href="@Rota("devolver")" class="aj-botao aj-botao--secundario aj-botao--com-icone"><Icone Nome="devolver" />Devolver</a>}</text>;
+
+    /// <summary>
+    /// A faixa do desktop e do tablet, na ordem do quadro: a ação primária, Devolver, o divisor (só no desktop, e só com
+    /// ação dos dois lados), Editar, Responsáveis, Trocar revisor e, à direita, Excluir (com texto no desktop, só o ícone
+    /// no tablet).
+    /// </summary>
+    private RenderFragment FaixaDeAcoes(AcoesDaAtividade acoes) => @<text>@AcaoPrimaria(acoes)@BotaoDevolver(acoes)
+        @if (TemAcaoPrincipal(acoes) && TemAcaoDeCadastro(acoes))
+        {<span class="aj-so-desktop"><span class="aj-painel__divisor" aria-hidden="true"></span></span>}
+        @if (acoes.Editar)
+        {<a href="@Rota("editar")" class="aj-botao aj-botao--fantasma">Editar</a>}
+        @if (acoes.DefinirResponsaveis)
+        {<a href="@Rota("responsaveis")" class="aj-botao aj-botao--fantasma">Responsáveis</a>}
+        @if (SoTrocaORevisor(acoes))
+        {<a href="@Rota("responsaveis")" class="aj-botao aj-botao--fantasma">Trocar revisor</a>}
+        @if (acoes.Excluir)
+        {<span class="aj-so-desktop"><button type="button" class="aj-botao aj-botao--perigo aj-botao--com-icone-menor aj-botao--ao-fim" disabled="@_ocupado" @onclick="PedirExclusao"><Icone Nome="excluir" />Excluir</button></span><span class="aj-so-tablet"><button type="button" class="aj-botao aj-botao--perigo aj-botao--icone aj-botao--ao-fim" aria-label="Excluir atividade" disabled="@_ocupado" @onclick="PedirExclusao"><Icone Nome="excluir" /></button></span>}</text>;
+
+    /// <summary>O "Mais ações" da barra de voltar do mobile, com as ações de cadastro da faixa, Excluir por último.</summary>
+    private RenderFragment MaisAcoes(AcoesDaAtividade acoes) => @<MenuDeAcoes Rotulo="Mais ações">@if (acoes.Editar)
+        {<a href="@Rota("editar")" class="aj-menu-acoes__item">Editar</a>}
+        @if (acoes.DefinirResponsaveis)
+        {<a href="@Rota("responsaveis")" class="aj-menu-acoes__item">Responsáveis</a>}
+        @if (SoTrocaORevisor(acoes))
+        {<a href="@Rota("responsaveis")" class="aj-menu-acoes__item">Trocar revisor</a>}
+        @if (acoes.Excluir)
+        {<button type="button" class="aj-menu-acoes__item aj-menu-acoes__item--perigo" disabled="@_ocupado" @onclick="PedirExclusao">Excluir</button>}</MenuDeAcoes>;
+
+    // Métodos, e não lambdas de atribuição, nos @onclick: as confirmações têm regras.
+    private void Pedir(Confirmacao confirmacao)
+    {
+        if (_ocupado || _detalhe is null) return;
+
+        _recado = null;
+        _mensagem = null;
+        _versaoDaConfirmacao = _detalhe.Versao;
+        _confirmando = confirmacao;
+    }
+
+    private void PedirConclusao() => Pedir(Confirmacao.Concluir);
+
+    private void PedirAprovacao() => Pedir(Confirmacao.Aprovar);
+
+    private void PedirExclusao() => Pedir(Confirmacao.Excluir);
+
+    private void CancelarConfirmacao()
+    {
+        if (!_ocupado) _confirmando = Confirmacao.Nenhuma;
+    }
+
+    private void Avisar(string mensagem, bool falhou)
+    {
+        _mensagem = mensagem;
+        _falhou = falhou;
+    }
+
+    private Task ConcluirMinhaParteAsync() =>
+        ExecutarAsync(() => Despachante.EnviarAsync(new ConcluirMinhaParte(Id)), "Sua parte foi concluída.");
+
+    private Task AprovarAsync() =>
+        ExecutarAsync(() => Despachante.EnviarAsync(new AprovarAtividade(Id)), "Atividade aprovada.");
+
+    /// <summary>
+    /// Roda uma ação que fica na ficha: um clique duplo não repete; acesso negado encerra a tela; qualquer recusa mostra o
+    /// erro e traz a ficha como está agora (os botões acompanham o servidor); o sucesso recarrega a ficha e avisa, ou diz
+    /// que a ficha não pôde ser atualizada.
+    /// </summary>
+    private async Task ExecutarAsync(Func<Task<Resultado>> acao, string sucesso)
+    {
+        if (_ocupado) return;
+
+        _ocupado = true;
+        _mensagem = null;
+        _recado = null;
+        try
+        {
+            var resultado = await acao();
+            if (resultado.Erro == TipoErro.AcessoNegado)
+            {
+                EncerrarAcesso();
+                return;
+            }
+
+            _confirmando = Confirmacao.Nenhuma;
+            if (!resultado.Sucesso)
+            {
+                await RecarregarAsync();
+                if (_ator is null) return;
+                Avisar(resultado.Mensagem ?? "Não foi possível concluir a ação.", falhou: true);
+                return;
+            }
+
+            var atualizada = await RecarregarAsync();
+            if (_ator is null) return;
+            Avisar(atualizada ? sucesso : $"{sucesso.TrimEnd('.')}, mas não foi possível atualizar a ficha.", falhou: !atualizada);
+        }
+        finally
+        {
+            _ocupado = false;
+        }
+    }
+
+    private async Task ExcluirAsync()
+    {
+        if (_ocupado) return;
+
+        _ocupado = true;
+        _mensagem = null;
+        _recado = null;
+        var navegou = false;
+        try
+        {
+            var resultado = await Despachante.EnviarAsync(new ExcluirAtividade(Id, _versaoDaConfirmacao));
+            if (resultado.Erro == TipoErro.AcessoNegado)
+            {
+                EncerrarAcesso();
+                return;
+            }
+
+            if (!resultado.Sucesso)
+            {
+                _confirmando = Confirmacao.Nenhuma;
+                await RecarregarAsync();
+                if (_ator is null) return;
+                Avisar(resultado.Mensagem ?? "Não foi possível excluir a atividade.", falhou: true);
+                return;
+            }
+
+            // Sempre a lista de atividades, mesmo vindo de Produtores: é ela que mostra o recado (Produtores não lê).
+            Recados.Deixar("Atividade excluída.");
+            navegou = true;
+            Navegacao.NavigateTo("/atividades");
+        }
+        finally
+        {
+            // Depois do sucesso a página vai embora: a confirmação fica travada para um clique tardio não excluir de novo.
+            if (!navegou) _ocupado = false;
+        }
+    }
     private void ContarComentarios(int total) => _totalDeComentarios = total;
 
     private void ContarDocumentos(int total) => _totalDeDocumentos = total;

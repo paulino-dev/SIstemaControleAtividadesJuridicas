@@ -1,3 +1,4 @@
+using AtividadesJuridicas.Application.Identidade;
 using System.Net;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
@@ -211,5 +212,137 @@ public class AtividadeFichaWebTests(BancoFixture banco) : IAsyncLifetime
         // Um registro só: é o atual (cheio) e não tem traço para o seguinte.
         desktop.Should().Contain("<span class=\"aj-historico__ponto aj-historico__ponto--atual\"></span></div>")
             .And.NotContain("aj-historico__linha");
+    }
+
+    // ---- Ações da ficha ----
+
+    /// <summary>Marina Couto, uma segunda diretora (para a atividade em que a Diretoria logada não é a revisora).</summary>
+    private async Task<Guid> MarinaAsync()
+    {
+        var marina = await _app.ExecutarAsync(_admin, new CriarUsuario(
+            "Marina Couto", "marina@x.com", "senha-da-marina", await _app.IdDoPerfilDiretorAsync(), null));
+        marina.Sucesso.Should().BeTrue(marina.Mensagem);
+        return marina.Valor;
+    }
+
+    /// <summary>"Parecer sobre o acordo", direcionada ao Pedro (parte pendente), com o revisor informado.</summary>
+    private async Task<Guid> DirecionadaAoPedroAsync(Guid revisor)
+    {
+        var criada = await _app.ExecutarAsync(_admin, new SalvarAtividade(
+            null, "Parecer sobre o acordo", "Analisar a proposta.", new DateOnly(2090, 6, 15), null, null, null, 1));
+        criada.Sucesso.Should().BeTrue(criada.Mensagem);
+        (await _app.ExecutarAsync(_admin, new DefinirResponsaveisDaAtividade(
+            criada.Valor, [new ResponsavelEntrada(_pedro, null)], revisor))).Sucesso.Should().BeTrue();
+        return criada.Valor;
+    }
+
+    /// <summary>Direcionada ao Pedro com a Diretoria revisora; o Pedro conclui e a Diretoria aprova.</summary>
+    private async Task<Guid> ConcluidaAsync()
+    {
+        var id = await DirecionadaAoPedroAsync(_admin);
+        (await _app.ExecutarAsync(_pedro, new ConcluirMinhaParte(id))).Sucesso.Should().BeTrue();
+        (await _app.ExecutarAsync(_admin, new AprovarAtividade(id))).Sucesso.Should().BeTrue();
+        return id;
+    }
+
+    /// <summary>O miolo da faixa de ações do desktop e do tablet (vazio quando a ficha não tem faixa).</summary>
+    private static string Faixa(string html) =>
+        Regex.Match(html, "(?s)<div class=\"aj-painel__botoes aj-painel__botoes--faixa\">(.*?)</div>").Groups[1].Value;
+
+    /// <summary>A barra de voltar do mobile, que o layout desenha no encaixe da barra superior.</summary>
+    private static string BarraDoMobile(string html) =>
+        Regex.Match(html, "(?s)<header class=\"aj-barra-superior aj-barra-superior--voltar\">.*?</header>").Value;
+
+    private static string MaisAcoes(string html) =>
+        Regex.Match(BarraDoMobile(html), "(?s)<div class=\"aj-menu-acoes__lista\"[^>]*>(.*?)</div>").Groups[1].Value;
+
+    private static string BarraFixa(string html) =>
+        Regex.Match(BlocoDeVisao.De(html, "aj-so-mobile"), "(?s)<div class=\"aj-acoes aj-acoes--fixa\">(.*?)</div>").Groups[1].Value;
+
+    /// <summary>O texto de cada link e botão do trecho, na ordem; o botão só de ícone não tem texto e fica de fora.</summary>
+    private static List<string> Textos(string trecho) =>
+        [.. Regex.Matches(trecho, ">([^<>]+)</(?:a|button)>").Select(m => m.Groups[1].Value.Trim()).Where(t => t.Length > 0)];
+
+    [Fact]
+    public async Task Caso_A_diretoria_revisora_de_atividade_feita_ve_aprovar_devolver_e_o_cadastro_sem_responsaveis()
+    {
+        var html = await PaginaAsync($"/atividades/{_minuta}");
+
+        var faixa = Faixa(html);
+        Textos(faixa).Should().Equal("Aprovar", "Devolver", "Editar", "Trocar revisor", "Excluir");
+        faixa.Should()
+            .MatchRegex("<button type=\"button\" class=\"aj-botao aj-botao--primario aj-botao--com-icone\"[^>]*><svg[^>]*>.*?</svg>Aprovar</button>")
+            .And.MatchRegex($"<a href=\"/atividades/{_minuta}/devolver\" class=\"aj-botao aj-botao--secundario aj-botao--com-icone\"><svg[^>]*>.*?</svg>Devolver</a>")
+            .And.Contain("<span class=\"aj-so-desktop\"><span class=\"aj-painel__divisor\" aria-hidden=\"true\"></span></span>")
+            .And.Contain($"<a href=\"/atividades/{_minuta}/editar\" class=\"aj-botao aj-botao--fantasma\">Editar</a>")
+            .And.Contain($"<a href=\"/atividades/{_minuta}/responsaveis\" class=\"aj-botao aj-botao--fantasma\">Trocar revisor</a>")
+            .And.MatchRegex("<span class=\"aj-so-desktop\"><button type=\"button\" class=\"aj-botao aj-botao--perigo aj-botao--com-icone-menor aj-botao--ao-fim\"[^>]*><svg[^>]*>.*?</svg>Excluir</button></span>")
+            .And.MatchRegex("<span class=\"aj-so-tablet\"><button type=\"button\" class=\"aj-botao aj-botao--perigo aj-botao--icone aj-botao--ao-fim\" aria-label=\"Excluir atividade\"[^>]*><svg[^>]*>.*?</svg></button></span>");
+        // Em Feita não se redefinem os responsáveis: a troca do revisor fica no "Trocar revisor".
+        faixa.Should().NotContain(">Responsáveis</a>").And.NotContain("Concluir minha parte").And.NotContain("Reabrir");
+
+        BarraDoMobile(html).Should().Contain("aria-label=\"Mais ações\"").And.NotContain("aj-barra-superior__vazio");
+        Textos(MaisAcoes(html)).Should().Equal("Editar", "Trocar revisor", "Excluir");
+        MaisAcoes(html).Should().Contain("<button type=\"button\" class=\"aj-menu-acoes__item aj-menu-acoes__item--perigo\"");
+        Textos(BarraFixa(html)).Should().Equal("Devolver", "Aprovar");
+    }
+
+    [Fact]
+    public async Task Caso_B_diretoria_que_nao_e_revisora_ve_so_o_cadastro_com_responsaveis_e_sem_trocar_revisor()
+    {
+        var direcionada = await DirecionadaAoPedroAsync(await MarinaAsync());
+
+        var html = await PaginaAsync($"/atividades/{direcionada}");
+
+        var faixa = Faixa(html);
+        Textos(faixa).Should().Equal("Editar", "Responsáveis", "Excluir");
+        faixa.Should().Contain($"<a href=\"/atividades/{direcionada}/responsaveis\" class=\"aj-botao aj-botao--fantasma\">Responsáveis</a>");
+        faixa.Should().NotContain("aj-painel__divisor").And.NotContain("Trocar revisor").And.NotContain("Aprovar");
+        Textos(MaisAcoes(html)).Should().Equal("Editar", "Responsáveis", "Excluir");
+        BlocoDeVisao.De(html, "aj-so-mobile").Should().Contain("<h2 class=\"aj-titulo\">Parecer sobre o acordo</h2>")
+            .And.NotContain("aj-acoes--fixa");
+    }
+
+    [Fact]
+    public async Task Caso_C_producao_com_a_parte_pendente_ve_so_concluir_minha_parte()
+    {
+        var direcionada = await DirecionadaAoPedroAsync(_admin);
+
+        var html = await PaginaAsync($"/atividades/{direcionada}", comoPedro: true);
+
+        var faixa = Faixa(html);
+        Textos(faixa).Should().Equal("Concluir minha parte");
+        faixa.Should().MatchRegex("<button type=\"button\" class=\"aj-botao aj-botao--primario aj-botao--com-icone\"[^>]*><svg[^>]*>.*?</svg>Concluir minha parte</button>");
+        faixa.Should().NotContain("aj-painel__divisor").And.NotContain("Excluir");
+        BarraDoMobile(html).Should().Contain("aria-label=\"Voltar para Atividades\"").And.Contain("aj-barra-superior__vazio")
+            .And.NotContain("Mais ações");
+        Textos(BarraFixa(html)).Should().Equal("Concluir minha parte");
+    }
+
+    [Fact]
+    public async Task Caso_D_atividade_concluida_oferece_reabrir_e_o_cadastro()
+    {
+        var concluida = await ConcluidaAsync();
+
+        var html = await PaginaAsync($"/atividades/{concluida}");
+
+        var faixa = Faixa(html);
+        Textos(faixa).Should().Equal("Reabrir", "Editar", "Excluir");
+        faixa.Should().Contain($"<a href=\"/atividades/{concluida}/reabrir\" class=\"aj-botao aj-botao--secundario\">Reabrir</a>")
+            .And.Contain("aj-painel__divisor");
+        faixa.Should().NotContain("Trocar revisor").And.NotContain("Aprovar").And.NotContain("Devolver");
+        Textos(MaisAcoes(html)).Should().Equal("Editar", "Excluir");
+        Textos(BarraFixa(html)).Should().Equal("Reabrir");
+    }
+
+    [Fact]
+    public async Task Caso_E_producao_sem_acao_nao_tem_faixa_nem_mais_acoes_nem_barra_fixa()
+    {
+        var html = await PaginaAsync($"/atividades/{_minuta}", comoPedro: true);
+
+        html.Should().Contain("<h1 class=\"aj-titulo\">Minuta de acordo trabalhista</h1>");
+        BarraDoMobile(html).Should().Contain("aj-barra-superior__vazio");
+        html.Should().NotContain("aj-painel__botoes--faixa").And.NotContain("Mais ações").And.NotContain("aj-acoes--fixa")
+            .And.NotContain("/editar").And.NotContain("Excluir atividade");
     }
 }
