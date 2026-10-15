@@ -403,6 +403,7 @@ public class PortalDoClienteWebTests(BancoFixture banco) : IAsyncLifetime
     [InlineData("/atividades/0199a3f2-7c1e-7000-8000-000000000001/devolver")]
     [InlineData("/atividades/0199a3f2-7c1e-7000-8000-000000000001/reabrir")]
     [InlineData("/agenda")]
+    [InlineData("/agenda/0199a3f2-7c1e-7000-8000-000000000001")]
     [InlineData("/areas")]
     [InlineData("/usuarios")]
     [InlineData("/usuarios/novo")]
