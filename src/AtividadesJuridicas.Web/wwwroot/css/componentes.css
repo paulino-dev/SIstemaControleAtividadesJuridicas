@@ -15,7 +15,7 @@
   --aj-pagina-padding-fab:18px var(--espaco-24) var(--espaco-28);--aj-pagina-padding-voltar:18px var(--espaco-24) var(--espaco-28);--aj-pagina-gap-voltar:var(--espaco-14);
   --aj-painel-estreito:520px;--aj-painel-estreito-sombra:var(--sombra-painel);
 }
-@media (max-width:1199px){:root{
+@media (max-width:1199.98px){:root{
   --aj-controle:var(--controle-toque);--aj-campo:var(--campo-toque);--aj-segmento:var(--alvo-toque);--aj-chip:40px;
   --aj-raio-botao:var(--raio-14);--aj-raio-campo:var(--raio-14);--aj-raio-cartao:var(--raio-18);
   --aj-fonte-controle:15px;--aj-fonte-campo:16px;--aj-fonte-rotulo:14px;--aj-fonte-etiqueta:12px;--aj-etiqueta-padding:2px 10px 2px 8px;
@@ -25,7 +25,7 @@
   --aj-pagina-padding-fab:var(--espaco-24) var(--espaco-24) var(--espaco-40);--aj-pagina-padding-voltar:var(--espaco-24) var(--espaco-24) var(--espaco-40);
   --aj-painel-estreito:560px;
 }}
-@media (max-width:760px){:root{
+@media (max-width:760.98px){:root{
   --aj-chip:38px;--aj-raio-campo:var(--raio-12);--aj-raio-cartao:var(--raio-16);--aj-fonte-rotulo:13.5px;
   --aj-titulo:26px;--aj-pagina-padding:var(--espaco-14) var(--espaco-16) 104px;--aj-pagina-gap:var(--espaco-10);--aj-cartao-padding:var(--espaco-14);
   --aj-colunas:1;--aj-trilho:none;--aj-nav-inferior:grid;--aj-fab:inline-flex;--aj-acao-cabecalho:none;--aj-barra-superior:flex;
@@ -165,7 +165,7 @@ textarea.aj-campo{padding:9px var(--espaco-12);resize:vertical}
 .aj-campo-icone svg{flex:0 0 auto;width:18px;height:18px;fill:none;stroke:var(--tinta-apagada);stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .aj-campo-icone input{flex:1 1 auto;min-width:0;padding:0;border:0;outline:none;background:transparent;color:var(--tinta);font:400 var(--aj-fonte-campo)/1.5 var(--font-sans)}
 .aj-campo-icone:focus-within,.aj-campo-filtro:focus-within{border-color:var(--verde);box-shadow:var(--sombra-foco)}
-.aj-campo-filtro{display:flex;flex-direction:column;justify-content:center;gap:0;min-width:150px;height:var(--campo-filtro);padding:0 var(--espaco-10) 0 var(--espaco-14);border:1px solid var(--borda-campo-suave);border-radius:var(--raio-12);background:var(--superficie-campo)}
+.aj-campo-filtro{display:flex;flex-direction:column;justify-content:center;min-width:150px;height:var(--campo-filtro);padding:0 var(--espaco-10) 0 var(--espaco-14);border:1px solid var(--borda-campo-suave);border-radius:var(--raio-12);background:var(--superficie-campo)}
 .aj-campo-filtro>span{font:600 11.5px/1.2 var(--font-sans);color:var(--tinta-apagada)}
 .aj-campo-filtro select,.aj-campo-filtro input{width:100%;margin:0 0 0 -4px;padding:0;border:0;outline:none;background:transparent;color:var(--tinta);font:400 14.5px/1.3 var(--font-sans)}
 .aj-campo-filtro input{margin-left:0}
@@ -276,8 +276,8 @@ textarea.aj-campo{padding:9px var(--espaco-12);resize:vertical}
 /* ---------- Barra de ações ---------- */
 .aj-acoes{display:flex;flex-wrap:wrap;align-items:center;justify-content:var(--aj-acoes-alinhamento);gap:var(--espaco-8);padding:var(--espaco-12);border:1px solid var(--borda);border-radius:var(--raio-16);background:var(--superficie);box-shadow:var(--sombra-flutuante)}
 .aj-acoes--fixa{position:sticky;bottom:var(--espaco-16)}
-@media (max-width:1199px){.aj-acoes--fixa{position:absolute;left:0;right:0;bottom:0;z-index:5;gap:var(--espaco-10);padding:var(--espaco-14) var(--espaco-24) var(--espaco-24);border:0;border-top:1px solid var(--borda);border-radius:0;box-shadow:none}}
-@media (max-width:760px){.aj-acoes--fixa{display:grid;grid-template-columns:var(--aj-acoes-colunas);padding:var(--espaco-12) var(--espaco-16) var(--espaco-24)}}
+@media (max-width:1199.98px){.aj-acoes--fixa{position:absolute;left:0;right:0;bottom:0;z-index:5;gap:var(--espaco-10);padding:var(--espaco-14) var(--espaco-24) var(--espaco-24);border:0;border-top:1px solid var(--borda);border-radius:0;box-shadow:none}}
+@media (max-width:760.98px){.aj-acoes--fixa{display:grid;grid-template-columns:var(--aj-acoes-colunas);padding:var(--espaco-12) var(--espaco-16) var(--espaco-24)}}
 [data-visao="tablet"] .aj-acoes--fixa,[data-visao="mobile"] .aj-acoes--fixa{display:flex;position:absolute;left:0;right:0;bottom:0;z-index:5;gap:var(--espaco-10);padding:var(--espaco-14) var(--espaco-24) var(--espaco-24);border:0;border-top:1px solid var(--borda);border-radius:0;box-shadow:none}
 [data-visao="mobile"] .aj-acoes--fixa{display:grid;grid-template-columns:var(--aj-acoes-colunas);padding:var(--espaco-12) var(--espaco-16) var(--espaco-24)}
 [data-visao="desktop"] .aj-acoes--fixa{position:sticky;left:auto;right:auto;bottom:var(--espaco-16);display:flex;padding:var(--espaco-12);border:1px solid var(--borda);border-radius:var(--raio-16);box-shadow:var(--sombra-flutuante)}
@@ -311,7 +311,7 @@ textarea.aj-campo{padding:9px var(--espaco-12);resize:vertical}
   .aj-app--menu-escondido .aj-app__coluna:has(.aj-cabecalho__menu)>.aj-exibir-menu{display:none}
 }
 /* Em tablet e mobile o menu completo abre por cima da tela, a partir de "Mais". */
-@media (max-width:1199px){
+@media (max-width:1199.98px){
   .aj-menu__esconder{display:none}
   .aj-app--menu-aberto .aj-menu{display:flex;position:absolute;inset:0 auto 0 0;z-index:20;width:min(var(--menu-largura),86vw);flex-basis:auto;box-shadow:var(--sombra-flutuante)}
   .aj-app--menu-aberto .aj-menu__fechar{display:inline-flex}
@@ -329,7 +329,7 @@ textarea.aj-campo{padding:9px var(--espaco-12);resize:vertical}
 .aj-barra-superior--voltar{flex-direction:row;align-items:center;gap:var(--espaco-4);padding:var(--espaco-8)}
 .aj-barra-superior--voltar>.aj-botao{flex:0 0 auto;width:var(--alvo-toque);min-height:var(--alvo-toque)}
 .aj-barra-superior--voltar>.aj-botao svg{width:22px;height:22px}
-.aj-barra-superior--voltar>h1{flex:1 1 auto;min-width:0;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:700 17px/1.3 var(--font-sans);letter-spacing:normal;text-align:center}
+.aj-barra-superior--voltar>h1{flex:1 1 auto;min-width:0;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:700 17px/1.3 var(--font-sans);text-align:center}
 .aj-barra-superior__vazio{flex:0 0 var(--alvo-toque)}
 
 /* ---------- Cabeçalho: menu escondido e texto folgado ---------- */
@@ -393,7 +393,7 @@ textarea.aj-campo{padding:9px var(--espaco-12);resize:vertical}
 .aj-entrar__rodape--cartao{padding-top:var(--espaco-12);border-top:1px solid var(--borda-suave)}
 .aj-entrar__rodape--pagina{display:none}
 /* Tablet e mobile: marca em cima, cartão sobreposto e rodapé no pé da página. */
-@media (max-width:1199px){
+@media (max-width:1199.98px){
   .aj-entrar{flex-direction:column;flex-wrap:nowrap;align-items:center}
   .aj-entrar__marca{flex:0 0 auto;align-self:stretch;min-height:0;height:520px;gap:0;padding:48px 56px 140px}
   .aj-entrar__dagua{right:-140px;top:40px;width:520px;opacity:.16}
@@ -412,7 +412,7 @@ textarea.aj-campo{padding:9px var(--espaco-12);resize:vertical}
   .aj-entrar__rodape--cartao{display:none}
   .aj-entrar__rodape--pagina{display:block;margin:auto 0 var(--espaco-40);padding-top:var(--espaco-24);font-size:13.5px}
 }
-@media (max-width:760px){
+@media (max-width:760.98px){
   .aj-entrar{align-items:stretch}
   .aj-entrar__marca{height:auto;justify-content:flex-start;gap:var(--espaco-28);padding:44px var(--espaco-24) 84px}
   .aj-entrar__dagua{right:-110px;top:30px;width:300px}
@@ -529,7 +529,7 @@ textarea.aj-campo{padding:9px var(--espaco-12);resize:vertical}
 /* Identificador: o começo de um identificador longo, em fonte de código, num botão fantasma baixo. */
 .aj-identificador{min-height:28px;padding:0 var(--espaco-8);font:500 12.5px/1.4 ui-monospace,Consolas,monospace}
 /* Dados de um registro, em fonte de código. */
-.aj-dados{font:500 12.5px/1.4 ui-monospace,Consolas,monospace;color:var(--tinta-secundaria);word-break:normal;overflow-wrap:anywhere}
+.aj-dados{font:500 12.5px/1.4 ui-monospace,Consolas,monospace;color:var(--tinta-secundaria);overflow-wrap:anywhere}
 
 /* Campo com botão ao lado (Nova área): o botão alinha com a base do campo e tem a altura dele. */
 .aj-campo-com-botao{display:flex;align-items:flex-end;gap:var(--espaco-8)}
@@ -562,7 +562,7 @@ textarea.aj-campo{padding:9px var(--espaco-12);resize:vertical}
 /* Formulário em grade: dois campos por linha (um no mobile); o bloco que ocupa a linha toda. */
 .aj-grade-campos{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--espaco-10) var(--espaco-12)}
 .aj-grade-campos__inteiro{grid-column:1/-1}
-@media (max-width:760px){.aj-grade-campos{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:760.98px){.aj-grade-campos{grid-template-columns:minmax(0,1fr)}}
 [data-visao="desktop"] .aj-grade-campos,[data-visao="tablet"] .aj-grade-campos{grid-template-columns:repeat(2,minmax(0,1fr))}
 [data-visao="mobile"] .aj-grade-campos{grid-template-columns:minmax(0,1fr)}
 
@@ -582,7 +582,7 @@ textarea.aj-campo{padding:9px var(--espaco-12);resize:vertical}
 
 /* Blocos de total (produtividade): o nome e o número em destaque; o total, marcado. Quatro por linha, dois no mobile. */
 .aj-blocos{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--espaco-8)}
-@media (max-width:760px){.aj-blocos{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:760.98px){.aj-blocos{grid-template-columns:repeat(2,minmax(0,1fr))}}
 [data-visao="desktop"] .aj-blocos,[data-visao="tablet"] .aj-blocos{grid-template-columns:repeat(4,minmax(0,1fr))}
 [data-visao="mobile"] .aj-blocos{grid-template-columns:repeat(2,minmax(0,1fr))}
 .aj-bloco{display:flex;flex-direction:column;gap:var(--espaco-2);padding:var(--espaco-10) var(--espaco-14);border:1px solid var(--borda);border-radius:var(--raio-12);background:var(--superficie-suave)}
@@ -593,7 +593,7 @@ textarea.aj-campo{padding:9px var(--espaco-12);resize:vertical}
 .aj-linha-filtros{display:flex;gap:var(--espaco-8)}
 .aj-linha-filtros .aj-campo-filtro{background:var(--superficie)}
 .aj-linha-filtros .aj-botao{flex:0 0 auto;min-height:var(--campo-filtro)}
-@media (max-width:760px){.aj-linha-filtros--empilha{flex-direction:column;gap:var(--aj-pagina-gap)}}
+@media (max-width:760.98px){.aj-linha-filtros--empilha{flex-direction:column;gap:var(--aj-pagina-gap)}}
 [data-visao="mobile"] .aj-linha-filtros--empilha{flex-direction:column;gap:var(--aj-pagina-gap)}
 .aj-campo-filtro__controle{min-width:0}
 /* A lista de um campo de filtro (Usuário) não alarga o campo: a largura vem do campo, não da opção mais longa. */
@@ -619,8 +619,8 @@ textarea.aj-campo{padding:9px var(--espaco-12);resize:vertical}
 /* Formulário com barra de ações fixa no tablet (e no mobile): o conteúdo começa mais perto do topo e deixa espaço
    para a barra. Vale quando a barra fixa está à vista no tablet. */
 :root{--aj-pagina-padding-acoes:18px var(--espaco-24) var(--espaco-28)}
-@media (max-width:1199px){:root{--aj-pagina-padding-acoes:var(--espaco-16) var(--espaco-24) 110px}}
-@media (max-width:760px){:root{--aj-pagina-padding-acoes:var(--espaco-16) var(--espaco-16) 112px}}
+@media (max-width:1199.98px){:root{--aj-pagina-padding-acoes:var(--espaco-16) var(--espaco-24) 110px}}
+@media (max-width:760.98px){:root{--aj-pagina-padding-acoes:var(--espaco-16) var(--espaco-16) 112px}}
 [data-visao="desktop"]{--aj-pagina-padding-acoes:18px var(--espaco-24) var(--espaco-28)}
 [data-visao="tablet"]{--aj-pagina-padding-acoes:var(--espaco-16) var(--espaco-24) 110px}
 [data-visao="mobile"]{--aj-pagina-padding-acoes:var(--espaco-16) var(--espaco-16) 112px}
@@ -647,7 +647,7 @@ textarea.aj-campo{padding:9px var(--espaco-12);resize:vertical}
 /* Cabeçalho da ficha: o painel com o título e, no desktop, as ações à direita; no tablet, mais arredondado e
    folgado. No mobile o título vai para a barra de voltar e o nome para o bloco de título da ficha. */
 .aj-painel--cabecalho{flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--espaco-12) var(--espaco-16)}
-@media (max-width:1199px){.aj-painel--cabecalho{border-radius:var(--raio-20);padding:20px}}
+@media (max-width:1199.98px){.aj-painel--cabecalho{border-radius:var(--raio-20);padding:20px}}
 [data-visao="tablet"] .aj-painel--cabecalho,[data-visao="mobile"] .aj-painel--cabecalho{border-radius:var(--raio-20);padding:20px}
 [data-visao="desktop"] .aj-painel--cabecalho{border-radius:var(--aj-raio-cartao);padding:var(--aj-cartao-padding)}
 .aj-painel__botoes{display:flex;flex-wrap:wrap;gap:var(--espaco-8)}
@@ -664,7 +664,7 @@ textarea.aj-campo{padding:9px var(--espaco-12);resize:vertical}
 .aj-abas__aba:focus-visible{outline:2px solid var(--verde);outline-offset:-2px}
 .aj-abas__contador{padding:0 7px;border-radius:var(--raio-pilula);background:var(--superficie-recuada);font-size:12px}
 .aj-aba-painel{display:contents}
-@media (max-width:760px){.aj-aba-painel--oculta{display:none}}
+@media (max-width:760.98px){.aj-aba-painel--oculta{display:none}}
 [data-visao="mobile"] .aj-aba-painel--oculta{display:none}
 
 /* Lista em painel: linhas mais folgadas (as que levam a outra ficha), a linha que é um link, o lado direito com
@@ -700,8 +700,8 @@ textarea.aj-campo{padding:9px var(--espaco-12);resize:vertical}
 .aj-grade-endereco__numero,.aj-grade-endereco__cep{grid-column:span 2}
 .aj-grade-endereco__complemento,.aj-grade-endereco__bairro,.aj-grade-endereco__cidade{grid-column:span 3}
 .aj-grade-endereco__uf{grid-column:span 1}
-@media (min-width:761px) and (max-width:1199px){.aj-grade-campos--tablet-folgada,.aj-grade-endereco{gap:var(--espaco-12)}}
-@media (max-width:760px){
+@media (min-width:761px) and (max-width:1199.98px){.aj-grade-campos--tablet-folgada,.aj-grade-endereco{gap:var(--espaco-12)}}
+@media (max-width:760.98px){
   .aj-grade-endereco{grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--espaco-12) var(--espaco-10)}
   .aj-grade-endereco__logradouro,.aj-grade-endereco__bairro,.aj-grade-endereco__cidade{grid-column:span 2}
   .aj-grade-endereco__numero,.aj-grade-endereco__complemento,.aj-grade-endereco__uf,.aj-grade-endereco__cep{grid-column:span 1}
@@ -735,14 +735,13 @@ textarea.aj-campo{padding:9px var(--espaco-12);resize:vertical}
 .aj-ajuda strong{color:var(--tinta)}
 
 /* Ajustes da conferência da fase 9D no navegador: o valor longo de uma lista de detalhes (sem encolher o termo) e o nome longo de um
-   arquivo quebram em vez de empurrar a coluna; a opção marcável da barra de filtros mantém a altura do filtro; nos
+   arquivo quebram em vez de empurrar a coluna; nos
    formulários em tela própria, o painel principal fica com a sombra de repouso no mobile e a grade folgada mantém
    12px entre as linhas. */
 .aj-detalhes dt{flex-shrink:0}
 .aj-detalhes dd{overflow-wrap:anywhere}
 .aj-tabela__principal{overflow-wrap:anywhere}
-.aj-opcao.aj-opcao--filtro{min-height:var(--campo-filtro)}
-@media (max-width:760px){
+@media (max-width:760.98px){
   .aj-grade-campos--tablet-folgada{gap:var(--espaco-12)}
   .aj-lado-a-lado--formulario .aj-painel--principal{box-shadow:var(--sombra-1)}
 }
@@ -753,8 +752,8 @@ textarea.aj-campo{padding:9px var(--espaco-12);resize:vertical}
 /* Visibilidade: o bloco que existe no desktop e no mobile, mas não no tablet (o novo comentário com o rótulo visível).
    Mesmo padrão das outras cinco: a variável por visão e o invólucro que some do layout quando mostrado. */
 :root{--aj-ver-desktop-mobile:contents}
-@media (max-width:1199px){:root{--aj-ver-desktop-mobile:none}}
-@media (max-width:760px){:root{--aj-ver-desktop-mobile:contents}}
+@media (max-width:1199.98px){:root{--aj-ver-desktop-mobile:none}}
+@media (max-width:760.98px){:root{--aj-ver-desktop-mobile:contents}}
 [data-visao="desktop"]{--aj-ver-desktop-mobile:contents}
 [data-visao="tablet"]{--aj-ver-desktop-mobile:none}
 [data-visao="mobile"]{--aj-ver-desktop-mobile:contents}
@@ -806,8 +805,8 @@ textarea.aj-campo{padding:9px var(--espaco-12);resize:vertical}
 
 /* Cartão de atividade: título um pouco maior no tablet e meta mais justa no mobile; a linha de cima com as etiquetas
    e a seta (no mobile); o texto no lugar dos avatares. */
-@media (min-width:761px) and (max-width:1199px){.aj-cartao--atividade .aj-cartao__titulo{font-size:16.5px}}
-@media (max-width:760px){.aj-cartao--atividade .aj-cartao__meta{line-height:1.4}}
+@media (min-width:761px) and (max-width:1199.98px){.aj-cartao--atividade .aj-cartao__titulo{font-size:16.5px}}
+@media (max-width:760.98px){.aj-cartao--atividade .aj-cartao__meta{line-height:1.4}}
 [data-visao="desktop"] .aj-cartao--atividade .aj-cartao__titulo,[data-visao="mobile"] .aj-cartao--atividade .aj-cartao__titulo{font-size:16px}
 [data-visao="tablet"] .aj-cartao--atividade .aj-cartao__titulo{font-size:16.5px}
 [data-visao="desktop"] .aj-cartao--atividade .aj-cartao__meta,[data-visao="tablet"] .aj-cartao--atividade .aj-cartao__meta{line-height:1.45}
@@ -827,7 +826,7 @@ textarea.aj-campo{padding:9px var(--espaco-12);resize:vertical}
    painel principal que mantém o destaque no mobile. */
 .aj-opcao__nota{font-weight:400;color:var(--tinta-suave)}
 .aj-rotulo--recuado{padding:0 0 var(--espaco-6) var(--espaco-14)}
-@media (max-width:760px){.aj-lado-a-lado--formulario .aj-painel--principal.aj-painel--sempre-destacado{box-shadow:var(--sombra-painel)}}
+@media (max-width:760.98px){.aj-lado-a-lado--formulario .aj-painel--principal.aj-painel--sempre-destacado{box-shadow:var(--sombra-painel)}}
 [data-visao="mobile"] .aj-lado-a-lado--formulario .aj-painel--principal.aj-painel--sempre-destacado{box-shadow:var(--sombra-painel)}
 
 /* Devolver e reabrir: painel e barra de ações de 680px no desktop; as opções em coluna num fieldset sem moldura. */
@@ -851,7 +850,7 @@ textarea.aj-campo{padding:9px var(--espaco-12);resize:vertical}
 
 /* Cabeçalho da ficha em coluna, com a faixa de ações embaixo: no desktop é o aj-painel--principal; no tablet, mais
    folgado e arredondado, com a sombra de repouso. */
-@media (max-width:1199px){.aj-painel--cabecalho-com-faixa{gap:var(--espaco-14);padding:20px;border-radius:var(--raio-20);box-shadow:var(--sombra-1)}}
+@media (max-width:1199.98px){.aj-painel--cabecalho-com-faixa{gap:var(--espaco-14);padding:20px;border-radius:var(--raio-20);box-shadow:var(--sombra-1)}}
 [data-visao="desktop"] .aj-painel--cabecalho-com-faixa{gap:var(--espaco-12);padding:var(--aj-cartao-padding);border-radius:var(--aj-raio-cartao);box-shadow:var(--sombra-painel)}
 [data-visao="tablet"] .aj-painel--cabecalho-com-faixa,[data-visao="mobile"] .aj-painel--cabecalho-com-faixa{gap:var(--espaco-14);padding:20px;border-radius:var(--raio-20);box-shadow:var(--sombra-1)}
 
@@ -861,11 +860,11 @@ textarea.aj-campo{padding:9px var(--espaco-12);resize:vertical}
 .aj-titulo-da-ficha__situacao{display:flex;flex-wrap:wrap;align-items:center;gap:var(--espaco-8) var(--espaco-14)}
 .aj-titulo-da-ficha__situacao>.aj-etiqueta{--aj-fonte-etiqueta:12.5px}
 .aj-titulo-da-ficha__entrega{font-size:13.5px;line-height:1.5;color:var(--tinta-suave);font-variant-numeric:tabular-nums}
-@media (max-width:1199px){
+@media (max-width:1199.98px){
   .aj-titulo-da-ficha--com-situacao{gap:var(--espaco-14)}
   .aj-titulo-da-ficha__situacao{gap:var(--espaco-6) var(--espaco-12)}
 }
-@media (max-width:760px){
+@media (max-width:760.98px){
   .aj-titulo-da-ficha--com-situacao{gap:var(--espaco-8)}
   .aj-titulo-da-ficha__situacao{gap:var(--espaco-6) var(--espaco-10)}
   .aj-titulo-da-ficha__entrega{font-size:13px}
@@ -887,7 +886,7 @@ textarea.aj-campo{padding:9px var(--espaco-12);resize:vertical}
 .aj-botao--ao-fim{margin-left:auto}
 .aj-botao--com-icone-menor{gap:var(--espaco-6);padding-left:var(--espaco-12)}
 .aj-botao--com-icone-menor svg{width:16px;height:16px}
-@media (max-width:1199px){
+@media (max-width:1199.98px){
   .aj-painel__botoes--faixa{padding-top:var(--espaco-14)}
   .aj-painel__botoes--faixa :is(.aj-botao--primario,.aj-botao--secundario){border-radius:var(--raio-12)}
   .aj-painel__botoes--faixa .aj-botao--icone svg{width:20px;height:20px;stroke-width:1.75}
@@ -902,8 +901,8 @@ textarea.aj-campo{padding:9px var(--espaco-12);resize:vertical}
 /* Painel da ficha da atividade: no desktop, 16px de respiro e raio 14; no tablet e no mobile, sem sombra e com o título
    de 15,5px (tablet) e 15px (mobile). */
 @media (min-width:1200px){.aj-painel--ficha{padding:var(--espaco-16);border-radius:var(--raio-14)}}
-@media (max-width:1199px){.aj-painel--ficha{box-shadow:none}.aj-painel--ficha h2{font-size:15.5px}}
-@media (max-width:760px){.aj-painel--ficha h2{font-size:15px}}
+@media (max-width:1199.98px){.aj-painel--ficha{box-shadow:none}.aj-painel--ficha h2{font-size:15.5px}}
+@media (max-width:760.98px){.aj-painel--ficha h2{font-size:15px}}
 [data-visao="desktop"] .aj-painel--ficha{padding:var(--espaco-16);border-radius:var(--raio-14);box-shadow:var(--sombra-1)}
 [data-visao="desktop"] .aj-painel--ficha h2{font-size:16px}
 [data-visao="tablet"] .aj-painel--ficha,[data-visao="mobile"] .aj-painel--ficha{padding:var(--aj-cartao-padding);border-radius:var(--aj-raio-cartao);box-shadow:none}
@@ -912,8 +911,8 @@ textarea.aj-campo{padding:9px var(--espaco-12);resize:vertical}
 
 /* Descrição: o texto mantém as quebras; no tablet e no mobile o título fica mais perto; no mobile o texto tem 14,5px. */
 .aj-painel--descricao p{white-space:pre-wrap}
-@media (max-width:1199px){.aj-painel--descricao{gap:var(--espaco-6)}}
-@media (max-width:760px){.aj-painel--descricao p{font-size:14.5px}}
+@media (max-width:1199.98px){.aj-painel--descricao{gap:var(--espaco-6)}}
+@media (max-width:760.98px){.aj-painel--descricao p{font-size:14.5px}}
 [data-visao="desktop"] .aj-painel--descricao{gap:var(--espaco-12)}
 [data-visao="desktop"] .aj-painel--descricao p,[data-visao="tablet"] .aj-painel--descricao p{font-size:15px}
 [data-visao="tablet"] .aj-painel--descricao,[data-visao="mobile"] .aj-painel--descricao{gap:var(--espaco-6)}
@@ -923,13 +922,13 @@ textarea.aj-campo{padding:9px var(--espaco-12);resize:vertical}
    tablet e no mobile, o painel mais justo em cima e embaixo, o título com respiro próprio e as linhas mais altas. */
 .aj-painel--detalhes{gap:var(--espaco-6)}
 .aj-painel--detalhes .aj-detalhes>div:last-child{padding-bottom:0}
-@media (max-width:1199px){
+@media (max-width:1199.98px){
   .aj-painel--detalhes{gap:0;padding:var(--espaco-8) var(--espaco-16)}
   .aj-painel--detalhes h2{padding:var(--espaco-8) 0 var(--espaco-4)}
   .aj-painel--detalhes .aj-detalhes>div{gap:var(--espaco-12);padding:var(--espaco-8) 0}
   .aj-painel--detalhes .aj-detalhes>div:last-child{padding-bottom:var(--espaco-4)}
 }
-@media (max-width:760px){
+@media (max-width:760.98px){
   .aj-painel--detalhes{padding:var(--espaco-6) var(--espaco-14)}
   .aj-painel--detalhes .aj-detalhes>div,.aj-painel--detalhes .aj-detalhes>div:last-child{padding:var(--espaco-10) 0}
 }
@@ -948,8 +947,8 @@ textarea.aj-campo{padding:9px var(--espaco-12);resize:vertical}
    10 (12 no tablet). Documentos: 14 (8 no tablet). O mobile sem quadro segue o desktop. */
 .aj-painel--responsaveis,.aj-painel--historico,.aj-painel--documentos{gap:var(--espaco-14)}
 .aj-painel--comentarios{gap:var(--espaco-10)}
-@media (max-width:1199px){.aj-painel--responsaveis{gap:var(--espaco-8)}}
-@media (min-width:761px) and (max-width:1199px){.aj-painel--documentos{gap:var(--espaco-8)}.aj-painel--comentarios{gap:var(--espaco-12)}}
+@media (max-width:1199.98px){.aj-painel--responsaveis{gap:var(--espaco-8)}}
+@media (min-width:761px) and (max-width:1199.98px){.aj-painel--documentos{gap:var(--espaco-8)}.aj-painel--comentarios{gap:var(--espaco-12)}}
 [data-visao="desktop"] .aj-painel--responsaveis{gap:var(--espaco-14)}
 [data-visao="tablet"] .aj-painel--responsaveis,[data-visao="mobile"] .aj-painel--responsaveis{gap:var(--espaco-8)}
 [data-visao="desktop"] .aj-painel--documentos,[data-visao="mobile"] .aj-painel--documentos{gap:var(--espaco-14)}
@@ -969,7 +968,7 @@ textarea.aj-campo{padding:9px var(--espaco-12);resize:vertical}
 .aj-responsavel__estado svg{flex:0 0 auto;width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
 .aj-responsavel__estado--pendente{color:var(--tinta-apagada)}
 .aj-responsavel__direcionamento{font-size:14px;color:var(--tinta-secundaria);white-space:pre-wrap;overflow-wrap:anywhere}
-@media (max-width:1199px){
+@media (max-width:1199.98px){
   .aj-responsaveis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
   .aj-responsavel{flex-wrap:nowrap;gap:var(--espaco-12);padding:var(--espaco-12)}
   .aj-responsavel>.aj-avatar{font-size:12px}
@@ -978,7 +977,7 @@ textarea.aj-campo{padding:9px var(--espaco-12);resize:vertical}
   .aj-responsavel__estado svg{display:none}
   .aj-responsavel__direcionamento{font-size:13.5px}
 }
-@media (max-width:760px){
+@media (max-width:760.98px){
   .aj-responsaveis{display:flex}
   .aj-responsavel{padding:var(--espaco-10);border-radius:var(--raio-12)}
   .aj-responsavel>.aj-avatar{width:34px;height:34px}
@@ -1034,7 +1033,7 @@ textarea.aj-campo{padding:9px var(--espaco-12);resize:vertical}
 .aj-comentario__cabeca{display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--espaco-4) var(--espaco-10)}
 .aj-comentario__data{font-size:13px;color:var(--tinta-apagada);font-variant-numeric:tabular-nums}
 .aj-comentario__texto{max-width:68ch;white-space:pre-wrap;color:var(--tinta-corpo);overflow-wrap:anywhere}
-@media (min-width:761px) and (max-width:1199px){
+@media (min-width:761px) and (max-width:1199.98px){
   .aj-comentarios{gap:var(--espaco-12)}
   .aj-comentario{gap:var(--espaco-10)}
   .aj-comentario>.aj-avatar{width:34px;height:34px;font-size:12px}
@@ -1081,7 +1080,7 @@ textarea.aj-campo--folgado{padding:var(--espaco-10) var(--espaco-14)}
 .aj-documento__meta{font-size:13px;color:var(--tinta-suave);font-variant-numeric:tabular-nums}
 .aj-documento__acoes{display:flex;gap:var(--espaco-2)}
 .aj-documento__acoes>.aj-botao{padding:0 var(--espaco-12);font-size:14px}
-@media (min-width:761px) and (max-width:1199px){
+@media (min-width:761px) and (max-width:1199.98px){
   .aj-documentos{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
   .aj-documento{flex-wrap:nowrap;gap:var(--espaco-12);padding:var(--espaco-10) var(--espaco-12)}
   .aj-documento__texto{flex:1 1 auto;gap:0}
@@ -1089,7 +1088,7 @@ textarea.aj-campo--folgado{padding:var(--espaco-10) var(--espaco-14)}
   .aj-documento a.aj-documento__nome{color:var(--tinta)}
   .aj-documento__meta{font-size:12.5px;font-variant-numeric:normal}
 }
-@media (max-width:760px){.aj-documento{flex-wrap:nowrap}}
+@media (max-width:760.98px){.aj-documento{flex-wrap:nowrap}}
 [data-visao="tablet"] .aj-documentos{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
 [data-visao="tablet"] .aj-documento{flex-wrap:nowrap;gap:var(--espaco-12);padding:var(--espaco-10) var(--espaco-12)}
 [data-visao="tablet"] .aj-documento__texto{flex:1 1 auto;gap:0}
@@ -1114,7 +1113,7 @@ textarea.aj-campo--folgado{padding:var(--espaco-10) var(--espaco-14)}
    que não cabe, sem estreitar a coluna do título; no tablet o texto do comentário ocupa o balão inteiro, como no
    quadro. */
 .aj-tabela--larga :is(.aj-tabela__principal,.aj-tabela__secundaria){overflow-wrap:break-word}
-@media (min-width:761px) and (max-width:1199px){.aj-comentario__texto{max-width:none}}
+@media (min-width:761px) and (max-width:1199.98px){.aj-comentario__texto{max-width:none}}
 [data-visao="tablet"] .aj-comentario__texto{max-width:none}
 [data-visao="desktop"] .aj-comentario__texto,[data-visao="mobile"] .aj-comentario__texto{max-width:68ch}
 
@@ -1135,7 +1134,7 @@ textarea.aj-campo--folgado{padding:var(--espaco-10) var(--espaco-14)}
 /* Segmentados da agenda. No tablet as opções são mais justas (texto de 14,5px, 6px de respiro, 70px de mínimo; o
    "Semana" com 80px), a escolhida sem sombra e o "Hoje" com 16px de respiro e 14,5px. As regras miram as opções
    (aj-segmentado__opcao) e o "Hoje": as setas ficam como a classe as desenha. */
-@media (min-width:761px) and (max-width:1199px){
+@media (min-width:761px) and (max-width:1199.98px){
   .aj-segmentado--periodo .aj-segmentado__opcao{min-width:70px;padding:0 var(--espaco-6);font-size:14.5px}
   .aj-segmentado--periodo .aj-segmentado__opcao[aria-pressed="true"]{box-shadow:none}
   .aj-segmentado--periodo .aj-segmentado__opcao--larga{min-width:80px}
@@ -1160,8 +1159,8 @@ textarea.aj-campo--folgado{padding:var(--espaco-10) var(--espaco-14)}
 .aj-aviso--frase{align-items:flex-start;font-weight:400}
 .aj-aviso--frase svg{margin-top:1px}
 .aj-aviso--frase strong{font-weight:600}
-@media (min-width:761px) and (max-width:1199px){.aj-aviso--frase{gap:var(--espaco-10);padding:var(--espaco-10) var(--espaco-14)}}
-@media (max-width:760px){
+@media (min-width:761px) and (max-width:1199.98px){.aj-aviso--frase{gap:var(--espaco-10);padding:var(--espaco-10) var(--espaco-14)}}
+@media (max-width:760.98px){
   .aj-aviso--frase{gap:var(--espaco-10);padding:var(--espaco-10) var(--espaco-12);border-radius:var(--raio-12);font-size:13.5px;line-height:1.4}
   .aj-aviso--frase svg{width:18px;height:18px}
 }
@@ -1231,7 +1230,7 @@ a.aj-evento{text-decoration:none}
 .aj-secao-dia__numero{display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:var(--raio-pilula);background:var(--fundo);color:var(--tinta);font-size:19px;font-weight:600;font-variant-numeric:tabular-nums}
 .aj-secao-dia--hoje .aj-secao-dia__numero{background:var(--verde);color:var(--sobre-verde)}
 .aj-secao-dia__eventos{flex:1 1 auto;min-width:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-content:start;gap:var(--espaco-8)}
-@media (max-width:760px){.aj-secao-dia__eventos{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:760.98px){.aj-secao-dia__eventos{grid-template-columns:minmax(0,1fr)}}
 [data-visao="desktop"] .aj-secao-dia__eventos,[data-visao="tablet"] .aj-secao-dia__eventos{grid-template-columns:repeat(2,minmax(0,1fr))}
 [data-visao="mobile"] .aj-secao-dia__eventos{grid-template-columns:minmax(0,1fr)}
 .aj-secao-dia__vazio{grid-column:1/-1;margin:0;padding:var(--espaco-14) var(--espaco-4);font-size:14px;color:var(--tinta-apagada)}
@@ -1408,8 +1407,8 @@ a.aj-evento{text-decoration:none}
 .aj-linha-de-campos .aj-linha-de-campos__largo{flex:2 1 260px}
 .aj-linha-de-campos .aj-linha-de-campos__medio{flex-basis:160px}
 .aj-linha-de-campos .aj-linha-de-campos__curto{flex-basis:130px}
-@media (max-width:1199px){.aj-linha-de-campos{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--espaco-12)}}
-@media (max-width:760px){
+@media (max-width:1199.98px){.aj-linha-de-campos{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--espaco-12)}}
+@media (max-width:760.98px){
   .aj-linha-de-campos{grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--espaco-16) var(--espaco-10)}
   .aj-linha-de-campos .aj-linha-de-campos__inteiro-no-mobile{grid-column:1/-1}
 }
@@ -1428,11 +1427,11 @@ a.aj-evento{text-decoration:none}
    ser caixa (sem borda, respiro, fundo e sombra; o título vai num invólucro aj-desktop-tablet) e os campos ficam a 16px
    uns dos outros, dentro do painel e entre os painéis (o vão do conteúdo da tela). */
 :root{--aj-pagina-gap-solto:var(--espaco-14)}
-@media (max-width:760px){:root{--aj-pagina-gap-solto:var(--espaco-16)}}
+@media (max-width:760.98px){:root{--aj-pagina-gap-solto:var(--espaco-16)}}
 [data-visao="desktop"],[data-visao="tablet"]{--aj-pagina-gap-solto:var(--espaco-14)}
 [data-visao="mobile"]{--aj-pagina-gap-solto:var(--espaco-16)}
 .aj-painel--folgado{gap:var(--espaco-14)}
-@media (max-width:760px){.aj-painel.aj-painel--solto-no-mobile{gap:var(--espaco-16);padding:0;border:0;border-radius:0;background:transparent;box-shadow:none}}
+@media (max-width:760.98px){.aj-painel.aj-painel--solto-no-mobile{gap:var(--espaco-16);padding:0;border:0;border-radius:0;background:transparent;box-shadow:none}}
 [data-visao="mobile"] .aj-painel.aj-painel--solto-no-mobile{gap:var(--espaco-16);padding:0;border:0;border-radius:0;background:transparent;box-shadow:none}
 [data-visao="desktop"] .aj-painel.aj-painel--solto-no-mobile,[data-visao="tablet"] .aj-painel.aj-painel--solto-no-mobile{gap:var(--espaco-12);padding:var(--aj-cartao-padding);border:1px solid var(--borda);border-radius:var(--aj-raio-cartao);background:var(--superficie);box-shadow:var(--sombra-1)}
 [data-visao="desktop"] .aj-painel--principal.aj-painel--solto-no-mobile,[data-visao="tablet"] .aj-painel--principal.aj-painel--solto-no-mobile{box-shadow:var(--sombra-painel)}
@@ -1443,7 +1442,7 @@ a.aj-evento{text-decoration:none}
    desktop, 8px no tablet e no mobile. O escolhido com a sigla num círculo branco e o remover em verde de sucesso; no
    tablet o escolhido tem a altura do campo; no tablet e no mobile o remover tem o alvo de toque. */
 .aj-vinculo--rotulado{gap:var(--espaco-10)}
-@media (max-width:1199px){.aj-vinculo--rotulado{gap:var(--espaco-8)}}
+@media (max-width:1199.98px){.aj-vinculo--rotulado{gap:var(--espaco-8)}}
 [data-visao="desktop"] .aj-vinculo--rotulado{gap:var(--espaco-10)}
 [data-visao="tablet"] .aj-vinculo--rotulado,[data-visao="mobile"] .aj-vinculo--rotulado{gap:var(--espaco-8)}
 .aj-vinculo__rotulo{font:600 var(--aj-fonte-rotulo)/1.4 var(--font-sans);color:var(--tinta-rotulo)}
@@ -1451,15 +1450,15 @@ a.aj-evento{text-decoration:none}
 .aj-vinculo__escolhido--com-avatar{gap:var(--espaco-12);padding:var(--espaco-6) var(--espaco-6) var(--espaco-6) var(--espaco-8);border-radius:var(--raio-14)}
 .aj-vinculo__escolhido--com-avatar .aj-botao{color:var(--sucesso)}
 .aj-vinculo__avatar{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:var(--raio-pilula);background:var(--superficie);color:var(--sucesso);font:700 12px/1 var(--font-sans)}
-@media (max-width:1199px){
+@media (max-width:1199.98px){
   .aj-vinculo__escolhido--com-avatar{gap:var(--espaco-10)}
   .aj-vinculo__escolhido--com-avatar .aj-botao--icone{width:var(--alvo-toque);min-height:var(--alvo-toque)}
 }
-@media (min-width:761px) and (max-width:1199px){
+@media (min-width:761px) and (max-width:1199.98px){
   .aj-vinculo__escolhido--com-avatar{min-height:var(--campo-toque);padding:2px 2px 2px var(--espaco-8);border-radius:var(--raio-12)}
   .aj-vinculo__escolhido--com-avatar .aj-vinculo__avatar{width:30px;height:30px;font-size:11px}
 }
-@media (max-width:760px){.aj-vinculo__escolhido--com-avatar{padding:var(--espaco-4) var(--espaco-4) var(--espaco-4) var(--espaco-8)}}
+@media (max-width:760.98px){.aj-vinculo__escolhido--com-avatar{padding:var(--espaco-4) var(--espaco-4) var(--espaco-4) var(--espaco-8)}}
 [data-visao="desktop"] .aj-vinculo__escolhido--com-avatar{gap:var(--espaco-12);min-height:0;padding:var(--espaco-6) var(--espaco-6) var(--espaco-6) var(--espaco-8);border-radius:var(--raio-14)}
 [data-visao="desktop"] .aj-vinculo__escolhido--com-avatar .aj-botao--icone{width:var(--aj-controle);min-height:var(--aj-controle)}
 [data-visao="tablet"] .aj-vinculo__escolhido--com-avatar,[data-visao="mobile"] .aj-vinculo__escolhido--com-avatar{gap:var(--espaco-10)}
@@ -1471,13 +1470,13 @@ a.aj-evento{text-decoration:none}
 
 /* Escolha única em ladrilhos (o tipo do evento no tablet e no mobile): um rádio escondido em cada ladrilho; o
    escolhido em verde; o foco do rádio contorna o ladrilho. Quatro por linha e 48px no tablet, dois e 46px no mobile.
-   O ladrilho leva o seletor com o pai (0,2,0) para vencer a regra de rótulo com rádio da folha da aplicação. */
+   O ladrilho leva o seletor com o pai (0,2,0), o mesmo das variantes por consulta e por visão abaixo. */
 .aj-escolha{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--espaco-8)}
 .aj-escolha>.aj-escolha__opcao{position:relative;display:flex;align-items:center;justify-content:center;gap:var(--espaco-8);min-width:0;min-height:48px;border:1px solid var(--borda-campo);border-radius:var(--raio-12);background:var(--superficie);color:var(--tinta-rotulo);font:600 15px/1.5 var(--font-sans);text-align:center;cursor:pointer}
 .aj-escolha__opcao input{position:absolute;opacity:0;pointer-events:none}
 .aj-escolha>.aj-escolha__opcao:has(input:checked){border-color:var(--verde);background:var(--verde);color:var(--sobre-verde)}
 .aj-escolha>.aj-escolha__opcao:has(input:focus-visible){outline:2px solid var(--verde);outline-offset:2px}
-@media (max-width:760px){
+@media (max-width:760.98px){
   .aj-escolha{grid-template-columns:repeat(2,minmax(0,1fr))}
   .aj-escolha>.aj-escolha__opcao{min-height:var(--controle-toque)}
 }
@@ -1488,8 +1487,8 @@ a.aj-evento{text-decoration:none}
 
 /* Pessoa marcável em chip (participantes do evento no tablet e no mobile): avatar à esquerda e a caixa de marcar
    escondida; marcada, o fundo de seleção com a borda #9DB898. 46px e avatar de 32px no tablet; 44px e avatar de 30px no
-   mobile. O chip leva as duas classes no seletor (0,2,0) para vencer a regra de rótulo com caixa da folha da
-   aplicação. A opção travada (quem cria o evento) não tem cursor de clique; a nota "(você)" do desktop em 13px. */
+   mobile. O chip leva as duas classes no seletor (0,2,0), como as variantes por consulta e por visão abaixo. A
+   opção travada (quem cria o evento) não tem cursor de clique; a nota "(você)" do desktop em 13px. */
 .aj-chip.aj-chip--pessoa{position:relative;display:inline-flex;align-items:center;gap:var(--espaco-8);min-height:var(--controle-toque);padding:0 var(--espaco-16) 0 var(--espaco-6);color:var(--tinta-rotulo);font:600 15px/1.5 var(--font-sans)}
 .aj-chip--pessoa input{position:absolute;opacity:0;pointer-events:none}
 .aj-chip.aj-chip--pessoa:has(input:checked){border-color:#9DB898;background:var(--selecao-fundo);color:var(--verde-escuro)}
@@ -1497,7 +1496,7 @@ a.aj-evento{text-decoration:none}
 .aj-chip--pessoa>.aj-avatar{width:32px;height:32px;font-size:11px}
 .aj-chip--pessoa:has(input:disabled),.aj-opcao:has(input:disabled){cursor:default}
 .aj-opcao__nota--menor{font-size:13px}
-@media (max-width:760px){
+@media (max-width:760.98px){
   .aj-chip.aj-chip--pessoa{min-height:var(--alvo-toque);padding:0 var(--espaco-14) 0 var(--espaco-6)}
   .aj-chip--pessoa>.aj-avatar{width:30px;height:30px}
 }
@@ -1519,3 +1518,46 @@ a.aj-evento{text-decoration:none}
 /* Ajustes da conferência da fase 9F no navegador: a ajuda em parágrafo dentro de um painel ("Quem cria o evento
    sempre participa.") fica com a cor e a largura da ajuda, não com as do texto corrido do painel. */
 .aj-painel p.aj-ajuda{max-width:none;color:var(--tinta-suave)}
+
+/* ---------- Limpeza final (fase 9G) ---------- */
+/* Opções travadas: esmaecidas, sem cursor de clique e sem o fundo do hover, como o item travado do menu de ações (o
+   tipo de cliente na edição; os resultados da busca durante o envio). A opção escolhida travada mantém o verde. */
+.aj-segmentado button:disabled{opacity:.55;cursor:not-allowed}
+.aj-segmentado button:disabled:not([aria-pressed="true"]):hover{background:transparent}
+.aj-resultados__item:disabled{opacity:.55;cursor:not-allowed}
+.aj-resultados__item:disabled:hover{background:transparent}
+/* A caixa escondida do ladrilho e do chip de pessoa sem a margem do navegador. */
+.aj-escolha__opcao input,.aj-chip--pessoa input{margin:0}
+/* "Mais" com o menu aberto (tablet e mobile): aceso pelo aria-expanded, com o desenho do destino atual; o destino da
+   rota mantém o aria-current, mas não aparece aceso enquanto o menu está aberto. */
+.aj-trilho__item[aria-expanded="true"]{background:var(--menu-ativo);color:var(--sobre-verde);font-weight:700}
+.aj-trilho__item[aria-expanded="true"] svg{stroke:var(--dourado)}
+.aj-nav-inferior__item[aria-expanded="true"]{color:var(--verde-escuro);font-weight:700}
+.aj-nav-inferior__item[aria-expanded="true"]>span{background:var(--selecao-fundo)}
+.aj-app--menu-aberto .aj-trilho__item[aria-current="page"]:not([aria-expanded="true"]){background:transparent;color:var(--menu-texto);font-weight:600}
+.aj-app--menu-aberto .aj-trilho__item[aria-current="page"]:not([aria-expanded="true"]) svg{stroke:currentColor}
+.aj-app--menu-aberto .aj-nav-inferior__item[aria-current="page"]:not([aria-expanded="true"]){color:var(--tinta-suave);font-weight:600}
+.aj-app--menu-aberto .aj-nav-inferior__item[aria-current="page"]:not([aria-expanded="true"])>span{background:transparent}
+/* Nome longo no bloco do usuário: uma linha, com reticências (o nome inteiro vai no title do bloco). */
+.aj-usuario__texto b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Paginação: o botão sem ação leva aria-disabled (o foco continua nele durante a carga e na última página), com o
+   mesmo desenho do desabilitado também na paginação com setas. */
+.aj-paginacao--com-setas .aj-botao[aria-disabled="true"]{opacity:1;border-color:var(--borda-opcao);background:var(--superficie-campo);color:var(--tinta-apagada)}
+/* O título do Dia recebe o foco por programa (o "+N" do Mês), como o título da página: sem contorno. */
+.aj-dia__cabeca:focus,.aj-secao-dia__cabeca:focus{outline:none}
+
+/* ---------- Ajustes da conferência da fase 9G no navegador ---------- */
+/* Foco à vista: o rolador do conteúdo reserva embaixo a altura das barras que ficam por cima dele (a barra de ações
+   fixa, a barra inferior, o botão flutuante), para o elemento que o Tab alcança não ficar escondido atrás delas.
+   Desktop: a barra de ações flutuante (64px de altura, 16px acima do respiro de 28px do conteúdo: o topo a 108px do pé). Tablet: a barra de ações presa à base (110px).
+   Mobile: a barra inferior (104px), com o botão flutuante (168px), a barra de voltar e a de ações (112px). Os
+   valores são os do respiro inferior do conteúdo em cada caso. */
+.aj-app:has(.aj-acoes--fixa) .aj-app__conteudo{scroll-padding-bottom:112px}
+@media (max-width:1199.98px){
+  .aj-app:has(.aj-acoes--fixa) .aj-app__conteudo{scroll-padding-bottom:110px}
+}
+@media (max-width:760.98px){
+  .aj-app:has(.aj-nav-inferior) .aj-app__conteudo{scroll-padding-bottom:104px}
+  .aj-app:has(.aj-fab) .aj-app__conteudo{scroll-padding-bottom:168px}
+  .aj-app:has(.aj-barra-superior--voltar) .aj-app__conteudo,.aj-app:has(.aj-acoes--fixa) .aj-app__conteudo{scroll-padding-bottom:112px}
+}

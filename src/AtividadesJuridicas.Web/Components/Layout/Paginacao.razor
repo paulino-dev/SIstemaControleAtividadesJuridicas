@@ -1,5 +1,6 @@
 @* A linha de paginação do design system, ao fim da lista. Com setas (a lista de atividades), cada botão leva a seta
-   do lado para onde vai. *@
+   do lado para onde vai. O botão sem ação (na ponta ou com uma consulta em curso) fica focável, com aria-disabled, e
+   ignora o clique: o foco não cai no body quando o botão focado perde a ação. *@
 @if (SempreVisivel || TotalDePaginas > 1)
 {
     <div class="@(ComSetas ? "aj-paginacao aj-paginacao--com-setas" : "aj-paginacao")">
@@ -7,13 +8,13 @@
         <div class="aj-paginacao__botoes">
             @if (ComSetas)
             {
-                <button type="button" class="aj-botao aj-botao--secundario aj-paginacao__anterior" disabled="@(Ocupado || Numero <= 1)" @onclick="() => IrPara.InvokeAsync(Numero - 1)"><Icone Nome="voltar" />Anterior</button>
-                <button type="button" class="aj-botao aj-botao--secundario aj-paginacao__proxima" disabled="@(Ocupado || Numero >= TotalDePaginas)" @onclick="() => IrPara.InvokeAsync(Numero + 1)">Próxima<Icone Nome="avancar" /></button>
+                <button type="button" class="aj-botao aj-botao--secundario aj-paginacao__anterior" aria-disabled="@Indisponivel(SemAnterior)" @onclick="AnteriorAsync"><Icone Nome="voltar" />Anterior</button>
+                <button type="button" class="aj-botao aj-botao--secundario aj-paginacao__proxima" aria-disabled="@Indisponivel(SemProxima)" @onclick="ProximaAsync">Próxima<Icone Nome="avancar" /></button>
             }
             else
             {
-                <button type="button" class="aj-botao aj-botao--secundario" disabled="@(Ocupado || Numero <= 1)" @onclick="() => IrPara.InvokeAsync(Numero - 1)">Anterior</button>
-                <button type="button" class="aj-botao aj-botao--secundario" disabled="@(Ocupado || Numero >= TotalDePaginas)" @onclick="() => IrPara.InvokeAsync(Numero + 1)">Próxima</button>
+                <button type="button" class="aj-botao aj-botao--secundario" aria-disabled="@Indisponivel(SemAnterior)" @onclick="AnteriorAsync">Anterior</button>
+                <button type="button" class="aj-botao aj-botao--secundario" aria-disabled="@Indisponivel(SemProxima)" @onclick="ProximaAsync">Próxima</button>
             }
         </div>
     </div>
@@ -31,7 +32,7 @@
     /// <summary>Mostra a linha mesmo com uma página só, como o quadro do Andamento no desktop.</summary>
     [Parameter] public bool SempreVisivel { get; set; }
 
-    /// <summary>Uma consulta está em curso: os dois botões esperam.</summary>
+    /// <summary>Uma consulta está em curso: os dois botões esperam (aria-disabled, e o clique não pede página).</summary>
     [Parameter] public bool Ocupado { get; set; }
 
     /// <summary>Os botões com as setas e a linha que quebra (o quadro da lista de atividades).</summary>
@@ -40,4 +41,15 @@
     [Parameter] public EventCallback<int> IrPara { get; set; }
 
     private string Texto => $"Página {Numero} de {TotalDePaginas} · {Contagem.De(Total, Singular, Plural)}";
+
+    private bool SemAnterior => Ocupado || Numero <= 1;
+
+    private bool SemProxima => Ocupado || Numero >= TotalDePaginas;
+
+    // O atributo só aparece quando o botão está sem ação; com ação, ele some (nulo).
+    private static string? Indisponivel(bool semAcao) => semAcao ? "true" : null;
+
+    private Task AnteriorAsync() => SemAnterior ? Task.CompletedTask : IrPara.InvokeAsync(Numero - 1);
+
+    private Task ProximaAsync() => SemProxima ? Task.CompletedTask : IrPara.InvokeAsync(Numero + 1);
 }

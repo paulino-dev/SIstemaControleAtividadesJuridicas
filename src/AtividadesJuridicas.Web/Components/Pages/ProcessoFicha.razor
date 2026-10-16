@@ -36,7 +36,7 @@ else
     }
     @if (_mensagem is not null)
     {
-        <Aviso Tipo="@(_falhou ? TipoDeAviso.Erro : TipoDeAviso.Sucesso)">@_mensagem</Aviso>
+        <Aviso @key="_versaoDoAviso" Tipo="@(_falhou ? TipoDeAviso.Erro : TipoDeAviso.Sucesso)" Revelar="true">@_mensagem</Aviso>
     }
 
     <div class="aj-so-desktop">
@@ -77,8 +77,8 @@ else
         <div class="aj-so-mobile">
             <Abas Rotulo="Assuntos do processo" Itens="@AbasDaFicha" Ativa="@_aba" AoEscolher="(string aba) => _aba = aba" />
         </div>
-        <div class="@ClasseDaAba("dados")">@Dados</div>
-        <div class="@ClasseDaAba("clientes")">
+        <div class="@ClasseDaAba("dados")" id="dados-do-processo">@Dados</div>
+        <div class="@ClasseDaAba("clientes")" id="clientes-do-processo">
             <section class="aj-painel">
                 <h2>Clientes do processo</h2>
                 <div class="aj-linhas aj-linhas--folgadas">
@@ -89,10 +89,10 @@ else
                 </div>
             </section>
         </div>
-        <div class="@ClasseDaAba("dados")">@Observacoes</div>
+        <div class="@ClasseDaAba("dados")" id="observacoes-do-processo">@Observacoes</div>
         @if (Diretoria)
         {
-            <div class="@ClasseDaAba("situacao")">@Situacao</div>
+            <div class="@ClasseDaAba("situacao")" id="situacao-do-processo">@Situacao</div>
         }
     </div>
 
@@ -122,6 +122,10 @@ else
     private bool _falhou;
     private Recado? _recado;
     private Guid? _idCarregado;
+
+    // A geração do aviso de resultado: cada mensagem nova do "Alterar" recria o Aviso (a chave muda), que se revela de
+    // novo e recebe o foco (o "Alterar" fica desabilitado durante a gravação). O recado de outra tela é outro aviso.
+    private int _versaoDoAviso;
 
     private bool Diretoria => _ator?.EhDiretoria == true;
     private string Edicao => $"/processos/{Id}/editar";
@@ -213,8 +217,12 @@ else
     {
         get
         {
-            List<Aba> abas = [new("dados", "Dados"), new("clientes", "Clientes", _processo!.Clientes.Count)];
-            if (Diretoria) abas.Add(new("situacao", "Situação"));
+            List<Aba> abas =
+            [
+                new("dados", "Dados", Painel: "dados-do-processo observacoes-do-processo"),
+                new("clientes", "Clientes", _processo!.Clientes.Count, "clientes-do-processo"),
+            ];
+            if (Diretoria) abas.Add(new("situacao", "Situação", Painel: "situacao-do-processo"));
             return abas;
         }
     }
@@ -288,6 +296,7 @@ else
             {
                 _mensagem = resultado.Mensagem ?? "Não foi possível alterar a situação.";
             }
+            _versaoDoAviso++;
         }
         finally
         {

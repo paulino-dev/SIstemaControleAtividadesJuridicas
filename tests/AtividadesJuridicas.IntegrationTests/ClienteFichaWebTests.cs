@@ -63,8 +63,8 @@ public class ClienteFichaWebTests(BancoFixture banco) : IAsyncLifetime
             "(?s)<div class=\"aj-abas\" role=\"tablist\" aria-label=\"Assuntos do cliente\">.*?aria-selected=\"true\"[^>]*>Dados</button>.*?>Processos<span class=\"aj-abas__contador\">1</span></button>.*?>Usuários<span class=\"aj-abas__contador\">0</span></button>");
         html.Should().Contain("Nenhum usuário. Crie o acesso do cliente em Usuários.").And.Contain("<h2>Documentos</h2>");
         // Na aba Dados, os outros painéis ficam ocultos no mobile.
-        html.Should().MatchRegex("<div class=\"aj-aba-painel aj-aba-painel--oculta\">\\s*<section class=\"aj-painel\">\\s*<h2>Processos do cliente</h2>")
-            .And.MatchRegex("<div class=\"aj-aba-painel\">\\s*<section class=\"aj-painel\">\\s*<h2>Dados</h2>");
+        html.Should().MatchRegex("<div class=\"aj-aba-painel aj-aba-painel--oculta\" id=\"processos-do-cliente\">\\s*<section class=\"aj-painel\">\\s*<h2>Processos do cliente</h2>")
+            .And.MatchRegex("<div class=\"aj-aba-painel\" id=\"dados-do-cliente\">\\s*<section class=\"aj-painel\">\\s*<h2>Dados</h2>");
     }
 
     [Fact]

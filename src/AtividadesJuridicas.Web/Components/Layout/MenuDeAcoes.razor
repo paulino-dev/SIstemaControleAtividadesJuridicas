@@ -1,16 +1,24 @@
 @using Microsoft.JSInterop
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject MenuDeAcoesAberto MenuAberto
 
-@* O menu que o botão de três pontos abre, com as ações da linha (a destrutiva por último).
-   Fecha ao escolher (o clique do item sobe até a lista), ao tocar fora e com Esc; tocar fora e Esc devolvem o foco
-   ao botão do menu, escolher um item não (o que a ação abre decide). *@
-<div class="aj-menu-acoes" @onkeydown="AoTeclarAsync">
+@* O menu que o botão de três pontos abre, com as ações da linha (a destrutiva por último). É um "disclosure": o botão
+   com aria-expanded e a lista de botões, sem role="menu" nem setas; o Tab e o Shift+Tab andam pelos itens.
+   Fecha ao escolher (o clique do item sobe até a lista), ao tocar fora, com Esc (com o foco no botão ou na lista) e
+   quando o foco sai do menu (o focusout do módulo, instalado na primeira abertura). Tocar fora e Esc devolvem o foco
+   ao botão; escolher um item e o foco que sai não (o que a ação abre decide; o Tab segue o caminho natural). O item
+   que não leva o foco a lugar nenhum (o "Baixar", um link) o deixaria na lista escondida ou no body: depois do desenho,
+   o módulo devolve o foco ao botão só nesse caso.
+   Abrir um menu fecha o que estiver aberto (MenuDeAcoesAberto, do circuito). *@
+<div class="aj-menu-acoes" @ref="_involucro" @onkeydown="AoTeclarAsync">
     <button type="button" class="aj-botao aj-botao--fantasma aj-botao--icone" aria-label="@Rotulo"
             aria-expanded="@(_aberto ? "true" : "false")" @ref="_gatilho" @onclick="Alternar"><Icone Nome="mais" /></button>
     @if (_aberto)
     {
         <button type="button" class="aj-menu-acoes__fundo" tabindex="-1" aria-hidden="true" @onclick="FecharPeloFundoAsync"></button>
     }
-    <div class="aj-menu-acoes__lista" hidden="@(!_aberto)" tabindex="-1" @ref="_lista" @onclick="Fechar">@ChildContent</div>
+    <div class="aj-menu-acoes__lista" hidden="@(!_aberto)" tabindex="-1" @ref="_lista" @onclick="Escolher">@ChildContent</div>
 </div>
 
 @code {
@@ -21,37 +29,120 @@
 
     private bool _aberto;
     private bool _focarLista;
+    private bool _conferirFoco;
+    private ElementReference _involucro;
     private ElementReference _gatilho;
     private ElementReference _lista;
+    private IJSObjectReference? _modulo;
+    private DotNetObjectReference<MenuDeAcoes>? _referencia;
 
     private void Alternar()
     {
-        _aberto = !_aberto;
-        _focarLista = _aberto;
+        if (_aberto)
+        {
+            Fechar();
+            return;
+        }
+
+        _aberto = true;
+        _focarLista = true;
+        MenuAberto.Abrir(this, FecharPorOutro);
     }
 
-    private void Fechar() => _aberto = false;
-
-    private async Task FecharPeloFundoAsync()
+    private void Fechar()
     {
         _aberto = false;
-        await FocarAsync(_gatilho);
+        _focarLista = false;
+        MenuAberto.Esquecer(this);
+    }
+
+    // O clique de um item sobe até a lista: fecha e, depois do desenho, confere se o foco se perdeu.
+    private void Escolher()
+    {
+        Fechar();
+        _conferirFoco = true;
     }
 
     private async Task AoTeclarAsync(KeyboardEventArgs e)
     {
         if (e.Key != "Escape" || !_aberto) return;
 
-        _aberto = false;
+        Fechar();
         await FocarAsync(_gatilho);
     }
 
+    // O fundo só existe com o menu aberto. Devolve o foco mesmo que o foco que saiu já tenha fechado o menu (um Tab no
+    // meio do gesto, por exemplo). No Safari e no Firefox do macOS o módulo ignora o focusout sem destino durante o gesto
+    // de ponteiro dentro do menu: quem fecha ao tocar fora é este clique, que devolve o foco.
+    private async Task FecharPeloFundoAsync()
+    {
+        Fechar();
+        await FocarAsync(_gatilho);
+    }
+
+    /// <summary>O foco saiu do invólucro do menu (o módulo avisa): fecha sem mover o foco.</summary>
+    [JSInvokable("FocoSaiu")]
+    public Task FocoSaiuAsync() => InvokeAsync(() =>
+    {
+        if (!_aberto) return;
+
+        Fechar();
+        StateHasChanged();
+    });
+
+    // Outro menu abriu: este fecha sem mexer no foco, que vai para a lista do outro.
+    private void FecharPorOutro() => _ = InvokeAsync(() =>
+    {
+        _aberto = false;
+        _focarLista = false;
+        StateHasChanged();
+    });
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (_conferirFoco)
+        {
+            _conferirFoco = false;
+            await DevolverFocoSePerdidoAsync();
+        }
+
         if (!_focarLista) return;
 
         _focarLista = false;
         await FocarAsync(_lista);
+        await VigiarSaidaAsync();
+    }
+
+    // Uma vez por menu, na primeira abertura: o menu que nunca abre não carrega o módulo.
+    private async Task VigiarSaidaAsync()
+    {
+        if (_modulo is not null) return;
+
+        try
+        {
+            _modulo = await JS.InvokeAsync<IJSObjectReference>("import", "./Components/Layout/MenuDeAcoes.razor.js");
+            _referencia ??= DotNetObjectReference.Create(this);
+            await _modulo.InvokeVoidAsync("vigiarSaida", _involucro, _referencia);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or JSException or JSDisconnectedException or OperationCanceledException)
+        {
+            // Sem o módulo, o menu ainda fecha pelo Esc, pelo fundo e por um item.
+        }
+    }
+
+    // O módulo foi carregado na abertura que precede toda escolha; sem ele, o foco fica onde o navegador o deixou.
+    private async Task DevolverFocoSePerdidoAsync()
+    {
+        if (_modulo is null) return;
+
+        try
+        {
+            await _modulo.InvokeVoidAsync("devolverFocoSePerdido", _gatilho, _lista);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or JSException or JSDisconnectedException or OperationCanceledException)
+        {
+            // Sem foco (circuito caindo, por exemplo) o menu continua funcionando.
+        }
     }
 
     private static async Task FocarAsync(ElementReference alvo)
@@ -64,5 +155,25 @@
         {
             // Sem foco (circuito caindo, por exemplo) o menu continua funcionando.
         }
+    }
+
+    // A linha some (excluída, outra página): o menu deixa de ser o aberto, o ouvinte sai e a referência é liberada.
+    public async ValueTask DisposeAsync()
+    {
+        MenuAberto.Esquecer(this);
+        if (_modulo is not null)
+        {
+            try
+            {
+                await _modulo.InvokeVoidAsync("pararDeVigiar", _involucro);
+                await _modulo.DisposeAsync();
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or JSException or JSDisconnectedException or OperationCanceledException)
+            {
+                // O circuito caiu ou o invólucro já saiu da página: não há ouvinte a tirar.
+            }
+        }
+
+        _referencia?.Dispose();
     }
 }

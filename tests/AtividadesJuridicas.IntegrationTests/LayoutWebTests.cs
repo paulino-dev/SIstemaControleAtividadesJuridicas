@@ -111,12 +111,25 @@ public class LayoutWebTests(BancoFixture banco) : IAsyncLifetime
 
         var modulo = await anonimo.GetAsync("/Components/Layout/FocoNoTitulo.razor.js");
         modulo.StatusCode.Should().Be(HttpStatusCode.OK);
-        (await modulo.Content.ReadAsStringAsync()).Should().Contain("export function focarTituloVisivel");
+        (await modulo.Content.ReadAsStringAsync()).Should().Contain("export function focarTituloVisivel")
+            .And.Contain("export function focarPrimeiroVisivel").And.Contain("export function vigiarFoco")
+            .And.Contain("export function zerarRolagem");
 
         // Sem circuito (entrar, erro) quem foca o título é o FocusOnNavigate; com circuito, o módulo.
         (await anonimo.GetStringAsync("/conta/entrar")).Should().Contain("<blazor-focus-on-navigate");
         var admin = await _app.ClienteAutenticadoAsync();
         (await admin.GetStringAsync("/")).Should().NotContain("<blazor-focus-on-navigate");
+    }
+
+    [Fact]
+    public async Task Modulo_do_layout_e_servido()
+    {
+        var anonimo = _app.NovoCliente();
+
+        var modulo = await anonimo.GetAsync("/Components/Layout/MainLayout.razor.js");
+
+        modulo.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await modulo.Content.ReadAsStringAsync()).Should().Contain("export function vigiarDesktop");
     }
 
     [Fact]
@@ -167,8 +180,29 @@ public class LayoutWebTests(BancoFixture banco) : IAsyncLifetime
         html.Should().MatchRegex("<div class=\"aj-exibir-menu\">\\s*<button[^>]*aria-label=\"Exibir menu\"");
     }
 
-    // A regra interina do app.css tratava como "tela ainda não migrada" o conteúdo sem um bloco do design system no
-    // topo. Ela saiu na 9F: toda tela da equipe abre o conteúdo com um bloco aj-, e nenhuma depende mais dela.
+    // O botão flutuante do mobile vem depois da tela na ordem do documento (e de tabulação): é o último elemento do
+    // conteúdo. A posição fixa no canto não depende da ordem (o aj-fab é posicionado por right e bottom).
+    [Theory]
+    [InlineData("/agenda")]
+    [InlineData("/clientes")]
+    [InlineData("/atividades")]
+    [InlineData("/processos")]
+    [InlineData("/usuarios")]
+    [InlineData("/documentos-comuns")]
+    public async Task Botao_flutuante_vem_depois_do_conteudo_da_tela(string rota)
+    {
+        var admin = await _app.ClienteAutenticadoAsync();
+
+        var html = await PaginaAsync(admin, rota);
+
+        var corpo = Regex.Match(html, "<main class=\"aj-app__conteudo\">.*?</main>", RegexOptions.Singleline).Value;
+        corpo.Should().Contain("<h1 class=\"aj-titulo\">");
+        Regex.Matches(corpo, "class=\"aj-fab\"").Should().ContainSingle();
+        corpo.Should().MatchRegex("(?s)<(a|button)\\b[^>]*class=\"aj-fab\"[^>]*>(?:(?!<(?:a|button)\\b).)*?</\\1>(?:\\s|<!--.*?-->)*</main>$");
+    }
+
+    // Toda tela da equipe abre o conteúdo com um bloco do design system (um filho direto do main com classe aj-): é ele
+    // que dá ao conteúdo a margem e o ritmo do quadro. Uma tela que abrisse com marcação solta ficaria sem eles.
     [Theory]
     [InlineData("/")]
     [InlineData("/atividades")]
@@ -199,7 +233,7 @@ public class LayoutWebTests(BancoFixture banco) : IAsyncLifetime
         var primeiro = Regex.Match(html, "<main class=\"aj-app__conteudo\">(?:\\s|<!--.*?-->)*(<[a-z][^>]*>)",
             RegexOptions.Singleline).Groups[1].Value;
         primeiro.Should().MatchRegex("^<[a-z]+\\b[^>]*\\sclass=\"aj-",
-            "a regra interina do app.css alcançava o conteúdo sem um filho direto cuja classe começa por aj-");
+            "o conteúdo abre com um bloco do design system, que dá a margem e o ritmo do quadro");
     }
 
     [Theory]

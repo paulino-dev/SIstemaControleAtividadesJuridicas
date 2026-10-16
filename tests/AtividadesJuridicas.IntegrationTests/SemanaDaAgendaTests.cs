@@ -81,6 +81,8 @@ public class SemanaDaAgendaTests : TelaInterativa
             "aj-secao-dia", "aj-secao-dia", "aj-secao-dia", "aj-secao-dia aj-secao-dia--hoje",
             "aj-secao-dia", "aj-secao-dia", "aj-secao-dia");
         secoes.Select(s => s.QuerySelector("h2.aj-secao-dia__cabeca")!.GetAttribute("aria-label")).Should().Equal(RotulosDaSemana);
+        // Na Semana ninguém leva o foco ao título da seção: sem tabindex (o do Dia do tablet o tem, F11).
+        secoes.Should().OnlyContain(s => !s.QuerySelector("h2.aj-secao-dia__cabeca")!.HasAttribute("tabindex"));
         secoes.Select(s => s.QuerySelector("h2 > span.aj-secao-dia__sigla")!.TextContent).Should().Equal(
             "Seg", "Ter", "Qua", "Hoje", "Sex", "Sáb", "Dom");
         secoes.Select(s => s.QuerySelector("h2 > span.aj-secao-dia__numero")!.TextContent).Should().Equal(

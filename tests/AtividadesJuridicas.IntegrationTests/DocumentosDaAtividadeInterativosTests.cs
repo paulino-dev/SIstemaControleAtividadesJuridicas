@@ -57,7 +57,7 @@ public class DocumentosDaAtividadeInterativosTests : TelaInterativa
         painel.FindAll("div.aj-tablet-mobile li.aj-documento")[linha].QuerySelectorAll(".aj-menu-acoes__item").Single(b => b.TextContent == texto).Click();
 
     private static IEnumerable<string> Paineis(IRenderedComponent<DocumentosDaAtividade> painel) =>
-        painel.FindAll("section.aj-painel h2").Select(h => h.TextContent);
+        painel.FindAll(".aj-painel h2").Select(h => h.TextContent);
 
     [Fact]
     public void Linhas_trazem_o_icone_do_tipo_o_link_que_baixa_e_a_meta_de_cada_visao()
@@ -126,11 +126,11 @@ public class DocumentosDaAtividadeInterativosTests : TelaInterativa
         Paineis(painel).Should().Equal("Documentos", "Enviar documento");
         painel.Markup.Should().Contain("Arquivo (até 50 MB)").And.Contain("Nome (opcional)");
         JSInterop.VerifyFocusAsyncInvoke().Arguments[0].ShouldBeElementReferenceTo(painel.Find("input[type=file]"));
-        painel.FindAll("section.aj-painel button").Single(b => b.TextContent == "Enviar").HasAttribute("disabled").Should().BeTrue();
+        painel.FindAll("form.aj-painel button").Single(b => b.TextContent == "Enviar").HasAttribute("disabled").Should().BeTrue();
 
         Escolher(painel, "minuta-final.docx");
         painel.FindAll("label.aj-rotulo").Single(l => l.TextContent.StartsWith("Nome (opcional)")).QuerySelector("input")!.Change("Minuta final");
-        painel.FindAll("section.aj-painel button").Single(b => b.TextContent == "Enviar").Click();
+        painel.FindAll("form.aj-painel button").Single(b => b.TextContent == "Enviar").Click();
 
         painel.WaitForAssertion(() => painel.Markup.Should().Contain("Documento enviado."));
         Despachante.Recebidas.OfType<EnviarDocumentoDaAtividade>().Should().ContainSingle()
@@ -150,10 +150,10 @@ public class DocumentosDaAtividadeInterativosTests : TelaInterativa
         ClicarNaLinha(painel, "Renomear");
 
         Paineis(painel).Should().Equal("Documentos", "Renomear \"minuta-acordo-v2.docx\"");
-        JSInterop.VerifyFocusAsyncInvoke().Arguments[0].ShouldBeElementReferenceTo(painel.Find("section.aj-painel input.aj-campo"));
+        JSInterop.VerifyFocusAsyncInvoke().Arguments[0].ShouldBeElementReferenceTo(painel.Find("form.aj-painel input.aj-campo"));
 
-        painel.Find("section.aj-painel input.aj-campo").Change("Minuta assinada.docx");
-        painel.FindAll("section.aj-painel button").Single(b => b.TextContent == "Salvar nome").Click();
+        painel.Find("form.aj-painel input.aj-campo").Change("Minuta assinada.docx");
+        painel.FindAll("form.aj-painel button").Single(b => b.TextContent == "Salvar nome").Click();
 
         painel.WaitForAssertion(() => painel.Markup.Should().Contain("Nome alterado."));
         Despachante.Recebidas.OfType<RenomearDocumento>().Should().ContainSingle()
@@ -169,7 +169,7 @@ public class DocumentosDaAtividadeInterativosTests : TelaInterativa
         var painel = Painel(naoEncontrada: () => avisada = true);
         ClicarNaLinha(painel, "Renomear");
 
-        painel.FindAll("section.aj-painel button").Single(b => b.TextContent == "Salvar nome").Click();
+        painel.FindAll("form.aj-painel button").Single(b => b.TextContent == "Salvar nome").Click();
 
         painel.WaitForAssertion(() => painel.Markup.Should().Contain("Documento não encontrado."));
         Paineis(painel).Should().Equal("Documentos");
@@ -240,7 +240,7 @@ public class DocumentosDaAtividadeInterativosTests : TelaInterativa
         painel.FindAll("[role=alertdialog]").Should().BeEmpty();
         Paineis(painel).Should().Equal("Documentos", "Enviar documento");
         // O arquivo escolhido antes não volta: o envio reaberto começa do zero.
-        painel.FindAll("section.aj-painel button").Single(b => b.TextContent == "Enviar").HasAttribute("disabled").Should().BeTrue();
+        painel.FindAll("form.aj-painel button").Single(b => b.TextContent == "Enviar").HasAttribute("disabled").Should().BeTrue();
     }
 
     [Fact]
@@ -278,5 +278,123 @@ public class DocumentosDaAtividadeInterativosTests : TelaInterativa
         painel.FindAll("li.aj-documento").Should().BeEmpty();
         painel.Markup.Should().NotContain("Tentar de novo").And.NotContain("Nenhum documento.");
         contagens.Should().BeEmpty();
+    }
+
+    private static string DesktopOuMenu(string acao, Guid documento) =>
+        $"#documento-{acao}-{documento:N}, #documento-{documento:N} .aj-menu-acoes > .aj-botao";
+
+    [Fact]
+    public void Os_botoes_que_abrem_tem_o_id_que_o_foco_de_volta_procura()
+    {
+        var painel = Painel();
+
+        painel.Find("#documentos-enviar").TextContent.Should().Contain("Enviar documento");
+        painel.Find($"#documento-renomear-{Calculo:N}").TextContent.Should().Be("Renomear");
+        painel.Find($"#documento-excluir-{Calculo:N}").TextContent.Should().Be("Excluir");
+        painel.Find($"li#documento-{Calculo:N} .aj-menu-acoes > .aj-botao").GetAttribute("aria-label")
+            .Should().Be("Ações de Cálculo das verbas");
+    }
+
+    [Fact]
+    public void Cancelar_o_renomear_aberto_pelo_menu_devolve_o_foco_ao_menu_da_linha()
+    {
+        var painel = Painel();
+        ClicarNoMenu(painel, "Renomear", linha: 1);
+
+        painel.FindAll("form.aj-painel button").Single(b => b.TextContent == "Cancelar").Click();
+
+        Paineis(painel).Should().Equal("Documentos");
+        UltimoSeletorFocado().Should().Be(DesktopOuMenu("renomear", Calculo));
+    }
+
+    [Fact]
+    public void Cancelar_a_exclusao_devolve_o_foco_ao_excluir_da_linha()
+    {
+        var painel = Painel();
+        ClicarNaLinha(painel, "Excluir");
+
+        painel.FindAll("[role=alertdialog] button").Single(b => b.TextContent == "Cancelar").Click();
+
+        painel.FindAll("[role=alertdialog]").Should().BeEmpty();
+        UltimoSeletorFocado().Should().Be(DesktopOuMenu("excluir", Minuta));
+    }
+
+    [Fact]
+    public void Cancelar_o_envio_devolve_o_foco_ao_enviar_documento()
+    {
+        var painel = Painel();
+        AbrirEnvio(painel);
+
+        painel.FindAll("form.aj-painel button").Single(b => b.TextContent == "Cancelar").Click();
+
+        Paineis(painel).Should().Equal("Documentos");
+        UltimoSeletorFocado().Should().Be("#documentos-enviar");
+    }
+
+    [Fact]
+    public void Enviar_pelo_Enter_envia_e_leva_o_foco_ao_aviso_de_resultado()
+    {
+        Despachante.Responde<EnviarDocumentoDaAtividade, Resultado<Guid>>(Resultado<Guid>.Ok(Guid.NewGuid()));
+        var painel = Painel();
+        AbrirEnvio(painel);
+        painel.Find("form#documentos-envio").QuerySelectorAll("button").Select(b => (b.TextContent, b.GetAttribute("type")))
+            .Should().Equal(("Cancelar", "button"), ("Enviar", "submit"));
+        Escolher(painel, "minuta-final.docx");
+
+        painel.Find("form#documentos-envio").Submit();
+
+        painel.WaitForAssertion(() => painel.Markup.Should().Contain("Documento enviado."));
+        var aviso = painel.FindAll(".aj-aviso").Single(a => a.TextContent.Contains("Documento enviado."));
+        UltimoFocoPedido().Arguments[0].ShouldBeElementReferenceTo(aviso);
+    }
+
+    [Fact]
+    public void Renomear_pelo_Enter_salva_o_nome()
+    {
+        Despachante.Responde<RenomearDocumento, Resultado>(Resultado.Ok());
+        var painel = Painel();
+        ClicarNaLinha(painel, "Renomear");
+        painel.Find("form#documentos-renomear input.aj-campo").Change("Minuta assinada.docx");
+
+        painel.Find("form#documentos-renomear").Submit();
+
+        painel.WaitForAssertion(() => Despachante.Recebidas.OfType<RenomearDocumento>().Should().ContainSingle()
+            .Which.Should().Be(new RenomearDocumento(Minuta, "Minuta assinada.docx")));
+    }
+
+    [Fact]
+    public void Durante_o_envio_o_campo_de_arquivo_fica_desabilitado()
+    {
+        var envio = new TaskCompletionSource<Resultado<Guid>>();
+        Despachante.RespondeDepois<EnviarDocumentoDaAtividade, Resultado<Guid>>(envio.Task);
+        var painel = Painel();
+        AbrirEnvio(painel);
+        Escolher(painel, "minuta-final.docx");
+
+        painel.Find("form#documentos-envio").Submit();
+
+        painel.Find("input[type=file]").HasAttribute("disabled").Should().BeTrue();
+        painel.FindAll("form.aj-painel button").Single(b => b.TextContent == "Enviando…").HasAttribute("disabled").Should().BeTrue();
+
+        envio.SetResult(Resultado<Guid>.Ok(Guid.NewGuid()));
+        painel.WaitForAssertion(() => painel.Markup.Should().Contain("Documento enviado."));
+        Paineis(painel).Should().Equal("Documentos");
+    }
+
+    [Fact]
+    public void Tentar_de_novo_mostra_carregando_ate_a_resposta()
+    {
+        Despachante.Responde<ListarDocumentosDaAtividade, Resultado<Pagina<DocumentoResumo>>>(
+            Resultado<Pagina<DocumentoResumo>>.Falha(TipoErro.Validacao, "Falha de teste."));
+        var painel = Painel();
+        var nova = new TaskCompletionSource<Resultado<Pagina<DocumentoResumo>>>();
+        Despachante.RespondeDepois<ListarDocumentosDaAtividade, Resultado<Pagina<DocumentoResumo>>>(nova.Task);
+
+        painel.FindAll("button").Single(b => b.TextContent == "Tentar de novo").Click();
+
+        painel.Markup.Should().Contain("Carregando…").And.NotContain("Falha de teste.");
+        nova.SetResult(Resultado<Pagina<DocumentoResumo>>.Ok(new Pagina<DocumentoResumo>([DaMinuta, DoCalculo], 2, 1, 20)));
+        painel.WaitForAssertion(() => painel.FindAll("div.aj-so-desktop li.aj-documento").Should().HaveCount(2));
+        painel.Markup.Should().NotContain("Carregando…");
     }
 }

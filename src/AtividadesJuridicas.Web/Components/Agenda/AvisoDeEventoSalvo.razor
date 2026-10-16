@@ -2,7 +2,7 @@
 
 @* O aviso no topo da agenda e da ficha do evento depois de salvar ou excluir. Sem conflito de agenda, o recado como
    veio ("Evento salvo.", "Evento excluído."). Com conflito, um aviso de atenção em frase por visão, como os quadros
-   da agenda: o desktop com "Evento salvo." em destaque e "Atenção:", o tablet sem "Atenção:", o mobile só com o
+   da agenda: o desktop com o recado ("Evento salvo.") em destaque e "Atenção:", o tablet sem "Atenção:", o mobile só com o
    conflito e "em dd/MM". O texto depois do destaque é uma expressão só, com o espaço na frente. *@
 @if (Sobreposicoes.Count == 0)
 {
@@ -11,10 +11,10 @@
 else
 {
     <div class="aj-so-desktop">
-        <Aviso Tipo="TipoDeAviso.Atencao" Frase="true"><strong>Evento salvo.</strong>@($" {RotulosDeAgenda.ConflitoNoDesktop(Fuso, Sobreposicoes)}")</Aviso>
+        <Aviso Tipo="TipoDeAviso.Atencao" Frase="true"><strong>@Recado.Texto</strong>@($" {RotulosDeAgenda.ConflitoNoDesktop(Fuso, Sobreposicoes)}")</Aviso>
     </div>
     <div class="aj-so-tablet">
-        <Aviso Tipo="TipoDeAviso.Atencao" Frase="true"><strong>Evento salvo.</strong>@($" {RotulosDeAgenda.ConflitoNoTablet(Fuso, Sobreposicoes)}")</Aviso>
+        <Aviso Tipo="TipoDeAviso.Atencao" Frase="true"><strong>@Recado.Texto</strong>@($" {RotulosDeAgenda.ConflitoNoTablet(Fuso, Sobreposicoes)}")</Aviso>
     </div>
     <div class="aj-so-mobile">
         <Aviso Tipo="TipoDeAviso.Atencao" Frase="true">@RotulosDeAgenda.ConflitoNoMobile(Fuso, Sobreposicoes)</Aviso>

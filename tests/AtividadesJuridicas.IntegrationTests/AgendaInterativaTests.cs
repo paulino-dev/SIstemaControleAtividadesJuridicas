@@ -11,6 +11,7 @@ using AtividadesJuridicas.Web.Components.Layout;
 using AtividadesJuridicas.Web.Infra;
 using Bunit;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 using PaginaDaAgenda = AtividadesJuridicas.Web.Components.Pages.Agenda;
 
@@ -87,6 +88,18 @@ public class AgendaInterativaTests : TelaInterativa
 
     private static IElement CampoDoPainel<T>(IRenderedComponent<T> tela, string nome) where T : IComponent =>
         Campo(tela, "form#filtros-da-agenda", nome);
+
+    // O seletor do título do Dia que a agenda pede ao módulo de foco (o do desktop e o da seção do tablet: o módulo foca
+    // o que está à vista). Os pedidos se leem pelo SeletoresFocados da TelaInterativa, que já monta o módulo de foco.
+    private const string TituloDoDia = ".aj-dia__cabeca, .aj-secao-dia__cabeca";
+
+    // Cinco eventos em 14/10: a célula do Mês mostra três e o "+2".
+    private static EventoResumo[] CincoEm14() =>
+    [
+        Evento("Primeiro", Local(2026, 10, 14, 9)), Evento("Segundo", Local(2026, 10, 14, 10)),
+        Evento("Terceiro", Local(2026, 10, 14, 11)), Evento("Quarto", Local(2026, 10, 14, 12)),
+        Evento("Quinto", Local(2026, 10, 14, 13)),
+    ];
 
     // Review Focus 1: sem endereço ou com endereço estranho, hoje no padrão de cada largura, com uma consulta só.
     [Theory]
@@ -314,12 +327,17 @@ public class AgendaInterativaTests : TelaInterativa
         var botao = tela.Find($"{Tablet} button[aria-controls=filtros-da-agenda]");
         Texto(botao).Should().Be("Filtros");
         botao.GetAttribute("aria-expanded").Should().Be("false");
-        tela.FindAll("form#filtros-da-agenda").Should().BeEmpty();
+        // Fechado, o painel fica no HTML, escondido: o aria-controls dos dois botões aponta para um form que existe.
+        tela.Find("form#filtros-da-agenda").HasAttribute("hidden").Should().BeTrue();
+        SeletoresFocados.Should().BeEmpty();
 
         botao.Click();
 
         tela.Find($"{Tablet} button[aria-controls=filtros-da-agenda]").GetAttribute("aria-expanded").Should().Be("true");
-        JSInterop.VerifyFocusAsyncInvoke().Arguments[0].ShouldBeElementReferenceTo(CampoDoPainel(tela, "Tipo"));
+        tela.Find("form#filtros-da-agenda").HasAttribute("hidden").Should().BeFalse();
+        // O foco vai ao primeiro campo do painel: o pedido ao módulo e, nesse seletor, o primeiro é o Tipo.
+        SeletoresFocados.Should().Equal(CamposDoPainel("filtros-da-agenda"));
+        tela.Find(CamposDoPainel("filtros-da-agenda")).ParentElement!.QuerySelector("span")!.TextContent.Should().Be("Tipo");
         CampoDoPainel(tela, "Tipo").QuerySelectorAll("option").Select(o => o.TextContent)
             .Should().Equal("Todos", "Audiência", "Reunião", "Prazo", "Outro");
         CampoDoPainel(tela, "Participante").QuerySelectorAll("option").Select(o => o.TextContent)
@@ -333,8 +351,13 @@ public class AgendaInterativaTests : TelaInterativa
         Consultas.Should().HaveCount(2);
         Consultas[1].Tipo.Should().Be(TipoEvento.Audiencia);
         Consultas[1].ParticipanteId.Should().Be(Pedro.Id);
-        tela.FindAll("form#filtros-da-agenda").Should().BeEmpty();
+        tela.Find("form#filtros-da-agenda").HasAttribute("hidden").Should().BeTrue();
         tela.Find($"{Tablet} button[aria-controls=filtros-da-agenda]").GetAttribute("aria-expanded").Should().Be("false");
+        // "Filtrar" devolve o foco ao botão que abre o painel. São dois (o "Filtrar agenda" do mobile e o "Filtros" do
+        // tablet), cada um numa visão: o navegador foca o que está à vista.
+        SeletoresFocados.Should().Equal(CamposDoPainel("filtros-da-agenda"), BotaoDoPainel("filtros-da-agenda"));
+        tela.FindAll(BotaoDoPainel("filtros-da-agenda")).Select(b => b.GetAttribute("aria-label") ?? Texto(b))
+            .Should().Equal("Filtrar agenda", "Filtros");
 
         tela.Find($"{Tablet} button[aria-controls=filtros-da-agenda]").Click();
         CampoDoPainel(tela, "Tipo").QuerySelector("option[selected]")!.TextContent.Should().Be("Audiência");
@@ -366,7 +389,9 @@ public class AgendaInterativaTests : TelaInterativa
         tela.Find(filtros).Click();
         CampoDoPainel(tela, "Tipo").Change(nameof(TipoEvento.Prazo));
         tela.Find(filtros).Click();   // fecha sem filtrar
-        tela.FindAll("form#filtros-da-agenda").Should().BeEmpty();
+        tela.Find("form#filtros-da-agenda").HasAttribute("hidden").Should().BeTrue();
+        // Fechar pelo próprio botão não pede foco: ele já está no botão.
+        SeletoresFocados.Should().Equal(CamposDoPainel("filtros-da-agenda"));
 
         Botao(tela, Tablet, "Próxima semana").Click();
 
@@ -402,6 +427,33 @@ public class AgendaInterativaTests : TelaInterativa
         tela.Find(filtrarAgenda).Click();
         CampoDoPainel(tela, "Tipo").QuerySelector("option[selected]")!.TextContent.Should().Be("Prazo");
         CampoDoPainel(tela, "Participante").QuerySelector("option[selected]").Should().BeNull();
+    }
+
+    // Esc com o foco num campo do painel fecha como o botão: o que se escolheu e não se aplicou sai, nada é consultado,
+    // e o foco volta ao botão que abre o painel. Outra tecla não fecha.
+    [Fact]
+    public void Esc_no_painel_fecha_sem_consultar_descarta_o_que_nao_foi_aplicado_e_devolve_o_foco_ao_botao()
+    {
+        var tela = Agenda("/agenda?data=2026-10-08");
+        var filtros = $"{Tablet} button[aria-controls=filtros-da-agenda]";
+        tela.Find(filtros).Click();
+        CampoDoPainel(tela, "Tipo").Change(nameof(TipoEvento.Prazo));
+
+        CampoDoPainel(tela, "Tipo").KeyDown(new KeyboardEventArgs { Key = "Escape" });
+
+        tela.Find("form#filtros-da-agenda").HasAttribute("hidden").Should().BeTrue();
+        tela.Find(filtros).GetAttribute("aria-expanded").Should().Be("false");
+        SeletoresFocados.Should().Equal(CamposDoPainel("filtros-da-agenda"), BotaoDoPainel("filtros-da-agenda"));
+        Consultas.Should().ContainSingle();   // fechar não consulta
+        // Os campos voltaram ao aplicado (nenhum): nenhuma opção marcada, e o navegador mostra "Todos".
+        CampoDoPainel(tela, "Tipo").QuerySelector("option[selected]").Should().BeNull();
+        CampoDoPainel(tela, "Tipo").QuerySelector("option[value='']")!.TextContent.Should().Be("Todos");
+
+        tela.Find(filtros).Click();
+        CampoDoPainel(tela, "Tipo").KeyDown(new KeyboardEventArgs { Key = "Enter" });
+
+        tela.Find("form#filtros-da-agenda").HasAttribute("hidden").Should().BeFalse();
+        tela.Find(filtros).GetAttribute("aria-expanded").Should().Be("true");
     }
 
     [Fact]
@@ -500,6 +552,8 @@ public class AgendaInterativaTests : TelaInterativa
         tela.FindAll(".aj-semana, .aj-secao-dia, .aj-dia-escolhido").Should().BeEmpty();
         tela.Markup.Should().NotContain("Sem eventos");
         tela.FindAll(Desktop).Should().ContainSingle();
+        // O erro com "Tentar de novo" é o das listas (EstadoDaLista), não uma cópia da marcação dele.
+        tela.FindComponents<EstadoDaLista>().Should().ContainSingle().Which.Instance.Erro.Should().Be("Falha de teste.");
 
         Despachante.Responde<ListarEventos, Resultado<IReadOnlyList<EventoResumo>>>(
             Eventos(Evento("Protocolo de documentos", Local(2026, 10, 8, 9, 30), 60, TipoEvento.Outro)));
@@ -547,5 +601,165 @@ public class AgendaInterativaTests : TelaInterativa
         tela.Markup.Should().NotContain("Reunião da semana velha").And.NotContain("Carregando…");
         Subtitulo(tela).Should().Be("Semana de 19/10 a 25/10/2026");
         Consultas.Should().HaveCount(3);
+    }
+
+    // F13: as setas e o "Hoje" de cada largura num grupo com nome, como o segmentado das visões.
+    [Fact]
+    public void Setas_e_hoje_de_cada_largura_ficam_num_grupo_chamado_periodo()
+    {
+        var tela = Agenda("/agenda?data=2026-10-08");
+
+        static string[] Botoes(IElement grupo) =>
+            [.. grupo.QuerySelectorAll("button").Select(b => b.GetAttribute("aria-label") ?? Texto(b))];
+
+        tela.FindAll("[role=group][aria-label='Período']").Should().HaveCount(3);
+        Botoes(tela.Find($"{Desktop} [role=group][aria-label='Período']")).Should().Equal("Período anterior", "Hoje", "Próximo período");
+        Botoes(tela.Find($"{Tablet} [role=group][aria-label='Período']")).Should().Equal("Semana anterior", "Hoje", "Próxima semana");
+        var mobile = tela.Find(Mobile);
+        mobile.GetAttribute("role").Should().Be("group");
+        mobile.GetAttribute("aria-label").Should().Be("Período");
+        Botoes(mobile).Should().Equal("Semana anterior", "Próxima semana");
+    }
+
+    // F8: a troca de período deixa a seta no lugar (o foco fica nela) e anuncia o período novo numa região só para
+    // leitor de cada largura, com o texto do subtítulo do período daquela largura; o anúncio muda já na carga.
+    [Fact]
+    public void Troca_de_periodo_anuncia_o_periodo_novo_e_a_seta_continua_na_tela_durante_a_carga()
+    {
+        const string Anuncio = "div.aj-desktop-tablet > p.aj-so-leitor[role=status]";
+        const string AnuncioDoMobile = "div.aj-so-mobile > p.aj-so-leitor[role=status]";
+        var tela = Agenda("/agenda?data=2026-10-08");
+        Texto(tela.Find(Anuncio)).Should().Be("Semana de 05/10 a 11/10/2026");
+        Texto(tela.Find(AnuncioDoMobile)).Should().Be("Quinta-feira, 08/10/2026");
+
+        var semana = new TaskCompletionSource<Resultado<IReadOnlyList<EventoResumo>>>();
+        Despachante.RespondeDepois<ListarEventos, Resultado<IReadOnlyList<EventoResumo>>>(semana.Task);
+        Botao(tela, Desktop, "Próximo período").Click();
+
+        tela.Markup.Should().Contain("Carregando…");
+        Texto(tela.Find(Anuncio)).Should().Be("Semana de 12/10 a 18/10/2026");
+        Texto(tela.Find(AnuncioDoMobile)).Should().Be("Quinta-feira, 15/10/2026");
+        Subtitulo(tela).Should().Be("Semana de 12/10 a 18/10/2026");
+        tela.FindAll($"{Desktop} button[aria-label='Próximo período']").Should().ContainSingle();
+
+        semana.SetResult(Eventos());
+
+        tela.WaitForAssertion(() => tela.Markup.Should().NotContain("Carregando…"));
+        Texto(tela.Find(Anuncio)).Should().Be("Semana de 12/10 a 18/10/2026");
+        tela.FindAll(Anuncio).Should().ContainSingle();
+        tela.FindAll(AnuncioDoMobile).Should().ContainSingle();
+    }
+
+    // F9: tocar num dia de fora do mês na grade compacta leva ao outro mês, e a grade fica à vista durante a carga, já
+    // com as semanas do mês novo e o dia tocado escolhido: o botão tocado continua na tela. A lista do dia espera.
+    [Fact]
+    public void Grade_compacta_do_mes_fica_a_vista_durante_a_carga_do_mes_novo()
+    {
+        const string Grade = "div.aj-so-mobile > .aj-faixa-dias--mes";
+        var tela = Agenda("/agenda?visao=mes&data=2026-10-08");
+        var novembro = new TaskCompletionSource<Resultado<IReadOnlyList<EventoResumo>>>();
+        Despachante.RespondeDepois<ListarEventos, Resultado<IReadOnlyList<EventoResumo>>>(novembro.Task);
+
+        // 01/11 é o último dia (de fora) da grade de outubro.
+        tela.Find($"{Grade} button[aria-label^='Domingo, 01/11']").Click();
+
+        Endereco.Should().EndWith("/agenda?visao=mes&data=2026-11-01");
+        Consultas.Should().HaveCount(2);
+        // A grade de novembro de 2026 vai de 26/10 a 06/12: seis semanas.
+        tela.FindAll($"{Grade} button.aj-faixa-dias__dia").Should().HaveCount(42);
+        tela.Find($"{Grade} button[aria-pressed=true]").GetAttribute("aria-label").Should().StartWith("Domingo, 01/11");
+        Texto(tela.Find("div.aj-so-mobile > p.aj-subtitulo[role=status]")).Should().Be("Carregando…");
+        Texto(tela.Find("div.aj-desktop-tablet > p.aj-subtitulo[role=status]")).Should().Be("Carregando…");
+        tela.FindAll(".aj-dia-escolhido").Should().BeEmpty();
+
+        novembro.SetResult(Eventos(Evento("Reunião de novembro", Local(2026, 11, 1, 9))));
+
+        tela.WaitForAssertion(() => tela.FindAll("div.aj-so-mobile > .aj-dia-escolhido").Should().ContainSingle());
+        tela.Markup.Should().Contain("Reunião de novembro");
+        tela.FindAll("div.aj-so-mobile > p.aj-subtitulo[role=status]").Should().BeEmpty();
+        tela.FindAll($"{Grade} button.aj-faixa-dias__dia").Should().HaveCount(42);
+    }
+
+    // F11: o "+N" do Mês leva ao Dia e, quando o Dia aparece (depois da carga da semana dele), o foco ao título do Dia à
+    // vista: o "+N" saiu da tela com a grade. Enquanto a semana carrega, nada é pedido ao módulo de foco.
+    [Fact]
+    public void Mais_eventos_do_mes_leva_o_foco_ao_titulo_do_dia_quando_ele_aparece()
+    {
+        var eventos = CincoEm14();
+        var tela = Agenda("/agenda?visao=mes&data=2026-10-08", AtorDaDiretoria, eventos);
+        var semana = new TaskCompletionSource<Resultado<IReadOnlyList<EventoResumo>>>();
+        Despachante.RespondeDepois<ListarEventos, Resultado<IReadOnlyList<EventoResumo>>>(semana.Task);
+
+        tela.Find("button[aria-label='Mais 2 eventos em 14/10']").Click();
+
+        Endereco.Should().EndWith("/agenda?visao=dia&data=2026-10-14");
+        tela.Markup.Should().Contain("Carregando…");
+        SeletoresFocados.Should().BeEmpty();
+
+        semana.SetResult(Eventos(eventos));
+
+        tela.WaitForAssertion(() => SeletoresFocados.Should().Equal(TituloDoDia));
+        tela.Find("h2.aj-dia__cabeca").GetAttribute("tabindex").Should().Be("-1");
+        tela.Find("section.aj-secao-dia > h2.aj-secao-dia__cabeca").GetAttribute("tabindex").Should().Be("-1");
+    }
+
+    // Conferência da 9G (D4): o "+N" leva o foco ao título do Dia, que já diz a data; a região do período não anuncia o
+    // período novo (a data seria lida duas vezes): fica vazia, e a troca seguinte (a seta) volta a anunciar.
+    [Fact]
+    public void Mais_eventos_do_mes_nao_anuncia_o_periodo_que_o_titulo_do_dia_ja_diz()
+    {
+        const string Anuncio = "div.aj-desktop-tablet > p.aj-so-leitor[role=status]";
+        const string AnuncioDoMobile = "div.aj-so-mobile > p.aj-so-leitor[role=status]";
+        var tela = Agenda("/agenda?visao=mes&data=2026-10-08", AtorDaDiretoria, CincoEm14());
+        Texto(tela.Find(Anuncio)).Should().Be("Outubro de 2026");
+        Texto(tela.Find(AnuncioDoMobile)).Should().Be("Outubro de 2026");
+
+        tela.Find("button[aria-label='Mais 2 eventos em 14/10']").Click();
+
+        tela.WaitForAssertion(() => SeletoresFocados.Should().Equal(TituloDoDia));
+        Subtitulo(tela).Should().Be("Quarta-feira, 14/10/2026");
+        Texto(tela.Find(Anuncio)).Should().BeEmpty();
+        Texto(tela.Find(AnuncioDoMobile)).Should().BeEmpty();
+
+        Botao(tela, Desktop, "Próximo período").Click();
+
+        tela.WaitForAssertion(() => Texto(tela.Find(Anuncio)).Should().Be("Quinta-feira, 15/10/2026"));
+        Texto(tela.Find(AnuncioDoMobile)).Should().Be("Quinta-feira, 15/10/2026");
+    }
+
+    // F11: uma seta tocada antes de o Dia aparecer cancela o foco pedido pelo "+N": quem tocou a seta fica com o foco.
+    [Fact]
+    public void Seta_antes_de_o_dia_aparecer_cancela_o_foco_no_titulo_do_dia()
+    {
+        var tela = Agenda("/agenda?visao=mes&data=2026-10-08", AtorDaDiretoria, CincoEm14());
+        var semana = new TaskCompletionSource<Resultado<IReadOnlyList<EventoResumo>>>();
+        Despachante.RespondeDepois<ListarEventos, Resultado<IReadOnlyList<EventoResumo>>>(semana.Task);
+        tela.Find("button[aria-label='Mais 2 eventos em 14/10']").Click();
+
+        // 15/10, a mesma semana: a consulta é a que já espera.
+        Botao(tela, Desktop, "Próximo período").Click();
+        semana.SetResult(Eventos());
+
+        tela.WaitForAssertion(() => tela.FindAll("h2.aj-dia__cabeca").Should().ContainSingle());
+        Subtitulo(tela).Should().Be("Quinta-feira, 15/10/2026");
+        SeletoresFocados.Should().BeEmpty();
+    }
+
+    // M3: o "Filtrar" da barra do desktop tocado antes de o Dia aparecer também cancela o foco pedido pelo "+N": o foco
+    // fica no "Filtrar", que continua à vista.
+    [Fact]
+    public void Filtrar_antes_de_o_dia_aparecer_cancela_o_foco_no_titulo_do_dia()
+    {
+        var tela = Agenda("/agenda?visao=mes&data=2026-10-08", AtorDaDiretoria, CincoEm14());
+        var semana = new TaskCompletionSource<Resultado<IReadOnlyList<EventoResumo>>>();
+        Despachante.RespondeDepois<ListarEventos, Resultado<IReadOnlyList<EventoResumo>>>(semana.Task);
+        tela.Find("button[aria-label='Mais 2 eventos em 14/10']").Click();
+
+        tela.Find("form.aj-barra-filtros__grupo").Submit();
+        semana.SetResult(Eventos());
+
+        tela.WaitForAssertion(() => tela.FindAll("h2.aj-dia__cabeca").Should().ContainSingle());
+        Subtitulo(tela).Should().Be("Quarta-feira, 14/10/2026");
+        SeletoresFocados.Should().BeEmpty();
     }
 }

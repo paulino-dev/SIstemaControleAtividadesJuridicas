@@ -102,6 +102,19 @@ public class ComponentesDoDesignSystemTests
         html.Should().Contain("role=\"alert\"").And.NotContain("alertdialog").And.NotContain("aria-label=").And.NotContain("<strong>");
     }
 
+    [Fact]
+    public async Task Aviso_que_se_revela_tem_tabindex_e_o_comum_continua_sem()
+    {
+        RenderFragment texto = c => c.AddContent(0, "Não foi possível salvar.");
+
+        var revelado = await TelaDeTeste.RenderizarSemDadosAsync<Aviso>(
+            new() { ["Tipo"] = TipoDeAviso.Erro, ["Revelar"] = true, ["ChildContent"] = texto });
+        var comum = await TelaDeTeste.RenderizarSemDadosAsync<Aviso>(
+            new() { ["Tipo"] = TipoDeAviso.Erro, ["ChildContent"] = texto });
+
+        revelado.Should().Contain("<p class=\"aj-aviso aj-aviso--erro\" role=\"alert\" tabindex=\"-1\">");
+        comum.Should().Contain("<p class=\"aj-aviso aj-aviso--erro\" role=\"alert\">").And.NotContain("tabindex");
+    }
     [Theory]
     [InlineData(1, 3, 45, false, "Página 1 de 3 · 45 atividades", true, false)]
     [InlineData(3, 3, 45, false, "Página 3 de 3 · 45 atividades", false, true)]
@@ -116,8 +129,10 @@ public class ComponentesDoDesignSystemTests
         }));
 
         html.Should().Contain("<div class=\"aj-paginacao\">").And.Contain($"<span class=\"aj-subtitulo\">{texto}</span>");
-        Regex.IsMatch(html, "<button[^>]*disabled[^>]*>Anterior</button>").Should().Be(anteriorTravado);
-        Regex.IsMatch(html, "<button[^>]*disabled[^>]*>Próxima</button>").Should().Be(proximaTravada);
+        // O botão sem ação fica focável (aria-disabled, não disabled): o foco não cai no body quando ele a perde.
+        Regex.IsMatch(html, "<button[^>]*aria-disabled=\"true\"[^>]*>Anterior</button>").Should().Be(anteriorTravado);
+        Regex.IsMatch(html, "<button[^>]*aria-disabled=\"true\"[^>]*>Próxima</button>").Should().Be(proximaTravada);
+        html.Should().Contain(">Anterior</button>").And.Contain(">Próxima</button>").And.NotMatchRegex("<button[^>]*\\sdisabled[\\s>=]");
         Regex.Matches(html, "<button type=\"button\" class=\"aj-botao aj-botao--secundario\"").Should().HaveCount(2);
     }
 
@@ -173,18 +188,35 @@ public class ComponentesDoDesignSystemTests
     [Fact]
     public async Task Cabecalho_com_acao_traz_o_botao_e_o_botao_flutuante()
     {
-        var botao = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarSemDadosAsync<CabecalhoDePagina>(
+        var botao = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarSemDadosAsync<ComBarraSuperior<CabecalhoDePagina>>(
             new() { ["Titulo"] = "Documentos comuns", ["Acao"] = "Enviar documento" }));
-        var link = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarSemDadosAsync<CabecalhoDePagina>(
+        var link = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarSemDadosAsync<ComBarraSuperior<CabecalhoDePagina>>(
             new() { ["Titulo"] = "Clientes", ["Acao"] = "Novo cliente", ["AcaoHref"] = "/clientes/novo" }));
-        var semAcao = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarSemDadosAsync<CabecalhoDePagina>(new() { ["Titulo"] = "Início" }));
+        var semAcao = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarSemDadosAsync<ComBarraSuperior<CabecalhoDePagina>>(
+            new() { ["Titulo"] = "Início" }));
 
         // O ícone é um componente: pode haver espaço em branco em volta do svg.
         botao.Should().MatchRegex("<button type=\"button\" class=\"aj-botao aj-botao--primario aj-botao--com-icone\"[^>]*>\\s*<svg[^>]*>.*?</svg>\\s*Enviar documento</button>")
             .And.MatchRegex("<button type=\"button\" class=\"aj-fab\" aria-label=\"Enviar documento\"");
         link.Should().MatchRegex("<a href=\"/clientes/novo\" class=\"aj-botao aj-botao--primario aj-botao--com-icone\"[^>]*>\\s*<svg[^>]*>.*?</svg>\\s*Novo cliente</a>")
             .And.MatchRegex("<a href=\"/clientes/novo\" class=\"aj-fab\" aria-label=\"Novo cliente\"");
+        // O botão flutuante vai ao encaixe do fim do conteúdo: depois do cabeçalho, o último elemento desenhado.
+        botao.Should().MatchRegex("(?s)</header>\\s*</div>\\s*<button type=\"button\" class=\"aj-fab\"[^>]*>.*?</button>\\s*$");
+        link.Should().MatchRegex("(?s)</header>\\s*</div>\\s*<a href=\"/clientes/novo\" class=\"aj-fab\"[^>]*>.*?</a>\\s*$");
+        semAcao.Should().Contain("<h1 class=\"aj-titulo\">Início</h1>");
         semAcao.Should().NotContain("aj-fab").And.NotContain("aj-botao--primario");
+    }
+
+    // Sem o encaixe do layout, o botão flutuante não sai junto do cabeçalho: ele não é mais desenhado no lugar antigo
+    // (logo depois do cabeçalho, antes do conteúdo da tela).
+    [Fact]
+    public async Task Cabecalho_sozinho_nao_desenha_o_botao_flutuante_junto_dele()
+    {
+        var html = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarSemDadosAsync<CabecalhoDePagina>(
+            new() { ["Titulo"] = "Clientes", ["Acao"] = "Novo cliente", ["AcaoHref"] = "/clientes/novo" }));
+
+        html.Should().MatchRegex("<a href=\"/clientes/novo\" class=\"aj-botao aj-botao--primario aj-botao--com-icone\"[^>]*>\\s*<svg[^>]*>.*?</svg>\\s*Novo cliente</a>");
+        html.Should().NotContain("aj-fab");
     }
 
     private const string Frase = "Visíveis para todos os clientes do escritório.";
@@ -418,8 +450,9 @@ public class ComponentesDoDesignSystemTests
             .And.Contain("<span class=\"aj-subtitulo\">Página 1 de 3 · 45 atividades</span>")
             .And.MatchRegex("<button type=\"button\" class=\"aj-botao aj-botao--secundario aj-paginacao__anterior\"[^>]*>\\s*<svg[^>]*>\\s*<path d=\"M15 6l-6 6 6 6\"></path>\\s*</svg>\\s*Anterior</button>")
             .And.MatchRegex("<button type=\"button\" class=\"aj-botao aj-botao--secundario aj-paginacao__proxima\"[^>]*>\\s*Próxima\\s*<svg[^>]*>\\s*<path d=\"M9 6l6 6-6 6\"></path>\\s*</svg>\\s*</button>");
-        Regex.IsMatch(html, "aj-paginacao__anterior\"[^>]*disabled").Should().BeTrue();
-        Regex.IsMatch(html, "aj-paginacao__proxima\"[^>]*disabled").Should().BeFalse();
+        Regex.IsMatch(html, "aj-paginacao__anterior\"[^>]*aria-disabled=\"true\"").Should().BeTrue();
+        Regex.IsMatch(html, "aj-paginacao__proxima\"[^>]*aria-disabled").Should().BeFalse();
+        html.Should().NotMatchRegex("<button[^>]*\\sdisabled[\\s>=]");
     }
 
     [Fact]

@@ -6,9 +6,10 @@ using Microsoft.AspNetCore.Components.Sections;
 namespace AtividadesJuridicas.IntegrationTests;
 
 /// <summary>
-/// Desenha um componente junto do encaixe da barra superior, como o layout faz. Sozinho, o componente não mostra a
-/// barra do mobile: o <c>CabecalhoDePagina</c> a entrega ao encaixe, e sem encaixe ela não chega ao HTML. Os
-/// parâmetros informados seguem para o componente.
+/// Desenha um componente entre os encaixes do layout, como o layout faz: a barra superior antes dele e o fim do
+/// conteúdo depois. Sozinho, o componente não mostra a barra do mobile nem o botão flutuante: o
+/// <c>CabecalhoDePagina</c> os entrega aos encaixes, e sem encaixe eles não chegam ao HTML. Os parâmetros
+/// informados seguem para o componente.
 /// </summary>
 public sealed class ComBarraSuperior<TComponente> : ComponentBase where TComponente : IComponent
 {
@@ -22,6 +23,9 @@ public sealed class ComBarraSuperior<TComponente> : ComponentBase where TCompone
         builder.CloseComponent();
         builder.OpenComponent<TComponente>(2);
         builder.AddMultipleAttributes(3, Parametros);
+        builder.CloseComponent();
+        builder.OpenComponent<SectionOutlet>(4);
+        builder.AddComponentParameter(5, nameof(SectionOutlet.SectionName), Encaixes.RodapeDoConteudo);
         builder.CloseComponent();
     }
 }

@@ -9,6 +9,7 @@ using AtividadesJuridicas.Domain.Auditoria;
 using AtividadesJuridicas.Domain.Identidade;
 using AtividadesJuridicas.Infrastructure.Persistencia;
 using AtividadesJuridicas.Web.Components.Agenda;
+using AtividadesJuridicas.Web.Components.Layout;
 using AtividadesJuridicas.Web.Infra;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -103,11 +104,15 @@ public class AgendaWebTests(BancoFixture banco) : IAsyncLifetime
             .And.Contain($"<p class=\"aj-subtitulo\">{RotulosDeAgenda.SubtituloDaSemana(RotulosDeAgenda.SegundaDe(hoje))}</p>")
             .And.MatchRegex("<a href=\"/agenda/novo\" class=\"aj-botao aj-botao--primario aj-botao--com-icone\">\\s*<svg[^>]*>.*?</svg>\\s*Novo evento</a>")
             .And.Contain("<a href=\"/agenda/novo\" class=\"aj-fab\" aria-label=\"Novo evento\">");
+        // O anúncio do período, só para leitor, um por visão: o da Semana no desktop e no tablet, o do Dia no mobile.
+        html.Should().Contain(
+                $"<div class=\"aj-desktop-tablet\"><p class=\"aj-so-leitor\" role=\"status\">{RotulosDeAgenda.SubtituloDaSemana(RotulosDeAgenda.SegundaDe(hoje))}</p></div>")
+            .And.Contain($"<div class=\"aj-so-mobile\"><p class=\"aj-so-leitor\" role=\"status\">{RotulosDeAgenda.SubtituloDoDia(hoje)}</p></div>");
 
         var desktop = BlocoDeVisao.De(html, "aj-so-desktop");
         desktop.Should().MatchRegex(
             "(?s)<div class=\"aj-barra-filtros aj-barra-filtros--dividida\">\\s*<div class=\"aj-barra-filtros__grupo\">\\s*" +
-            "<div class=\"aj-segmentado aj-segmentado--periodo\">\\s*" +
+            "<div class=\"aj-segmentado aj-segmentado--periodo\" role=\"group\" aria-label=\"Período\">\\s*" +
             "<button type=\"button\" class=\"aj-segmentado__seta\" aria-label=\"Período anterior\"[^>]*>\\s*<svg[^>]*>.*?</svg>\\s*</button>\\s*" +
             "<button type=\"button\" class=\"aj-segmentado__hoje\"[^>]*>Hoje</button>\\s*" +
             "<button type=\"button\" class=\"aj-segmentado__seta\" aria-label=\"Próximo período\"[^>]*>\\s*<svg[^>]*>.*?</svg>\\s*</button>\\s*</div>\\s*" +
@@ -133,7 +138,7 @@ public class AgendaWebTests(BancoFixture banco) : IAsyncLifetime
 
         var tablet = BlocoDeVisao.De(html, "aj-so-tablet");
         tablet.Should().MatchRegex(
-            "(?s)<div class=\"aj-barra-filtros aj-barra-filtros--plana\">\\s*<div class=\"aj-segmentado aj-segmentado--periodo\">\\s*" +
+            "(?s)<div class=\"aj-barra-filtros aj-barra-filtros--plana\">\\s*<div class=\"aj-segmentado aj-segmentado--periodo\" role=\"group\" aria-label=\"Período\">\\s*" +
             "<button type=\"button\" class=\"aj-segmentado__seta\" aria-label=\"Semana anterior\"[^>]*>.*?</button>\\s*" +
             "<button type=\"button\" class=\"aj-segmentado__hoje\"[^>]*>Hoje</button>\\s*" +
             "<button type=\"button\" class=\"aj-segmentado__seta\" aria-label=\"Próxima semana\"[^>]*>.*?</button>\\s*</div>\\s*" +
@@ -158,7 +163,7 @@ public class AgendaWebTests(BancoFixture banco) : IAsyncLifetime
                 "<button type=\"button\" class=\"aj-segmentado__opcao\" aria-pressed=\"false\"[^>]*>Semana</button>\\s*" +
                 "<button type=\"button\" class=\"aj-segmentado__opcao\" aria-pressed=\"false\"[^>]*>Mês</button>\\s*</div>")
             .And.MatchRegex(
-                $"(?s)<div class=\"aj-barra-superior__periodo\">\\s*<strong>{RotulosDeAgenda.MesDoMobile(hoje)}</strong>\\s*<div class=\"aj-barra-superior__setas\">\\s*" +
+                $"(?s)<div class=\"aj-barra-superior__periodo\">\\s*<strong>{RotulosDeAgenda.MesDoMobile(hoje)}</strong>\\s*<div class=\"aj-barra-superior__setas\" role=\"group\" aria-label=\"Período\">\\s*" +
                 "<button type=\"button\" class=\"aj-botao aj-botao--fantasma aj-botao--icone\" aria-label=\"Semana anterior\"[^>]*>.*?</button>\\s*" +
                 "<button type=\"button\" class=\"aj-botao aj-botao--fantasma aj-botao--icone\" aria-label=\"Próxima semana\"[^>]*>.*?</button>\\s*</div>\\s*</div>")
             .And.Contain("aj-faixa-dias");
@@ -367,7 +372,7 @@ public class AgendaPorDiaTests
     }
 
     [Fact]
-    public void Aviso_de_sobreposicao_diz_que_o_evento_foi_salvo_e_lista_cada_pessoa_no_horario_do_escritorio()
+    public async Task Aviso_de_sobreposicao_diz_que_o_evento_foi_salvo_e_lista_cada_pessoa_no_horario_do_escritorio()
     {
         var sobreposicoes = new[]
         {
@@ -375,9 +380,17 @@ public class AgendaPorDiaTests
                 _fuso.ParaUtc(new DateTime(2026, 10, 7, 11, 30, 0))),
         };
 
-        RotulosDeAgenda.MensagemDeSalvo(_fuso, sobreposicoes).Should()
-            .Be("Evento salvo. Atenção: Pedro já tem evento das 10:00 às 11:30 (07/10).");
-        RotulosDeAgenda.MensagemDeSalvo(_fuso, []).Should().Be("Evento salvo.");
+        // O aviso que a agenda mostra depois de salvar: com sobreposição, a frase do desktop diz que o evento foi salvo e
+        // lista a pessoa no horário do escritório; sem sobreposição, só o recado.
+        var comConflito = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarComAsync<AvisoDeEventoSalvo>(
+            new DespachanteCombinado(), new() { ["Recado"] = new Recado("Evento salvo.", TipoDeAviso.Sucesso, sobreposicoes) }));
+        var semConflito = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarComAsync<AvisoDeEventoSalvo>(
+            new DespachanteCombinado(), new() { ["Recado"] = new Recado("Evento salvo.", TipoDeAviso.Sucesso, []) }));
+
+        RotulosDeAgenda.ConflitoNoDesktop(_fuso, sobreposicoes).Should().Be("Atenção: Pedro já tem evento das 10:00 às 11:30 (07/10).");
+        BlocoDeVisao.De(comConflito, "aj-so-desktop").Should()
+            .Contain("<strong>Evento salvo.</strong> Atenção: Pedro já tem evento das 10:00 às 11:30 (07/10).");
+        semConflito.Should().Contain("<span>Evento salvo.</span>").And.NotContain("Atenção");
     }
 
     // ---- Onda final ----
@@ -446,8 +459,9 @@ public class AgendaPorDiaTests
         var ateMeiaNoite = new SobreposicaoDeAgenda(Guid.NewGuid(), "Paula", _fuso.ParaUtc(new DateTime(2026, 3, 10, 22, 0, 0)),
             _fuso.ParaUtc(new DateTime(2026, 3, 11, 0, 0, 0)));
 
-        RotulosDeAgenda.Sobreposicao(_fuso, atravessa).Should().Be("Pedro já tem evento de 10/03 22:00 a 11/03 01:00");
-        RotulosDeAgenda.Sobreposicao(_fuso, ateMeiaNoite).Should().Be("Paula já tem evento das 22:00 às 00:00 (10/03)");
+        // A frase de cada pessoa como o tablet a mostra (a do desktop é a mesma depois de "Atenção:").
+        RotulosDeAgenda.ConflitoNoTablet(_fuso, [atravessa]).Should().Be("Pedro já tem evento de 10/03 22:00 a 11/03 01:00.");
+        RotulosDeAgenda.ConflitoNoTablet(_fuso, [ateMeiaNoite]).Should().Be("Paula já tem evento das 22:00 às 00:00 (10/03).");
     }
 
     [Fact]
@@ -460,8 +474,8 @@ public class AgendaPorDiaTests
             CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("ar-SA");   // outros algarismos e outro calendário
 
             RotulosDeAgenda.Intervalo(_fuso, evento, new DateOnly(2026, 10, 7)).Should().Be("23:30 – 08/10 00:30");
-            RotulosDeAgenda.Sobreposicao(_fuso, new SobreposicaoDeAgenda(Guid.NewGuid(), "Pedro", evento.InicioEm,
-                evento.InicioEm.AddMinutes(30))).Should().Be("Pedro já tem evento das 23:30 às 00:00 (07/10)");
+            RotulosDeAgenda.ConflitoNoTablet(_fuso, [new SobreposicaoDeAgenda(Guid.NewGuid(), "Pedro", evento.InicioEm,
+                evento.InicioEm.AddMinutes(30))]).Should().Be("Pedro já tem evento das 23:30 às 00:00 (07/10).");
         }
         finally
         {

@@ -7,10 +7,12 @@
 
 @if (_mensagem is not null)
 {
-    <Aviso Tipo="@(_falhou ? TipoDeAviso.Erro : TipoDeAviso.Sucesso)">@_mensagem</Aviso>
+    @* A chave é a geração do aviso: cada mensagem nova é um aviso novo, que se revela (foco e rolagem até ele). *@
+    <Aviso @key="_versaoDoAviso" Tipo="@(_falhou ? TipoDeAviso.Erro : TipoDeAviso.Sucesso)" Revelar="true">@_mensagem</Aviso>
 }
 
-@if (_confirmacao.AguardandoConfirmacao && _arquivo is { } escolhido)
+@* A confirmação fica à vista também durante o envio confirmado, com os botões desabilitados. *@
+@if (ConfirmacaoAVista && _arquivo is { } escolhido)
 {
     <Aviso Tipo="TipoDeAviso.Atencao" Rotulo="Confirmar envio" Titulo="@TituloDoEnvio(escolhido)">
         <ChildContent>Documentos desta área ficam visíveis para todos os clientes do escritório. Não envie aqui arquivos de um cliente específico.</ChildContent>
@@ -28,7 +30,7 @@
     <Aviso @key="aExcluir.Id" Tipo="TipoDeAviso.Atencao" Rotulo="Confirmar exclusão" Titulo="@($"Confirmar a exclusão de {aExcluir.Nome}?")">
         <ChildContent>O documento deixa de aparecer para todos os clientes.</ChildContent>
         <Acoes>
-            <button type="button" class="aj-botao aj-botao--secundario" disabled="@_removendo" @onclick="CancelarExclusao">Cancelar</button>
+            <button type="button" class="aj-botao aj-botao--secundario" disabled="@_removendo" @onclick="CancelarConfirmacaoDeExclusao">Cancelar</button>
             <button type="button" class="aj-botao aj-botao--primario" disabled="@_removendo" @onclick="() => ExcluirAsync(aExcluir.Id)">Confirmar exclusão</button>
         </Acoes>
     </Aviso>
@@ -36,32 +38,33 @@
 
 @if (_envioAberto)
 {
-    @* Escondido, não removido, enquanto a confirmação está à vista: o arquivo escolhido mora neste campo. *@
-    <section class="aj-painel" hidden="@_confirmacao.AguardandoConfirmacao">
+    @* Escondido, não removido, enquanto a confirmação está à vista: o arquivo escolhido mora neste campo. Um formulário
+       com o seu botão de envio: o Enter no nome envia (o "Enviar" desabilitado, sem arquivo, não deixa). *@
+    <form class="aj-painel" id="@IdDoPainelDeEnvio" hidden="@ConfirmacaoAVista" @onsubmit="EnviarAsync" @onsubmit:preventDefault>
         <h2>Enviar documento</h2>
-        <label class="aj-rotulo">@RotuloDoArquivo<InputFile @key="_versaoDoCampo" @ref="_campoDeArquivo" OnChange="Escolher" class="aj-campo" /></label>
+        <label class="aj-rotulo">@RotuloDoArquivo<InputFile @key="_versaoDoCampo" @ref="_campoDeArquivo" OnChange="Escolher" class="aj-campo" disabled="@_enviando" /></label>
         <label class="aj-rotulo">Nome (opcional)<input type="text" class="aj-campo" @bind="_nomeDoEnvio" /></label>
         <div class="aj-painel__acoes">
-            <button type="button" class="aj-botao aj-botao--secundario" disabled="@_enviando" @onclick="DescartarEnvio">Cancelar</button>
-            <button type="button" class="aj-botao aj-botao--primario" disabled="@(_arquivo is null || _enviando)" @onclick="EnviarAsync">@(_enviando ? "Enviando…" : "Enviar")</button>
+            <button type="button" class="aj-botao aj-botao--secundario" disabled="@_enviando" @onclick="CancelarPainelDeEnvio">Cancelar</button>
+            <button type="submit" class="aj-botao aj-botao--primario" disabled="@(_arquivo is null || _enviando)">@(_enviando ? "Enviando…" : "Enviar")</button>
         </div>
-    </section>
+    </form>
 }
 
 @if (_renomeando is { } renomeando)
 {
-    <section class="aj-painel">
+    <form class="aj-painel" id="@IdDoPainelDeRenomear" @onsubmit="RenomearAsync" @onsubmit:preventDefault>
         <h2>@($"Renomear \"{renomeando.Nome}\"")</h2>
         <label class="aj-rotulo">Novo nome<input type="text" class="aj-campo" @bind="_novoNome" @ref="_campoDoNovoNome" /></label>
         <div class="aj-painel__acoes">
-            <button type="button" class="aj-botao aj-botao--secundario" @onclick="FecharRenomear">Cancelar</button>
-            <button type="button" class="aj-botao aj-botao--primario" @onclick="RenomearAsync">Salvar nome</button>
+            <button type="button" class="aj-botao aj-botao--secundario" @onclick="CancelarRenomear">Cancelar</button>
+            <button type="submit" class="aj-botao aj-botao--primario" disabled="@_salvandoNome">Salvar nome</button>
         </div>
-    </section>
+    </form>
 }
 
-<EstadoDaLista Erro="@_erroDaLista" Carregando="@(!_carregado)" Vazio="@(_pagina.Itens.Count == 0)"
-               TextoDeVazio="Nenhum documento." TentarDeNovo="() => IrParaAsync(_paginaPedida)">
+<EstadoDaLista Erro="@_erroDaLista" Carregando="@(!_carregado || _recarregando)" Vazio="@(_pagina.Itens.Count == 0)"
+               TextoDeVazio="Nenhum documento." TentarDeNovo="TentarDeNovoAsync">
     <div class="aj-so-desktop">
         <div class="aj-tabela-caixa">
             <table class="aj-tabela">
@@ -79,7 +82,7 @@
                             @* Os dois botões na mesma linha, sem espaço entre eles, como no quadro: o espaço em branco
                                entre dois elementos em linha é desenhado e alargaria a célula. *@
                             <td class="aj-tabela__acao aj-tabela__acao--varias">
-                                <button type="button" class="aj-botao aj-botao--fantasma aj-botao--menor" disabled="@Ocupada" @onclick="() => RenomearLinha(documento)">Renomear</button><button type="button" class="aj-botao aj-botao--perigo aj-botao--menor" disabled="@Ocupada" @onclick="() => ExcluirLinha(documento.Id)">Excluir</button>
+                                <button type="button" class="aj-botao aj-botao--fantasma aj-botao--menor" id="@IdDoRenomear(documento.Id)" disabled="@Ocupada" @onclick="() => RenomearLinha(documento)">Renomear</button><button type="button" class="aj-botao aj-botao--perigo aj-botao--menor" id="@IdDoExcluir(documento.Id)" disabled="@Ocupada" @onclick="() => ExcluirLinha(documento.Id)">Excluir</button>
                             </td>
                         </tr>
                     }
@@ -94,7 +97,7 @@
         <section class="aj-painel aj-painel--principal">
             @foreach (var documento in _pagina.Itens)
             {
-                <div class="aj-linha" @key="documento.Id">
+                <div class="aj-linha" id="@IdDaLinha(documento.Id)" @key="documento.Id">
                     <div class="aj-linha__texto"><span class="aj-linha__titulo">@documento.Nome</span><span class="aj-ajuda">@TextosDeDocumento.Detalhe(documento.TamanhoBytes, documento.EnviadoEm, documento.EnviadoPor, Fuso)</span></div>
                     <MenuDeAcoes Rotulo="@($"Ações de {documento.Nome}")">
                         <a href="@TextosDeDocumento.Endereco(documento.Id)" download data-enhance-nav="false" class="aj-menu-acoes__item">Baixar</a>
@@ -116,8 +119,13 @@
     protected override CategoriaDocumento CategoriaDosDocumentos => CategoriaDocumento.DocumentoComum;
     protected override Guid? ClienteDosDocumentos => null;
 
-    // As confirmações desta tela são avisos com rótulo, que levam o foco a si mesmos quando aparecem.
-    protected override ValueTask FocarAvisoDeEnvioAsync() => ValueTask.CompletedTask;
+    private const string SeletorDaConfirmacaoDeEnvio = "[role=\"alertdialog\"][aria-label=\"Confirmar envio\"]";
+
+    // A confirmação leva o foco a si quando aparece; este pedido serve ao "Enviar documento" clicado com ela à vista.
+    protected override ValueTask FocarAvisoDeEnvioAsync() => new(Foco.FocarPrimeiroVisivelAsync(SeletorDaConfirmacaoDeEnvio));
+
+    // O "Enviar documento" desta tela: o do cabeçalho (desktop e tablet) ou o botão flutuante (mobile).
+    protected override string SeletorDoEnviarDocumento => ".aj-cabecalho > .aj-botao--primario, .aj-fab[aria-label=\"Enviar documento\"]";
 
     // Uma coisa aberta por vez: o campo é o do painel que está na tela.
     protected override ValueTask FocarPainelAbertoAsync() =>

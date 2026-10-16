@@ -204,6 +204,31 @@ public class MesDaAgendaTests : TelaInterativa
         _aberto.Should().BeNull();
     }
 
+    // F9: com a consulta de outro mês em curso, o mobile mantém a grade compacta (as semanas do mês novo, sem os pontos)
+    // e espera a lista do dia; o desktop e o tablet mostram "Carregando…" no lugar da grade grande.
+    [Fact]
+    public void Carregando_mantem_a_grade_compacta_sem_pontos_e_espera_a_lista_e_a_grade_grande()
+    {
+        var mes = Desenhar<MesDaAgenda>(p => p
+            .Add(c => c.Periodo, new PeriodoDaAgenda(VisaoDaAgenda.Mes, QuadroDaAgenda.Hoje, true))
+            .Add(c => c.Eventos, QuadroDaAgenda.Semana)
+            .Add(c => c.Hoje, QuadroDaAgenda.Hoje)
+            .Add(c => c.Carregando, true));
+
+        var mobile = mes.Find("div.aj-so-mobile");
+        mobile.Children.Select(c => c.ClassName).Should().Equal("aj-faixa-dias aj-faixa-dias--mes", "aj-subtitulo");
+        mobile.QuerySelectorAll("div.aj-faixa-dias--mes > button.aj-faixa-dias__dia").Should().HaveCount(35);
+        mobile.QuerySelectorAll("span.aj-pontos-evento > span").Should().BeEmpty();
+        var carregando = mobile.QuerySelector("p.aj-subtitulo")!;
+        carregando.GetAttribute("role").Should().Be("status");
+        carregando.TextContent.Should().Be("Carregando…");
+
+        var grande = mes.Find("div.aj-desktop-tablet");
+        grande.Children.Select(c => c.ClassName).Should().Equal("aj-subtitulo");
+        grande.QuerySelector("p.aj-subtitulo[role=status]")!.TextContent.Should().Be("Carregando…");
+        mes.FindAll(".aj-mes, .aj-dia-escolhido").Should().BeEmpty();
+    }
+
     [Fact]
     public void No_mobile_o_cartao_da_lista_leva_a_ficha_com_a_origem_do_mes()
     {

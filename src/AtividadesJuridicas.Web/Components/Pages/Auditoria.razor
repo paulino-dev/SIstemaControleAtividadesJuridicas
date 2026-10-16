@@ -57,28 +57,22 @@ else
             <button type="submit" class="aj-so-leitor" hidden>Filtrar</button>
         </form>
 
-        @if (_filtrosAbertos)
-        {
-            <form id="filtros-da-auditoria" class="aj-painel aj-painel--filtros" @onsubmit="FiltrarDoPainelAsync" @onsubmit:preventDefault>
-                <label class="aj-campo-filtro"><span>Usuário</span><select class="aj-campo-filtro__controle" @bind="_filtro.UsuarioId"><option value="">Todos</option>@foreach (var usuario in _usuarios) { <option value="@usuario.Id">@usuario.Nome</option> }</select></label>
-                @if (_aba == Aba.Alteracoes)
-                {
-                    <label class="aj-campo-filtro"><span>Operação</span><select class="aj-campo-filtro__controle" @bind="_filtro.Operacao"><option value="">Todas</option><option value="@OperacaoAuditada.Criacao">Criação</option><option value="@OperacaoAuditada.Alteracao">Alteração</option><option value="@OperacaoAuditada.Exclusao">Exclusão</option><option value="@OperacaoAuditada.Evento">Evento</option></select></label>
-                    <label class="aj-campo-filtro"><span>Entidade</span><input type="text" class="aj-campo-filtro__controle" placeholder="Usuario, Perfil…" @bind="_filtro.Entidade" /></label>
-                    <label class="aj-campo-filtro"><span>Registro</span><input type="text" class="aj-campo-filtro__controle" placeholder="Identificador do registro" @bind="_filtro.EntidadeId" /></label>
-                    <label class="aj-campo-filtro"><span>Gravação</span><input type="text" class="aj-campo-filtro__controle" placeholder="Identificador de correlação" @bind="_filtro.IdCorrelacao" /></label>
-                }
-                else
-                {
-                    <label class="aj-campo-filtro"><span>Ação</span><select class="aj-campo-filtro__controle" @bind="_filtro.Acao"><option value="">Todas</option><option value="@AcaoDeAcesso.Listou">Listou</option><option value="@AcaoDeAcesso.Visualizou">Visualizou</option><option value="@AcaoDeAcesso.Baixou">Baixou</option></select></label>
-                    <label class="aj-campo-filtro"><span>Recurso</span><input type="text" class="aj-campo-filtro__controle" placeholder="Usuario, RegistroAuditoria…" @bind="_filtro.TipoRecurso" /></label>
-                }
-                <div class="aj-painel__acoes">
-                    <button type="button" class="aj-botao aj-botao--fantasma" @onclick="LimparFiltros">Limpar</button>
-                    <button type="submit" class="aj-botao aj-botao--primario">Filtrar</button>
-                </div>
-            </form>
-        }
+        @* Fechado, o painel fica no HTML, escondido, para o aria-controls dos dois botões apontar para ele. *@
+        <PainelDeFiltros Id="filtros-da-auditoria" Aberto="_filtrosAbertos" AoFiltrar="FiltrarDoPainelAsync" AoLimpar="LimparFiltros" AoFechar="FecharFiltros">
+            <label class="aj-campo-filtro"><span>Usuário</span><select class="aj-campo-filtro__controle" @bind="_filtro.UsuarioId"><option value="">Todos</option>@foreach (var usuario in _usuarios) { <option value="@usuario.Id">@usuario.Nome</option> }</select></label>
+            @if (_aba == Aba.Alteracoes)
+            {
+                <label class="aj-campo-filtro"><span>Operação</span><select class="aj-campo-filtro__controle" @bind="_filtro.Operacao"><option value="">Todas</option><option value="@OperacaoAuditada.Criacao">Criação</option><option value="@OperacaoAuditada.Alteracao">Alteração</option><option value="@OperacaoAuditada.Exclusao">Exclusão</option><option value="@OperacaoAuditada.Evento">Evento</option></select></label>
+                <label class="aj-campo-filtro"><span>Entidade</span><input type="text" class="aj-campo-filtro__controle" placeholder="Usuario, Perfil…" @bind="_filtro.Entidade" /></label>
+                <label class="aj-campo-filtro"><span>Registro</span><input type="text" class="aj-campo-filtro__controle" placeholder="Identificador do registro" @bind="_filtro.EntidadeId" /></label>
+                <label class="aj-campo-filtro"><span>Gravação</span><input type="text" class="aj-campo-filtro__controle" placeholder="Identificador de correlação" @bind="_filtro.IdCorrelacao" /></label>
+            }
+            else
+            {
+                <label class="aj-campo-filtro"><span>Ação</span><select class="aj-campo-filtro__controle" @bind="_filtro.Acao"><option value="">Todas</option><option value="@AcaoDeAcesso.Listou">Listou</option><option value="@AcaoDeAcesso.Visualizou">Visualizou</option><option value="@AcaoDeAcesso.Baixou">Baixou</option></select></label>
+                <label class="aj-campo-filtro"><span>Recurso</span><input type="text" class="aj-campo-filtro__controle" placeholder="Usuario, RegistroAuditoria…" @bind="_filtro.TipoRecurso" /></label>
+            }
+        </PainelDeFiltros>
     </div>
 
     @if (_identificadorInvalido)
@@ -196,8 +190,13 @@ else
         </EstadoDaLista>
     }
 
-    <Paginacao Numero="_pagina" TotalDePaginas="TotalDePaginas" Total="Total" Singular="registro" Plural="registros"
-               SempreVisivel="true" Ocupado="_ocupado" IrPara="IrParaAsync" />
+    @* A paginação é da consulta respondida: enquanto a aba nova carrega, depois de uma falha ou com um identificador
+       inválido (que não consulta), ela sai, para não mostrar os números de outra consulta. *@
+    @if (_consultou && !_identificadorInvalido)
+    {
+        <Paginacao Numero="_pagina" TotalDePaginas="TotalDePaginas" Total="Total" Singular="registro" Plural="registros"
+                   SempreVisivel="true" Ocupado="_ocupado" IrPara="IrParaAsync" />
+    }
 }
 
 @code {
@@ -210,12 +209,16 @@ else
     private bool _autorizado;
     private bool _ocupado;
     private bool _consultou;
+    private bool _usuariosCarregados;
     private bool _filtrosAbertos;
     private bool _identificadorInvalido;
     private string? _erro;
     private Aba _aba = Aba.Alteracoes;
     private int _pagina = 1;
+    // O filtro em edição (os campos das três visões) e o aplicado, do último "Filtrar" ou do botão de uma linha: o que a
+    // lista está mostrando. A consulta só lê o aplicado.
     private FiltroDaTelaDeAuditoria _filtro = new();
+    private FiltroDaTelaDeAuditoria _aplicado = new();
     private IReadOnlyList<UsuarioResumo> _usuarios = [];
     private Pagina<RegistroAuditoriaResumo> _alteracoes = SemAlteracoes;
     private Pagina<RegistroAcessoResumo> _acessos = SemAcessos;
@@ -251,16 +254,36 @@ else
     protected override async Task OnInitializedAsync()
     {
         _autorizado = await Despachante.EnviarAsync(new ObterMeuAcesso()) is { EhDiretoria: true };
-        if (_autorizado)
-        {
-            var usuarios = await Despachante.EnviarAsync(new ListarUsuarios());
-            _usuarios = usuarios.Valor ?? [];
-            if (usuarios.Sucesso)
-                await IrParaAsync(1);
-            else
-                Concluir(usuarios);
-        }
+        if (_autorizado) await CarregarInicioAsync();
         _carregado = true;
+    }
+
+    // A carga inicial: os usuários do filtro e a primeira página. Se os usuários falham, o erro fica no lugar da lista e
+    // o "Tentar de novo" volta aqui, até eles chegarem. Uma vez por clique.
+    private async Task CarregarInicioAsync()
+    {
+        if (_ocupado) return;
+
+        Resultado<IReadOnlyList<UsuarioResumo>> usuarios;
+        _ocupado = true;
+        try
+        {
+            usuarios = await Despachante.EnviarAsync(new ListarUsuarios());
+        }
+        finally
+        {
+            _ocupado = false;
+        }
+
+        _usuarios = usuarios.Valor ?? [];
+        if (!usuarios.Sucesso)
+        {
+            Concluir(usuarios);
+            return;
+        }
+
+        _usuariosCarregados = true;
+        await IrParaAsync(1);
     }
 
     private Task TrocarAbaAsync(Aba aba)
@@ -272,13 +295,37 @@ else
         return IrParaAsync(1);
     }
 
-    private Task FiltrarAsync() => IrParaAsync(1);
+    // "Filtrar" (a barra do desktop, a linha do tablet e do mobile, o painel) é o único lugar que grava o filtro
+    // aplicado: tudo o que está nos campos. Com outra consulta em curso, nada muda.
+    private Task<Carga> AplicarAsync()
+    {
+        if (_ocupado) return Task.FromResult(Carga.EmAndamento);
 
-    private Task TentarDeNovoAsync() => IrParaAsync(_pagina);
+        _aplicado = _filtro.Copia();
+        return ConsultarPaginaAsync(1);
+    }
 
-    private void AlternarFiltros() => _filtrosAbertos = !_filtrosAbertos;
+    private Task FiltrarAsync() => AplicarAsync();
 
-    // Esvazia os campos que o painel da aba atual traz; o período, que fica na linha, não sai.
+    // Se a carga inicial falhou nos usuários, ela é refeita; senão, a página pedida de novo, com o filtro aplicado.
+    private Task TentarDeNovoAsync() => _usuariosCarregados ? IrParaAsync(_pagina) : CarregarInicioAsync();
+
+    // Abrir ou fechar o painel pelo botão descarta o que se escolheu nele e não se aplicou: os campos do painel voltam ao
+    // filtro aplicado. O período, que fica na linha, não muda.
+    private void AlternarFiltros()
+    {
+        _filtrosAbertos = !_filtrosAbertos;
+        _filtro.VoltarOsDoPainel(_aplicado);
+    }
+
+    // Esc no painel: fecha como o botão.
+    private void FecharFiltros()
+    {
+        _filtrosAbertos = false;
+        _filtro.VoltarOsDoPainel(_aplicado);
+    }
+
+    // Esvazia os campos que o painel da aba atual traz; o período, que fica na linha, não sai. Só vale ao filtrar.
     private void LimparFiltros()
     {
         _filtro.UsuarioId = null;
@@ -299,19 +346,26 @@ else
     private async Task FiltrarDoPainelAsync()
     {
         // O painel só fecha quando o filtro foi aplicado: um identificador inválido ou uma consulta ignorada o deixam aberto.
-        if (await ConsultarPaginaAsync(1) == Carga.Feita) _filtrosAbertos = false;
+        if (await AplicarAsync() == Carga.Feita) _filtrosAbertos = false;
     }
 
-    // Os botões das linhas respondem "tudo sobre isto": os outros filtros saem (só o período fica).
+    // Os botões das linhas respondem "tudo sobre isto": aplicam na hora o período aplicado e o registro (os outros
+    // filtros saem), e os campos passam a mostrá-lo.
     private Task FiltrarPorRegistroAsync(Guid entidadeId)
     {
-        _filtro = FiltroDaTelaDeAuditoria.PorRegistro(_filtro, entidadeId);
+        if (_ocupado) return Task.CompletedTask;
+
+        _aplicado = FiltroDaTelaDeAuditoria.PorRegistro(_aplicado, entidadeId);
+        _filtro = _aplicado.Copia();
         return IrParaAsync(1);
     }
 
     private Task FiltrarPorCorrelacaoAsync(Guid idCorrelacao)
     {
-        _filtro = FiltroDaTelaDeAuditoria.PorCorrelacao(_filtro, idCorrelacao);
+        if (_ocupado) return Task.CompletedTask;
+
+        _aplicado = FiltroDaTelaDeAuditoria.PorCorrelacao(_aplicado, idCorrelacao);
+        _filtro = _aplicado.Copia();
         return IrParaAsync(1);
     }
 
@@ -339,7 +393,7 @@ else
         Guid? entidadeId = null, idCorrelacao = null;
         if (_aba == Aba.Alteracoes)
         {
-            if (!TentarLerGuid(_filtro.EntidadeId, out entidadeId) || !TentarLerGuid(_filtro.IdCorrelacao, out idCorrelacao))
+            if (!TentarLerGuid(_aplicado.EntidadeId, out entidadeId) || !TentarLerGuid(_aplicado.IdCorrelacao, out idCorrelacao))
             {
                 // Sem consulta não há linhas para mostrar: as da consulta anterior saem e a página volta à primeira, para
                 // que o número da página nunca fique sobre linhas de outra consulta.
@@ -374,21 +428,21 @@ else
     private async Task ConsultarAsync(Guid? entidadeId, Guid? idCorrelacao)
     {
         // Os dois limites são dias do escritório: "até" inclui o dia informado inteiro.
-        DateTime? de = _filtro.De is { } d ? Fuso.InicioDoDiaEmUtc(d) : null;
+        DateTime? de = _aplicado.De is { } d ? Fuso.InicioDoDiaEmUtc(d) : null;
         // Sem limite superior quando o dia não tem sucessor (DateOnly.MaxValue).
-        DateTime? ate = _filtro.Ate is { } a && a != DateOnly.MaxValue ? Fuso.InicioDoDiaEmUtc(a.AddDays(1)) : null;
+        DateTime? ate = _aplicado.Ate is { } a && a != DateOnly.MaxValue ? Fuso.InicioDoDiaEmUtc(a.AddDays(1)) : null;
 
         if (_aba == Aba.Alteracoes)
         {
             var resultado = await Despachante.EnviarAsync(new ConsultarAuditoria(
-                new FiltroDeAuditoria(de, ate, _filtro.UsuarioId, Limpo(_filtro.Entidade), _filtro.Operacao, entidadeId, idCorrelacao), _pagina));
+                new FiltroDeAuditoria(de, ate, _aplicado.UsuarioId, Limpo(_aplicado.Entidade), _aplicado.Operacao, entidadeId, idCorrelacao), _pagina));
             _alteracoes = resultado.Valor ?? SemAlteracoes;
             Concluir(resultado);
         }
         else
         {
             var resultado = await Despachante.EnviarAsync(new ConsultarAcessos(
-                new FiltroDeAcessos(de, ate, _filtro.UsuarioId, Limpo(_filtro.TipoRecurso), _filtro.Acao), _pagina));
+                new FiltroDeAcessos(de, ate, _aplicado.UsuarioId, Limpo(_aplicado.TipoRecurso), _aplicado.Acao), _pagina));
             _acessos = resultado.Valor ?? SemAcessos;
             Concluir(resultado);
         }

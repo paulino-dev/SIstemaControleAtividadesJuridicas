@@ -258,4 +258,17 @@ public class AtividadeResponsaveisInterativosTests : TelaInterativa
 
         tela.WaitForAssertion(() => Destino.Should().EndWith(ficha));
     }
+
+    [Fact]
+    public void Falha_ao_salvar_leva_o_foco_ao_aviso_de_erro()
+    {
+        var tela = Tela(Completa);
+        Despachante.Responde<DefinirResponsaveisDaAtividade, Resultado>(
+            Resultado.Falha(TipoErro.Conflito, "A atividade foi alterada por outra pessoa. Recarregue e tente novamente."));
+
+        tela.Find("form#formulario-de-responsaveis").Submit();
+
+        tela.WaitForAssertion(() => tela.Find("p.aj-aviso--erro").TextContent.Should().Contain("A atividade foi alterada por outra pessoa."));
+        UltimoFocoPedido().Arguments[0].ShouldBeElementReferenceTo(tela.Find("p.aj-aviso--erro"));
+    }
 }

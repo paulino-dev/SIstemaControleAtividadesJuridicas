@@ -8,6 +8,7 @@ using AtividadesJuridicas.Domain.Atividades;
 using AtividadesJuridicas.Domain.Identidade;
 using AtividadesJuridicas.Web.Components.Pages;
 using Bunit;
+using Microsoft.AspNetCore.Components.Web;
 
 namespace AtividadesJuridicas.IntegrationTests;
 
@@ -27,12 +28,27 @@ public class AtividadesInterativosTests : TelaInterativa
     // Uma atividade na página; o escopo do usuário tem 8, uma atrasada.
     private static PaginaDeAtividades Pagina() => new([Contestacao], 1, 1, 20, 8, 1);
 
+    // Três páginas de 20 (45 atividades no escopo, uma atrasada), com o número que a consulta pediu.
+    private static PaginaDeAtividades PaginaDeTres(int numero) => new([Contestacao], 45, numero, 20, 45, 1);
+
+    private const string Painel = "form#filtros-de-atividades";
+    private const string BotaoQueAbre = "button[aria-controls=filtros-de-atividades]";
+
     private IRenderedComponent<Atividades> Lista(UsuarioAutenticado ator)
     {
         Despachante
             .Responde<ObterMeuAcesso, UsuarioAutenticado?>(ator)
             .Responde<ListarUsuarios, Resultado<IReadOnlyList<UsuarioResumo>>>(Resultado<IReadOnlyList<UsuarioResumo>>.Ok([Diana, Pedro]))
             .Responde<ListarAtividades, Resultado<PaginaDeAtividades>>(Resultado<PaginaDeAtividades>.Ok(Pagina()));
+        return Desenhar<Atividades>();
+    }
+
+    private IRenderedComponent<Atividades> ListaDeTresPaginas(UsuarioAutenticado ator)
+    {
+        Despachante
+            .Responde<ObterMeuAcesso, UsuarioAutenticado?>(ator)
+            .Responde<ListarUsuarios, Resultado<IReadOnlyList<UsuarioResumo>>>(Resultado<IReadOnlyList<UsuarioResumo>>.Ok([Diana, Pedro]))
+            .Responde<ListarAtividades, Resultado<PaginaDeAtividades>>(c => Resultado<PaginaDeAtividades>.Ok(PaginaDeTres(c.Pagina)));
         return Desenhar<Atividades>();
     }
 
@@ -59,8 +75,10 @@ public class AtividadesInterativosTests : TelaInterativa
     public void Chip_de_situacao_busca_na_hora_mantendo_a_busca_e_o_responsavel()
     {
         var tela = Lista(AtorDaDiretoria);
-        tela.Find("form.aj-linha-filtros input").Change("contestação");
+        // A busca e o responsável aplicados pelo "Buscar" da barra do desktop.
+        tela.Find("form.aj-barra-filtros input[type=text]").Change("contestação");
         CampoDaBarra(tela, "Responsável").Change(Pedro.Id.ToString());
+        tela.Find("form.aj-barra-filtros").Submit();
 
         Chip(tela, "Feitas").Click();
 
@@ -110,10 +128,13 @@ public class AtividadesInterativosTests : TelaInterativa
         var tela = Lista(AtorDaDiretoria);
         tela.Find("form.aj-linha-filtros input").Change("minuta");
         Texto(tela.Find("button[aria-controls=filtros-de-atividades]")).Should().Be("Responsável, revisor");
+        tela.Find(Painel).HasAttribute("hidden").Should().BeTrue();
 
         tela.Find("button[aria-controls=filtros-de-atividades]").Click();
 
         tela.Find("button[aria-controls=filtros-de-atividades]").GetAttribute("aria-expanded").Should().Be("true");
+        tela.Find(Painel).HasAttribute("hidden").Should().BeFalse();
+        SeletoresFocados.Should().Equal(CamposDoPainel("filtros-de-atividades"));
         CampoDoPainel(tela, "Situação").QuerySelectorAll("option").Select(o => o.TextContent).Should().Equal(
             "Todas", "Criada", "Direcionada", "Feita", "Para correção", "Corrigida", "Concluída", "Reaberta");
         CampoDoPainel(tela, "Situação").Change("Criada");
@@ -123,8 +144,9 @@ public class AtividadesInterativosTests : TelaInterativa
         UltimaConsulta.Status.Should().Be(StatusAtividade.Criada);
         UltimaConsulta.RevisorId.Should().Be(Diana.Id);
         UltimaConsulta.Busca.Should().Be("minuta");
-        tela.FindAll("form#filtros-de-atividades").Should().BeEmpty();
+        tela.Find(Painel).HasAttribute("hidden").Should().BeTrue();
         tela.Find("button[aria-controls=filtros-de-atividades]").GetAttribute("aria-expanded").Should().Be("false");
+        SeletoresFocados.Should().Equal(CamposDoPainel("filtros-de-atividades"), BotaoDoPainel("filtros-de-atividades"));
 
         tela.Find("button[aria-controls=filtros-de-atividades]").Click();
         Escolhida(CampoDoPainel(tela, "Situação")).Should().Be("Criada");
@@ -209,6 +231,98 @@ public class AtividadesInterativosTests : TelaInterativa
         resposta.SetResult(Resultado<PaginaDeAtividades>.Ok(Pagina()));
         tela.WaitForAssertion(() => Chip(tela, "Feitas").GetAttribute("aria-pressed").Should().Be("true"));
         Chip(tela, "Concluídas").GetAttribute("aria-pressed").Should().Be("false");
+        UltimaConsulta.Status.Should().Be(StatusAtividade.Feita);
+    }
+
+    // Abrir leva o foco ao primeiro campo do painel (a Situação); Esc com o foco num campo fecha sem consultar, devolve
+    // os campos ao aplicado e o foco ao botão que abre o painel.
+    [Fact]
+    public void Painel_abre_com_o_foco_no_primeiro_campo_e_esc_fecha_sem_consultar_e_devolve_o_foco_ao_botao()
+    {
+        var tela = Lista(AtorDaDiretoria);
+        tela.Find(Painel).HasAttribute("hidden").Should().BeTrue();
+
+        tela.Find(BotaoQueAbre).Click();
+
+        SeletoresFocados.Should().Equal(CamposDoPainel("filtros-de-atividades"));
+        tela.Find(CamposDoPainel("filtros-de-atividades")).ParentElement!.QuerySelector("span")!.TextContent.Should().Be("Situação");
+        var consultas = Despachante.Recebidas.OfType<ListarAtividades>().Count();
+        CampoDoPainel(tela, "Situação").Change("Criada");
+
+        CampoDoPainel(tela, "Situação").KeyDown(new KeyboardEventArgs { Key = "Escape" });
+
+        tela.Find(Painel).HasAttribute("hidden").Should().BeTrue();
+        tela.Find(BotaoQueAbre).GetAttribute("aria-expanded").Should().Be("false");
+        SeletoresFocados.Should().Equal(CamposDoPainel("filtros-de-atividades"), BotaoDoPainel("filtros-de-atividades"));
+        Despachante.Recebidas.OfType<ListarAtividades>().Should().HaveCount(consultas);   // fechar não consulta
+        Escolhida(CampoDoPainel(tela, "Situação")).Should().BeEmpty();   // de volta ao aplicado: nenhuma
+    }
+
+    // Review Focus 5: o que se escolhe no painel e não se aplica não vale na troca de página nem de chip, e o painel
+    // reaberto mostra o filtro aplicado, e não o que ficou escolhido.
+    [Fact]
+    public void Filtro_escolhido_no_painel_e_nao_aplicado_nao_vale_na_troca_de_pagina_nem_de_chip_e_reabrir_mostra_o_aplicado()
+    {
+        var tela = ListaDeTresPaginas(AtorDaDiretoria);
+        tela.Find(BotaoQueAbre).Click();
+        CampoDoPainel(tela, "Responsável").Change(Pedro.Id.ToString());
+        CampoDoPainel(tela, "Revisor").Change(Diana.Id.ToString());
+        tela.Find($"{Painel} label.aj-opcao input").Change(true);
+        tela.Find(BotaoQueAbre).Click();   // fecha sem filtrar
+
+        tela.Find(".aj-so-tablet .aj-paginacao__proxima").Click();
+
+        UltimaConsulta.Pagina.Should().Be(2);
+        UltimaConsulta.ResponsavelId.Should().BeNull();
+        UltimaConsulta.RevisorId.Should().BeNull();
+        UltimaConsulta.SomenteAtrasadas.Should().BeFalse();
+
+        // Com o painel aberto e um revisor escolhido sem filtrar, o chip também consulta com o aplicado.
+        tela.Find(BotaoQueAbre).Click();
+        CampoDoPainel(tela, "Revisor").Change(Diana.Id.ToString());
+        Chip(tela, "Feitas").Click();
+
+        UltimaConsulta.Status.Should().Be(StatusAtividade.Feita);
+        UltimaConsulta.Pagina.Should().Be(1);
+        UltimaConsulta.RevisorId.Should().BeNull();
+
+        // Fechado e reaberto, o painel mostra o aplicado: a situação do chip, nenhum responsável, nenhum revisor.
+        tela.Find(BotaoQueAbre).Click();
+        tela.Find(BotaoQueAbre).Click();
+        Escolhida(CampoDoPainel(tela, "Situação")).Should().Be("Feita");
+        Escolhida(CampoDoPainel(tela, "Responsável")).Should().BeEmpty();
+        Escolhida(CampoDoPainel(tela, "Revisor")).Should().BeEmpty();
+        tela.Find($"{Painel} label.aj-opcao input").HasAttribute("checked").Should().BeFalse();
+    }
+
+    // A busca digitada e os campos da barra trocados sem "Buscar" não valem no chip nem na troca de página: a consulta
+    // lê o filtro aplicado.
+    [Fact]
+    public void Busca_e_campos_trocados_sem_buscar_nao_valem_no_chip_nem_na_troca_de_pagina()
+    {
+        var tela = ListaDeTresPaginas(AtorDaDiretoria);
+        tela.Find("form.aj-linha-filtros input").Change("contestação");
+        CampoDaBarra(tela, "Responsável").Change(Pedro.Id.ToString());
+
+        Chip(tela, "Feitas").Click();
+
+        UltimaConsulta.Status.Should().Be(StatusAtividade.Feita);
+        UltimaConsulta.Busca.Should().BeNull();
+        UltimaConsulta.ResponsavelId.Should().BeNull();
+
+        tela.Find(".aj-so-tablet .aj-paginacao__proxima").Click();
+
+        UltimaConsulta.Pagina.Should().Be(2);
+        UltimaConsulta.Status.Should().Be(StatusAtividade.Feita);
+        UltimaConsulta.Busca.Should().BeNull();
+        UltimaConsulta.ResponsavelId.Should().BeNull();
+
+        // Aplicado pelo Enter da busca do tablet, vale: a busca e o responsável que estão nos campos.
+        tela.Find("form.aj-linha-filtros").Submit();
+
+        UltimaConsulta.Pagina.Should().Be(1);
+        UltimaConsulta.Busca.Should().Be("contestação");
+        UltimaConsulta.ResponsavelId.Should().Be(Pedro.Id);
         UltimaConsulta.Status.Should().Be(StatusAtividade.Feita);
     }
 }

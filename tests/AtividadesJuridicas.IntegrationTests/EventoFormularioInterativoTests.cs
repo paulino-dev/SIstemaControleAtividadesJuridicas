@@ -229,6 +229,24 @@ public class EventoFormularioInterativoTests : TelaInterativa
         Enviado.ClienteId.Should().BeNull();
     }
 
+    // Conferência da 9G (D6): o "Remover" sai da tela com o vínculo e a busca aparece no lugar dele; o foco vai à busca
+    // à vista (a de cada visão, no processo), e não ao título da página, aonde a rede de segurança o levaria.
+    [Theory]
+    [InlineData("Remover cliente", "input[form=\"busca-de-cliente\"]", 1)]
+    [InlineData("Remover processo", "input[form=\"busca-de-processo\"], input[form=\"busca-de-processo-curta\"]", 2)]
+    [InlineData("Remover atividade", "input[form=\"busca-de-atividade\"]", 1)]
+    public void Remover_um_vinculo_leva_o_foco_a_busca_que_aparece_no_lugar(string remover, string busca, int buscasNaMarcacao)
+    {
+        var tela = Edicao();
+        tela.FindAll(busca).Should().HaveCount(remover == "Remover cliente" ? 1 : 0);   // com cliente, a busca de trocar do desktop
+
+        tela.Find($"button[aria-label='{remover}']").Click();
+
+        UltimoSeletorFocado().Should().Be(busca);
+        tela.FindAll(busca).Should().HaveCount(buscasNaMarcacao);
+        tela.FindAll($"button[aria-label='{remover}']").Should().BeEmpty();
+    }
+
     [Fact]
     public void Salvar_sem_titulo_data_nem_hora_mostra_campo_obrigatorio_e_o_aviso_e_nao_envia()
     {
@@ -519,5 +537,57 @@ public class EventoFormularioInterativoTests : TelaInterativa
         tela.Find("p.aj-aviso--erro").TextContent.Should().Be("Acesso negado.");
         tela.FindAll("form#formulario-do-evento").Should().BeEmpty();
         tela.FindAll("button").Should().NotContain(b => b.TextContent == "Tentar de novo");
+    }
+
+    [Fact]
+    public void Aviso_de_data_e_hora_se_revela_a_cada_envio()
+    {
+        var tela = Novo();
+        Digitar(tela, "Título", "Reunião de alinhamento");
+        Rotulo(tela, "Data").QuerySelector("input")!.Change("");
+
+        Enviar(tela);
+
+        var aviso = tela.Find("p.aj-aviso--erro");
+        aviso.TextContent.Should().Be("Informe a data e a hora do evento.");
+        aviso.GetAttribute("tabindex").Should().Be("-1");
+        UltimoFocoPedido().Arguments[0].ShouldBeElementReferenceTo(aviso);
+        var antes = FocosDeElementoPedidos;
+
+        Enviar(tela);
+
+        FocosDeElementoPedidos.Should().Be(antes + 1);
+        UltimoFocoPedido().Arguments[0].ShouldBeElementReferenceTo(tela.Find("p.aj-aviso--erro"));
+        Despachante.Recebidas.OfType<SalvarEvento>().Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Grupo_de_participantes_em_erro_fica_invalido_e_aponta_para_o_erro_da_mesma_visao()
+    {
+        var tela = Edicao();
+        foreach (var nome in new[] { "Diana Diretora", "Iara Inativa", "Usuário não encontrado" })
+            OpcaoDoDesktop(tela, nome).QuerySelector("input")!.Change(false);
+
+        Enviar(tela);
+
+        var grupos = new[]
+        {
+            (Grupo: tela.Find("div.aj-so-desktop [aria-labelledby=titulo-dos-participantes]"), Visao: "desktop"),
+            (Grupo: tela.Find("div.aj-so-tablet [aria-labelledby=titulo-dos-participantes]"), Visao: "tablet"),
+            (Grupo: tela.FindAll("fieldset.aj-conjunto").Single(f => f.QuerySelector("legend")!.TextContent == "Participantes"), Visao: "mobile"),
+        };
+        foreach (var (grupo, visao) in grupos)
+        {
+            grupo.GetAttribute("aria-invalid").Should().Be("true", visao);
+            grupo.GetAttribute("aria-describedby").Should().Be($"erro-dos-participantes-{visao}");
+            tela.Find($"#erro-dos-participantes-{visao}").TextContent.Should().Be("Marque ao menos um participante.");
+        }
+
+        ChipDoTablet(tela, "Pedro Produção").QuerySelector("input")!.Change(true);
+
+        tela.Find("div.aj-so-desktop [aria-labelledby=titulo-dos-participantes]").HasAttribute("aria-invalid").Should().BeFalse();
+        tela.Find("div.aj-so-desktop [aria-labelledby=titulo-dos-participantes]").HasAttribute("aria-describedby").Should().BeFalse();
+        tela.FindAll("[id^=erro-dos-participantes]").Should().BeEmpty();
+        OpcaoDoDesktop(tela, "Pedro Produção").QuerySelector("input")!.HasAttribute("checked").Should().BeTrue();
     }
 }

@@ -19,7 +19,7 @@
     {
         @if (_mensagem is not null)
         {
-            <Aviso Tipo="TipoDeAviso.Erro">@_mensagem</Aviso>
+            <Aviso @key="_versaoDoErro" Tipo="TipoDeAviso.Erro" Revelar="true">@_mensagem</Aviso>
         }
 
         @* A barra de voltar do mobile não tem subtítulo: o título da atividade vira a ajuda no topo. *@
@@ -30,7 +30,7 @@
         <EditForm Model="_form" OnSubmit="EnviarAsync" FormName="@NomeDoFormulario" id="formulario-do-motivo" class="aj-painel aj-painel--principal aj-painel--medio">
             <DataAnnotationsValidator />
             <RotuloDeCampo Texto="Motivo" Para="() => _form.Motivo"><InputTextArea @bind-Value="_form.Motivo" rows="4" maxlength="@AtividadeHistoricoStatus.TamanhoMaximoMotivo" disabled="@_enviando" class="aj-campo" /></RotuloDeCampo>
-            <fieldset class="aj-conjunto">
+            <fieldset class="aj-conjunto" aria-invalid="@(_erroDosResponsaveis is null ? null : "true")" aria-describedby="@(_erroDosResponsaveis is null ? null : "erro-dos-responsaveis")">
                 <legend class="@ClasseDaLegenda">Responsáveis que voltam a ter a parte pendente</legend>
                 @foreach (var responsavel in _detalhe.Responsaveis)
                 {
@@ -38,7 +38,7 @@
                 }
                 @if (_erroDosResponsaveis is not null)
                 {
-                    <span class="aj-campo-erro">@_erroDosResponsaveis</span>
+                    <span class="aj-campo-erro" id="erro-dos-responsaveis">@_erroDosResponsaveis</span>
                 }
             </fieldset>
         </EditForm>
@@ -75,6 +75,17 @@
     private Formulario _form = new();
     private HashSet<Guid> _marcados = [];
     private string? _mensagem;
+
+    // A geração do aviso de erro: cada mensagem nova recria o Aviso (a chave muda), que se revela de novo, mesmo que a
+    // frase seja a mesma da tentativa anterior.
+    private int _versaoDoErro;
+
+    private void MostrarErro(string? mensagem)
+    {
+        _mensagem = mensagem;
+        _versaoDoErro++;
+    }
+
     private string? _erroDosResponsaveis;
     private bool _enviando;
 
@@ -178,7 +189,7 @@
             if (!resultado.Sucesso)
             {
                 // O aviso no topo com a mensagem do servidor; o motivo e as marcas ficam como estão.
-                _mensagem = resultado.Mensagem;
+                MostrarErro(resultado.Mensagem);
                 return;
             }
 

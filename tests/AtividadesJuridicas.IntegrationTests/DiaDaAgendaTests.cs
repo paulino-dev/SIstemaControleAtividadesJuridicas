@@ -200,6 +200,20 @@ public class DiaDaAgendaTests : TelaInterativa
         vazio.QuerySelector("span.aj-estado-lista__dica")!.TextContent.Should().Be("Toque em + para agendar.");
         mobile.QuerySelectorAll("a.aj-evento").Should().BeEmpty();
     }
+
+    // F11: o "+N" do Mês leva o foco ao título do Dia. O título do desktop e o da seção do tablet aceitam o foco por
+    // programa (tabindex -1, fora da ordem de tabulação); o da lista do mobile não precisa (o mobile não tem "+N").
+    [Fact]
+    public void Titulos_do_dia_no_desktop_e_no_tablet_aceitam_o_foco_por_programa()
+    {
+        var dia = Dia(QuadroDaAgenda.Hoje, QuadroDaAgenda.Semana);
+
+        Desktop(dia).QuerySelector("h2.aj-dia__cabeca")!.GetAttribute("tabindex").Should().Be("-1");
+        Tablet(dia).QuerySelector("h2.aj-secao-dia__cabeca")!.GetAttribute("tabindex").Should().Be("-1");
+        var doMobile = Mobile(dia).QuerySelector("div.aj-dia-escolhido > h2")!;
+        doMobile.TextContent.Should().Be("Quinta, 08/10 · hoje");
+        doMobile.HasAttribute("tabindex").Should().BeFalse();
+    }
 }
 
 /// <summary>

@@ -2,7 +2,7 @@
    esquerda, os cartões em duas colunas (uma no mobile, pelo CSS) à direita; hoje com a borda verde. Recebe os eventos
    que tocam o dia, já na ordem de início; sem eles, "Sem eventos". *@
 <section class="@(Hoje ? "aj-secao-dia aj-secao-dia--hoje" : "aj-secao-dia")">
-    <h2 class="aj-secao-dia__cabeca" aria-label="@RotulosDeAgenda.RotuloLongo(Dia, Hoje)"><span class="aj-secao-dia__sigla">@(Hoje ? "Hoje" : RotulosDeAgenda.SiglaDoDia(Dia))</span><span class="aj-secao-dia__numero">@RotulosDeAgenda.NumeroDoDia(Dia)</span></h2>
+    <h2 class="aj-secao-dia__cabeca" aria-label="@RotulosDeAgenda.RotuloLongo(Dia, Hoje)" tabindex="@(TituloFocavel ? "-1" : null)"><span class="aj-secao-dia__sigla">@(Hoje ? "Hoje" : RotulosDeAgenda.SiglaDoDia(Dia))</span><span class="aj-secao-dia__numero">@RotulosDeAgenda.NumeroDoDia(Dia)</span></h2>
     <div class="aj-secao-dia__eventos">
         @foreach (var evento in Eventos)
         {
@@ -26,4 +26,10 @@
 
     /// <summary>A consulta do período de origem (<c>PeriodoDaAgenda.Consulta</c>) que os cartões levam à ficha.</summary>
     [Parameter, EditorRequired] public string Consulta { get; set; } = string.Empty;
+
+    /// <summary>
+    /// O título recebe o foco por programa (o Dia do tablet: o "+N" do Mês leva o foco a ele): <c>tabindex="-1"</c>,
+    /// fora da ordem de tabulação. Na Semana, não.
+    /// </summary>
+    [Parameter] public bool TituloFocavel { get; set; }
 }

@@ -104,6 +104,12 @@ public class AtividadesWebTests(BancoFixture banco) : IAsyncLifetime
                 "<button[^>]*>Feitas</button>\\s*<button[^>]*>Para correção</button>\\s*<button[^>]*>Corrigidas</button>\\s*<button[^>]*>Concluídas</button>\\s*</div>")
             .And.Contain("Página 1 de 1 · 2 atividades");
 
+        // O painel de filtros fica no HTML, escondido, para o aria-controls dos dois botões (o do tablet e o "Mais
+        // filtros" da barra do mobile) apontar para um form que existe.
+        html.Should().MatchRegex(
+            "<div class=\"aj-tablet-mobile\">\\s*<form id=\"filtros-de-atividades\" class=\"aj-painel aj-painel--filtros\" hidden[^>]*>\\s*" +
+            "<label class=\"aj-campo-filtro\">\\s*<span>Situação</span>");
+
         var cartoes = BlocoDeVisao.De(html, "aj-tablet-mobile");
         cartoes.Should().MatchRegex(
             $"(?s)<a href=\"/atividades/{_contestacao}\" class=\"aj-cartao aj-cartao--atividade\">\\s*" +

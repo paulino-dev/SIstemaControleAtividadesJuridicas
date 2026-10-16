@@ -13,7 +13,7 @@
 <CargaDoFormulario Estado="_estado" Erro="@_erroDaCarga" TextoNaoEncontrado="Atividade não encontrada." TentarDeNovo="CarregarAsync">
     @if (_mensagem is not null)
     {
-        <Aviso Tipo="TipoDeAviso.Erro">@_mensagem</Aviso>
+        <Aviso @key="_versaoDoErro" Tipo="TipoDeAviso.Erro" Revelar="true">@_mensagem</Aviso>
     }
 
     <EditForm EditContext="_contexto" OnValidSubmit="SalvarAsync" FormName="atividade" id="formulario-da-atividade" class="aj-lado-a-lado aj-lado-a-lado--formulario">
@@ -25,8 +25,8 @@
                 <label class="aj-rotulo">Data de entrega<InputDate @bind-Value="_form.DataEntrega" class="aj-campo" /></label>
                 @* Os três níveis do domínio (ComplexidadeMinima a ComplexidadeMaxima). Um grupo de botões não cabe num label:
                    o rótulo é o próprio grupo, e o erro do campo vem do contexto do formulário, como no RotuloDeCampo. *@
-                <div class="@ClasseDaComplexidade" role="group" aria-label="Complexidade">Complexidade<div class="aj-segmentado"><button type="button" class="aj-segmentado__opcao" aria-pressed="@Marcada(1)" @onclick="() => EscolherComplexidade(1)">1</button><button type="button" class="aj-segmentado__opcao" aria-pressed="@Marcada(2)" @onclick="() => EscolherComplexidade(2)">2</button><button type="button" class="aj-segmentado__opcao" aria-pressed="@Marcada(3)" @onclick="() => EscolherComplexidade(3)">3</button></div>@foreach (var erro in ErrosDaComplexidade)
-                    {<span class="aj-campo-erro">@erro</span>}</div>
+                <div class="@ClasseDaComplexidade" role="group" aria-label="Complexidade" aria-invalid="@(ErroDaComplexidade is null ? null : "true")" aria-describedby="@(ErroDaComplexidade is null ? null : "erro-da-complexidade")">Complexidade<div class="aj-segmentado"><button type="button" class="aj-segmentado__opcao" aria-pressed="@Marcada(1)" @onclick="() => EscolherComplexidade(1)">1</button><button type="button" class="aj-segmentado__opcao" aria-pressed="@Marcada(2)" @onclick="() => EscolherComplexidade(2)">2</button><button type="button" class="aj-segmentado__opcao" aria-pressed="@Marcada(3)" @onclick="() => EscolherComplexidade(3)">3</button></div>@if (ErroDaComplexidade is { } erro)
+                    {<span class="aj-campo-erro" id="erro-da-complexidade">@erro</span>}</div>
                 <RotuloDeCampo Texto="Descrição" Para="() => _form.Descricao" Classe="aj-grade-campos__inteiro"><InputTextArea @bind-Value="_form.Descricao" rows="4" maxlength="@Atividade.TamanhoMaximoDescricao" class="aj-campo" /></RotuloDeCampo>
             </div>
         </section>
@@ -119,6 +119,16 @@
     private string? _erroDaCarga;
     private bool _salvando;
     private string? _mensagem;
+
+    // A geração do aviso de erro: cada mensagem nova recria o Aviso (a chave muda), que se revela de novo, mesmo que a
+    // frase seja a mesma da tentativa anterior.
+    private int _versaoDoErro;
+
+    private void MostrarErro(string? mensagem)
+    {
+        _mensagem = mensagem;
+        _versaoDoErro++;
+    }
 
     private Formulario _form = new();
     private EditContext? _contexto;
@@ -260,6 +270,9 @@
     private IEnumerable<string> ErrosDaComplexidade =>
         _contexto is null ? [] : _contexto.GetValidationMessages(FieldIdentifier.Create(() => _form.Complexidade));
 
+    // A complexidade só tem a regra do intervalo: no máximo uma mensagem, que o grupo aponta pelo id.
+    private string? ErroDaComplexidade => ErrosDaComplexidade.FirstOrDefault();
+
     private string ClasseDaComplexidade => ErrosDaComplexidade.Any() ? "aj-rotulo aj-rotulo--erro" : "aj-rotulo";
 
     private void EscolherComplexidade(int nivel)
@@ -289,7 +302,7 @@
         // Os avisos valem só para uma busca que deu certo; uma falha mostra o erro no lugar deles.
         _nenhumProcesso = resultado.Sucesso && itens.Count == 0;
         _processosTruncados = resultado.Sucesso && resultado.Valor!.Total > itens.Count;
-        if (!resultado.Sucesso) _mensagem = resultado.Mensagem;
+        if (!resultado.Sucesso) MostrarErro(resultado.Mensagem);
     }
 
     private async Task EscolherProcessoAsync(Guid id)
@@ -301,7 +314,7 @@
         if (Encerrou(resultado)) return;
         if (resultado.Valor is not { } processo)
         {
-            _mensagem = resultado.Mensagem;
+            MostrarErro(resultado.Mensagem);
             return;
         }
 
@@ -340,7 +353,7 @@
         _clientesEncontrados = itens;
         _nenhumCliente = resultado.Sucesso && itens.Count == 0;
         _clientesTruncados = resultado.Sucesso && resultado.Valor!.Total > itens.Count;
-        if (!resultado.Sucesso) _mensagem = resultado.Mensagem;
+        if (!resultado.Sucesso) MostrarErro(resultado.Mensagem);
     }
 
     private void EscolherCliente(ClienteResumo cliente)
@@ -390,7 +403,7 @@
             if (!resultado.Sucesso)
             {
                 // O formulário permanece com o que foi digitado; conflito e "não encontrada" trazem a mensagem do servidor.
-                _mensagem = resultado.Mensagem;
+                MostrarErro(resultado.Mensagem);
                 return;
             }
 

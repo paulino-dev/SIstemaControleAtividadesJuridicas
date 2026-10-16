@@ -4,6 +4,7 @@
 @inject FusoDoEscritorio Fuso
 @inject Recados Recados
 @inject NavigationManager Navegacao
+@inject Foco Foco
 
 <PageTitle>@(_detalhe?.Titulo ?? "Atividade")</PageTitle>
 
@@ -13,7 +14,7 @@
     @* O resultado de uma ação cuja recarga deixou a ficha fora da tela ("…, mas não foi possível atualizar a ficha."). *@
     @if (_mensagem is not null)
     {
-        <Aviso Tipo="@(_falhou ? TipoDeAviso.Erro : TipoDeAviso.Sucesso)">@_mensagem</Aviso>
+        <Aviso @key="_versaoDoAviso" Tipo="@(_falhou ? TipoDeAviso.Erro : TipoDeAviso.Sucesso)" Revelar="true">@_mensagem</Aviso>
     }
     @if (!_carregado)
     {
@@ -47,7 +48,7 @@ else
     }
     @if (_mensagem is not null)
     {
-        <Aviso Tipo="@(_falhou ? TipoDeAviso.Erro : TipoDeAviso.Sucesso)">@_mensagem</Aviso>
+        <Aviso @key="_versaoDoAviso" Tipo="@(_falhou ? TipoDeAviso.Erro : TipoDeAviso.Sucesso)" Revelar="true">@_mensagem</Aviso>
     }
     @* Uma confirmação por vez, no topo. A chave é a confirmação: pedir outra recria o aviso, que leva o foco a si. *@
     @if (_confirmando == Confirmacao.Concluir)
@@ -92,7 +93,7 @@ else
                 @PainelDeHistorico(a)
             </div>
             <div class="aj-tablet-mobile">
-                <div class="@ClasseDaAba("detalhes")">
+                <div class="@ClasseDaAba("detalhes")" id="detalhes-da-atividade">
                     <div class="aj-grade">
                         @PainelDeDescricao(a)
                         <section class="aj-painel aj-painel--ficha aj-painel--detalhes">
@@ -102,14 +103,14 @@ else
                     </div>
                     @PainelDeResponsaveis(a)
                 </div>
-                <div class="@ClasseDaAba("historico")">@PainelDeHistorico(a)</div>
+                <div class="@ClasseDaAba("historico")" id="historico-da-atividade">@PainelDeHistorico(a)</div>
             </div>
             @* A chave é a atividade: abrir outra ficha nesta mesma tela recria os dois componentes. *@
-            <div class="@ClasseDaAba("comentarios")">
+            <div class="@ClasseDaAba("comentarios")" id="comentarios-da-atividade">
                 <ComentariosDaAtividade @key="a.Id" AtividadeId="a.Id" AoContar="ContarComentarios"
                                         OnAcessoEncerrado="EncerrarAcesso" OnAtividadeNaoEncontrada="AtividadeSumiuAsync" />
             </div>
-            <div class="@ClasseDaAba("documentos")">
+            <div class="@ClasseDaAba("documentos")" id="documentos-da-atividade">
                 @* Gerenciar documentos (renomear e excluir) é permissão da Diretoria, que hoje coincide com poder editar a
                    atividade; se as duas regras se separarem, esta linha precisa de uma ação própria. *@
                 <DocumentosDaAtividade @key="a.Id" AtividadeId="a.Id" PodeGerenciar="a.Acoes.Editar" AoContar="ContarDocumentos"
@@ -122,7 +123,7 @@ else
     @if (TemAcaoPrincipal(a.Acoes))
     {
         <div class="aj-so-mobile">
-            <div class="aj-acoes aj-acoes--fixa">@BotaoDevolver(a.Acoes)@AcaoPrimaria(a.Acoes)</div>
+            <div class="aj-acoes aj-acoes--fixa">@BotaoDevolver(a.Acoes)@AcaoPrimaria(a.Acoes, "barra")</div>
         </div>
     }
 }
@@ -247,11 +248,15 @@ else
     private static bool TemAcaoDeCadastro(AcoesDaAtividade a) =>
         a.Editar || a.DefinirResponsaveis || SoTrocaORevisor(a) || a.Excluir;
 
-    /// <summary>A ação primária: Concluir minha parte, ou Aprovar, ou Reabrir (as regras do servidor não deixam duas valerem juntas).</summary>
-    private RenderFragment AcaoPrimaria(AcoesDaAtividade acoes) => @<text>@if (acoes.ConcluirMinhaParte)
-        {<button type="button" class="aj-botao aj-botao--primario aj-botao--com-icone" disabled="@_ocupado" @onclick="PedirConclusao"><Icone Nome="confirmar" />Concluir minha parte</button>}
+    /// <summary>
+    /// A ação primária: Concluir minha parte, ou Aprovar, ou Reabrir (as regras do servidor não deixam duas valerem juntas).
+    /// Aparece na faixa ("faixa") e na barra fixa do mobile ("barra"); o id de cada cópia leva a visão, para o foco voltar
+    /// à que está à vista quando a confirmação é cancelada.
+    /// </summary>
+    private RenderFragment AcaoPrimaria(AcoesDaAtividade acoes, string visao) => @<text>@if (acoes.ConcluirMinhaParte)
+        {<button type="button" class="aj-botao aj-botao--primario aj-botao--com-icone" id="@($"concluir-minha-parte-{visao}")" disabled="@_ocupado" @onclick="PedirConclusao"><Icone Nome="confirmar" />Concluir minha parte</button>}
         else if (acoes.AprovarOuDevolver)
-        {<button type="button" class="aj-botao aj-botao--primario aj-botao--com-icone" disabled="@_ocupado" @onclick="PedirAprovacao"><Icone Nome="confirmar" />Aprovar</button>}
+        {<button type="button" class="aj-botao aj-botao--primario aj-botao--com-icone" id="@($"aprovar-{visao}")" disabled="@_ocupado" @onclick="PedirAprovacao"><Icone Nome="confirmar" />Aprovar</button>}
         else if (acoes.Reabrir)
         {<a href="@Rota("reabrir")" class="aj-botao aj-botao--secundario">Reabrir</a>}</text>;
 
@@ -263,7 +268,7 @@ else
     /// ação dos dois lados), Editar, Responsáveis, Trocar revisor e, à direita, Excluir (com texto no desktop, só o ícone
     /// no tablet).
     /// </summary>
-    private RenderFragment FaixaDeAcoes(AcoesDaAtividade acoes) => @<text>@AcaoPrimaria(acoes)@BotaoDevolver(acoes)
+    private RenderFragment FaixaDeAcoes(AcoesDaAtividade acoes) => @<text>@AcaoPrimaria(acoes, "faixa")@BotaoDevolver(acoes)
         @if (TemAcaoPrincipal(acoes) && TemAcaoDeCadastro(acoes))
         {<span class="aj-so-desktop"><span class="aj-painel__divisor" aria-hidden="true"></span></span>}
         @if (acoes.Editar)
@@ -273,7 +278,7 @@ else
         @if (SoTrocaORevisor(acoes))
         {<a href="@Rota("responsaveis")" class="aj-botao aj-botao--fantasma">Trocar revisor</a>}
         @if (acoes.Excluir)
-        {<span class="aj-so-desktop"><button type="button" class="aj-botao aj-botao--perigo aj-botao--com-icone-menor aj-botao--ao-fim" disabled="@_ocupado" @onclick="PedirExclusao"><Icone Nome="excluir" />Excluir</button></span><span class="aj-so-tablet"><button type="button" class="aj-botao aj-botao--perigo aj-botao--icone aj-botao--ao-fim" aria-label="Excluir atividade" disabled="@_ocupado" @onclick="PedirExclusao"><Icone Nome="excluir" /></button></span>}</text>;
+        {<span class="aj-so-desktop"><button type="button" class="aj-botao aj-botao--perigo aj-botao--com-icone-menor aj-botao--ao-fim" id="excluir-atividade-desktop" disabled="@_ocupado" @onclick="PedirExclusao"><Icone Nome="excluir" />Excluir</button></span><span class="aj-so-tablet"><button type="button" class="aj-botao aj-botao--perigo aj-botao--icone aj-botao--ao-fim" aria-label="Excluir atividade" id="excluir-atividade-tablet" disabled="@_ocupado" @onclick="PedirExclusao"><Icone Nome="excluir" /></button></span>}</text>;
 
     /// <summary>O "Mais ações" da barra de voltar do mobile, com as ações de cadastro da faixa, Excluir por último.</summary>
     private RenderFragment MaisAcoes(AcoesDaAtividade acoes) => @<MenuDeAcoes Rotulo="Mais ações">@if (acoes.Editar)
@@ -302,15 +307,43 @@ else
 
     private void PedirExclusao() => Pedir(Confirmacao.Excluir);
 
+    // A geração do aviso de resultado: cada mensagem nova recria o Aviso (a chave muda), que se revela de novo.
+    private int _versaoDoAviso;
+
+    // O botão que abriu a confirmação cancelada: o foco volta a ele depois do desenho.
+    private string? _focoDeVolta;
+
+    // O botão que abre cada confirmação, com as suas cópias por visão; o módulo de foco leva o foco à que está à vista.
+    private static string? QuemAbriu(Confirmacao confirmacao) => confirmacao switch
+    {
+        Confirmacao.Concluir => "#concluir-minha-parte-faixa, #concluir-minha-parte-barra",
+        Confirmacao.Aprovar => "#aprovar-faixa, #aprovar-barra",
+        Confirmacao.Excluir => "#excluir-atividade-desktop, #excluir-atividade-tablet, .aj-menu-acoes > [aria-label=\"Mais ações\"]",
+        _ => null,
+    };
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_focoDeVolta is not { } seletor) return;
+
+        _focoDeVolta = null;
+        // O Foco engole as falhas do JavaScript: sem foco (circuito caindo, por exemplo) a ficha continua funcionando.
+        await Foco.FocarPrimeiroVisivelAsync(seletor);
+    }
+
     private void CancelarConfirmacao()
     {
-        if (!_ocupado) _confirmando = Confirmacao.Nenhuma;
+        if (_ocupado) return;
+
+        _focoDeVolta = QuemAbriu(_confirmando);
+        _confirmando = Confirmacao.Nenhuma;
     }
 
     private void Avisar(string mensagem, bool falhou)
     {
         _mensagem = mensagem;
         _falhou = falhou;
+        _versaoDoAviso++;
     }
 
     private Task ConcluirMinhaParteAsync() =>
@@ -403,10 +436,10 @@ else
 
     private IReadOnlyList<Aba> AbasDaFicha =>
     [
-        new("detalhes", "Detalhes"),
-        new("comentarios", "Comentários", _totalDeComentarios),
-        new("documentos", "Documentos", _totalDeDocumentos),
-        new("historico", "Histórico"),
+        new("detalhes", "Detalhes", Painel: "detalhes-da-atividade"),
+        new("comentarios", "Comentários", _totalDeComentarios, "comentarios-da-atividade"),
+        new("documentos", "Documentos", _totalDeDocumentos, "documentos-da-atividade"),
+        new("historico", "Histórico", Painel: "historico-da-atividade"),
     ];
 
     private string ClasseDaAba(string aba) => aba == _aba ? "aj-aba-painel" : "aj-aba-painel aj-aba-painel--oculta";

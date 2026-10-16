@@ -2,6 +2,7 @@
 @inject IDespachante Despachante
 @inject FusoDoEscritorio Fuso
 @inject Recados Recados
+@inject Foco Foco
 
 <PageTitle>Usuários</PageTitle>
 
@@ -19,7 +20,7 @@ else
 {
     @if (_mensagem is not null)
     {
-        <Aviso Tipo="@(_falhou ? TipoDeAviso.Erro : TipoDeAviso.Sucesso)">@_mensagem</Aviso>
+        <Aviso @key="_versaoDoAviso" Tipo="@(_falhou ? TipoDeAviso.Erro : TipoDeAviso.Sucesso)" Revelar="@(_versaoDoAviso > 0)">@_mensagem</Aviso>
     }
 
     @if (_inativando is { } alvo)
@@ -45,7 +46,7 @@ else
                                 <td class="aj-tabela__data">@Fuso.Formatar(usuario.UltimoAcessoEm)</td>
                                 <td>@Situacao(usuario)</td>
                                 @* Os dois botões colados: o espaço entre eles seria desenhado. *@
-                                <td class="aj-tabela__acao aj-tabela__acao--varias"><a href="@Edicao(usuario)" class="aj-botao aj-botao--fantasma aj-botao--menor">Editar</a><button type="button" class="aj-botao aj-botao--fantasma aj-botao--menor" disabled="@_emAndamento" @onclick="() => AlternarAtivoAsync(usuario)">@(usuario.Ativo ? "Inativar" : "Ativar")</button></td>
+                                <td class="aj-tabela__acao aj-tabela__acao--varias"><a href="@Edicao(usuario)" class="aj-botao aj-botao--fantasma aj-botao--menor">Editar</a><button type="button" class="aj-botao aj-botao--fantasma aj-botao--menor" id="@($"ativar-ou-inativar-{usuario.Id:N}")" disabled="@_emAndamento" @onclick="() => AlternarAtivoAsync(usuario)">@(usuario.Ativo ? "Inativar" : "Ativar")</button></td>
                             </tr>
                         }
                     </tbody>
@@ -79,6 +80,13 @@ else
     private UsuarioResumo? _inativando;
     private IReadOnlyList<UsuarioResumo> _usuarios = [];
     private IReadOnlyList<PerfilDetalhe> _perfis = [];
+
+    // A geração do aviso de resultado: cada mensagem nova de uma ação desta tela recria o Aviso (a chave muda), que se
+    // revela de novo. O recado de outra tela não muda a geração e não se revela (o foco vai ao título com a navegação).
+    private int _versaoDoAviso;
+
+    // O "Inativar" da linha que abriu a confirmação cancelada: o foco volta a ele depois do desenho.
+    private string? _focoDeVolta;
 
     private string? Subtitulo => _carregado && _autorizado && _erroDaLista is null && _usuarios.Count > 0
         ? Contagem.ComInativos(_usuarios.Count, _usuarios.Count(u => !u.Ativo), "usuário", "usuários", "inativo", "inativos")
@@ -123,6 +131,15 @@ else
             }
         }
         _carregado = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_focoDeVolta is not { } seletor) return;
+
+        _focoDeVolta = null;
+        // O Foco engole as falhas do JavaScript: sem foco (circuito caindo, por exemplo) a lista continua funcionando.
+        await Foco.FocarPrimeiroVisivelAsync(seletor);
     }
 
     // Falso quando a recarga falhou. Só a falha da primeira consulta (nada na tela ainda) toma o lugar da lista, com o
@@ -177,19 +194,25 @@ else
 
     private async Task AoInativarAsync(UsuarioResumo alvo, Resultado resultado)
     {
-        // Os botões das linhas seguem ativos durante o envio: se outra confirmação foi aberta nesse intervalo, ela fica.
-        if (_inativando?.Id == alvo.Id) _inativando = null;
-        await ConcluirAsync(resultado, "Usuário inativado.");
+        // Os botões das linhas seguem ativos durante o envio: se outra confirmação foi aberta nesse intervalo, ela fica,
+        // e o resultado deste (sucesso ou falha) não vai ao topo, ao lado dela, como se fosse dela: a confirmação aberta
+        // limpou a mensagem anterior, e a lista recarregada mostra a situação dele.
+        var outraAberta = _inativando is { } aberta && aberta.Id != alvo.Id;
+        if (!outraAberta) _inativando = null;
+        await ConcluirAsync(resultado, "Usuário inativado.", calarResultado: outraAberta);
     }
 
     private void CancelarInativacao()
     {
+        if (_inativando is { } alvo) _focoDeVolta = $"#ativar-ou-inativar-{alvo.Id:N}";
         _inativando = null;
         _mensagem = null;
         _falhou = false;
     }
 
-    private async Task ConcluirAsync(Resultado resultado, string mensagemDeSucesso)
+    // calarResultado: a confirmação de outro usuário está aberta no topo; o resultado (e o aviso da recarga que falhou)
+    // não vai para lá. A lista recarrega do mesmo jeito, e o acesso encerrado segue como sempre.
+    private async Task ConcluirAsync(Resultado resultado, string mensagemDeSucesso, bool calarResultado = false)
     {
         if (resultado.Erro == TipoErro.AcessoNegado)
         {
@@ -197,14 +220,19 @@ else
             return;
         }
 
-        _falhou = !resultado.Sucesso;
-        _mensagem = resultado.Sucesso ? mensagemDeSucesso : resultado.Mensagem;
+        if (!calarResultado)
+        {
+            _falhou = !resultado.Sucesso;
+            _mensagem = resultado.Sucesso ? mensagemDeSucesso : resultado.Mensagem;
+            _versaoDoAviso++;
+        }
 
         // A ação deu certo; se só a recarga falhou, o aviso diz isso e a lista anterior fica na tela.
-        if (!await RecarregarAsync() && _autorizado && resultado.Sucesso)
+        if (!await RecarregarAsync() && _autorizado && resultado.Sucesso && !calarResultado)
         {
             _falhou = true;
             _mensagem = $"{mensagemDeSucesso.TrimEnd('.')}, mas não foi possível atualizar a lista.";
+            _versaoDoAviso++;
         }
     }
 }

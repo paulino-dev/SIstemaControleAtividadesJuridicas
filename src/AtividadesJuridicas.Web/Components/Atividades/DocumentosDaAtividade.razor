@@ -6,7 +6,7 @@
    abaixo. O que muda por visão vai em invólucros dentro do painel. *@
 @if (_mensagem is not null && !Encerrado)
 {
-    <Aviso Tipo="@(_falhou ? TipoDeAviso.Erro : TipoDeAviso.Sucesso)">@_mensagem</Aviso>
+    <Aviso @key="_versaoDoAviso" Tipo="@(_falhou ? TipoDeAviso.Erro : TipoDeAviso.Sucesso)" Revelar="true">@_mensagem</Aviso>
 }
 
 @if (AExcluir is { } aExcluir)
@@ -15,7 +15,7 @@
     <Aviso @key="aExcluir.Id" Tipo="TipoDeAviso.Atencao" Rotulo="Confirmar exclusão" Titulo="@($"Confirmar a exclusão de {aExcluir.Nome}?")">
         <ChildContent>O documento é excluído da atividade.</ChildContent>
         <Acoes>
-            <button type="button" class="aj-botao aj-botao--secundario" disabled="@_removendo" @onclick="CancelarExclusao">Cancelar</button>
+            <button type="button" class="aj-botao aj-botao--secundario" disabled="@_removendo" @onclick="CancelarConfirmacaoDeExclusao">Cancelar</button>
             <button type="button" class="aj-botao aj-botao--primario" disabled="@_removendo" @onclick="() => ExcluirAsync(aExcluir.Id)">Confirmar exclusão</button>
         </Acoes>
     </Aviso>
@@ -27,7 +27,7 @@
         @* Quem vê a atividade envia (a Produção responsável também); só renomear e excluir pedem PodeGerenciar. *@
         @if (!Encerrado)
         {
-            <button type="button" class="aj-botao aj-botao--secundario aj-botao--com-icone" disabled="@Ocupada" @onclick="AbrirEnvio"><Icone Nome="adicionar" />Enviar documento</button>
+            <button type="button" class="aj-botao aj-botao--secundario aj-botao--com-icone" id="@IdDoEnviarDocumento" disabled="@Ocupada" @onclick="AbrirEnvio"><Icone Nome="adicionar" />Enviar documento</button>
         }
     </div>
 
@@ -43,8 +43,8 @@
     }
     else
     {
-        <EstadoDaLista Erro="@_erroDaLista" Carregando="@(!_carregado)" Vazio="@(_pagina.Itens.Count == 0)"
-                       TextoDeVazio="Nenhum documento." TentarDeNovo="() => IrParaAsync(_paginaPedida)">
+        <EstadoDaLista Erro="@_erroDaLista" Carregando="@(!_carregado || _recarregando)" Vazio="@(_pagina.Itens.Count == 0)"
+                       TextoDeVazio="Nenhum documento." TentarDeNovo="TentarDeNovoAsync">
             <div class="aj-so-desktop">
                 <ul class="aj-documentos">
                     @foreach (var documento in _pagina.Itens)
@@ -64,7 +64,7 @@
                             @if (PodeGerenciar)
                             {
                                 @* Os botões colados: o espaço entre eles seria desenhado. *@
-                                <div class="aj-documento__acoes"><button type="button" class="aj-botao aj-botao--fantasma" disabled="@Ocupada" @onclick="() => RenomearLinha(documento)">Renomear</button><button type="button" class="aj-botao aj-botao--perigo" disabled="@Ocupada" @onclick="() => ExcluirLinha(documento.Id)">Excluir</button></div>
+                                <div class="aj-documento__acoes"><button type="button" class="aj-botao aj-botao--fantasma" id="@IdDoRenomear(documento.Id)" disabled="@Ocupada" @onclick="() => RenomearLinha(documento)">Renomear</button><button type="button" class="aj-botao aj-botao--perigo" id="@IdDoExcluir(documento.Id)" disabled="@Ocupada" @onclick="() => ExcluirLinha(documento.Id)">Excluir</button></div>
                             }
                         </li>
                     }
@@ -75,7 +75,7 @@
                 <ul class="aj-documentos">
                     @foreach (var documento in _pagina.Itens)
                     {
-                        <li class="aj-documento" @key="documento.Id">
+                        <li class="aj-documento" id="@IdDaLinha(documento.Id)" @key="documento.Id">
                             @if (EhPlanilha(documento))
                             {
                                 <span class="aj-documento__icone aj-documento__icone--planilha" aria-hidden="true"><Icone Nome="planilha" /></span>
@@ -105,21 +105,21 @@
 
 @if (_envioAberto && !Encerrado)
 {
-    <section class="aj-painel">
+    <form class="aj-painel" id="@IdDoPainelDeEnvio" @onsubmit="EnviarAsync" @onsubmit:preventDefault>
         <h2>Enviar documento</h2>
-        <label class="aj-rotulo">@RotuloDoArquivo<InputFile @key="_versaoDoCampo" @ref="_campoDeArquivo" OnChange="Escolher" class="aj-campo" /></label>
+        <label class="aj-rotulo">@RotuloDoArquivo<InputFile @key="_versaoDoCampo" @ref="_campoDeArquivo" OnChange="Escolher" class="aj-campo" disabled="@_enviando" /></label>
         <label class="aj-rotulo">Nome (opcional)<input type="text" class="aj-campo" @bind="_nomeDoEnvio" /></label>
-        <div class="aj-painel__acoes"><button type="button" class="aj-botao aj-botao--secundario" disabled="@_enviando" @onclick="DescartarEnvio">Cancelar</button><button type="button" class="aj-botao aj-botao--primario" disabled="@(_arquivo is null || _enviando)" @onclick="EnviarAsync">@(_enviando ? "Enviando…" : "Enviar")</button></div>
-    </section>
+        <div class="aj-painel__acoes"><button type="button" class="aj-botao aj-botao--secundario" disabled="@_enviando" @onclick="CancelarPainelDeEnvio">Cancelar</button><button type="submit" class="aj-botao aj-botao--primario" disabled="@(_arquivo is null || _enviando)">@(_enviando ? "Enviando…" : "Enviar")</button></div>
+    </form>
 }
 
 @if (_renomeando is { } renomeando && !Encerrado)
 {
-    <section class="aj-painel">
+    <form class="aj-painel" id="@IdDoPainelDeRenomear" @onsubmit="RenomearAsync" @onsubmit:preventDefault>
         <h2>@($"Renomear \"{renomeando.Nome}\"")</h2>
         <label class="aj-rotulo">Novo nome<input type="text" class="aj-campo" @bind="_novoNome" @ref="_campoDoNovoNome" /></label>
-        <div class="aj-painel__acoes"><button type="button" class="aj-botao aj-botao--secundario" @onclick="FecharRenomear">Cancelar</button><button type="button" class="aj-botao aj-botao--primario" @onclick="RenomearAsync">Salvar nome</button></div>
-    </section>
+        <div class="aj-painel__acoes"><button type="button" class="aj-botao aj-botao--secundario" @onclick="CancelarRenomear">Cancelar</button><button type="submit" class="aj-botao aj-botao--primario" disabled="@_salvandoNome">Salvar nome</button></div>
+    </form>
 }
 
 @code {
@@ -142,9 +142,9 @@
     private InputFile? _campoDeArquivo;
     private ElementReference _campoDoNovoNome;
 
-    // O arquivo enviado de cada documento da página: o nome pode ter sido trocado sem a extensão, e o tipo do ícone
-    // é o do arquivo.
-    private IReadOnlyDictionary<Guid, string> _arquivos = new Dictionary<Guid, string>();
+    // O arquivo enviado de cada documento lido: o nome pode ter sido trocado sem a extensão, e o tipo do ícone é o do
+    // arquivo. Acumula entre páginas: a resposta de uma consulta que a base descarta não apaga o da página na tela.
+    private readonly Dictionary<Guid, string> _arquivos = [];
 
     // Os documentos da atividade ficam na categoria de atividade (a ficha do cliente os mostra em "De atividades"); a
     // base não pede confirmação de envio nessa categoria, como hoje.
@@ -166,7 +166,8 @@
     protected override async Task<Resultado<Pagina<DocumentoResumo>>> ListarPaginaAsync(int pagina)
     {
         var resultado = await Despachante.EnviarAsync(new ListarDocumentosDaAtividade(AtividadeId, pagina));
-        if (resultado.Valor is { } lida) _arquivos = lida.Itens.ToDictionary(d => d.Id, d => d.NomeArquivoOriginal);
+        if (resultado.Valor is { } lida)
+            foreach (var documento in lida.Itens) _arquivos[documento.Id] = documento.NomeArquivoOriginal;
         await AtividadeComoAlvoAsync(resultado);
         return resultado;
     }

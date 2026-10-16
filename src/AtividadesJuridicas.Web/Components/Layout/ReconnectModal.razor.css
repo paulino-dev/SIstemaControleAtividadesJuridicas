@@ -17,6 +17,7 @@
 }
 
 #components-reconnect-modal {
+    box-sizing: border-box;
     width: min(22rem, calc(100vw - 2rem));
     margin: 20vh auto;
     padding: var(--espaco-24);

@@ -1,9 +1,16 @@
-@* As abas do mobile das fichas. Cada painel da ficha fica num invólucro aj-aba-painel, que a tela marca com
-   aj-aba-painel--oculta quando não é da aba escolhida; no tablet e no desktop todos aparecem. *@
-<div class="aj-abas" role="tablist" aria-label="@Rotulo">
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+@* As abas do mobile das fichas, no padrão tablist: só a aba escolhida entra no Tab (tabindex 0, as outras -1); ←/→
+   andam para a aba anterior/seguinte, com volta nas pontas, e Home/End vão à primeira/última, escolhendo a aba e
+   levando o foco a ela; a fileira mais larga que a tela rola até a aba. Cada painel da ficha fica num invólucro
+   aj-aba-painel com id, que a tela marca com aj-aba-painel--oculta quando não é da aba escolhida; a aba aponta para ele
+   com aria-controls. No tablet e no desktop todos os painéis aparecem, sem abas, e por isso não levam role="tabpanel". *@
+<div class="aj-abas" role="tablist" aria-label="@Rotulo" @ref="_lista">
     @foreach (var aba in Itens)
     {
-        <button type="button" role="tab" class="aj-abas__aba" aria-selected="@(aba.Chave == Ativa ? "true" : "false")" @key="aba.Chave" @onclick="() => AoEscolher.InvokeAsync(aba.Chave)">@aba.Rotulo@if (aba.Contador is { } contador)
+        var escolhida = aba.Chave == Ativa;
+        <button type="button" role="tab" class="aj-abas__aba" aria-selected="@(escolhida ? "true" : "false")" tabindex="@(escolhida ? "0" : "-1")" aria-controls="@aba.Painel" @key="aba.Chave" @ref="_botoes[aba.Chave]" @onclick="() => AoEscolher.InvokeAsync(aba.Chave)" @onkeydown="e => AoTeclarAsync(e, aba.Chave)">@aba.Rotulo@if (aba.Contador is { } contador)
             {<span class="aj-abas__contador">@contador</span>}</button>
     }
 </div>
@@ -15,4 +22,103 @@
 
     /// <summary>O nome do grupo para o leitor de tela: "Assuntos do cliente".</summary>
     [Parameter, EditorRequired] public string Rotulo { get; set; } = string.Empty;
+
+    private readonly Dictionary<string, ElementReference> _botoes = [];
+    private ElementReference _lista;
+    private IJSObjectReference? _modulo;
+
+    // A tecla vale a partir da aba onde está o foco. Com Alt, Ctrl ou Cmd, a tecla é do navegador.
+    private async Task AoTeclarAsync(KeyboardEventArgs e, string chave)
+    {
+        if (e.AltKey || e.CtrlKey || e.MetaKey || Itens.Count == 0) return;
+
+        var atual = IndiceDe(chave);
+        var destino = e.Key switch
+        {
+            "ArrowRight" => (atual + 1) % Itens.Count,
+            "ArrowLeft" => (atual + Itens.Count - 1) % Itens.Count,
+            "Home" => 0,
+            "End" => Itens.Count - 1,
+            _ => -1,
+        };
+        if (destino < 0) return;
+
+        var aba = Itens[destino].Chave;
+        await AoEscolher.InvokeAsync(aba);
+        if (!_botoes.TryGetValue(aba, out var botao)) return;
+
+        await FocarAsync(botao);
+        await RolarAteAsync(botao);
+    }
+
+    private int IndiceDe(string chave)
+    {
+        for (var i = 0; i < Itens.Count; i++)
+        {
+            if (Itens[i].Chave == chave) return i;
+        }
+
+        return 0;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        try
+        {
+            _modulo = await JS.InvokeAsync<IJSObjectReference>("import", "./Components/Layout/Abas.razor.js");
+            await _modulo.InvokeVoidAsync("prenderTeclas", _lista);
+        }
+        catch (JSDisconnectedException)
+        {
+            // O circuito caiu: não há página para rolar.
+        }
+        catch (JSException)
+        {
+            // Sem o módulo, as teclas ainda escolhem a aba; só a rolagem padrão do navegador volta.
+        }
+    }
+
+    // O focus() não rola a aba que já aparece em parte (a fileira da atividade é mais larga que a tela no mobile): o
+    // módulo a traz inteira para a vista. Sem o módulo, a aba escolhida continua valendo.
+    private async Task RolarAteAsync(ElementReference aba)
+    {
+        if (_modulo is null) return;
+
+        try
+        {
+            await _modulo.InvokeVoidAsync("rolarAteAba", aba);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or JSException or JSDisconnectedException or OperationCanceledException)
+        {
+            // O circuito caiu: não há fileira para rolar.
+        }
+    }
+
+    private static async Task FocarAsync(ElementReference alvo)
+    {
+        try
+        {
+            await alvo.FocusAsync();
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or JSException or JSDisconnectedException)
+        {
+            // Sem foco (circuito caindo, por exemplo) a aba escolhida continua valendo.
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_modulo is null) return;
+
+        try
+        {
+            await _modulo.DisposeAsync();
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or JSException or JSDisconnectedException or OperationCanceledException)
+        {
+            // O circuito caiu: a referência foi com ele.
+        }
+    }
 }

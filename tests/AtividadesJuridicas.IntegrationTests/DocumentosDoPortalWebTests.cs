@@ -279,9 +279,10 @@ public class DocumentosDoPortalWebTests(BancoFixture banco) : IAsyncLifetime
 
             bloco.Should().Contain("modelo-20.pdf", visao).And.Contain("<div class=\"aj-paginacao\">", visao)
                 .And.Contain("<span class=\"aj-subtitulo\">Página 1 de 3 · 45 documentos</span>", visao)
-                .And.MatchRegex("<button[^>]*disabled[^>]*>Anterior</button>", visao)
+                .And.MatchRegex("<button[^>]*aria-disabled=\"true\"[^>]*>Anterior</button>", visao)
                 .And.Contain(">Próxima</button>", visao)
-                .And.NotMatchRegex("<button[^>]*disabled[^>]*>Próxima</button>", visao);
+                .And.NotMatchRegex("<button[^>]*aria-disabled[^>]*>Próxima</button>", visao)
+                .And.NotMatchRegex("<button[^>]*\\sdisabled[\\s>=]", visao);
             Regex.Matches(bloco, "<div class=\"aj-paginacao\">").Should().ContainSingle(visao);
         }
     }

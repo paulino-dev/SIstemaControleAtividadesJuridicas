@@ -4,6 +4,7 @@
 @inject IDespachante Despachante
 @inject NavigationManager Navegacao
 @inject Recados Recados
+@inject Foco Foco
 
 <PageTitle>@Titulo</PageTitle>
 
@@ -13,13 +14,13 @@
 <CargaDoFormulario Estado="_estado" Erro="@_erroDaCarga" TextoNaoEncontrado="Usuário não encontrado." TentarDeNovo="TentarDeNovoAsync">
     @if (_mensagem is not null)
     {
-        <Aviso Tipo="TipoDeAviso.Erro">@_mensagem</Aviso>
+        <Aviso @key="_versaoDoErro" Tipo="TipoDeAviso.Erro" Revelar="true">@_mensagem</Aviso>
     }
 
     @if (_inativando)
     {
         <ConfirmacaoDeInativacao @key="Id" UsuarioId="Id!.Value" Nome="@_nomeCarregado" OnConcluido="AoInativar"
-                                 OnCancelar="() => _inativando = false" OnAcessoEncerrado="() => _estado = EstadoDeCarga.AcessoNegado" />
+                                 OnCancelar="CancelarInativacao" OnAcessoEncerrado="() => _estado = EstadoDeCarga.AcessoNegado" />
     }
 
     <EditForm Model="_form" OnValidSubmit="SalvarAsync" FormName="usuario" id="formulario-do-usuario" class="aj-painel aj-painel--formulario">
@@ -70,7 +71,7 @@
                     <span class="@(_erroDoCliente is null ? "aj-rotulo" : "aj-rotulo aj-rotulo--erro")">Cliente</span>
                     @if (_form.ClienteId is not null)
                     {
-                        <div class="aj-vinculo__escolhido"><span class="aj-vinculo__nome">@_form.ClienteNome</span><button type="button" class="aj-botao aj-botao--fantasma" @onclick="TrocarCliente">Trocar</button></div>
+                        <div class="aj-vinculo__escolhido"><span class="aj-vinculo__nome">@_form.ClienteNome</span><button type="button" class="aj-botao aj-botao--fantasma" @onclick="TrocarClienteEBuscar">Trocar</button></div>
                     }
                     else
                     {
@@ -122,7 +123,7 @@
             <section class="aj-painel">
                 <h2>Situação</h2>
                 <span class="aj-ajuda">@(_ativo ? "Ativo" : "Inativo")</span>
-                <div class="aj-painel__acoes"><button type="button" class="aj-botao aj-botao--secundario" disabled="@(_salvando || _inativando)" @onclick="AlternarAtivoAsync">@(_ativo ? "Inativar usuário" : "Ativar usuário")</button></div>
+                <div class="aj-painel__acoes"><button type="button" class="aj-botao aj-botao--secundario" id="ativar-ou-inativar-usuario" disabled="@(_salvando || _inativando)" @onclick="AlternarAtivoAsync">@(_ativo ? "Inativar usuário" : "Ativar usuário")</button></div>
             </section>
         </div>
     }
@@ -145,6 +146,17 @@
     private bool _inativando;
     private bool _ativo = true;
     private string? _mensagem;
+
+    // A geração do aviso de erro: cada mensagem nova recria o Aviso (a chave muda), que se revela de novo, mesmo que a
+    // frase seja a mesma da tentativa anterior.
+    private int _versaoDoErro;
+
+    private void MostrarErro(string? mensagem)
+    {
+        _mensagem = mensagem;
+        _versaoDoErro++;
+    }
+
     private IReadOnlyList<PerfilDetalhe> _perfis = [];
     private PerfilDetalhe? _perfilInativoAtual;
     private Formulario _form = new();
@@ -217,15 +229,23 @@
         _erroDaCarga = null;
         _mensagem = null;
         _inativando = false;
-        if (Id is null) Limpar();
-        else await CarregarAsync(Id.Value);
+        if (Id is not { } id) Limpar();
+        else
+        {
+            await CarregarAsync(id);
+            // A rota passou a outro usuário durante a espera: o estado da tela é o da carga dele, não o desta.
+            if (Id != id) return;
+        }
         if (_estado == EstadoDeCarga.Carregando) _estado = EstadoDeCarga.Pronto;
     }
 
-    // Não há consulta de um só usuário: ele vem da lista.
+    // Não há consulta de um só usuário: ele vem da lista. Se a rota passou a outro usuário durante a espera, a resposta
+    // é descartada: a carga do outro já está em curso (ou terminou) e é ela que vale.
     private async Task CarregarAsync(Guid id)
     {
         var lista = await Despachante.EnviarAsync(new ListarUsuarios());
+        if (Id != id) return;
+
         if (lista.Erro == TipoErro.AcessoNegado)
         {
             _estado = EstadoDeCarga.AcessoNegado;
@@ -294,6 +314,14 @@
         _form.ClienteId = null;
         _form.ClienteNome = null;
         LimparBuscaDeCliente();
+    }
+
+    // O "Trocar" sai da tela com o cliente escolhido: o foco vai à busca de cliente que aparece no lugar dele, e não ao
+    // título da página, aonde a rede de segurança o levaria.
+    private void TrocarClienteEBuscar()
+    {
+        TrocarCliente();
+        _focoDeVolta = "input[form=\"busca-de-cliente\"]";
     }
 
     private void LimparBuscaDeCliente()
@@ -386,7 +414,7 @@
                 navegou = true;
                 VoltarParaALista("Usuário salvo.");
             }
-            else _mensagem = resultado.Mensagem;
+            else MostrarErro(resultado.Mensagem);
         }
         finally
         {
@@ -423,12 +451,31 @@
                 navegou = true;
                 VoltarParaALista("Usuário ativado.");
             }
-            else _mensagem = resultado.Mensagem;
+            else MostrarErro(resultado.Mensagem);
         }
         finally
         {
             if (!navegou) _salvando = false;
         }
+    }
+
+    // Para onde o foco vai depois do desenho: o "Inativar usuário" que abriu a confirmação cancelada, ou a busca de
+    // cliente que o "Trocar" revelou.
+    private string? _focoDeVolta;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_focoDeVolta is not { } seletor) return;
+
+        _focoDeVolta = null;
+        // O Foco engole as falhas do JavaScript: sem foco (circuito caindo, por exemplo) o formulário continua funcionando.
+        await Foco.FocarPrimeiroVisivelAsync(seletor);
+    }
+
+    private void CancelarInativacao()
+    {
+        _inativando = false;
+        _focoDeVolta = "#ativar-ou-inativar-usuario";
     }
 
     private void AoInativar(Resultado resultado)
@@ -446,7 +493,7 @@
         }
 
         _inativando = false;
-        _mensagem = resultado.Mensagem;
+        MostrarErro(resultado.Mensagem);
     }
 
     private void VoltarParaALista(string recado)

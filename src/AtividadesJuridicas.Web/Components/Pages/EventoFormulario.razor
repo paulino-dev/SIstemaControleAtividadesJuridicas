@@ -6,6 +6,7 @@
 @inject FusoDoEscritorio Fuso
 @inject NavigationManager Navegacao
 @inject Recados Recados
+@inject Foco Foco
 
 <PageTitle>@Titulo</PageTitle>
 
@@ -23,7 +24,7 @@
     {
         @if (_mensagem is not null)
         {
-            <Aviso Tipo="TipoDeAviso.Erro">@_mensagem</Aviso>
+            <Aviso @key="_versaoDoErro" Tipo="TipoDeAviso.Erro" Revelar="true">@_mensagem</Aviso>
         }
 
         @* Um formulário só. Os trechos que mudam de controle ou de lugar por visão vão em invólucros de visão e ligam-se ao
@@ -178,26 +179,26 @@
                        com o primeiro nome no mobile (com a legenda, porque o h2 do painel some). Cada lista tem o seu pai; as
                        chaves ainda assim levam o tipo da linha. *@
                     <div class="aj-so-desktop">
-                        <div class="aj-opcoes" role="group" aria-labelledby="titulo-dos-participantes">@foreach (var pessoa in _pessoas)
+                        <div class="aj-opcoes" role="group" aria-labelledby="titulo-dos-participantes" aria-invalid="@ParticipantesInvalidos" aria-describedby="@ErroDosParticipantes("desktop")">@foreach (var pessoa in _pessoas)
                             {<label class="aj-opcao" @key='("opcao", pessoa.Id)'><input type="checkbox" class="aj-opcao__caixa" checked="@Marcado(pessoa)" disabled="@Travado(pessoa)" @onchange="e => Marcar(pessoa, e)" />@pessoa.Rotulo@if (NotaDe(pessoa) is { } nota)
                                 {<span class="aj-opcao__nota aj-opcao__nota--menor">@nota</span>}</label>}</div>
                         @if (_semParticipantes)
                         {
-                            <span class="aj-campo-erro">Marque ao menos um participante.</span>
+                            <span class="aj-campo-erro" id="erro-dos-participantes-desktop">Marque ao menos um participante.</span>
                         }
                     </div>
                     <div class="aj-so-tablet">
-                        <div class="aj-opcoes" role="group" aria-labelledby="titulo-dos-participantes">@foreach (var pessoa in _pessoas)
+                        <div class="aj-opcoes" role="group" aria-labelledby="titulo-dos-participantes" aria-invalid="@ParticipantesInvalidos" aria-describedby="@ErroDosParticipantes("tablet")">@foreach (var pessoa in _pessoas)
                             {<label class="aj-chip aj-chip--pessoa" @key='("chip", pessoa.Id)'><input type="checkbox" class="aj-opcao__caixa" checked="@Marcado(pessoa)" disabled="@Travado(pessoa)" @onchange="e => Marcar(pessoa, e)" /><span class="@ClasseDoAvatar(pessoa)" aria-hidden="true">@SiglaDe(pessoa)</span>@NomeNoTablet(pessoa)</label>}</div>
                         @if (_semParticipantes)
                         {
-                            <span class="aj-campo-erro">Marque ao menos um participante.</span>
+                            <span class="aj-campo-erro" id="erro-dos-participantes-tablet">Marque ao menos um participante.</span>
                         }
                     </div>
                     <div class="aj-so-mobile">
-                        <fieldset class="aj-conjunto"><legend class="@ClasseDaLegenda">Participantes</legend><div class="aj-opcoes">@foreach (var pessoa in _pessoas)
+                        <fieldset class="aj-conjunto" aria-invalid="@ParticipantesInvalidos" aria-describedby="@ErroDosParticipantes("mobile")"><legend class="@ClasseDaLegenda">Participantes</legend><div class="aj-opcoes">@foreach (var pessoa in _pessoas)
                             {<label class="aj-chip aj-chip--pessoa" @key='("chip-curto", pessoa.Id)'><input type="checkbox" class="aj-opcao__caixa" checked="@Marcado(pessoa)" disabled="@Travado(pessoa)" @onchange="e => Marcar(pessoa, e)" /><span class="@ClasseDoAvatar(pessoa)" aria-hidden="true">@SiglaDe(pessoa)</span>@NomeNoMobile(pessoa)</label>}</div>@if (_semParticipantes)
-                            {<span class="aj-campo-erro">Marque ao menos um participante.</span>}</fieldset>
+                            {<span class="aj-campo-erro" id="erro-dos-participantes-mobile">Marque ao menos um participante.</span>}</fieldset>
                     </div>
                     @if (Id is null)
                     {
@@ -258,6 +259,16 @@
     private bool _salvando;
     private string? _mensagem;
 
+    // A geração do aviso de erro: cada mensagem nova recria o Aviso (a chave muda), que se revela de novo, mesmo que a
+    // frase seja a mesma da tentativa anterior.
+    private int _versaoDoErro;
+
+    private void MostrarErro(string? mensagem)
+    {
+        _mensagem = mensagem;
+        _versaoDoErro++;
+    }
+
     private Formulario _form = new();
     private EditContext? _contexto;
     private uint? _versao;
@@ -317,6 +328,22 @@
     private DateOnly Hoje() => DateOnly.FromDateTime(Fuso.ParaLocal(DateTime.UtcNow));
 
     protected override Task OnInitializedAsync() => CarregarAsync();
+
+    // A busca que aparece no lugar do vínculo removido (o "Remover" saiu da tela): o foco vai a ela depois do desenho,
+    // e não ao título da página, aonde a rede de segurança o levaria. As buscas se acham pelo formulário que enviam.
+    private string? _focarBusca;
+    private const string BuscaDeCliente = "input[form=\"busca-de-cliente\"]";
+    private const string BuscaDeProcesso = "input[form=\"busca-de-processo\"], input[form=\"busca-de-processo-curta\"]";
+    private const string BuscaDeAtividade = "input[form=\"busca-de-atividade\"]";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_focarBusca is not { } seletor) return;
+
+        _focarBusca = null;
+        // O Foco engole as falhas do JavaScript e foca a busca à vista (a do processo tem uma por visão).
+        await Foco.FocarPrimeiroVisivelAsync(seletor);
+    }
 
     // A carga inteira, também a do "Tentar de novo": quem está na tela, o evento (edição) e a equipe.
     private async Task CarregarAsync()
@@ -401,10 +428,10 @@
             };
             _versao = atual.Versao;
             _clienteId = atual.ClienteId;
-            _clienteNome = atual.ClienteId is null ? null : atual.ClienteNome ?? "Cliente indisponível";
+            _clienteNome = atual.ClienteId is null ? null : atual.ClienteNome ?? RotulosDeAgenda.ClienteIndisponivel;
             _clienteIndisponivel = atual.ClienteId is not null && atual.ClienteNome is null;   // o avatar mostra "?", não a sigla do texto de reserva
             _processoId = atual.ProcessoId;
-            _processoTitulo = atual.ProcessoId is null ? null : atual.ProcessoTitulo ?? "Processo indisponível";
+            _processoTitulo = atual.ProcessoId is null ? null : atual.ProcessoTitulo ?? RotulosDeAgenda.ProcessoIndisponivel;
             _atividadeId = atual.AtividadeId;
             _atividadeTitulo = atual.AtividadeTitulo;   // nulo: a atividade foi excluída ou o usuário não a vê
             _atividadeExcluida = atual.AtividadeExcluida;
@@ -520,6 +547,12 @@
 
     private string ClasseDaLegenda => _semParticipantes ? "aj-rotulo aj-rotulo--erro" : "aj-rotulo";
 
+    // O grupo de participantes em erro: inválido e ligado à frase do erro da mesma visão (cada visão tem a sua cópia do
+    // grupo e da frase, e um id de erro por visão). Sem erro, os dois atributos somem.
+    private string? ParticipantesInvalidos => _semParticipantes ? "true" : null;
+
+    private string? ErroDosParticipantes(string visao) => _semParticipantes ? $"erro-dos-participantes-{visao}" : null;
+
     private static string MetaDoProcesso(ProcessoResumo processo) =>
         processo.Clientes.Count == 0 ? processo.AreaNome : $"{processo.AreaNome} · {string.Join(", ", processo.Clientes)}";
 
@@ -536,7 +569,7 @@
         // Os avisos valem só para uma busca que deu certo; uma falha mostra o erro no lugar deles.
         _nenhumCliente = resultado.Sucesso && itens.Count == 0;
         _clientesTruncados = resultado.Sucesso && resultado.Valor!.Total > itens.Count;
-        if (!resultado.Sucesso) _mensagem = resultado.Mensagem;
+        if (!resultado.Sucesso) MostrarErro(resultado.Mensagem);
     }
 
     private void EscolherCliente(ClienteResumo cliente)
@@ -556,6 +589,7 @@
         _clienteId = null;
         _clienteNome = null;
         _clienteIndisponivel = false;
+        _focarBusca = BuscaDeCliente;
     }
 
     private async Task ProcurarProcessosAsync()
@@ -570,7 +604,7 @@
         _processosEncontrados = itens;
         _nenhumProcesso = resultado.Sucesso && itens.Count == 0;
         _processosTruncados = resultado.Sucesso && resultado.Valor!.Total > itens.Count;
-        if (!resultado.Sucesso) _mensagem = resultado.Mensagem;
+        if (!resultado.Sucesso) MostrarErro(resultado.Mensagem);
     }
 
     private void EscolherProcesso(ProcessoResumo processo)
@@ -589,6 +623,7 @@
 
         _processoId = null;
         _processoTitulo = null;
+        _focarBusca = BuscaDeProcesso;
     }
 
     private async Task ProcurarAtividadesAsync()
@@ -604,7 +639,7 @@
         _atividadesEncontradas = itens;
         _nenhumaAtividade = resultado.Sucesso && itens.Count == 0;
         _atividadesTruncadas = resultado.Sucesso && resultado.Valor!.Total > itens.Count;
-        if (!resultado.Sucesso) _mensagem = resultado.Mensagem;
+        if (!resultado.Sucesso) MostrarErro(resultado.Mensagem);
     }
 
     private void EscolherAtividade(AtividadeResumo atividade)
@@ -624,6 +659,7 @@
         _atividadeId = null;
         _atividadeTitulo = null;
         _atividadeExcluida = false;
+        _focarBusca = BuscaDeAtividade;
     }
 
     private void LimparBuscaDeCliente()
@@ -660,9 +696,9 @@
         var camposValidos = _contexto.Validate();
         _semParticipantes = _marcados.Count == 0;
         if (_form.Data is null || _form.Hora is null)
-            _mensagem = "Informe a data e a hora do evento.";
+            MostrarErro("Informe a data e a hora do evento.");
         else if (_form.Data.Value.Year < Evento.AnoMinimoDeInicio || _form.Data.Value.Year > Evento.AnoMaximoDeInicio)
-            _mensagem = $"A data deve estar entre os anos {Evento.AnoMinimoDeInicio} e {Evento.AnoMaximoDeInicio}.";
+            MostrarErro($"A data deve estar entre os anos {Evento.AnoMinimoDeInicio} e {Evento.AnoMaximoDeInicio}.");
 
         if (!camposValidos || _semParticipantes || _mensagem is not null) return;
 
@@ -690,7 +726,7 @@
             if (!resultado.Sucesso)
             {
                 // O formulário permanece com o que foi digitado; conflito e "não encontrado" trazem a mensagem do servidor.
-                _mensagem = resultado.Mensagem;
+                MostrarErro(resultado.Mensagem);
                 return;
             }
 

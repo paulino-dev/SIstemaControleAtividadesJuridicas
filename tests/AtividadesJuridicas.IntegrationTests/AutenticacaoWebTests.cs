@@ -126,6 +126,8 @@ public partial class AutenticacaoWebTests(BancoFixture banco) : IAsyncLifetime
             .And.Contain("aria-label=\"Fechar aviso\"")
             .And.Contain("Reconectando ao servidor…").And.Contain("Tentar de novo").And.Contain("Retomar")
             .And.NotContain("Rejoin").And.NotContain("Retry").And.NotContain("Resume");
+        // Conferência da 9G (D7): a faixa aparece com o erro e o leitor de tela o anuncia.
+        html.Should().Contain("<div id=\"blazor-error-ui\" class=\"aj-faixa-erro\" role=\"alert\"");
     }
 
     [Fact]

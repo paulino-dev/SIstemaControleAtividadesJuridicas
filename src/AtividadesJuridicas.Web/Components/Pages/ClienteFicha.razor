@@ -2,6 +2,7 @@
 @inject IDespachante Despachante
 @inject FusoDoEscritorio Fuso
 @inject Recados Recados
+@inject Foco Foco
 
 <PageTitle>@(_cliente?.Nome ?? "Cliente")</PageTitle>
 
@@ -37,13 +38,13 @@ else
     }
     @if (_mensagem is not null)
     {
-        <Aviso Tipo="@(_falhou ? TipoDeAviso.Erro : TipoDeAviso.Sucesso)">@_mensagem</Aviso>
+        <Aviso @key="_versaoDoAviso" Tipo="@(_falhou ? TipoDeAviso.Erro : TipoDeAviso.Sucesso)" Revelar="true">@_mensagem</Aviso>
     }
     @if (_confirmandoInativacao)
     {
         <Aviso Tipo="TipoDeAviso.Atencao" Rotulo="Confirmar inativação" Titulo="@($"Confirmar a inativação de {c.Nome}?")">
             <ChildContent>@TextosDoCliente.ConsequenciaDaInativacao(UsuariosAtivos)</ChildContent>
-            <Acoes><button type="button" class="aj-botao aj-botao--secundario" disabled="@_alterando" @onclick="() => _confirmandoInativacao = false">Cancelar</button><button type="button" class="aj-botao aj-botao--primario" disabled="@_alterando" @onclick="ConfirmarInativacaoAsync">Confirmar inativação</button></Acoes>
+            <Acoes><button type="button" class="aj-botao aj-botao--secundario" disabled="@_alterando" @onclick="CancelarInativacao">Cancelar</button><button type="button" class="aj-botao aj-botao--primario" disabled="@_alterando" @onclick="ConfirmarInativacaoAsync">Confirmar inativação</button></Acoes>
         </Aviso>
     }
 
@@ -53,7 +54,7 @@ else
 
     <div class="aj-lado-a-lado aj-lado-a-lado--painel-primeiro aj-lado-a-lado--ficha">
         <div class="aj-lado-a-lado__painel aj-pilha">
-            <div class="@ClasseDaAba("dados")">
+            <div class="@ClasseDaAba("dados")" id="dados-do-cliente">
                 <section class="aj-painel">
                     <h2>Dados</h2>
                     <dl class="aj-detalhes">
@@ -74,7 +75,7 @@ else
         </div>
 
         <div class="aj-lado-a-lado__lista aj-pilha">
-            <div class="@ClasseDaAba("processos")">
+            <div class="@ClasseDaAba("processos")" id="processos-do-cliente">
                 <section class="aj-painel">
                     <h2>Processos do cliente</h2>
                     <EstadoDaLista Erro="@_erroDosProcessos" Vazio="@(_processos.Itens.Count == 0)" TextoDeVazio="Nenhum processo vinculado." TentarDeNovo="CarregarProcessosAsync">
@@ -112,14 +113,14 @@ else
                 </section>
             </div>
 
-            <div class="@ClasseDaAba("documentos")">
+            <div class="@ClasseDaAba("documentos")" id="documentos-do-cliente">
                 <DocumentosDaFicha @key="c.Id" ClienteId="c.Id" PodeGerenciar="Diretoria" AoContar="ContarDocumentos"
                                    OnAcessoEncerrado="EncerrarAcesso" />
             </div>
 
             @if (Diretoria)
             {
-                <div class="@ClasseDaAba("usuarios")">
+                <div class="@ClasseDaAba("usuarios")" id="usuarios-do-cliente">
                     <section class="aj-painel">
                         <h2>Usuários do cliente</h2>
                         @if (!c.Ativo && _usuarios.Count > 0)
@@ -164,7 +165,7 @@ else
     @if (Diretoria)
     {
         <div class="aj-tablet-mobile">
-            <div class="aj-acoes aj-acoes--fixa"><button type="button" class="aj-botao aj-botao--secundario" disabled="@_alterando" @onclick="AlternarAtivoAsync">@(c.Ativo ? "Inativar" : "Ativar")</button><a href="@Edicao" class="aj-botao aj-botao--primario">Editar</a></div>
+            <div class="aj-acoes aj-acoes--fixa"><button type="button" class="aj-botao aj-botao--secundario" id="ativar-ou-inativar-barra" disabled="@_alterando" @onclick="AlternarAtivoAsync">@(c.Ativo ? "Inativar" : "Ativar")</button><a href="@Edicao" class="aj-botao aj-botao--primario">Editar</a></div>
         </div>
     }
 }
@@ -339,11 +340,11 @@ else
         {
             List<Aba> abas =
             [
-                new("dados", "Dados"),
-                new("processos", "Processos", _erroDosProcessos is null ? _processos.Total : null),
-                new("documentos", "Documentos", _totalDeDocumentos),
+                new("dados", "Dados", Painel: "dados-do-cliente"),
+                new("processos", "Processos", _erroDosProcessos is null ? _processos.Total : null, "processos-do-cliente"),
+                new("documentos", "Documentos", _totalDeDocumentos, "documentos-do-cliente"),
             ];
-            if (Diretoria) abas.Add(new("usuarios", "Usuários", _erroDosUsuarios is null ? _usuarios.Count : null));
+            if (Diretoria) abas.Add(new("usuarios", "Usuários", _erroDosUsuarios is null ? _usuarios.Count : null, "usuarios-do-cliente"));
             return abas;
         }
     }
@@ -351,7 +352,37 @@ else
     private string ClasseDaAba(string aba) => aba == _aba ? "aj-aba-painel" : "aj-aba-painel aj-aba-painel--oculta";
 
     private RenderFragment AcoesDoDesktop =>
-        @<text><button type="button" class="aj-botao aj-botao--fantasma" disabled="@_alterando" @onclick="AlternarAtivoAsync">@(_cliente!.Ativo ? "Inativar" : "Ativar")</button><a href="@Edicao" class="aj-botao aj-botao--secundario">Editar</a></text>;
+        @<text><button type="button" class="aj-botao aj-botao--fantasma" id="ativar-ou-inativar-desktop" disabled="@_alterando" @onclick="AlternarAtivoAsync">@(_cliente!.Ativo ? "Inativar" : "Ativar")</button><a href="@Edicao" class="aj-botao aj-botao--secundario">Editar</a></text>;
+
+    // A geração do aviso de resultado: cada mensagem nova recria o Aviso (a chave muda), que se revela de novo.
+    private int _versaoDoAviso;
+
+    // O "Inativar" que abriu a confirmação cancelada: o foco volta à cópia que está à vista.
+    private string? _focoDeVolta;
+
+    private const string AtivarOuInativar = "#ativar-ou-inativar-desktop, #ativar-ou-inativar-barra";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_focoDeVolta is not { } seletor) return;
+
+        _focoDeVolta = null;
+        // O Foco engole as falhas do JavaScript: sem foco (circuito caindo, por exemplo) a ficha continua funcionando.
+        await Foco.FocarPrimeiroVisivelAsync(seletor);
+    }
+
+    private void CancelarInativacao()
+    {
+        _confirmandoInativacao = false;
+        _focoDeVolta = AtivarOuInativar;
+    }
+
+    private void Avisar(string mensagem, bool falhou)
+    {
+        _mensagem = mensagem;
+        _falhou = falhou;
+        _versaoDoAviso++;
+    }
 
     private int? UsuariosAtivos => _erroDosUsuarios is null ? _usuarios.Count(u => u.Ativo) : null;
 
@@ -377,15 +408,14 @@ else
                 return;
             }
 
-            _falhou = !resultado.Sucesso;
             if (resultado.Sucesso)
             {
                 _cliente = _cliente with { Ativo = true };
-                _mensagem = "Cliente ativado.";
+                Avisar("Cliente ativado.", falhou: false);
             }
             else
             {
-                _mensagem = resultado.Mensagem ?? "Não foi possível ativar o cliente.";
+                Avisar(resultado.Mensagem ?? "Não foi possível ativar o cliente.", falhou: true);
             }
         }
         finally
@@ -409,16 +439,15 @@ else
             }
 
             _confirmandoInativacao = false;
-            _falhou = !resultado.Sucesso;
             if (resultado.Sucesso)
             {
                 var afetados = UsuariosAtivos ?? 0;
                 _cliente = _cliente with { Ativo = false };
-                _mensagem = TextosDoCliente.Inativado(afetados);
+                Avisar(TextosDoCliente.Inativado(afetados), falhou: false);
             }
             else
             {
-                _mensagem = resultado.Mensagem ?? "Não foi possível inativar o cliente.";
+                Avisar(resultado.Mensagem ?? "Não foi possível inativar o cliente.", falhou: true);
             }
         }
         finally

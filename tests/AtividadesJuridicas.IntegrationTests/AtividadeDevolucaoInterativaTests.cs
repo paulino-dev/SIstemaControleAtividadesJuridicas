@@ -202,4 +202,35 @@ public class AtividadeDevolucaoInterativaTests : TelaInterativa
         tela.WaitForAssertion(() => Destino.Should().EndWith(ficha));
         Despachante.Recebidas.OfType<DevolverAtividade>().Should().ContainSingle();
     }
+
+    [Fact]
+    public void Falha_ao_devolver_leva_o_foco_ao_aviso_de_erro()
+    {
+        var tela = Devolver();
+        Despachante.Responde<DevolverAtividade, Resultado>(
+            Resultado.Falha(TipoErro.Validacao, "Somente o revisor da atividade pode aprová-la ou devolvê-la."));
+        Escrever(tela, "Rever o valor da terceira parcela.");
+
+        tela.Find("form#formulario-do-motivo").Submit();
+
+        tela.WaitForAssertion(() => tela.Find("p.aj-aviso--erro").TextContent.Should().Contain("Somente o revisor"));
+        UltimoFocoPedido().Arguments[0].ShouldBeElementReferenceTo(tela.Find("p.aj-aviso--erro"));
+    }
+
+    [Fact]
+    public void Responsaveis_em_erro_ficam_invalidos_e_apontam_para_o_erro()
+    {
+        var tela = Devolver();
+        Escrever(tela, "Rever a cláusula de quitação.");
+        Marcar(tela, "Beatriz Lins", false);
+        Marcar(tela, "Otávio Brandão", false);
+
+        tela.Find("form#formulario-do-motivo").Submit();
+
+        var conjunto = tela.Find("fieldset.aj-conjunto");
+        conjunto.GetAttribute("aria-invalid").Should().Be("true");
+        conjunto.GetAttribute("aria-describedby").Should().Be("erro-dos-responsaveis");
+        tela.Find("#erro-dos-responsaveis").TextContent.Should().Be("Marque ao menos um responsável.");
+        Despachante.Recebidas.OfType<DevolverAtividade>().Should().BeEmpty();
+    }
 }

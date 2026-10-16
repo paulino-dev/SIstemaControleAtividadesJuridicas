@@ -3,7 +3,8 @@
 @* Cabeçalho de página do design system. Emite as duas formas e o CSS mostra a da visão atual: no desktop e no
    tablet, o aj-cabecalho dentro do conteúdo; no mobile, a barra superior da tela, no encaixe do layout.
    Com VoltarPara, a barra do mobile é a de voltar (ficha e formulário), e a barra inferior some.
-   Com Acao, a ação principal da tela: botão primário no cabeçalho e, no mobile, botão flutuante.
+   Com Acao, a ação principal da tela: botão primário no cabeçalho e, no mobile, botão flutuante, no encaixe do fim
+   do conteúdo (depois da tela na ordem de tabulação; a posição no canto da tela é do CSS).
    Dois encaixes: Complemento, ao lado do título no desktop e no tablet (um controle segmentado, antes da ação), e
    LinhaDoMobile, a segunda linha da barra superior do mobile (busca, chips, controle segmentado). *@
 @if (VoltarPara is not null)
@@ -66,14 +67,16 @@ else
 
 @if (Acao is not null)
 {
-    @if (AcaoHref is not null)
-    {
-        <a href="@AcaoHref" class="aj-fab" aria-label="@Acao"><Icone Nome="@IconeDaAcao" /></a>
-    }
-    else
-    {
-        <button type="button" class="aj-fab" aria-label="@Acao" @onclick="OnAcao"><Icone Nome="@IconeDaAcao" /></button>
-    }
+    <SectionContent SectionName="@Encaixes.RodapeDoConteudo">
+        @if (AcaoHref is not null)
+        {
+            <a href="@AcaoHref" class="aj-fab" aria-label="@Acao"><Icone Nome="@IconeDaAcao" /></a>
+        }
+        else
+        {
+            <button type="button" class="aj-fab" aria-label="@Acao" @onclick="OnAcao"><Icone Nome="@IconeDaAcao" /></button>
+        }
+    </SectionContent>
 }
 
 @code {

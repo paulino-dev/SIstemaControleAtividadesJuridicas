@@ -18,7 +18,7 @@ else
 {
     @if (_mensagem is not null)
     {
-        <Aviso Tipo="@(_falhou ? TipoDeAviso.Erro : TipoDeAviso.Sucesso)">@_mensagem</Aviso>
+        <Aviso @key="_versaoDoAviso" Tipo="@(_falhou ? TipoDeAviso.Erro : TipoDeAviso.Sucesso)" Revelar="true">@_mensagem</Aviso>
     }
 
     <div class="aj-lado-a-lado">
@@ -105,6 +105,10 @@ else
     private IReadOnlyList<PerfilDetalhe> _perfis = [];
     private Formulario _form = new();
 
+    // A geração do aviso de resultado: cada mensagem nova de uma ação recria o Aviso (a chave muda), que se revela de
+    // novo e recebe o foco (o item do menu que a pediu fica escondido com o menu fechado).
+    private int _versaoDoAviso;
+
     private string? Subtitulo => _carregado && _autorizado && _erroDaLista is null && _perfis.Count > 0
         ? Contagem.ComInativos(_perfis.Count, _perfis.Count(p => !p.Ativo), "perfil", "perfis", "inativo", "inativos")
         : null;
@@ -172,6 +176,7 @@ else
 
         _falhou = true;
         _mensagem = resultado.Mensagem;
+        _versaoDoAviso++;
         return false;
     }
 
@@ -237,6 +242,7 @@ else
         {
             _falhou = true;
             _mensagem = resultado.Mensagem;
+            _versaoDoAviso++;
             return false;
         }
 
@@ -245,11 +251,13 @@ else
         {
             _falhou = false;
             _mensagem = mensagemDeSucesso;
+            _versaoDoAviso++;
         }
         else if (_autorizado)
         {
             _falhou = true;
             _mensagem = $"{mensagemDeSucesso.TrimEnd('.')}, mas não foi possível atualizar a lista.";
+            _versaoDoAviso++;
         }
         return true;
     }

@@ -10,7 +10,7 @@
 
 @if (_mensagem is not null)
 {
-    <Aviso Tipo="TipoDeAviso.Erro">@_mensagem</Aviso>
+    <Aviso @key="_versaoDoErro" Tipo="TipoDeAviso.Erro" Revelar="true">@_mensagem</Aviso>
 }
 
 <div class="aj-so-mobile"><span class="aj-ajuda">Depois de alterar, você entra de novo com a nova senha.</span></div>
@@ -40,6 +40,17 @@
 
 @code {
     private string? _mensagem;
+
+    // A geração do aviso de erro: cada mensagem nova recria o Aviso (a chave muda), que se revela de novo, mesmo que a
+    // frase seja a mesma da tentativa anterior.
+    private int _versaoDoErro;
+
+    private void MostrarErro(string? mensagem)
+    {
+        _mensagem = mensagem;
+        _versaoDoErro++;
+    }
+
     private Formulario _form = new();
 
     private async Task SalvarAsync()
@@ -53,7 +64,7 @@
             return;
         }
 
-        _mensagem = resultado.Mensagem;
+        MostrarErro(resultado.Mensagem);
     }
 
     private sealed class Formulario

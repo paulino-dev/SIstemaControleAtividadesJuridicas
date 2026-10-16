@@ -12,7 +12,7 @@
 <CargaDoFormulario Estado="_estado" Erro="@_erroDaCarga" TextoNaoEncontrado="Cliente não encontrado." TentarDeNovo="CarregarTudoAsync">
     @if (_mensagem is not null)
     {
-        <Aviso Tipo="TipoDeAviso.Erro">@_mensagem</Aviso>
+        <Aviso @key="_versaoDoErro" Tipo="TipoDeAviso.Erro" Revelar="true">@_mensagem</Aviso>
     }
 
     <div class="aj-so-mobile">
@@ -90,6 +90,17 @@
     private string? _erroDaCarga;
     private bool _salvando;
     private string? _mensagem;
+
+    // A geração do aviso de erro: cada mensagem nova recria o Aviso (a chave muda), que se revela de novo, mesmo que a
+    // frase seja a mesma da tentativa anterior.
+    private int _versaoDoErro;
+
+    private void MostrarErro(string? mensagem)
+    {
+        _mensagem = mensagem;
+        _versaoDoErro++;
+    }
+
     private Formulario _form = new();
 
     private string Titulo => Id is null ? "Novo cliente" : "Editar cliente";
@@ -188,7 +199,7 @@
             if (!resultado.Sucesso)
             {
                 // O formulário permanece com o que foi digitado.
-                _mensagem = resultado.Mensagem;
+                MostrarErro(resultado.Mensagem);
                 return;
             }
 

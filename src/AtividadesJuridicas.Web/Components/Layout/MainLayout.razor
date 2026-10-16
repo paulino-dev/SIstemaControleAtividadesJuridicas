@@ -1,17 +1,21 @@
 @inherits LayoutComponentBase
-@implements IDisposable
+@implements IAsyncDisposable
 @using AtividadesJuridicas.Web.Components.Pages
 @using Microsoft.AspNetCore.Components.Sections
 @inject IDespachante Despachante
 @inject NavigationManager Navegacao
+@inject PersistentComponentState EstadoPersistente
+@inject Foco Foco
+@inject IJSRuntime JS
 
 @* Três navegações, uma por visão; o CSS mostra a da largura atual (menu no desktop, trilho no tablet, barra
-   inferior no mobile). Em tablet e mobile, "Mais" abre o menu completo por cima da tela.
+   inferior no mobile). Em tablet e mobile, "Mais" abre o menu completo por cima da tela; aberto, o resto (trilho,
+   coluna e barra inferior) fica inerte: o teclado e o leitor de tela só alcançam o menu, e um só nav "Principal".
    O usuário de cliente vê o menu do portal: no menu lateral, Início, Andamento, Meus documentos, Documentos comuns e
    Minha senha; no trilho, os quatro primeiros (Minha senha fica no avatar); na barra inferior, Início, Andamento e
    Documentos (Meus documentos), e o restante em "Mais". *@
 <div class="aj-app @(_menuEscondido ? "aj-app--menu-escondido" : null) @(_menuAberto ? "aj-app--menu-aberto" : null)">
-    <aside class="aj-menu" id="menu-principal">
+    <aside class="aj-menu" id="menu-principal" @onkeydown="AoTeclarNoMenu">
         <div class="aj-menu__topo">
             <a href="/" aria-label="Araújo Advocacia, início">
                 <img src="img/logo-horizontal-compacta-escuro.svg" alt="Araújo Advocacia" width="140" height="32" />
@@ -62,7 +66,8 @@
         </nav>
         <div class="aj-usuario">
             <span class="aj-avatar" aria-hidden="true">@Iniciais</span>
-            <div class="aj-usuario__texto">
+            @* O nome longo fica numa linha com reticências (design system); o title do texto traz o nome inteiro. *@
+            <div class="aj-usuario__texto" title="@_ator?.Nome">
                 <b>@_ator?.Nome</b>
                 <span>@Perfil@(Perfil is null ? null : " · ")<NavLink href="/minha-senha">Minha senha</NavLink></span>
             </div>
@@ -73,7 +78,7 @@
         </div>
     </aside>
 
-    <nav class="aj-trilho" aria-label="Principal">
+    <nav class="aj-trilho" aria-label="Principal" inert="@_menuAberto">
         <img src="img/logo-horizontal-compacta-escuro.svg" alt="Araújo Advocacia" width="68" height="16" />
         <a class="aj-trilho__item" href="/" aria-current="@Atual("")"><Icone Nome="inicio" />Início</a>
         @if (EhCliente)
@@ -94,7 +99,7 @@
         <a href="/minha-senha" class="aj-avatar aj-avatar--g" aria-label="Minha conta">@Iniciais</a>
     </nav>
 
-    <div class="aj-app__coluna">
+    <div class="aj-app__coluna" inert="@_menuAberto">
         <SectionOutlet SectionName="@Encaixes.BarraSuperior" />
         <header class="aj-barra-superior aj-barra-superior--padrao">
             <div class="aj-barra-superior__linha">
@@ -124,10 +129,12 @@
                     @Body
                 }
             </CascadingValue>
+            @* O fim do conteúdo: o botão flutuante da tela vem depois dela na ordem de tabulação. *@
+            <SectionOutlet SectionName="@Encaixes.RodapeDoConteudo" />
         </main>
     </div>
 
-    <nav class="aj-nav-inferior" aria-label="Principal">
+    <nav class="aj-nav-inferior" aria-label="Principal" inert="@_menuAberto">
         <a class="aj-nav-inferior__item" href="/" aria-current="@Atual("")"><span><Icone Nome="inicio" /></span>Início</a>
         @if (EhCliente)
         {
@@ -142,20 +149,45 @@
         <button type="button" class="aj-nav-inferior__item" aria-controls="menu-principal" aria-expanded="@(_menuAberto ? "true" : "false")" aria-current="@MaisNaBarra" @onclick="AbrirMenu"><span><Icone Nome="mais" /></span>Mais</button>
     </nav>
 
-    <button type="button" class="aj-app__veu" aria-label="Fechar menu" @onclick="FecharMenu"></button>
+    @* O véu fecha o menu pelo toque e pelo mouse. Pelo teclado e pelo leitor de tela, quem fecha é o "Fechar menu" do
+       próprio menu (e o Esc): o véu fica fora da ordem de tabulação e da árvore de acessibilidade. *@
+    <button type="button" class="aj-app__veu" aria-label="Fechar menu" aria-hidden="true" tabindex="-1" @onclick="FecharMenu"></button>
 </div>
 
 @code {
     [CascadingParameter]
     private Task<AuthenticationState>? EstadoDeAutenticacao { get; set; }
 
+    // A chave do ator no estado que a pré-renderização entrega ao circuito.
+    private const string ChaveDoAtor = "ator-do-layout";
+
+    // Os destinos do foco. O módulo foca o primeiro visível (com caixa) que casa: cada visão mostra o seu.
+    private const string SeletorDoPrimeiroItem = "#menu-principal .aj-menu__item";
+    private const string SeletorDoMais = "button[aria-controls=\"menu-principal\"]";
+    private const string SeletorDoExibirMenu = ".aj-exibir-menu > button, .aj-cabecalho__menu > button";
+    private const string SeletorDoEsconderMenu = ".aj-menu__esconder";
+
+    // O módulo do layout e a vigia do desktop (a referência a este layout é o que o JavaScript chama).
+    private const string ModuloDoLayout = "./Components/Layout/MainLayout.razor.js";
+
     private UsuarioAutenticado? _ator;
     private bool _marcaLida;
     private bool _portalPeloCookie;
+    private PersistingComponentStateSubscription _persistencia;
+
+    private DotNetObjectReference<MainLayout>? _referencia;
+    private IJSObjectReference? _modulo;
+    private IJSObjectReference? _vigia;
 
     // Desktop: o menu lateral pode ser escondido. Tablet e mobile: o menu completo abre por cima da tela.
     private bool _menuEscondido;
     private bool _menuAberto;
+
+    // O destino do foco depois da próxima renderização: o botão clicado sumiu, ficou inerte ou o menu fechou.
+    private string? _focoPendente;
+
+    // O caminho da tela atual, sem a consulta: escolher no menu a tela em que já se está não troca de página.
+    private string _caminho = string.Empty;
 
     // O banco manda quando já respondeu; antes disso, e se o acesso foi encerrado, vale a marca do cookie.
     private bool EhCliente => _ator?.EhCliente ?? _portalPeloCookie;
@@ -183,15 +215,16 @@
     private string[] DestinosDoMenu =>
         EhCliente ? MenuDoCliente : _ator is { EhDiretoria: true } ? MenuDaDiretoria : MenuDaProducao;
 
-    // Com o menu aberto por cima da tela, quem fica aceso nas barras é "Mais", como no canvas.
-    private string? Atual(string destino) => !_menuAberto && PaginaMontada && Secao == destino ? "page" : null;
+    // O aria-current diz só a rota. Com o menu aberto por cima da tela, o aria-expanded do "Mais" diz que ele está
+    // aberto, e o design system acende o "Mais" por ele e apaga o destino da rota enquanto o menu está aberto.
+    private string? Atual(string destino) => PaginaMontada && Secao == destino ? "page" : null;
 
     private string? MaisNoTrilho => MaisAceso(EhCliente ? TrilhoDoCliente : TrilhoDaEquipe);
 
     private string? MaisNaBarra => MaisAceso(EhCliente ? BarraDoCliente : BarraDaEquipe);
 
     private string? MaisAceso(string[] naBarra) =>
-        _menuAberto || (PaginaMontada && DestinosDoMenu.Contains(Secao) && !naBarra.Contains(Secao)) ? "page" : null;
+        PaginaMontada && DestinosDoMenu.Contains(Secao) && !naBarra.Contains(Secao) ? "page" : null;
 
     private ContextoDoLayout NovoContexto() => new(Iniciais, EventCallback.Factory.Create(this, AlternarMenu));
 
@@ -212,34 +245,149 @@
         }
     }
 
+    /// <summary>O caminho sem a consulta e sem o fragmento: "clientes" em /clientes?busca=maria.</summary>
+    private static string Caminho(string rota) => rota.Split('?', '#')[0].Trim('/').ToLowerInvariant();
+
     protected override async Task OnInitializedAsync()
     {
         Navegacao.LocationChanged += AoNavegar;
+        _caminho = Caminho(Rota);
+        _persistencia = EstadoPersistente.RegisterOnPersisting(PersistirAtor);
 
         // A tarefa do estado de autenticação já vem concluída: a marca é lida antes da primeira renderização.
         if (EstadoDeAutenticacao is not null)
             _portalPeloCookie = IdentidadeHttp.EhDoPortal((await EstadoDeAutenticacao).User);
         _marcaLida = true;
-        _contexto = NovoContexto();
 
+        // O circuito recebe o ator que a pré-renderização leu: o menu, o nome, o avatar e o "Mais" já saem certos na
+        // primeira renderização interativa, sem esperar outra consulta. Sem ele (acesso encerrado na
+        // pré-renderização, ou o estado não veio), o layout consulta como sempre.
+        if (EstadoPersistente.TryTakeFromJson<UsuarioAutenticado>(ChaveDoAtor, out var persistido) && persistido is not null)
+        {
+            _ator = persistido;
+            _contexto = NovoContexto();
+            return;
+        }
+
+        _contexto = NovoContexto();
         _ator = await Despachante.EnviarAsync(new ObterMeuAcesso());
         _contexto = NovoContexto();
     }
 
-    private void AlternarMenu() => _menuEscondido = !_menuEscondido;
+    // No fim da pré-renderização, o ator lido vai junto da página para o circuito. Sem ator, nada vai.
+    private Task PersistirAtor()
+    {
+        if (_ator is not null)
+            EstadoPersistente.PersistAsJson(ChaveDoAtor, _ator);
+        return Task.CompletedTask;
+    }
 
-    private void AbrirMenu() => _menuAberto = true;
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) await VigiarDesktopAsync();
 
-    private void FecharMenu() => _menuAberto = false;
+        if (_focoPendente is not { } seletor) return;
 
-    /// <summary>Escolhido um destino no menu aberto por cima da tela, ele se fecha.</summary>
-    private void AoNavegar(object? sender, LocationChangedEventArgs e)
+        _focoPendente = null;
+        await Foco.FocarPrimeiroVisivelAsync(seletor);
+    }
+
+    // Instalada uma vez, no primeiro desenho interativo: a vigia avisa sempre que a janela chega ao desktop, e
+    // AoChegarAoDesktop só age com o menu aberto.
+    private async Task VigiarDesktopAsync()
+    {
+        _referencia = DotNetObjectReference.Create(this);
+        try
+        {
+            _modulo = await JS.InvokeAsync<IJSObjectReference>("import", ModuloDoLayout);
+            _vigia = await _modulo.InvokeAsync<IJSObjectReference>("vigiarDesktop", _referencia);
+        }
+        catch (Exception erro) when (erro is JSException or JSDisconnectedException or InvalidOperationException
+                                         or OperationCanceledException)
+        {
+            // A vigia é uma proteção: sem ela, o layout funciona como antes.
+        }
+    }
+
+    /// <summary>
+    /// A janela chegou ao desktop (largura de 1200px ou mais). Com o menu aberto por cima da tela, ele se fecha, e o
+    /// resto deixa de ser inerte; o foco não é movido (o "Mais" não existe no desktop, e o menu lateral é o mesmo).
+    /// </summary>
+    [JSInvokable]
+    public Task AoChegarAoDesktop() => InvokeAsync(() =>
     {
         if (!_menuAberto) return;
 
         _menuAberto = false;
+        StateHasChanged();
+    });
+
+    // O botão clicado some: o foco vai ao par que aparece no lugar (o "Exibir menu" visível ou o "Esconder menu").
+    private void AlternarMenu()
+    {
+        _menuEscondido = !_menuEscondido;
+        _focoPendente = _menuEscondido ? SeletorDoExibirMenu : SeletorDoEsconderMenu;
+    }
+
+    private void AbrirMenu()
+    {
+        _menuAberto = true;
+        _focoPendente = SeletorDoPrimeiroItem;
+    }
+
+    // Fechado pelo "Fechar menu", pelo véu ou pelo Esc, o foco volta ao "Mais" que está à vista.
+    private void FecharMenu()
+    {
+        if (!_menuAberto) return;
+
+        _menuAberto = false;
+        _focoPendente = SeletorDoMais;
+    }
+
+    private void AoTeclarNoMenu(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") FecharMenu();
+    }
+
+    /// <summary>
+    /// Escolhido um destino no menu aberto por cima da tela, ele se fecha. Outra tela leva o foco ao título dela
+    /// (FocoNoTitulo); a mesma tela (só a consulta muda, ou nada) não troca de página, e o foco volta ao "Mais".
+    /// </summary>
+    private void AoNavegar(object? sender, LocationChangedEventArgs e)
+    {
+        var caminho = Caminho(Navegacao.ToBaseRelativePath(e.Location));
+        // "Mesma tela" pelo caminho coincide com o critério do FocoNoTitulo (o tipo da página): todo destino do menu tem
+        // rota e tipo de página próprios, então caminho igual é página igual, e caminho outro é outra página.
+        var mesmaTela = caminho == _caminho;
+        _caminho = caminho;
+
+        if (!_menuAberto) return;
+
+        _menuAberto = false;
+        if (mesmaTela) _focoPendente = SeletorDoMais;
         _ = InvokeAsync(StateHasChanged);
     }
 
-    public void Dispose() => Navegacao.LocationChanged -= AoNavegar;
+    public async ValueTask DisposeAsync()
+    {
+        Navegacao.LocationChanged -= AoNavegar;
+        _persistencia.Dispose();
+        try
+        {
+            if (_vigia is not null)
+            {
+                await _vigia.InvokeVoidAsync("parar");
+                await _vigia.DisposeAsync();
+            }
+            if (_modulo is not null) await _modulo.DisposeAsync();
+        }
+        catch (Exception erro) when (erro is JSException or JSDisconnectedException or OperationCanceledException)
+        {
+            // O circuito caiu: o navegador já descartou a página, e a vigia com ela.
+        }
+        finally
+        {
+            _referencia?.Dispose();
+        }
+    }
 }

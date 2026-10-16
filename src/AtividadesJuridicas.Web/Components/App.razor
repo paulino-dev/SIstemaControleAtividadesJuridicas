@@ -10,7 +10,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@@400;500;600;700&family=Newsreader:opsz,wght@@6..72,500;6..72,600&display=swap" />
-    @* Design system: tokens, depois componentes; app.css traz a base da aplicação (e as regras de elemento que saem na 9G). *@
+    @* Design system: tokens, depois componentes; app.css traz só a base da página (caixa de borda, corpo e foco). *@
     <link rel="stylesheet" href="@Assets["css/tokens.css"]" />
     <link rel="stylesheet" href="@Assets["css/componentes.css"]" />
     <link rel="stylesheet" href="@Assets["app.css"]" />
@@ -23,7 +23,7 @@
     <Routes Ip="@HttpContext.Connection.RemoteIpAddress?.ToString()" @rendermode="ModoDaPagina" />
     <ReconnectModal />
 
-    <div id="blazor-error-ui" class="aj-faixa-erro" data-nosnippet>
+    <div id="blazor-error-ui" class="aj-faixa-erro" role="alert" data-nosnippet>
         Ocorreu um erro inesperado.
         <a href="." class="reload">Recarregar</a>
         <button type="button" class="dismiss aj-botao aj-botao--fantasma aj-botao--icone aj-faixa-erro__fechar" aria-label="Fechar aviso"><Icone Nome="fechar" /></button>

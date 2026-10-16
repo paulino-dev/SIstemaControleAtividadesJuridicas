@@ -77,10 +77,10 @@ public class DocumentosDaFichaInterativosTests : TelaInterativa
         ficha.FindAll("button").Should().NotContain(b => b.TextContent == "Acesso");
         ficha.Find(".aj-painel__cabecalho button").Click();
         ficha.Markup.Should().Contain("Vai para Do cliente.");
-        ficha.FindAll("section.aj-painel button").Single(b => b.TextContent == "Enviar").HasAttribute("disabled").Should().BeTrue();
+        ficha.FindAll("form.aj-painel button").Single(b => b.TextContent == "Enviar").HasAttribute("disabled").Should().BeTrue();
 
         ficha.FindComponent<InputFile>().UploadFiles(InputFileContent.CreateFromText("conteúdo", "comprovante.pdf"));
-        ficha.FindAll("section.aj-painel button").Single(b => b.TextContent == "Enviar").Click();
+        ficha.FindAll("form.aj-painel button").Single(b => b.TextContent == "Enviar").Click();
 
         ficha.WaitForAssertion(() => Despachante.Recebidas.OfType<EnviarDocumento>().Should().ContainSingle()
             .Which.Should().Match<EnviarDocumento>(e => e.Categoria == CategoriaDocumento.DocumentoDoCliente && e.NomeArquivo == "comprovante.pdf"));
@@ -120,5 +120,201 @@ public class DocumentosDaFichaInterativosTests : TelaInterativa
         Despachante.Recebidas.OfType<ListarDocumentosDoCliente>().Select(r => r.Categoria).Should()
             .OnlyContain(c => c == CategoriaDocumento.DocumentoGeral || c == CategoriaDocumento.DocumentoAtividade);
         ficha.FindAll(".aj-chips button").Select(b => b.TextContent).Should().Equal("Gerais · 3", "De atividades · 4");
+    }
+
+    private void CombinarAcesso() => Despachante
+        .Responde<ObterAcessoDoDocumento, Resultado<AcessoDoDocumento>>(Resultado<AcessoDoDocumento>.Ok(
+            new AcessoDoDocumento(Procuracao, "Procuração.pdf", CategoriaDocumento.DocumentoGeral, [], [])))
+        .Responde<ListarPerfis, Resultado<IReadOnlyList<PerfilDetalhe>>>(
+            Resultado<IReadOnlyList<PerfilDetalhe>>.Ok([new(Guid.NewGuid(), "Produção", TipoPerfil.Producao, true, 2)]))
+        .Responde<ListarUsuarios, Resultado<IReadOnlyList<UsuarioResumo>>>(Resultado<IReadOnlyList<UsuarioResumo>>.Ok([]))
+        .Responde<DefinirAcessoDoDocumento, Resultado>(Resultado.Ok());
+
+    [Fact]
+    public void Os_botoes_que_abrem_tem_o_id_que_o_foco_de_volta_procura()
+    {
+        var ficha = Ficha();
+
+        ficha.Find("#documentos-enviar").TextContent.Should().Contain("Enviar documento");
+        ficha.Find($"#documento-acesso-{Procuracao:N}").TextContent.Should().Be("Acesso");
+        ficha.Find($"#documento-renomear-{Procuracao:N}").TextContent.Should().Be("Renomear");
+        ficha.Find($"#documento-excluir-{Procuracao:N}").TextContent.Should().Be("Excluir");
+        ficha.Find($"#documento-{Procuracao:N} .aj-menu-acoes > .aj-botao").GetAttribute("aria-label")
+            .Should().Be("Ações de Procuração.pdf");
+    }
+
+    [Fact]
+    public void Cancelar_o_envio_devolve_o_foco_ao_enviar_documento_do_painel()
+    {
+        var ficha = Ficha();
+        ficha.Find("#documentos-enviar").Click();
+
+        ficha.FindAll("form.aj-painel button").Single(b => b.TextContent == "Cancelar").Click();
+
+        ficha.FindAll("form.aj-painel").Should().BeEmpty();
+        UltimoSeletorFocado().Should().Be("#documentos-enviar");
+    }
+
+    [Fact]
+    public void Cancelar_o_acesso_devolve_o_foco_ao_acesso_da_linha()
+    {
+        CombinarAcesso();
+        var ficha = Ficha();
+        ficha.FindAll("table.aj-tabela tbody button").Single(b => b.TextContent == "Acesso").Click();
+        ficha.WaitForAssertion(() => ficha.FindAll("form#documentos-acesso").Should().ContainSingle());
+
+        ficha.FindAll("form#documentos-acesso button").Single(b => b.TextContent == "Cancelar").Click();
+
+        ficha.FindAll("form#documentos-acesso").Should().BeEmpty();
+        UltimoSeletorFocado().Should().Be($"#documento-acesso-{Procuracao:N}, #documento-{Procuracao:N} .aj-menu-acoes > .aj-botao");
+    }
+
+    [Fact]
+    public void Salvar_o_acesso_pelo_Enter_salva_e_leva_o_foco_ao_aviso_de_resultado()
+    {
+        CombinarAcesso();
+        var ficha = Ficha();
+        ficha.FindAll("table.aj-tabela tbody button").Single(b => b.TextContent == "Acesso").Click();
+        ficha.WaitForAssertion(() => ficha.FindAll("form#documentos-acesso").Should().ContainSingle());
+        ficha.Find("form#documentos-acesso").QuerySelectorAll("button").Select(b => (b.TextContent, b.GetAttribute("type")))
+            .Should().Equal(("Cancelar", "button"), ("Salvar acesso", "submit"));
+
+        ficha.Find("form#documentos-acesso").Submit();
+
+        ficha.WaitForAssertion(() => ficha.Markup.Should().Contain("Acesso atualizado."));
+        Despachante.Recebidas.OfType<DefinirAcessoDoDocumento>().Should().ContainSingle();
+        var aviso = ficha.FindAll(".aj-aviso").Single(a => a.TextContent.Contains("Acesso atualizado."));
+        UltimoFocoPedido().Arguments[0].ShouldBeElementReferenceTo(aviso);
+    }
+
+    [Fact]
+    public void Envio_e_renomear_sao_formularios_que_o_Enter_envia()
+    {
+        Despachante
+            .Responde<EnviarDocumento, Resultado<Guid>>(Resultado<Guid>.Ok(Guid.NewGuid()))
+            .Responde<RenomearDocumento, Resultado>(Resultado.Ok());
+        var ficha = Ficha();
+        ficha.Find("#documentos-enviar").Click();
+        ficha.FindComponent<InputFile>().UploadFiles(InputFileContent.CreateFromText("conteúdo", "contrato.pdf"));
+
+        ficha.Find("form#documentos-envio").Submit();
+
+        ficha.WaitForAssertion(() => Despachante.Recebidas.OfType<EnviarDocumento>().Should().ContainSingle());
+        ficha.FindAll("table.aj-tabela tbody button").Single(b => b.TextContent == "Renomear").Click();
+        ficha.Find("form#documentos-renomear input.aj-campo").Change("Procuração assinada.pdf");
+
+        ficha.Find("form#documentos-renomear").Submit();
+
+        ficha.WaitForAssertion(() => Despachante.Recebidas.OfType<RenomearDocumento>().Should().ContainSingle()
+            .Which.Should().Be(new RenomearDocumento(Procuracao, "Procuração assinada.pdf")));
+    }
+
+    [Fact]
+    public async Task Resposta_de_uma_area_que_ja_ficou_para_tras_e_descartada()
+    {
+        var ficha = Ficha();   // Gerais, respondida na hora
+        var velha = new TaskCompletionSource<Resultado<PaginaDeDocumentos>>();
+        Despachante.RespondeDepois<ListarDocumentosDoCliente, Resultado<PaginaDeDocumentos>>(velha.Task);
+        Chip(ficha, "De atividades");   // a consulta fica esperando
+        Despachante.Responde<ListarDocumentosDoCliente, Resultado<PaginaDeDocumentos>>(Pagina);
+        Chip(ficha, "Do cliente");      // responde na hora
+
+        velha.SetResult(Resultado<PaginaDeDocumentos>.Ok(new([
+            new DocumentoResumo(Guid.NewGuid(), "Contestação.pdf", "contestacao.pdf", 1024, CategoriaDocumento.DocumentoAtividade,
+                new DateTime(2026, 9, 3, 13, 0, 0, DateTimeKind.Utc), "Marina Couto", null, "Contestação — cobrança de ISS"),
+        ], 1, 1, 20, Contagem)));
+        // A continuação da resposta velha entra na fila do renderizador antes desta chamada vazia: quando ela volta,
+        // a resposta velha já foi tratada (as esperas seguintes da cadeia continuam no mesmo contexto, sem voltar à fila).
+        await ficha.InvokeAsync(() => { });
+
+        ficha.Find(".aj-chips button[aria-pressed=true]").TextContent.Should().Be("Do cliente · 2");
+        ficha.Markup.Should().Contain("Procuração.pdf").And.NotContain("Contestação.pdf");
+    }
+
+    [Fact]
+    public void Tentar_de_novo_mostra_carregando_ate_a_resposta()
+    {
+        Despachante.Responde<ListarDocumentosDoCliente, Resultado<PaginaDeDocumentos>>(
+            Resultado<PaginaDeDocumentos>.Falha(TipoErro.Validacao, "Falha de teste."));
+        var ficha = Desenhar<DocumentosDaFicha>(p => p.Add(d => d.ClienteId, Maria).Add(d => d.PodeGerenciar, true));
+        var nova = new TaskCompletionSource<Resultado<PaginaDeDocumentos>>();
+        Despachante.RespondeDepois<ListarDocumentosDoCliente, Resultado<PaginaDeDocumentos>>(nova.Task);
+
+        ficha.FindAll("button").Single(b => b.TextContent == "Tentar de novo").Click();
+
+        ficha.Markup.Should().Contain("Carregando…").And.NotContain("Falha de teste.");
+        nova.SetResult(Pagina(new ListarDocumentosDoCliente(Maria, CategoriaDocumento.DocumentoGeral)));
+        ficha.WaitForAssertion(() => ficha.Markup.Should().Contain("Procuração.pdf"));
+        ficha.Markup.Should().NotContain("Carregando…");
+    }
+
+    // Uma página da área "De atividades", com um documento só dela.
+    private static Resultado<PaginaDeDocumentos> PaginaDeAtividades() => Resultado<PaginaDeDocumentos>.Ok(new([
+        new DocumentoResumo(Guid.NewGuid(), "Contestação.pdf", "contestacao.pdf", 1024, CategoriaDocumento.DocumentoAtividade,
+            new DateTime(2026, 9, 3, 13, 0, 0, DateTimeKind.Utc), "Marina Couto", null, "Contestação — cobrança de ISS"),
+    ], 1, 1, 20, Contagem));
+
+    [Fact]
+    public async Task Com_o_chip_esperando_a_carga_inicial_que_chega_nao_diz_que_a_lista_esta_vazia()
+    {
+        // A carga inicial (Gerais) fica esperando; o chip pede outra área, que também fica esperando.
+        var inicial = new TaskCompletionSource<Resultado<PaginaDeDocumentos>>();
+        Despachante.RespondeDepois<ListarDocumentosDoCliente, Resultado<PaginaDeDocumentos>>(inicial.Task);
+        var ficha = Desenhar<DocumentosDaFicha>(p => p.Add(d => d.ClienteId, Maria).Add(d => d.PodeGerenciar, true));
+        var doChip = new TaskCompletionSource<Resultado<PaginaDeDocumentos>>();
+        Despachante.RespondeDepois<ListarDocumentosDoCliente, Resultado<PaginaDeDocumentos>>(doChip.Task);
+        Chip(ficha, "De atividades");
+
+        // A resposta velha chega antes da do chip: é descartada, e a lista não se diz vazia enquanto o chip espera.
+        inicial.SetResult(Pagina(new ListarDocumentosDoCliente(Maria, CategoriaDocumento.DocumentoGeral)));
+        await ficha.InvokeAsync(() => { });
+
+        ficha.Markup.Should().Contain("Carregando…").And.NotContain("Nenhum documento.").And.NotContain("Procuração.pdf");
+
+        doChip.SetResult(PaginaDeAtividades());
+        ficha.WaitForAssertion(() => ficha.Markup.Should().Contain("Contestação.pdf"));
+        ficha.Markup.Should().NotContain("Carregando…").And.NotContain("Nenhum documento.");
+    }
+
+    [Fact]
+    public async Task Com_a_carga_inicial_ainda_esperando_a_resposta_do_chip_aparece()
+    {
+        var inicial = new TaskCompletionSource<Resultado<PaginaDeDocumentos>>();
+        Despachante.RespondeDepois<ListarDocumentosDoCliente, Resultado<PaginaDeDocumentos>>(inicial.Task);
+        var ficha = Desenhar<DocumentosDaFicha>(p => p.Add(d => d.ClienteId, Maria).Add(d => d.PodeGerenciar, true));
+        Despachante.Responde<ListarDocumentosDoCliente, Resultado<PaginaDeDocumentos>>(PaginaDeAtividades());
+
+        Chip(ficha, "De atividades");   // responde na hora; a inicial continua esperando
+
+        ficha.WaitForAssertion(() => ficha.Markup.Should().Contain("Contestação.pdf"));
+        ficha.Markup.Should().NotContain("Carregando…").And.NotContain("Nenhum documento.");
+
+        // A inicial chega depois e é descartada: a área do chip fica.
+        inicial.SetResult(Pagina(new ListarDocumentosDoCliente(Maria, CategoriaDocumento.DocumentoGeral)));
+        await ficha.InvokeAsync(() => { });
+        ficha.Markup.Should().Contain("Contestação.pdf").And.NotContain("Procuração.pdf");
+    }
+
+    [Fact]
+    public async Task Com_o_tentar_de_novo_esperando_a_resposta_do_chip_aparece_sem_carregando()
+    {
+        Despachante.Responde<ListarDocumentosDoCliente, Resultado<PaginaDeDocumentos>>(
+            Resultado<PaginaDeDocumentos>.Falha(TipoErro.Validacao, "Falha de teste."));
+        var ficha = Desenhar<DocumentosDaFicha>(p => p.Add(d => d.ClienteId, Maria).Add(d => d.PodeGerenciar, true));
+        var nova = new TaskCompletionSource<Resultado<PaginaDeDocumentos>>();
+        Despachante.RespondeDepois<ListarDocumentosDoCliente, Resultado<PaginaDeDocumentos>>(nova.Task);
+        ficha.FindAll("button").Single(b => b.TextContent == "Tentar de novo").Click();
+        ficha.Markup.Should().Contain("Carregando…");
+        Despachante.Responde<ListarDocumentosDoCliente, Resultado<PaginaDeDocumentos>>(PaginaDeAtividades());
+
+        Chip(ficha, "De atividades");   // responde na hora; o "Tentar de novo" continua esperando
+
+        ficha.WaitForAssertion(() => ficha.Markup.Should().Contain("Contestação.pdf"));
+        ficha.Markup.Should().NotContain("Carregando…");
+
+        // A nova tentativa chega depois e é descartada: a área do chip fica.
+        nova.SetResult(Pagina(new ListarDocumentosDoCliente(Maria, CategoriaDocumento.DocumentoGeral)));
+        await ficha.InvokeAsync(() => { });
+        ficha.Markup.Should().Contain("Contestação.pdf").And.NotContain("Procuração.pdf").And.NotContain("Carregando…");
     }
 }

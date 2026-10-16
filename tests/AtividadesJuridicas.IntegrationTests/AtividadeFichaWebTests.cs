@@ -107,7 +107,7 @@ public class AtividadeFichaWebTests(BancoFixture banco) : IAsyncLifetime
         // Tablet e mobile: a grade Descrição | Dados (sem Entrega e sem Área), e as datas curtas dos responsáveis.
         var tabletEMobile = BlocoDeVisao.De(html, "aj-tablet-mobile");
         tabletEMobile.Should().MatchRegex(
-                "(?s)<div class=\"aj-aba-painel\">\\s*<div class=\"aj-grade\">\\s*<section class=\"aj-painel aj-painel--ficha aj-painel--descricao\">\\s*<h2>Descrição</h2>.*?</section>\\s*" +
+                "(?s)<div class=\"aj-aba-painel\" id=\"detalhes-da-atividade\">\\s*<div class=\"aj-grade\">\\s*<section class=\"aj-painel aj-painel--ficha aj-painel--descricao\">\\s*<h2>Descrição</h2>.*?</section>\\s*" +
                 "<section class=\"aj-painel aj-painel--ficha aj-painel--detalhes\">\\s*<h2>Dados</h2>\\s*<dl class=\"aj-detalhes\">\\s*" +
                 "<div><dt>Cliente</dt><dd>Transportes Litoral Ltda.</dd></div>\\s*" +
                 "<div><dt>Processo</dt><dd>Litoral — reclamação trabalhista</dd></div>\\s*" +
@@ -115,7 +115,7 @@ public class AtividadeFichaWebTests(BancoFixture banco) : IAsyncLifetime
                 "<div><dt>Revisor</dt><dd>Diana Diretora</dd></div>\\s*" +
                 "<div><dt>Complexidade</dt><dd>2</dd></div>\\s*</dl>")
             .And.MatchRegex("<span class=\"aj-tablet-mobile\">Concluída em \\d{2}/\\d{2} \\d{2}:\\d{2}</span>")
-            .And.MatchRegex("<div class=\"aj-aba-painel aj-aba-painel--oculta\">\\s*<section class=\"aj-painel aj-painel--ficha aj-painel--historico\">\\s*<h2>Histórico</h2>");
+            .And.MatchRegex("<div class=\"aj-aba-painel aj-aba-painel--oculta\" id=\"historico-da-atividade\">\\s*<section class=\"aj-painel aj-painel--ficha aj-painel--historico\">\\s*<h2>Histórico</h2>");
 
         // Mobile: a situação com a entrega curta e o título em h2 (o h1 é o da barra); as abas começam em Detalhes.
         BlocoDeVisao.De(html, "aj-so-mobile").Should()

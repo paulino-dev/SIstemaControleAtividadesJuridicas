@@ -136,4 +136,34 @@ public class CargaDoFormularioInterativaTests : TelaInterativa
         Despachante.Recebidas.OfType<ObterMeuAcesso>().Should().HaveCount(2);
         tela.Find("div.aj-aviso--erro").TextContent.Should().Contain(Erro);
     }
+
+    [Fact]
+    public void Tentar_de_novo_mostra_carregando_ate_a_tela_terminar_e_nao_repete_no_segundo_clique()
+    {
+        var carga = new TaskCompletionSource();
+        var tentativas = 0;
+        var tela = Desenhar<CargaDoFormulario>(p => p
+            .Add(c => c.Estado, EstadoDeCarga.Falhou)
+            .Add(c => c.Erro, Erro)
+            .Add(c => c.TextoNaoEncontrado, "Cliente não encontrado.")
+            .Add(c => c.TentarDeNovo, () =>
+            {
+                tentativas++;
+                return carga.Task;
+            })
+            .AddChildContent(Formulario));
+
+        tela.FindAll("button").Single(b => b.TextContent == "Tentar de novo").Click();
+
+        // A tela ainda diz "Falhou" (a carga dela não terminou): o componente mostra o carregando e some com o botão.
+        tela.Markup.Should().Contain("Carregando…").And.NotContain(Erro);
+        tela.FindAll("button").Should().NotContain(b => b.TextContent == "Tentar de novo");
+        tentativas.Should().Be(1);
+
+        carga.SetResult();
+
+        tela.WaitForAssertion(() => tela.Markup.Should().Contain(Erro));
+        tela.Markup.Should().NotContain("Carregando…");
+        tentativas.Should().Be(1);
+    }
 }
