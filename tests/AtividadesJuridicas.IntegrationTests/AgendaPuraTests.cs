@@ -1,7 +1,9 @@
 using System.Globalization;
+using System.Net;
 using AtividadesJuridicas.Application.Agenda;
 using AtividadesJuridicas.Domain.Agenda;
 using AtividadesJuridicas.Web.Components.Agenda;
+using AtividadesJuridicas.Web.Components.Layout;
 using AtividadesJuridicas.Web.Infra;
 
 namespace AtividadesJuridicas.IntegrationTests;
@@ -576,7 +578,7 @@ public class AgendaPuraTests
     }
 
     [Fact]
-    public void Conflito_com_duas_pessoas_separa_por_ponto_e_virgula()
+    public async Task Conflito_com_duas_pessoas_separa_por_ponto_e_virgula()
     {
         SobreposicaoDeAgenda[] duas =
         [
@@ -590,8 +592,11 @@ public class AgendaPuraTests
             "Rafael Teles já tem evento das 10:00 às 11:30 (07/10); Marina Couto já tem evento das 11:00 às 12:00 (07/10).");
         RotulosDeAgenda.ConflitoNoMobile(_fuso, duas).Should().Be(
             "Rafael Teles já tem evento das 10:00 às 11:30 em 07/10; Marina Couto já tem evento das 11:00 às 12:00 em 07/10.");
-        // A mensagem de hoje é a redação do desktop depois de "Evento salvo.".
-        RotulosDeAgenda.MensagemDeSalvo(_fuso, duas).Should().Be("Evento salvo. " + RotulosDeAgenda.ConflitoNoDesktop(_fuso, duas));
+        // O aviso do desktop é a redação do desktop depois de "Evento salvo." em destaque.
+        var aviso = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarComAsync<AvisoDeEventoSalvo>(
+            new DespachanteCombinado(), new() { ["Recado"] = new Recado("Evento salvo.", TipoDeAviso.Sucesso, duas) }));
+        BlocoDeVisao.De(aviso, "aj-so-desktop").Should()
+            .Contain("<strong>Evento salvo.</strong> " + RotulosDeAgenda.ConflitoNoDesktop(_fuso, duas));
     }
 
     [Fact]
@@ -609,6 +614,18 @@ public class AgendaPuraTests
             "Pedro já tem evento de 10/03 22:00 a 11/03 01:00; Usuário já tem evento das 10:00 às 11:00 (07/10).");
         RotulosDeAgenda.ConflitoNoMobile(_fuso, sobreposicoes).Should().Be(
             "Pedro já tem evento de 10/03 22:00 a 11/03 01:00; Usuário já tem evento das 10:00 às 11:00 em 07/10.");
+    }
+
+    // F3: o nome acessível do "+N" da célula do Mês (com o plural pela contagem) e os vínculos que o usuário não vê,
+    // na ficha e no formulário do evento, são textos da agenda.
+    [Fact]
+    public void Rotulo_do_mais_do_mes_e_vinculos_indisponiveis()
+    {
+        RotulosDeAgenda.RotuloDoMais(new DateOnly(2026, 10, 8), 2).Should().Be("Mais 2 eventos em 08/10");
+        RotulosDeAgenda.RotuloDoMais(new DateOnly(2026, 10, 9), 1).Should().Be("Mais 1 evento em 09/10");
+        RotulosDeAgenda.RotuloDoMais(new DateOnly(2027, 1, 31), 12).Should().Be("Mais 12 eventos em 31/01");
+        RotulosDeAgenda.ClienteIndisponivel.Should().Be("Cliente indisponível");
+        RotulosDeAgenda.ProcessoIndisponivel.Should().Be("Processo indisponível");
     }
 
     [Fact]
@@ -629,6 +646,7 @@ public class AgendaPuraTests
             RotulosDeAgenda.NumeroDoDia(Hoje).Should().Be("08");
             RotulosDeAgenda.HoraDeInicio(_fuso, plantao, new DateOnly(2026, 10, 7)).Should().Be("23:30");
             RotulosDeAgenda.ConflitoNoMobile(_fuso, uma).Should().Be("Rafael Teles já tem evento das 10:00 às 11:30 em 07/10.");
+            RotulosDeAgenda.RotuloDoMais(Hoje, 2).Should().Be("Mais 2 eventos em 08/10");
         }
         finally
         {

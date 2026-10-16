@@ -643,22 +643,24 @@ public class AvatarDePessoaTests
         AvatarDePessoa.Classe("").Should().Be("aj-avatar--azul");
     }
 
-    // O "você" da agenda é o avatar dourado: o .aj-avatar sem modificador de cor.
+    // O "você" da agenda é o avatar dourado: o .aj-avatar sem modificador de cor. Os outros levam a cor de sempre, a
+    // do nome.
     [Theory]
     [InlineData("Rafael Teles", "aj-avatar--azul")]
     [InlineData("Beatriz Lins", "aj-avatar--lilas")]
-    public void Classe_de_outra_pessoa_e_a_de_sempre(string nome, string classe)
+    public void Classes_de_outra_pessoa_levam_a_cor_de_sempre_do_nome(string nome, string classe)
     {
-        AvatarDePessoa.Classe(nome, proprio: false).Should().Be(classe);
+        AvatarDePessoa.Classe(nome).Should().Be(classe);
+        AvatarDePessoa.Classes(nome, proprio: false).Should().Be($"aj-avatar {AvatarDePessoa.Classe(nome)}");
     }
 
     [Theory]
     [InlineData("Rafael Teles")]
     [InlineData("Marina Couto")]
     [InlineData("")]
-    public void Classe_do_proprio_usuario_e_a_do_avatar_dourado_sem_cor(string nome)
+    public void Classes_do_proprio_usuario_sao_as_do_avatar_dourado_qualquer_que_seja_o_nome(string nome)
     {
-        AvatarDePessoa.Classe(nome, proprio: true).Should().BeEmpty();
+        AvatarDePessoa.Classes(nome, proprio: true).Should().Be("aj-avatar");
     }
 
     // A classe inteira, para as telas não montarem a string (nem aparar o espaço da classe vazia).

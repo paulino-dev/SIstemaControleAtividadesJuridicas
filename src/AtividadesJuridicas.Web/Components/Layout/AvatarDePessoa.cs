@@ -27,12 +27,6 @@ public static class AvatarDePessoa
     /// <summary>A classe de cor do avatar: a soma dos códigos dos caracteres do nome aparado, módulo 4.</summary>
     public static string Classe(string nome) => Cores[(int)(nome.Trim().Sum(c => (long)c) % Cores.Length)];
 
-    /// <summary>
-    /// A classe de cor do avatar na lista de participantes da agenda: o usuário logado ("você") leva o avatar dourado,
-    /// que é o <c>aj-avatar</c> sem modificador de cor (classe vazia); os demais, a cor do nome.
-    /// </summary>
-    public static string Classe(string nome, bool proprio) => proprio ? string.Empty : Classe(nome);
-
     /// <summary>A classe inteira do avatar: <c>aj-avatar</c> para o usuário logado; <c>aj-avatar aj-avatar--{cor}</c> para os outros.</summary>
     public static string Classes(string nome, bool proprio) => proprio ? "aj-avatar" : $"aj-avatar {Classe(nome)}";
 }

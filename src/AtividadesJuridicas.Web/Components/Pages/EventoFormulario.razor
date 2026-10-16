@@ -411,10 +411,10 @@
             };
             _versao = atual.Versao;
             _clienteId = atual.ClienteId;
-            _clienteNome = atual.ClienteId is null ? null : atual.ClienteNome ?? "Cliente indisponível";
+            _clienteNome = atual.ClienteId is null ? null : atual.ClienteNome ?? RotulosDeAgenda.ClienteIndisponivel;
             _clienteIndisponivel = atual.ClienteId is not null && atual.ClienteNome is null;   // o avatar mostra "?", não a sigla do texto de reserva
             _processoId = atual.ProcessoId;
-            _processoTitulo = atual.ProcessoId is null ? null : atual.ProcessoTitulo ?? "Processo indisponível";
+            _processoTitulo = atual.ProcessoId is null ? null : atual.ProcessoTitulo ?? RotulosDeAgenda.ProcessoIndisponivel;
             _atividadeId = atual.AtividadeId;
             _atividadeTitulo = atual.AtividadeTitulo;   // nulo: a atividade foi excluída ou o usuário não a vê
             _atividadeExcluida = atual.AtividadeExcluida;

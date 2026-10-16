@@ -127,6 +127,13 @@ public static class RotulosDeAgenda
     /// <summary>"0 eventos", "1 evento", "2 eventos".</summary>
     public static string TotalDeEventos(int quantidade) => Contagem.De(quantidade, "evento", "eventos");
 
+    /// <summary>
+    /// O nome acessível do "+N" da célula do Mês, com os eventos que não couberam: "Mais 2 eventos em 08/10",
+    /// "Mais 1 evento em 09/10".
+    /// </summary>
+    public static string RotuloDoMais(DateOnly dia, int outros) =>
+        $"Mais {TotalDeEventos(outros)} em {dia.ToString("dd/MM", Cultura)}";
+
     // ---- Cartões ----
 
     /// <summary>A hora de início na coluna de hora do cartão ("09:00"), ou "…" quando o evento começou em outro dia.</summary>
@@ -170,6 +177,12 @@ public static class RotulosDeAgenda
     /// <summary>"90 minutos", "1 minuto".</summary>
     public static string Duracao(int minutos) => Contagem.De(minutos, "minuto", "minutos");
 
+    /// <summary>O cliente vinculado que o usuário não pode ver (o servidor manda o nome nulo), na ficha e no formulário.</summary>
+    public const string ClienteIndisponivel = "Cliente indisponível";
+
+    /// <summary>O processo vinculado que o usuário não pode ver (o servidor manda o título nulo), na ficha e no formulário.</summary>
+    public const string ProcessoIndisponivel = "Processo indisponível";
+
     /// <summary>
     /// A linha de contexto da ficha: "Audiência · 07/10/2026, 09:00 – 10:30 · Fórum Trabalhista, sala 4". Sem local (ou
     /// com <paramref name="comLocal"/> falso, o resumo do mobile), sem a última parte. O fim em outro dia leva a data
@@ -183,16 +196,6 @@ public static class RotulosDeAgenda
     }
 
     // ---- Sobreposições ----
-
-    /// <summary>
-    /// "Fulano já tem evento das 10:00 às 11:30 (07/10)"; se o intervalo atravessa a meia-noite, as duas datas aparecem:
-    /// "Fulano já tem evento de 10/03 22:00 a 11/03 01:00". Quem termina à meia-noite em ponto não atravessa.
-    /// </summary>
-    public static string Sobreposicao(FusoDoEscritorio fuso, SobreposicaoDeAgenda s) => Frase(fuso, s, noMobile: false);
-
-    /// <summary>A mensagem depois de gravar: o evento foi salvo; a sobreposição é só um aviso.</summary>
-    public static string MensagemDeSalvo(FusoDoEscritorio fuso, IReadOnlyList<SobreposicaoDeAgenda> sobreposicoes) =>
-        sobreposicoes.Count == 0 ? "Evento salvo." : $"Evento salvo. {ConflitoNoDesktop(fuso, sobreposicoes)}";
 
     /// <summary>
     /// O aviso de conflito do desktop, depois do "Evento salvo." em destaque: "Atenção: Rafael Teles já tem evento das
@@ -228,6 +231,8 @@ public static class RotulosDeAgenda
     private static string Frases(FusoDoEscritorio fuso, IReadOnlyList<SobreposicaoDeAgenda> sobreposicoes, bool noMobile) =>
         string.Join("; ", sobreposicoes.Select(s => Frase(fuso, s, noMobile)));
 
+    // "Fulano já tem evento das 10:00 às 11:30" e a data; se o intervalo atravessa a meia-noite, as duas datas aparecem:
+    // "Fulano já tem evento de 10/03 22:00 a 11/03 01:00". Quem termina à meia-noite em ponto não atravessa.
     private static string Frase(FusoDoEscritorio fuso, SobreposicaoDeAgenda s, bool noMobile)
     {
         var nome = s.UsuarioNome ?? "Usuário";

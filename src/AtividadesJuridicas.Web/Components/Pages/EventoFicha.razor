@@ -252,8 +252,8 @@ else
         ("Fim", Fuso.Formatar(e.FimEm)),
         ("Duração", RotulosDeAgenda.Duracao(e.DuracaoEstimadaMinutos)),
         ("Local", Ou(e.Local)),
-        ("Cliente", e.ClienteId is null ? "—" : e.ClienteNome ?? "Cliente indisponível"),
-        ("Processo", e.ProcessoId is null ? "—" : e.ProcessoTitulo ?? "Processo indisponível"),
+        ("Cliente", e.ClienteId is null ? "—" : e.ClienteNome ?? RotulosDeAgenda.ClienteIndisponivel),
+        ("Processo", e.ProcessoId is null ? "—" : e.ProcessoTitulo ?? RotulosDeAgenda.ProcessoIndisponivel),
         ("Atividade", e.AtividadeId is null ? "—" : RotulosDeAgenda.Atividade(e.AtividadeTitulo, e.AtividadeExcluida)),
         ("Criado por", e.CriadorNome ?? RotulosDeAgenda.UsuarioNaoEncontrado),
     ];

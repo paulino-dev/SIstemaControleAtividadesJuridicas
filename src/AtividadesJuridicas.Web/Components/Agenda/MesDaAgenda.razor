@@ -35,7 +35,7 @@
                             }
                             @if (doDia.Count > MaximoPorDia)
                             {
-                                <button type="button" class="aj-mes__mais" aria-label="@RotuloDoMais(dia, doDia.Count - MaximoPorDia)" @onclick="() => AoAbrirDia.InvokeAsync(dia)">@($"+{doDia.Count - MaximoPorDia}")</button>
+                                <button type="button" class="aj-mes__mais" aria-label="@RotulosDeAgenda.RotuloDoMais(dia,doDia.Count - MaximoPorDia)" @onclick="() => AoAbrirDia.InvokeAsync(dia)">@($"+{doDia.Count - MaximoPorDia}")</button>
                             }
                         </div>
                     }
@@ -74,11 +74,5 @@
         var ordenados = Eventos.OrderBy(evento => evento.InicioEm).ToList();
         _porDia = Periodo.SemanasDoMes.ToDictionary(dia => dia, dia => RotulosDeAgenda.EventosDoDia(Fuso, ordenados, dia));
         _doDiaEscolhido = _porDia[Periodo.Data];
-    }
-
-    private static string RotuloDoMais(DateOnly dia, int outros)
-    {
-        var data = dia.ToString("dd'/'MM", System.Globalization.CultureInfo.InvariantCulture);
-        return outros == 1 ? $"Mais 1 evento em {data}" : $"Mais {outros} eventos em {data}";
     }
 }

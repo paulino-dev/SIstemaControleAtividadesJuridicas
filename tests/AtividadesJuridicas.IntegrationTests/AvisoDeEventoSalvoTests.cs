@@ -62,4 +62,18 @@ public class AvisoDeEventoSalvoTests
         html.Should().NotContain("aj-aviso--sucesso");
         Regex.Matches(html, "aj-aviso--frase").Should().HaveCount(3);
     }
+
+    // F2: o destaque do desktop e do tablet é o texto do recado, não um "Evento salvo." escrito à mão no componente.
+    [Fact]
+    public async Task Com_sobreposicoes_o_destaque_do_desktop_e_do_tablet_e_o_texto_do_recado()
+    {
+        var html = await DesenharAsync(new Recado("Texto do recado.", TipoDeAviso.Sucesso,
+            [Sobreposicao("Rafael Teles", new DateTime(2026, 10, 7, 10, 0, 0), new DateTime(2026, 10, 7, 11, 30, 0))]));
+
+        BlocoDeVisao.De(html, "aj-so-desktop").Should()
+            .Contain("<strong>Texto do recado.</strong> Atenção: Rafael Teles já tem evento das 10:00 às 11:30 (07/10).");
+        BlocoDeVisao.De(html, "aj-so-tablet").Should()
+            .Contain("<strong>Texto do recado.</strong> Rafael Teles já tem evento das 10:00 às 11:30 (07/10).");
+        html.Should().NotContain("Evento salvo.");
+    }
 }
