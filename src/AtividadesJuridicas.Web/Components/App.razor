@@ -23,7 +23,7 @@
     <Routes Ip="@HttpContext.Connection.RemoteIpAddress?.ToString()" @rendermode="ModoDaPagina" />
     <ReconnectModal />
 
-    <div id="blazor-error-ui" class="aj-faixa-erro" data-nosnippet>
+    <div id="blazor-error-ui" class="aj-faixa-erro" role="alert" data-nosnippet>
         Ocorreu um erro inesperado.
         <a href="." class="reload">Recarregar</a>
         <button type="button" class="dismiss aj-botao aj-botao--fantasma aj-botao--icone aj-faixa-erro__fechar" aria-label="Fechar aviso"><Icone Nome="fechar" /></button>
