@@ -70,6 +70,8 @@ public class AtividadeResponsaveisWebTests(BancoFixture banco) : IAsyncLifetime
 
         BlocoDeVisao.De(html, "aj-so-desktop").Should().MatchRegex(
             $"(?s)<div class=\"aj-acoes aj-acoes--fixa\">\\s*<a href=\"/atividades/{_minuta}\" class=\"aj-botao aj-botao--fantasma\">Cancelar</a>\\s*<button type=\"submit\" class=\"aj-botao aj-botao--primario aj-botao--com-icone\" form=\"formulario-de-responsaveis\"[^>]*>\\s*<svg[^>]*>.*?</svg>\\s*Salvar responsáveis</button>");
+        // Na tela inteira, a barra do desktop tem a largura do conteúdo (o lado a lado), não a do painel médio.
+        BlocoDeVisao.De(html, "aj-so-desktop").Should().NotContain("aj-acoes--medio");
         BlocoDeVisao.De(html, "aj-so-tablet").Should().MatchRegex(
             $"(?s)<div class=\"aj-acoes aj-acoes--fixa\">\\s*<a href=\"/atividades/{_minuta}\" class=\"aj-botao aj-botao--secundario\">Cancelar</a>.*?Salvar responsáveis</button>");
         var mobile = BlocoDeVisao.De(html, "aj-so-mobile");
@@ -95,8 +97,12 @@ public class AtividadeResponsaveisWebTests(BancoFixture banco) : IAsyncLifetime
         html.Should().NotContain("aj-opcao__caixa").And.NotContain("Direcionamento de")
             .And.NotContain("Manter / deduzir").And.NotContain("Salvar responsáveis");
 
+        // E10: o painel é o médio, e a barra do desktop acompanha a largura dele, como no devolver e no reabrir.
         BlocoDeVisao.De(html, "aj-so-desktop").Should().MatchRegex(
-            "(?s)<button type=\"submit\" class=\"aj-botao aj-botao--primario aj-botao--com-icone\" form=\"formulario-de-responsaveis\"[^>]*>\\s*<svg[^>]*>.*?</svg>\\s*Trocar revisor</button>");
+            $"(?s)<div class=\"aj-acoes aj-acoes--fixa aj-acoes--medio\">\\s*<a href=\"/atividades/{_recurso}\" class=\"aj-botao aj-botao--fantasma\">Cancelar</a>\\s*" +
+            "<button type=\"submit\" class=\"aj-botao aj-botao--primario aj-botao--com-icone\" form=\"formulario-de-responsaveis\"[^>]*>\\s*<svg[^>]*>.*?</svg>\\s*Trocar revisor</button>");
+        BlocoDeVisao.De(html, "aj-so-tablet").Should().Contain("<div class=\"aj-acoes aj-acoes--fixa\">")
+            .And.NotContain("aj-acoes--medio");
         BlocoDeVisao.De(html, "aj-so-mobile").Should().Contain("<span class=\"aj-ajuda\">Recurso ordinário</span>")
             .And.MatchRegex("(?s)<div class=\"aj-acoes aj-acoes--fixa\">.*?Salvar</button>");
     }

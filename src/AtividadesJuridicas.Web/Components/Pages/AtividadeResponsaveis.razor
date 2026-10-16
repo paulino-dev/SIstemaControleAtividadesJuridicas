@@ -61,7 +61,7 @@
 
         @* As barras de ação ficam fora do formulário e o enviam pelo atributo form. *@
         <div class="aj-so-desktop">
-            <div class="aj-acoes aj-acoes--fixa"><a href="@Voltar" class="aj-botao aj-botao--fantasma">Cancelar</a><button type="submit" class="aj-botao aj-botao--primario aj-botao--com-icone" form="formulario-de-responsaveis" disabled="@_salvando"><Icone Nome="confirmar" />@TextoDoSalvar</button></div>
+            <div class="@ClasseDaBarraDoDesktop"><a href="@Voltar" class="aj-botao aj-botao--fantasma">Cancelar</a><button type="submit" class="aj-botao aj-botao--primario aj-botao--com-icone" form="formulario-de-responsaveis" disabled="@_salvando"><Icone Nome="confirmar" />@TextoDoSalvar</button></div>
         </div>
         <div class="aj-so-tablet">
             <div class="aj-acoes aj-acoes--fixa"><a href="@Voltar" class="aj-botao aj-botao--secundario">Cancelar</a><button type="submit" class="aj-botao aj-botao--primario aj-botao--com-icone" form="formulario-de-responsaveis" disabled="@_salvando"><Icone Nome="confirmar" />@TextoDoSalvar</button></div>
@@ -126,6 +126,10 @@
     private string TextoDoSalvar => ModoCompleto ? "Salvar responsáveis" : "Trocar revisor";
     private string TextoDoManter => _detalhe?.RevisorNome is { } atual ? $"Manter / deduzir (atual: {atual})" : "Manter / deduzir";
     private string ClasseDoRevisor => _erroDoRevisor is null ? "aj-rotulo" : "aj-rotulo aj-rotulo--erro";
+
+    // Na troca de revisor o painel é o médio, e a barra do desktop acompanha a largura dele (como no devolver e no
+    // reabrir); na tela inteira, a barra tem a largura do conteúdo. As duas continuam fixas ao pé.
+    private string ClasseDaBarraDoDesktop => ModoDoRevisor ? "aj-acoes aj-acoes--fixa aj-acoes--medio" : "aj-acoes aj-acoes--fixa";
 
     protected override Task OnInitializedAsync() => CarregarAsync();
 
