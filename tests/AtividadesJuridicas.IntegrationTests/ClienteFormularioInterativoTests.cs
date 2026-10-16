@@ -78,4 +78,43 @@ public class ClienteFormularioInterativoTests : TelaInterativa
 
         Despachante.Recebidas.OfType<SalvarClientePessoaFisica>().Should().ContainSingle();
     }
+
+    private IRenderedComponent<ClienteFormulario> ComErroAoSalvar()
+    {
+        Despachante
+            .Responde<ObterMeuAcesso, UsuarioAutenticado?>(AtorDaDiretoria)
+            .Responde<SalvarClientePessoaFisica, Resultado<Guid>>(Resultado<Guid>.Falha(TipoErro.Validacao, "CPF já cadastrado."));
+        var tela = Desenhar<ClienteFormulario>();
+        tela.FindAll("label.aj-rotulo").Single(l => l.TextContent.StartsWith("Nome completo")).QuerySelector("input")!.Change("Helena Barros Lima");
+        tela.FindAll("label.aj-rotulo").Single(l => l.TextContent.StartsWith("CPF")).QuerySelector("input")!.Change("529.982.247-25");
+        return tela;
+    }
+
+    [Fact]
+    public void Falha_ao_salvar_leva_o_foco_ao_aviso_de_erro()
+    {
+        var tela = ComErroAoSalvar();
+
+        tela.Find("form#formulario-do-cliente").Submit();
+
+        tela.WaitForAssertion(() => tela.Find("p.aj-aviso--erro").TextContent.Should().Be("CPF já cadastrado."));
+        var aviso = tela.Find("p.aj-aviso--erro");
+        aviso.GetAttribute("tabindex").Should().Be("-1");
+        UltimoFocoPedido().Arguments[0].ShouldBeElementReferenceTo(aviso);
+    }
+
+    [Fact]
+    public void Dois_erros_iguais_seguidos_revelam_o_aviso_a_cada_vez()
+    {
+        var tela = ComErroAoSalvar();
+        tela.Find("form#formulario-do-cliente").Submit();
+        tela.WaitForAssertion(() => tela.Markup.Should().Contain("CPF já cadastrado."));
+        var antes = FocosDeElementoPedidos;
+
+        tela.Find("form#formulario-do-cliente").Submit();
+
+        tela.WaitForAssertion(() => Despachante.Recebidas.OfType<SalvarClientePessoaFisica>().Should().HaveCount(2));
+        FocosDeElementoPedidos.Should().Be(antes + 1);
+        UltimoFocoPedido().Arguments[0].ShouldBeElementReferenceTo(tela.Find("p.aj-aviso--erro"));
+    }
 }

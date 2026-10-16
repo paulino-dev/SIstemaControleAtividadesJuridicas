@@ -17,7 +17,7 @@
     {
         @if (_mensagem is not null)
         {
-            <Aviso Tipo="TipoDeAviso.Erro">@_mensagem</Aviso>
+            <Aviso @key="_versaoDoErro" Tipo="TipoDeAviso.Erro" Revelar="true">@_mensagem</Aviso>
         }
 
         @* A barra de voltar do mobile não tem subtítulo: ele vira a ajuda no topo do conteúdo. *@
@@ -90,6 +90,17 @@
     private IReadOnlyList<UsuarioResumo> _diretores = [];
     private Formulario _form = new();
     private string? _mensagem;
+
+    // A geração do aviso de erro: cada mensagem nova recria o Aviso (a chave muda), que se revela de novo, mesmo que a
+    // frase seja a mesma da tentativa anterior.
+    private int _versaoDoErro;
+
+    private void MostrarErro(string? mensagem)
+    {
+        _mensagem = mensagem;
+        _versaoDoErro++;
+    }
+
     private string? _erroDoRevisor;
     private bool _salvando;
 
@@ -266,7 +277,7 @@
             if (!resultado.Sucesso)
             {
                 // Conflito, não encontrada ou validação: a mensagem do servidor no topo, e o formulário fica como está.
-                _mensagem = resultado.Mensagem;
+                MostrarErro(resultado.Mensagem);
                 return;
             }
 

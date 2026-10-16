@@ -12,7 +12,7 @@
 <CargaDoFormulario Estado="_estado" Erro="@_erroDaCarga" TextoNaoEncontrado="Processo não encontrado." TentarDeNovo="CarregarTudoAsync">
     @if (_mensagem is not null)
     {
-        <Aviso Tipo="TipoDeAviso.Erro">@_mensagem</Aviso>
+        <Aviso @key="_versaoDoErro" Tipo="TipoDeAviso.Erro" Revelar="true">@_mensagem</Aviso>
     }
 
     <EditForm Model="_form" OnValidSubmit="SalvarAsync" FormName="processo" id="formulario-do-processo" class="aj-lado-a-lado aj-lado-a-lado--formulario">
@@ -46,6 +46,10 @@
             }
             @* O Enter na busca envia o formulário "busca-de-cliente", que fica no fim da tela, e não o do processo. *@
             <label class="aj-campo-icone"><Icone Nome="buscar" /><span class="aj-so-leitor">Adicionar cliente (nome, CPF ou CNPJ)</span><input type="search" class="aj-campo-icone__controle" form="busca-de-cliente" placeholder="Adicionar cliente por nome, CPF ou CNPJ" @bind="_buscaDeCliente" @bind:event="oninput" /></label>
+            @if (_erroDaBusca is not null)
+            {
+                <span class="aj-campo-erro">@_erroDaBusca</span>
+            }
             @* A chave do candidato não pode ser o Id do cliente: é a mesma do vínculo (mesmo pai), e ao adicionar o Blazor reaproveitaria o elemento do candidato e deixaria o class do vínculo vazio. *@
             @foreach (var candidato in _candidatos)
             {
@@ -84,9 +88,21 @@
     private string? _erroDaCarga;
     private bool _salvando;
     private string? _mensagem;
+
+    // A geração do aviso de erro: cada mensagem nova recria o Aviso (a chave muda), que se revela de novo, mesmo que a
+    // frase seja a mesma da tentativa anterior.
+    private int _versaoDoErro;
+
+    private void MostrarErro(string? mensagem)
+    {
+        _mensagem = mensagem;
+        _versaoDoErro++;
+    }
+
     private Formulario _form = new();
     private IReadOnlyList<AreaAtuacaoResumo> _areas = [];
     private string? _buscaDeCliente;
+    private string? _erroDaBusca;
     private bool _nenhumClienteEncontrado;
     private bool _clientesTruncados;
     private IReadOnlyList<ClienteResumo> _candidatos = [];
@@ -188,7 +204,8 @@
         // Os avisos valem só para uma busca que deu certo; uma falha mostra o erro no lugar deles.
         _nenhumClienteEncontrado = resultado.Sucesso && itens.Count == 0;
         _clientesTruncados = resultado.Sucesso && itens.Count >= ClientesOpcoes.TamanhoDaPagina;
-        _mensagem = resultado.Sucesso ? null : resultado.Mensagem;
+        // A falha da busca fica junto do campo dela; o aviso do topo é só o da gravação.
+        _erroDaBusca = resultado.Sucesso ? null : resultado.Mensagem;
     }
 
     private void Vincular(ClienteResumo cliente)
@@ -227,7 +244,7 @@
             if (!resultado.Sucesso)
             {
                 // O formulário permanece com o que foi digitado.
-                _mensagem = resultado.Mensagem;
+                MostrarErro(resultado.Mensagem);
                 return;
             }
 

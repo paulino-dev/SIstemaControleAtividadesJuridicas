@@ -93,4 +93,34 @@ public class ProcessoFormularioInterativoTests : TelaInterativa
 
         Despachante.Recebidas.OfType<SalvarProcesso>().Should().ContainSingle();
     }
+
+    [Fact]
+    public void Falha_ao_salvar_leva_o_foco_ao_aviso_de_erro()
+    {
+        var tela = Formulario();
+        Despachante.Responde<SalvarProcesso, Resultado<Guid>>(Resultado<Guid>.Falha(TipoErro.Validacao, "Número CNJ já cadastrado."));
+        Digitar(tela, "Título", "Litoral × Seguradora — indenização");
+        tela.Find("select.aj-campo").Change(Area.ToString());
+
+        tela.Find("form#formulario-do-processo").Submit();
+
+        tela.WaitForAssertion(() => tela.Find("p.aj-aviso--erro").TextContent.Should().Be("Número CNJ já cadastrado."));
+        UltimoFocoPedido().Arguments[0].ShouldBeElementReferenceTo(tela.Find("p.aj-aviso--erro"));
+    }
+
+    [Fact]
+    public void Erro_da_busca_de_cliente_aparece_junto_do_campo_e_nao_no_topo()
+    {
+        var tela = Formulario();
+        Despachante.Responde<ListarClientes, Resultado<PaginaDeClientes>>(
+            Resultado<PaginaDeClientes>.Falha(TipoErro.Validacao, "Não foi possível consultar os clientes."));
+        tela.Find("input[form=busca-de-cliente]").Input("coop");
+
+        tela.Find("form#busca-de-cliente").Submit();
+
+        var clientes = tela.FindAll("section.aj-painel").Single(s => s.QuerySelector("h2")?.TextContent == "Clientes do processo");
+        clientes.QuerySelector("span.aj-campo-erro")!.TextContent.Should().Be("Não foi possível consultar os clientes.");
+        tela.FindAll(".aj-aviso").Should().BeEmpty();
+        Despachante.Recebidas.OfType<SalvarProcesso>().Should().BeEmpty();
+    }
 }

@@ -244,4 +244,37 @@ public class AtividadeFormularioInterativoTests : TelaInterativa
 
         tela.WaitForAssertion(() => Endereco.Should().EndWith(ficha));
     }
+
+    [Fact]
+    public void Falha_ao_salvar_leva_o_foco_ao_aviso_de_erro()
+    {
+        var tela = Edicao();
+        Despachante.Responde<SalvarAtividade, Resultado<Guid>>(Resultado<Guid>.Falha(
+            TipoErro.Conflito, "A atividade foi alterada por outra pessoa. Recarregue e tente novamente."));
+
+        tela.Find("form#formulario-da-atividade").Submit();
+
+        tela.WaitForAssertion(() => tela.Find("p.aj-aviso--erro").TextContent.Should().Contain("A atividade foi alterada por outra pessoa."));
+        UltimoFocoPedido().Arguments[0].ShouldBeElementReferenceTo(tela.Find("p.aj-aviso--erro"));
+    }
+
+    [Fact]
+    public void Complexidade_em_erro_fica_invalida_e_aponta_para_o_erro()
+    {
+        var tela = Nova();
+
+        tela.Find("form#formulario-da-atividade").Submit();
+
+        var grupo = tela.Find("[role=group][aria-label=Complexidade]");
+        grupo.GetAttribute("aria-invalid").Should().Be("true");
+        grupo.GetAttribute("aria-describedby").Should().Be("erro-da-complexidade");
+        tela.Find("#erro-da-complexidade").TextContent.Should().Be("Escolha a complexidade.");
+
+        Complexidade(tela, "2");
+
+        grupo = tela.Find("[role=group][aria-label=Complexidade]");
+        grupo.HasAttribute("aria-invalid").Should().BeFalse();
+        grupo.HasAttribute("aria-describedby").Should().BeFalse();
+        tela.FindAll("#erro-da-complexidade").Should().BeEmpty();
+    }
 }
