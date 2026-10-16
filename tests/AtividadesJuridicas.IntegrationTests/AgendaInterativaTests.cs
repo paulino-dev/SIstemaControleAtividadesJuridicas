@@ -703,6 +703,30 @@ public class AgendaInterativaTests : TelaInterativa
         tela.Find("section.aj-secao-dia > h2.aj-secao-dia__cabeca").GetAttribute("tabindex").Should().Be("-1");
     }
 
+    // Conferência da 9G (D4): o "+N" leva o foco ao título do Dia, que já diz a data; a região do período não anuncia o
+    // período novo (a data seria lida duas vezes): fica vazia, e a troca seguinte (a seta) volta a anunciar.
+    [Fact]
+    public void Mais_eventos_do_mes_nao_anuncia_o_periodo_que_o_titulo_do_dia_ja_diz()
+    {
+        const string Anuncio = "div.aj-desktop-tablet > p.aj-so-leitor[role=status]";
+        const string AnuncioDoMobile = "div.aj-so-mobile > p.aj-so-leitor[role=status]";
+        var tela = Agenda("/agenda?visao=mes&data=2026-10-08", AtorDaDiretoria, CincoEm14());
+        Texto(tela.Find(Anuncio)).Should().Be("Outubro de 2026");
+        Texto(tela.Find(AnuncioDoMobile)).Should().Be("Outubro de 2026");
+
+        tela.Find("button[aria-label='Mais 2 eventos em 14/10']").Click();
+
+        tela.WaitForAssertion(() => SeletoresFocados.Should().Equal(TituloDoDia));
+        Subtitulo(tela).Should().Be("Quarta-feira, 14/10/2026");
+        Texto(tela.Find(Anuncio)).Should().BeEmpty();
+        Texto(tela.Find(AnuncioDoMobile)).Should().BeEmpty();
+
+        Botao(tela, Desktop, "Próximo período").Click();
+
+        tela.WaitForAssertion(() => Texto(tela.Find(Anuncio)).Should().Be("Quinta-feira, 15/10/2026"));
+        Texto(tela.Find(AnuncioDoMobile)).Should().Be("Quinta-feira, 15/10/2026");
+    }
+
     // F11: uma seta tocada antes de o Dia aparecer cancela o foco pedido pelo "+N": quem tocou a seta fica com o foco.
     [Fact]
     public void Seta_antes_de_o_dia_aparecer_cancela_o_foco_no_titulo_do_dia()

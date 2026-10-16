@@ -46,11 +46,12 @@ else if (_ator is null)
 }
 else
 {
-    @* O período à vista, para o leitor de tela: a troca de período (setas, "Hoje", visões, faixa, grade do Mês, "+N")
-       muda o texto, que é anunciado, e o foco fica no controle tocado. Um por visão, porque o período do mobile é o da
-       visão do mobile; a região escondida pela visão não é anunciada. O texto é o do subtítulo do período. *@
-    <div class="aj-desktop-tablet"><p class="aj-so-leitor" role="status">@Subtitulo</p></div>
-    <div class="aj-so-mobile"><p class="aj-so-leitor" role="status">@SubtituloDoMobile</p></div>
+    @* O período à vista, para o leitor de tela: a troca de período (setas, "Hoje", visões, faixa, grade do Mês) muda o
+       texto, que é anunciado, e o foco fica no controle tocado. Um por visão, porque o período do mobile é o da
+       visão do mobile; a região escondida pela visão não é anunciada. O texto é o do subtítulo do período. Na troca
+       que veio do "+N", a região fica vazia: o título do Dia, que recebe o foco, já diz a data. *@
+    <div class="aj-desktop-tablet"><p class="aj-so-leitor" role="status">@(_calarPeriodo ? null : Subtitulo)</p></div>
+    <div class="aj-so-mobile"><p class="aj-so-leitor" role="status">@(_calarPeriodo ? null : SubtituloDoMobile)</p></div>
 
     @* Desktop: a navegação de período e as visões num grupo; os filtros no outro, aplicados ao "Filtrar". *@
     <div class="aj-so-desktop">
@@ -164,6 +165,11 @@ else
     // O "+N" do Mês pediu o foco no título do Dia, que aparece depois da carga da semana do dia.
     private bool _focarTituloDoDia;
 
+    // O período que o "+N" abriu não é anunciado pela região do período (o título do Dia focado já diz a data); a região
+    // fica vazia até a próxima troca de período, que volta a anunciar. Vazia, e não com o período anterior, para que voltar
+    // a ele (o "Mês") também seja anunciado.
+    private bool _calarPeriodo;
+
     // O título do Dia no desktop e o da seção do Dia no tablet (um deles à vista); o mobile não tem "+N".
     private const string TituloDoDia = ".aj-dia__cabeca, .aj-secao-dia__cabeca";
 
@@ -185,6 +191,8 @@ else
         var periodo = PeriodoDaAgenda.Ler(VisaoDoEndereco, DataDoEndereco, _hoje);
         // O recado de outra tela vale para o período em que se chegou: trocar de período o tira da tela.
         if (_periodo is not null && periodo.Endereco != _periodo.Endereco) _recado = null;
+        // Só a troca de período decide o anúncio: o redesenho que vem do layout não o liga nem o cala.
+        if (_periodo is null || periodo.Endereco != _periodo.Endereco) _calarPeriodo = _focarTituloDoDia;
         _periodo = periodo;
         if (_ator is not null) await ConsultarAsync();
         _carregado = true;
