@@ -58,6 +58,12 @@ public abstract class TelaInterativa : BunitContext
     /// <summary>Quantos pedidos de foco a um elemento (<c>ElementReference.FocusAsync</c>) a tela fez até agora.</summary>
     protected int FocosDeElementoPedidos => JSInterop.Invocations[FocoDeElemento].Count;
 
+    /// <summary>O que o <c>PainelDeFiltros</c> pede ao abrir: o primeiro campo do form, em ordem de documento.</summary>
+    protected static string CamposDoPainel(string id) => $"#{id} input, #{id} select, #{id} textarea";
+
+    /// <summary>O que o <c>PainelDeFiltros</c> pede ao fechar por Esc ou por "Filtrar": o botão que o abre na visão atual.</summary>
+    protected static string BotaoDoPainel(string id) => $"button[aria-controls=\"{id}\"]";
+
     // O identificador com que o Blazor pede o foco a um elemento; o bUnit o registra assim. O indexador de Invocations
     // devolve a lista vazia para um identificador sem chamada (bUnit 2.11.3), e por isso os auxiliares não precisam de
     // tratamento à parte antes do primeiro pedido.

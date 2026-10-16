@@ -1,0 +1,86 @@
+@inject Foco Foco
+
+@* O painel de filtros do tablet e do mobile (Agenda, Atividades, Auditoria). O form fica sempre no HTML, escondido
+   quando fechado, para o aria-controls dos botões que o abrem apontar para ele. Abrir leva o foco ao primeiro campo;
+   Esc fecha; fechar por Esc ou por "Filtrar" devolve o foco ao botão que abre o painel na visão atual (há um por
+   visão, e o das outras está escondido). A tela decide o resto: quem abre, o que "Filtrar" e "Limpar" fazem, se o
+   "Filtrar" fecha (a auditoria não fecha com um identificador inválido). *@
+<form id="@Id" class="aj-painel aj-painel--filtros" hidden="@(!Aberto)" @onsubmit="FiltrarAsync" @onsubmit:preventDefault @onkeydown="AoTeclarAsync">
+    @ChildContent
+    <div class="aj-painel__acoes">
+        <button type="button" class="aj-botao aj-botao--fantasma" @onclick="AoLimpar">Limpar</button>
+        <button type="submit" class="aj-botao aj-botao--primario">Filtrar</button>
+    </div>
+</form>
+
+@code {
+    /// <summary>O id do form, que os botões de abrir citam no <c>aria-controls</c>.</summary>
+    [Parameter, EditorRequired] public string Id { get; set; } = string.Empty;
+
+    [Parameter] public bool Aberto { get; set; }
+
+    /// <summary>"Filtrar": a tela aplica o filtro e, se aplicou, fecha o painel.</summary>
+    [Parameter] public EventCallback AoFiltrar { get; set; }
+
+    /// <summary>"Limpar": a tela esvazia os campos do painel, sem consultar.</summary>
+    [Parameter] public EventCallback AoLimpar { get; set; }
+
+    /// <summary>Esc: a tela fecha o painel, como o botão que o abre.</summary>
+    [Parameter] public EventCallback AoFechar { get; set; }
+
+    /// <summary>Os campos do painel, com a marcação da tela.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private bool _abertoAntes;
+    private bool _devolverAoFechar;
+    private bool _focarCampo;
+    private bool _focarBotao;
+
+    // Quem fecha é a tela (o Aberto que ela passa): o painel guarda que o pedido de fechar veio dele (Esc ou "Filtrar")
+    // e, quando o Aberto muda para falso, devolve o foco. Se a tela não fecha (o "Filtrar" ignorado ou recusado), o
+    // pedido fica guardado até a próxima mudança do Aberto.
+    protected override void OnParametersSet()
+    {
+        if (Aberto == _abertoAntes) return;
+
+        _abertoAntes = Aberto;
+        if (Aberto)
+        {
+            _focarCampo = true;
+            _devolverAoFechar = false;
+        }
+        else
+        {
+            _focarBotao = _devolverAoFechar;
+            _devolverAoFechar = false;
+        }
+    }
+
+    private Task FiltrarAsync()
+    {
+        _devolverAoFechar = true;
+        return AoFiltrar.InvokeAsync();
+    }
+
+    private Task AoTeclarAsync(KeyboardEventArgs e)
+    {
+        if (e.Key != "Escape" || !Aberto) return Task.CompletedTask;
+
+        _devolverAoFechar = true;
+        return AoFechar.InvokeAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_focarCampo)
+        {
+            _focarCampo = false;
+            await Foco.FocarPrimeiroVisivelAsync($"#{Id} input, #{Id} select, #{Id} textarea");
+        }
+        else if (_focarBotao)
+        {
+            _focarBotao = false;
+            await Foco.FocarPrimeiroVisivelAsync($"button[aria-controls=\"{Id}\"]");
+        }
+    }
+}

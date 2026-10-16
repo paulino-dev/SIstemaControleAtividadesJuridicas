@@ -11,6 +11,7 @@ using AtividadesJuridicas.Web.Components.Layout;
 using AtividadesJuridicas.Web.Infra;
 using Bunit;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 using PaginaDaAgenda = AtividadesJuridicas.Web.Components.Pages.Agenda;
 
@@ -314,12 +315,17 @@ public class AgendaInterativaTests : TelaInterativa
         var botao = tela.Find($"{Tablet} button[aria-controls=filtros-da-agenda]");
         Texto(botao).Should().Be("Filtros");
         botao.GetAttribute("aria-expanded").Should().Be("false");
-        tela.FindAll("form#filtros-da-agenda").Should().BeEmpty();
+        // Fechado, o painel fica no HTML, escondido: o aria-controls dos dois botões aponta para um form que existe.
+        tela.Find("form#filtros-da-agenda").HasAttribute("hidden").Should().BeTrue();
+        SeletoresFocados.Should().BeEmpty();
 
         botao.Click();
 
         tela.Find($"{Tablet} button[aria-controls=filtros-da-agenda]").GetAttribute("aria-expanded").Should().Be("true");
-        JSInterop.VerifyFocusAsyncInvoke().Arguments[0].ShouldBeElementReferenceTo(CampoDoPainel(tela, "Tipo"));
+        tela.Find("form#filtros-da-agenda").HasAttribute("hidden").Should().BeFalse();
+        // O foco vai ao primeiro campo do painel: o pedido ao módulo e, nesse seletor, o primeiro é o Tipo.
+        SeletoresFocados.Should().Equal(CamposDoPainel("filtros-da-agenda"));
+        tela.Find(CamposDoPainel("filtros-da-agenda")).ParentElement!.QuerySelector("span")!.TextContent.Should().Be("Tipo");
         CampoDoPainel(tela, "Tipo").QuerySelectorAll("option").Select(o => o.TextContent)
             .Should().Equal("Todos", "Audiência", "Reunião", "Prazo", "Outro");
         CampoDoPainel(tela, "Participante").QuerySelectorAll("option").Select(o => o.TextContent)
@@ -333,8 +339,13 @@ public class AgendaInterativaTests : TelaInterativa
         Consultas.Should().HaveCount(2);
         Consultas[1].Tipo.Should().Be(TipoEvento.Audiencia);
         Consultas[1].ParticipanteId.Should().Be(Pedro.Id);
-        tela.FindAll("form#filtros-da-agenda").Should().BeEmpty();
+        tela.Find("form#filtros-da-agenda").HasAttribute("hidden").Should().BeTrue();
         tela.Find($"{Tablet} button[aria-controls=filtros-da-agenda]").GetAttribute("aria-expanded").Should().Be("false");
+        // "Filtrar" devolve o foco ao botão que abre o painel. São dois (o "Filtrar agenda" do mobile e o "Filtros" do
+        // tablet), cada um numa visão: o navegador foca o que está à vista.
+        SeletoresFocados.Should().Equal(CamposDoPainel("filtros-da-agenda"), BotaoDoPainel("filtros-da-agenda"));
+        tela.FindAll(BotaoDoPainel("filtros-da-agenda")).Select(b => b.GetAttribute("aria-label") ?? Texto(b))
+            .Should().Equal("Filtrar agenda", "Filtros");
 
         tela.Find($"{Tablet} button[aria-controls=filtros-da-agenda]").Click();
         CampoDoPainel(tela, "Tipo").QuerySelector("option[selected]")!.TextContent.Should().Be("Audiência");
@@ -366,7 +377,9 @@ public class AgendaInterativaTests : TelaInterativa
         tela.Find(filtros).Click();
         CampoDoPainel(tela, "Tipo").Change(nameof(TipoEvento.Prazo));
         tela.Find(filtros).Click();   // fecha sem filtrar
-        tela.FindAll("form#filtros-da-agenda").Should().BeEmpty();
+        tela.Find("form#filtros-da-agenda").HasAttribute("hidden").Should().BeTrue();
+        // Fechar pelo próprio botão não pede foco: ele já está no botão.
+        SeletoresFocados.Should().Equal(CamposDoPainel("filtros-da-agenda"));
 
         Botao(tela, Tablet, "Próxima semana").Click();
 
@@ -402,6 +415,33 @@ public class AgendaInterativaTests : TelaInterativa
         tela.Find(filtrarAgenda).Click();
         CampoDoPainel(tela, "Tipo").QuerySelector("option[selected]")!.TextContent.Should().Be("Prazo");
         CampoDoPainel(tela, "Participante").QuerySelector("option[selected]").Should().BeNull();
+    }
+
+    // Esc com o foco num campo do painel fecha como o botão: o que se escolheu e não se aplicou sai, nada é consultado,
+    // e o foco volta ao botão que abre o painel. Outra tecla não fecha.
+    [Fact]
+    public void Esc_no_painel_fecha_sem_consultar_descarta_o_que_nao_foi_aplicado_e_devolve_o_foco_ao_botao()
+    {
+        var tela = Agenda("/agenda?data=2026-10-08");
+        var filtros = $"{Tablet} button[aria-controls=filtros-da-agenda]";
+        tela.Find(filtros).Click();
+        CampoDoPainel(tela, "Tipo").Change(nameof(TipoEvento.Prazo));
+
+        CampoDoPainel(tela, "Tipo").KeyDown(new KeyboardEventArgs { Key = "Escape" });
+
+        tela.Find("form#filtros-da-agenda").HasAttribute("hidden").Should().BeTrue();
+        tela.Find(filtros).GetAttribute("aria-expanded").Should().Be("false");
+        SeletoresFocados.Should().Equal(CamposDoPainel("filtros-da-agenda"), BotaoDoPainel("filtros-da-agenda"));
+        Consultas.Should().ContainSingle();   // fechar não consulta
+        // Os campos voltaram ao aplicado (nenhum): nenhuma opção marcada, e o navegador mostra "Todos".
+        CampoDoPainel(tela, "Tipo").QuerySelector("option[selected]").Should().BeNull();
+        CampoDoPainel(tela, "Tipo").QuerySelector("option[value='']")!.TextContent.Should().Be("Todos");
+
+        tela.Find(filtros).Click();
+        CampoDoPainel(tela, "Tipo").KeyDown(new KeyboardEventArgs { Key = "Enter" });
+
+        tela.Find("form#filtros-da-agenda").HasAttribute("hidden").Should().BeFalse();
+        tela.Find(filtros).GetAttribute("aria-expanded").Should().Be("true");
     }
 
     [Fact]

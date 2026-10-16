@@ -80,23 +80,17 @@ else
         </div>
     </div>
 
-    @* O painel abre logo abaixo da barra do tablet e, no mobile, no topo do conteúdo, sob a barra superior. *@
-    @if (_filtrosAbertos)
-    {
-        <div class="aj-tablet-mobile">
-            <form id="filtros-da-agenda" class="aj-painel aj-painel--filtros" @onsubmit="FiltrarDoPainelAsync" @onsubmit:preventDefault>
-                <label class="aj-campo-filtro"><span>Tipo</span><select class="aj-campo-filtro__controle" @bind="_filtro.Tipo" @ref="_tipoDoPainel">@OpcoesDeTipo</select></label>
-                @if (_ator.EhDiretoria)
-                {
-                    <label class="aj-campo-filtro"><span>Participante</span><select class="aj-campo-filtro__controle" @bind="_filtro.ParticipanteId">@OpcoesDeParticipante</select></label>
-                }
-                <div class="aj-painel__acoes">
-                    <button type="button" class="aj-botao aj-botao--fantasma" @onclick="LimparFiltros">Limpar</button>
-                    <button type="submit" class="aj-botao aj-botao--primario">Filtrar</button>
-                </div>
-            </form>
-        </div>
-    }
+    @* O painel abre logo abaixo da barra do tablet e, no mobile, no topo do conteúdo, sob a barra superior. Fechado,
+       fica no HTML, escondido, para o aria-controls dos dois botões apontar para ele. *@
+    <div class="aj-tablet-mobile">
+        <PainelDeFiltros Id="filtros-da-agenda" Aberto="_filtrosAbertos" AoFiltrar="FiltrarDoPainelAsync" AoLimpar="LimparFiltros" AoFechar="FecharFiltros">
+            <label class="aj-campo-filtro"><span>Tipo</span><select class="aj-campo-filtro__controle" @bind="_filtro.Tipo">@OpcoesDeTipo</select></label>
+            @if (_ator?.EhDiretoria == true)
+            {
+                <label class="aj-campo-filtro"><span>Participante</span><select class="aj-campo-filtro__controle" @bind="_filtro.ParticipanteId">@OpcoesDeParticipante</select></label>
+            }
+        </PainelDeFiltros>
+    </div>
 
     @if (_recado is { } recado)
     {
@@ -148,7 +142,6 @@ else
     private bool _carregado;
     private bool _carregando;
     private bool _filtrosAbertos;
-    private bool _focarPainel;
     private int _geracao;
     private UsuarioAutenticado? _ator;
     private PeriodoDaAgenda? _periodo;
@@ -161,7 +154,6 @@ else
     private readonly Filtro _filtro = new();
     private FiltroAplicado _filtroAplicado = FiltroAplicado.Nenhum;
     private IReadOnlyList<OpcaoDeUsuario> _usuarios = [];
-    private ElementReference _tipoDoPainel;
 
     protected override async Task OnInitializedAsync()
     {
@@ -184,22 +176,6 @@ else
         _periodo = periodo;
         if (_ator is not null) await ConsultarAsync();
         _carregado = true;
-    }
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (!_focarPainel) return;
-
-        // O painel de filtros recebe o foco no primeiro campo quando abre.
-        _focarPainel = false;
-        try
-        {
-            await _tipoDoPainel.FocusAsync();
-        }
-        catch (Exception ex) when (ex is InvalidOperationException or JSException or JSDisconnectedException)
-        {
-            // Sem foco (circuito caindo, painel já fechado) o painel continua funcional.
-        }
     }
 
     /// <summary>O dia de hoje no fuso do escritório.</summary>
@@ -312,7 +288,13 @@ else
     private void AlternarFiltros()
     {
         _filtrosAbertos = !_filtrosAbertos;
-        _focarPainel = _filtrosAbertos;
+        _filtro.Voltar(_filtroAplicado);
+    }
+
+    // Esc no painel: fecha como o botão, descartando o que se escolheu e não se aplicou.
+    private void FecharFiltros()
+    {
+        _filtrosAbertos = false;
         _filtro.Voltar(_filtroAplicado);
     }
 

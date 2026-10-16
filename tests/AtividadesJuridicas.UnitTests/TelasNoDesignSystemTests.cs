@@ -51,6 +51,7 @@ public partial class TelasNoDesignSystemTests
         "Components/Layout/MainLayout.razor",
         "Components/Layout/MenuDeAcoes.razor",
         "Components/Layout/Paginacao.razor",
+        "Components/Layout/PainelDeFiltros.razor",
         "Components/Layout/RotuloDeCampo.razor",
         "Components/Pages/Agenda.razor",
         "Components/Pages/Andamento.razor",
