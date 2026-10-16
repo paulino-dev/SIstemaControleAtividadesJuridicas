@@ -10,9 +10,9 @@ namespace AtividadesJuridicas.IntegrationTests;
 
 /// <summary>
 /// Base dos testes que clicam: desenha um componente com o bUnit, com o despachante combinado do teste, o fuso do
-/// escritório, os recados entre telas e o serviço de foco. O JavaScript fica solto (as chamadas de foco são registradas,
-/// não executadas) e o teste confere o foco pelo registro: o pedido a um elemento (<see cref="UltimoFocoPedido"/>) ou ao
-/// módulo de foco do layout (<see cref="SeletoresFocados"/>).
+/// escritório, os recados entre telas, o serviço de foco e o menu de ações aberto. O JavaScript fica solto (as chamadas
+/// de foco são registradas, não executadas) e o teste confere o foco pelo registro: o pedido a um elemento
+/// (<see cref="UltimoFocoPedido"/>) ou ao módulo de foco do layout (<see cref="SeletoresFocados"/>).
 /// </summary>
 public abstract class TelaInterativa : BunitContext
 {
@@ -71,6 +71,7 @@ public abstract class TelaInterativa : BunitContext
         Services.AddSingleton(new FusoDoEscritorio("America/Sao_Paulo"));
         Services.AddSingleton(new Recados());
         Services.AddSingleton<Foco>();
+        Services.AddSingleton<MenuDeAcoesAberto>();
     }
 
     protected IRenderedComponent<T> Desenhar<T>(Action<ComponentParameterCollectionBuilder<T>>? parametros = null)

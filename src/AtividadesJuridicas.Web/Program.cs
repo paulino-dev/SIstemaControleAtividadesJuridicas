@@ -45,6 +45,7 @@ builder.Services.AddScoped<IDespachante, Despachante>();
 builder.Services.AddScoped<OrigemDaConexao>();
 builder.Services.AddScoped<Recados>();
 builder.Services.AddScoped<Foco>();
+builder.Services.AddScoped<MenuDeAcoesAberto>();
 builder.Services.AddSingleton(new FusoDoEscritorio(fusoHorarioDoEscritorio));
 
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();

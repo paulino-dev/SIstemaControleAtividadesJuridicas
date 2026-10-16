@@ -38,8 +38,8 @@ public static class TelaDeTeste
 
     // Só o que os componentes da aplicação injetam: o despachante, o fuso do escritório, os recados entre telas, o
     // NavigationManager (as telas que navegam depois de salvar), o JavaScript (que o InputFile injeta e o desenho
-    // estático nunca chama) e o Foco (que as telas chamam depois de desenhar, e o desenho estático também nunca chama).
-    // Um ponto só para os desenhos com despachante.
+    // estático nunca chama), o Foco (que as telas chamam depois de desenhar, e o desenho estático também nunca chama)
+    // e o menu de ações aberto (que o MenuDeAcoes só usa ao abrir). Um ponto só para os desenhos com despachante.
     private static ServiceProvider Servicos(IDespachante despachante, Recados? recados) => new ServiceCollection()
         .AddSingleton(despachante)
         .AddSingleton(new FusoDoEscritorio("America/Sao_Paulo"))
@@ -47,6 +47,7 @@ public static class TelaDeTeste
         .AddSingleton<NavigationManager>(new NavegacaoDeTeste())
         .AddSingleton<IJSRuntime>(new SemJavaScript())
         .AddSingleton<Foco>()
+        .AddSingleton<MenuDeAcoesAberto>()
         .BuildServiceProvider();
 
     /// <summary>
@@ -110,6 +111,7 @@ public static class TelaDeTeste
         await using var servicos = new ServiceCollection()
             .AddSingleton<IJSRuntime>(new SemJavaScript())
             .AddSingleton<Foco>()
+            .AddSingleton<MenuDeAcoesAberto>()
             .BuildServiceProvider();
         await using var renderizador = new HtmlRenderer(servicos, NullLoggerFactory.Instance);
 
