@@ -9,8 +9,8 @@ namespace AtividadesJuridicas.IntegrationTests;
 /// <summary>
 /// As abas do mobile das fichas, no padrão tablist: só a escolhida entra no Tab; ←/→ (com volta nas pontas), Home e End
 /// escolhem a aba e pedem o foco para ela; cada aba aponta (aria-controls) para os invólucros de painel dela. O bUnit
-/// prova o foco pedido; o foco que chega, a fileira que rola até a aba e a página que não rola com as teclas ficam para
-/// a conferência no navegador.
+/// prova o foco pedido e a rolagem pedida ao módulo; o foco que chega, a fileira que rola até a aba e a página que não
+/// rola com as teclas ficam para a conferência no navegador.
 /// </summary>
 public class AbasInterativasTests : TelaInterativa
 {
@@ -88,6 +88,28 @@ public class AbasInterativasTests : TelaInterativa
 
         _escolhida.Should().Be(TresAbas[destino].Chave);
         UltimoFocoPedido().Arguments[0].ShouldBeElementReferenceTo(antes[destino]);
+    }
+
+    // Conferência da 9G (D3): na ficha da atividade a 390px a fileira é mais larga que a tela, e o focus() não rola a aba
+    // que já aparece em parte. Depois do foco, a tecla pede ao módulo que role a fileira até a aba escolhida. A rolagem
+    // de verdade fica para o navegador.
+    [Theory]
+    [InlineData("clientes", "End", 2)]
+    [InlineData("situacao", "Home", 0)]
+    [InlineData("clientes", "ArrowRight", 2)]
+    [InlineData("dados", "ArrowLeft", 2)]
+    public void Tecla_pede_ao_modulo_que_role_a_fileira_ate_a_aba(string ativa, string tecla, int destino)
+    {
+        var modulo = JSInterop.SetupModule(Modulo);
+        modulo.SetupVoid("prenderTeclas", _ => true).SetVoidResult();
+        modulo.SetupVoid("rolarAteAba", _ => true).SetVoidResult();
+        var abas = AsAbas(ativa);
+        var antes = Botoes(abas).Select(b => b.Clone(deep: false)).Cast<IElement>().ToList();
+
+        Escolhida(abas).KeyDown(new KeyboardEventArgs { Key = tecla });
+
+        UltimoFocoPedido().Arguments[0].ShouldBeElementReferenceTo(antes[destino]);
+        modulo.VerifyInvoke("rolarAteAba").Arguments[0].ShouldBeElementReferenceTo(antes[destino]);
     }
 
     [Fact]
