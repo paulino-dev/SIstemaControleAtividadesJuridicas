@@ -122,6 +122,17 @@ public class LayoutWebTests(BancoFixture banco) : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Modulo_do_layout_e_servido()
+    {
+        var anonimo = _app.NovoCliente();
+
+        var modulo = await anonimo.GetAsync("/Components/Layout/MainLayout.razor.js");
+
+        modulo.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await modulo.Content.ReadAsStringAsync()).Should().Contain("export function vigiarDesktop");
+    }
+
+    [Fact]
     public async Task Cliente_em_documentos_comuns_tem_o_destino_no_trilho_e_mais_na_barra()
     {
         await _app.CriarCarlaAsync();
