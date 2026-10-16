@@ -49,6 +49,10 @@ public class AuditoriaInterativaTests : TelaInterativa
         tela.Find(Painel).QuerySelectorAll("label.aj-campo-filtro")
             .Single(l => l.QuerySelector("span")!.TextContent == nome).QuerySelector("select, input")!;
 
+    // O usuário que o campo do painel mostra (o value da opção marcada); nenhuma marcada é "Todos", o vazio.
+    private static string UsuarioDoPainel(IRenderedComponent<AuditoriaPagina> tela) =>
+        CampoDoPainel(tela, "Usuário").QuerySelector("option[selected]")?.GetAttribute("value") ?? string.Empty;
+
     private static IElement Botao(IRenderedComponent<AuditoriaPagina> tela, string onde, string texto) =>
         tela.FindAll($"{onde} button").Single(b => b.TextContent == texto);
 
@@ -108,6 +112,9 @@ public class AuditoriaInterativaTests : TelaInterativa
         tela.Find(Painel).Submit();
 
         tela.Markup.Should().Contain("Identificador inválido.");
+        tela.Find("p.aj-aviso--erro").TextContent.Trim().Should().Be("Identificador inválido.");
+        // Sem consulta não há páginas: a paginação da consulta anterior não fica sob o aviso.
+        tela.FindAll(".aj-paginacao").Should().BeEmpty();
         tela.Find(Painel).HasAttribute("hidden").Should().BeFalse();
         SeletoresFocados.Should().Equal(CamposDoPainel("filtros-da-auditoria"));   // só o da abertura
 
@@ -149,6 +156,45 @@ public class AuditoriaInterativaTests : TelaInterativa
         tela.Find(BotaoDoTablet).Click();
         CampoDoPainel(tela, "Usuário").QuerySelector("option[selected]").Should().BeNull();
         CampoDoPainel(tela, "Usuário").QuerySelector("option[value='']")!.TextContent.Should().Be("Todos");
+    }
+
+    // Review Focus 5 com um filtro já aplicado: o que se escolhe no painel e se descarta (pelo botão ou pelo Esc) dá
+    // lugar ao aplicado, e não ao filtro vazio; reaberto, o painel mostra o aplicado, e a troca de página consulta com ele.
+    [Fact]
+    public void Com_um_usuario_aplicado_fechar_o_painel_sem_filtrar_volta_a_ele_e_a_proxima_pagina_o_mantem()
+    {
+        var tela = Tela();
+        tela.Find(BotaoDoTablet).Click();
+        CampoDoPainel(tela, "Usuário").Change(Pedro.Id.ToString());
+        tela.Find(Painel).Submit();
+        ConsultasDeAlteracoes.Last().Filtro.UsuarioId.Should().Be(Pedro.Id);
+
+        // Escolhe outro usuário e fecha pelo botão.
+        tela.Find(BotaoDoTablet).Click();
+        UsuarioDoPainel(tela).Should().Be(Pedro.Id.ToString());
+        CampoDoPainel(tela, "Usuário").Change(Diana.Id.ToString());
+        tela.Find(BotaoDoTablet).Click();
+
+        // Fechado (o painel fica no HTML, escondido), o campo já voltou ao aplicado; reaberto, continua nele.
+        UsuarioDoPainel(tela).Should().Be(Pedro.Id.ToString());
+        tela.Find(BotaoDoTablet).Click();
+        UsuarioDoPainel(tela).Should().Be(Pedro.Id.ToString());
+
+        // Escolhe outro usuário e fecha pelo Esc.
+        CampoDoPainel(tela, "Usuário").Change(Diana.Id.ToString());
+        CampoDoPainel(tela, "Usuário").KeyDown(new KeyboardEventArgs { Key = "Escape" });
+        tela.Find(Painel).HasAttribute("hidden").Should().BeTrue();
+        UsuarioDoPainel(tela).Should().Be(Pedro.Id.ToString());
+
+        tela.Find(BotaoDoTablet).Click();
+        UsuarioDoPainel(tela).Should().Be(Pedro.Id.ToString());
+        tela.Find(BotaoDoTablet).Click();
+
+        Botao(tela, ".aj-paginacao", "Próxima").Click();
+
+        var consulta = ConsultasDeAlteracoes.Last();
+        consulta.Pagina.Should().Be(2);
+        consulta.Filtro.UsuarioId.Should().Be(Pedro.Id);
     }
 
     // O período, na linha do tablet e do mobile, também só vale depois do "Filtrar" (o Enter da linha).

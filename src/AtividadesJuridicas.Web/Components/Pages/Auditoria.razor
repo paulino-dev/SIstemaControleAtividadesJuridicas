@@ -190,9 +190,9 @@ else
         </EstadoDaLista>
     }
 
-    @* A paginação é da consulta respondida: enquanto a aba nova carrega, ou depois de uma falha, ela sai, para não
-       mostrar os números de outra consulta. *@
-    @if (_consultou)
+    @* A paginação é da consulta respondida: enquanto a aba nova carrega, depois de uma falha ou com um identificador
+       inválido (que não consulta), ela sai, para não mostrar os números de outra consulta. *@
+    @if (_consultou && !_identificadorInvalido)
     {
         <Paginacao Numero="_pagina" TotalDePaginas="TotalDePaginas" Total="Total" Singular="registro" Plural="registros"
                    SempreVisivel="true" Ocupado="_ocupado" IrPara="IrParaAsync" />
