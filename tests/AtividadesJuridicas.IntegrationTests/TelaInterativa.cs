@@ -72,7 +72,7 @@ public abstract class TelaInterativa : BunitContext
     protected TelaInterativa()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
-        ModuloDeFoco = JSInterop.SetupModule("./Components/Layout/FocoNoTitulo.razor.js");
+        ModuloDeFoco = JSInterop.SetupModule(Foco.Modulo);
         Services.AddSingleton<IDespachante>(Despachante);
         Services.AddSingleton(new FusoDoEscritorio("America/Sao_Paulo"));
         Services.AddSingleton(new Recados());

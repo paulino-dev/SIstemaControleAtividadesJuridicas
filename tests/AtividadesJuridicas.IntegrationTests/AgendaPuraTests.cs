@@ -10,7 +10,8 @@ namespace AtividadesJuridicas.IntegrationTests;
 
 /// <summary>
 /// A lógica de calendário da agenda, sem tela: o período lido do endereço, a régua de horas do Dia e os rótulos das
-/// três visões. Hoje é quinta-feira, 08/10/2026 (o dia dos quadros); a semana dos quadros vai de 05/10 a 11/10.
+/// três visões (e o <c>AvisoDeEventoSalvo</c>, desenhado sem circuito, que mostra a redação do conflito do desktop).
+/// Hoje é quinta-feira, 08/10/2026 (o dia dos quadros); a semana dos quadros vai de 05/10 a 11/10.
 /// </summary>
 public class AgendaPuraTests
 {

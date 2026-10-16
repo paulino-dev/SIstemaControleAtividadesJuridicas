@@ -356,6 +356,8 @@
     private void AoNavegar(object? sender, LocationChangedEventArgs e)
     {
         var caminho = Caminho(Navegacao.ToBaseRelativePath(e.Location));
+        // "Mesma tela" pelo caminho coincide com o critério do FocoNoTitulo (o tipo da página): todo destino do menu tem
+        // rota e tipo de página próprios, então caminho igual é página igual, e caminho outro é outra página.
         var mesmaTela = caminho == _caminho;
         _caminho = caminho;
 
