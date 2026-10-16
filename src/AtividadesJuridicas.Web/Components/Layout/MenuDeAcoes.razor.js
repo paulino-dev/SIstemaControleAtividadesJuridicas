@@ -62,3 +62,15 @@ export function pararDeVigiar(involucro) {
     remover();
     vigias.delete(involucro);
 }
+
+// Depois de escolher um item: o item que não leva o foco a lugar nenhum (o "Baixar", um link) o deixa no body (o
+// navegador o tira do item escondido) ou ainda dentro da lista escondida; nesse caso o foco volta ao botão do menu. Quem
+// levou o foco a outro lugar (o painel, a confirmação, o aviso que se revela, outra página) fica com ele.
+export function devolverFocoSePerdido(botao, lista) {
+    if (!botao || !botao.isConnected) return;
+
+    const ativo = document.activeElement;
+    if (ativo && ativo !== document.body && !(lista && lista.contains(ativo))) return;
+
+    botao.focus();
+}

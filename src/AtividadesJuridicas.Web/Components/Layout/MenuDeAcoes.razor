@@ -7,7 +7,9 @@
    com aria-expanded e a lista de botões, sem role="menu" nem setas; o Tab e o Shift+Tab andam pelos itens.
    Fecha ao escolher (o clique do item sobe até a lista), ao tocar fora, com Esc (com o foco no botão ou na lista) e
    quando o foco sai do menu (o focusout do módulo, instalado na primeira abertura). Tocar fora e Esc devolvem o foco
-   ao botão; escolher um item e o foco que sai não (o que a ação abre decide; o Tab segue o caminho natural).
+   ao botão; escolher um item e o foco que sai não (o que a ação abre decide; o Tab segue o caminho natural). O item
+   que não leva o foco a lugar nenhum (o "Baixar", um link) o deixaria na lista escondida ou no body: depois do desenho,
+   o módulo devolve o foco ao botão só nesse caso.
    Abrir um menu fecha o que estiver aberto (MenuDeAcoesAberto, do circuito). *@
 <div class="aj-menu-acoes" @ref="_involucro" @onkeydown="AoTeclarAsync">
     <button type="button" class="aj-botao aj-botao--fantasma aj-botao--icone" aria-label="@Rotulo"
@@ -16,7 +18,7 @@
     {
         <button type="button" class="aj-menu-acoes__fundo" tabindex="-1" aria-hidden="true" @onclick="FecharPeloFundoAsync"></button>
     }
-    <div class="aj-menu-acoes__lista" hidden="@(!_aberto)" tabindex="-1" @ref="_lista" @onclick="Fechar">@ChildContent</div>
+    <div class="aj-menu-acoes__lista" hidden="@(!_aberto)" tabindex="-1" @ref="_lista" @onclick="Escolher">@ChildContent</div>
 </div>
 
 @code {
@@ -27,6 +29,7 @@
 
     private bool _aberto;
     private bool _focarLista;
+    private bool _conferirFoco;
     private ElementReference _involucro;
     private ElementReference _gatilho;
     private ElementReference _lista;
@@ -51,6 +54,13 @@
         _aberto = false;
         _focarLista = false;
         MenuAberto.Esquecer(this);
+    }
+
+    // O clique de um item sobe até a lista: fecha e, depois do desenho, confere se o foco se perdeu.
+    private void Escolher()
+    {
+        Fechar();
+        _conferirFoco = true;
     }
 
     private async Task AoTeclarAsync(KeyboardEventArgs e)
@@ -90,6 +100,12 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (_conferirFoco)
+        {
+            _conferirFoco = false;
+            await DevolverFocoSePerdidoAsync();
+        }
+
         if (!_focarLista) return;
 
         _focarLista = false;
@@ -111,6 +127,21 @@
         catch (Exception ex) when (ex is InvalidOperationException or JSException or JSDisconnectedException or OperationCanceledException)
         {
             // Sem o módulo, o menu ainda fecha pelo Esc, pelo fundo e por um item.
+        }
+    }
+
+    // O módulo foi carregado na abertura que precede toda escolha; sem ele, o foco fica onde o navegador o deixou.
+    private async Task DevolverFocoSePerdidoAsync()
+    {
+        if (_modulo is null) return;
+
+        try
+        {
+            await _modulo.InvokeVoidAsync("devolverFocoSePerdido", _gatilho, _lista);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or JSException or JSDisconnectedException or OperationCanceledException)
+        {
+            // Sem foco (circuito caindo, por exemplo) o menu continua funcionando.
         }
     }
 

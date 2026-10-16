@@ -9,7 +9,8 @@ namespace AtividadesJuridicas.IntegrationTests;
 /// <summary>
 /// O menu de ações pelo teclado e pelo toque. Fecham o menu: o Esc (com o foco no botão, na lista ou num item) e o
 /// toque no fundo, que devolvem o foco ao botão; o foco que sai do menu (o focusout do módulo, que chama FocoSaiu) e a
-/// escolha de um item, que não mexem no foco. Abrir um menu fecha o que estava aberto.
+/// escolha de um item, que não mexem no foco (a escolha só pede ao módulo que o devolva ao botão se ele se perdeu).
+/// Abrir um menu fecha o que estava aberto.
 /// O bUnit não dispara o focusout do navegador: o teste confere a instalação do módulo e chama o FocoSaiu como o módulo
 /// chamaria. O Tab real, o Shift+Tab no botão e o clique fora ficam para a conferência no navegador.
 /// </summary>
@@ -146,6 +147,50 @@ public class MenuDeAcoesInterativoTests : TelaInterativa
         DeveEstarFechado(aberto.Menu);
         // Só o pedido de foco da abertura: para onde o foco vai, decide o que a ação abre.
         JSInterop.VerifyFocusAsyncInvoke().Arguments[0].ShouldBeElementReferenceTo(aberto.Lista);
+    }
+
+    // Conferência da 9G (D1): o item que não leva o foco a lugar nenhum (o "Baixar", um link) o deixaria na lista
+    // escondida ou no body. Escolher um item pede ao módulo, depois do desenho, que devolva o foco ao botão só se ele se
+    // perdeu (no body ou dentro da lista): quem levou o foco a outro lugar (o painel, a confirmação, o aviso, outra
+    // página) fica com ele. O que a função faz no navegador fica para a conferência.
+    [Fact]
+    public void Escolher_um_item_pede_ao_modulo_que_devolva_o_foco_ao_botao_se_ele_se_perder()
+    {
+        var modulo = JSInterop.SetupModule(Modulo);
+        modulo.SetupVoid("vigiarSaida", _ => true).SetVoidResult();
+        modulo.SetupVoid("devolverFocoSePerdido", _ => true).SetVoidResult();
+        var aberto = Aberto();
+        modulo.Invocations["devolverFocoSePerdido"].Should().BeEmpty("abrir não pede");
+
+        aberto.Menu.Find(".aj-menu-acoes__item").Click();
+
+        DeveEstarFechado(aberto.Menu);
+        var pedido = modulo.VerifyInvoke("devolverFocoSePerdido");
+        pedido.Arguments[0].ShouldBeElementReferenceTo(aberto.Botao);
+        pedido.Arguments[1].ShouldBeElementReferenceTo(aberto.Lista);
+
+        // Um pedido por escolha: o desenho seguinte não pede de novo.
+        aberto.Menu.Render();
+        modulo.VerifyInvoke("devolverFocoSePerdido", calledTimes: 1);
+    }
+
+    // Esc e o fundo devolvem o foco ao botão eles mesmos, e o foco que sai segue o Tab: nenhum deles pede a conferência.
+    [Fact]
+    public async Task Esc_fundo_e_foco_que_sai_nao_pedem_ao_modulo_a_devolucao_do_foco()
+    {
+        var modulo = JSInterop.SetupModule(Modulo);
+        modulo.SetupVoid("vigiarSaida", _ => true).SetVoidResult();
+        modulo.SetupVoid("devolverFocoSePerdido", _ => true).SetVoidResult();
+        var aberto = Aberto();
+
+        Lista(aberto.Menu).KeyDown(new KeyboardEventArgs { Key = "Escape" });
+        Botao(aberto.Menu).Click();
+        aberto.Menu.Find(".aj-menu-acoes__fundo").Click();
+        Botao(aberto.Menu).Click();
+        await aberto.Menu.Instance.FocoSaiuAsync();
+
+        DeveEstarFechado(aberto.Menu);
+        modulo.Invocations["devolverFocoSePerdido"].Should().BeEmpty();
     }
 
     [Fact]
