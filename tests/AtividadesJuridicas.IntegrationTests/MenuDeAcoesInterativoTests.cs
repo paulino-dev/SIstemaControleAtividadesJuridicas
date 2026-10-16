@@ -76,6 +76,7 @@ public class MenuDeAcoesInterativoTests : TelaInterativa
         focos[0].Arguments[0].ShouldBeElementReferenceTo(aberto.Lista);
         focos[1].Arguments[0].ShouldBeElementReferenceTo(aberto.Botao);
     }
+
     [Theory]
     [InlineData(".aj-menu-acoes > button[aria-expanded]")]   // o botão
     [InlineData(".aj-menu-acoes__lista")]                    // a lista, que recebe o foco ao abrir
