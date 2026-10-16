@@ -1,8 +1,6 @@
 using AngleSharp.Dom;
-using System.Reflection;
 using AtividadesJuridicas.Web.Components.Layout;
 using Bunit;
-using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
 
@@ -45,61 +43,65 @@ public class MenuDeAcoesInterativoTests : TelaInterativa
         menu.FindAll(".aj-menu-acoes__fundo").Should().BeEmpty();
     }
 
-    // Aqui o atributo blazor:elementReference do HTML fica vazio (o id da referência só nasce no primeiro pedido de foco,
-    // depois de o elemento já estar desenhado), então ShouldBeElementReferenceTo não acha o elemento. O teste compara o id do
-    // pedido com o da referência que o componente guarda (o campo privado), a mesma que o JavaScript recebe.
-    private static void DeveSerOElemento(object? argumento, IRenderedComponent<MenuDeAcoes> menu, string campo)
-    {
-        var referencia = (ElementReference)typeof(MenuDeAcoes)
-            .GetField(campo, BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(menu.Instance)!;
+    // Cópias dos elementos do menu tiradas logo depois de desenhar, antes de qualquer clique. O bUnit escreve o id da
+    // referência (blazor:elementReference) a partir dos quadros da última renderização, e num elemento que sobrevive a uma
+    // renderização o quadro novo não leva o id: o HTML de depois do clique sai com o atributo vazio, e o próprio elemento
+    // achado antes é atualizado no lugar (perde o id). A cópia guarda o atributo da primeira renderização, com o id real, e a
+    // referência do componente não muda.
+    private sealed record MenuAberto(IRenderedComponent<MenuDeAcoes> Menu, IElement Involucro, IElement Botao, IElement Lista);
 
-        argumento.Should().BeOfType<ElementReference>().Which.Id.Should().Be(referencia.Id).And.NotBeNullOrEmpty();
-    }
-    /// <summary>Abre pelo clique: o menu aberto e o foco pedido para a lista, o primeiro pedido de foco do teste.</summary>
-    private IRenderedComponent<MenuDeAcoes> Aberto(string rotulo = "Ações de modelo.pdf")
+    private static IElement Copia(IElement elemento) => (IElement)elemento.Clone(deep: false);
+
+    private MenuAberto Guardado(string rotulo = "Ações de modelo.pdf")
     {
         var menu = Menu(rotulo);
-        Botao(menu).Click();
+        return new MenuAberto(menu, Copia(menu.Find(".aj-menu-acoes")), Copia(Botao(menu)), Copia(Lista(menu)));
+    }
 
-        DeveEstarAberto(menu);
-        DeveSerOElemento(JSInterop.VerifyFocusAsyncInvoke().Arguments[0], menu, "_lista");
-        return menu;
+    /// <summary>Abre pelo clique: o menu aberto e o foco pedido para a lista, o primeiro pedido de foco do teste.</summary>
+    private MenuAberto Aberto(string rotulo = "Ações de modelo.pdf")
+    {
+        var guardado = Guardado(rotulo);
+        Botao(guardado.Menu).Click();
+
+        DeveEstarAberto(guardado.Menu);
+        JSInterop.VerifyFocusAsyncInvoke().Arguments[0].ShouldBeElementReferenceTo(guardado.Lista);
+        return guardado;
     }
 
     /// <summary>Dois pedidos de foco no teste: a lista, ao abrir, e depois o botão do menu.</summary>
-    private void FocoDevolvidoAoBotao(IRenderedComponent<MenuDeAcoes> menu)
+    private void FocoDevolvidoAoBotao(MenuAberto aberto)
     {
         var focos = JSInterop.VerifyFocusAsyncInvoke(calledTimes: 2);
-        DeveSerOElemento(focos[0].Arguments[0], menu, "_lista");
-        DeveSerOElemento(focos[1].Arguments[0], menu, "_gatilho");
+        focos[0].Arguments[0].ShouldBeElementReferenceTo(aberto.Lista);
+        focos[1].Arguments[0].ShouldBeElementReferenceTo(aberto.Botao);
     }
-
     [Theory]
     [InlineData(".aj-menu-acoes > button[aria-expanded]")]   // o botão
     [InlineData(".aj-menu-acoes__lista")]                    // a lista, que recebe o foco ao abrir
     [InlineData(".aj-menu-acoes__item--perigo")]             // um item da lista
     public void Esc_fecha_com_o_foco_no_botao_ou_na_lista_e_devolve_o_foco_ao_botao(string ondeEstaOFoco)
     {
-        var menu = Aberto();
+        var aberto = Aberto();
 
         // A tecla sobe do elemento focado até o invólucro do menu, como no navegador.
-        menu.Find(ondeEstaOFoco).KeyDown(new KeyboardEventArgs { Key = "Escape" });
+        aberto.Menu.Find(ondeEstaOFoco).KeyDown(new KeyboardEventArgs { Key = "Escape" });
 
-        DeveEstarFechado(menu);
-        FocoDevolvidoAoBotao(menu);
+        DeveEstarFechado(aberto.Menu);
+        FocoDevolvidoAoBotao(aberto);
     }
 
     [Fact]
     public async Task O_foco_que_sai_do_menu_fecha_sem_pedir_foco()
     {
-        var menu = Aberto();
+        var aberto = Aberto();
 
         // O que o focusout do módulo faz quando o foco vai para fora do invólucro (Tab no último item, Shift+Tab no botão).
-        await menu.Instance.FocoSaiuAsync();
+        await aberto.Menu.Instance.FocoSaiuAsync();
 
-        DeveEstarFechado(menu);
+        DeveEstarFechado(aberto.Menu);
         // Só o pedido de foco da abertura: o Tab segue o caminho natural.
-        DeveSerOElemento(JSInterop.VerifyFocusAsyncInvoke().Arguments[0], menu, "_lista");
+        JSInterop.VerifyFocusAsyncInvoke().Arguments[0].ShouldBeElementReferenceTo(aberto.Lista);
     }
 
     [Fact]
@@ -107,7 +109,8 @@ public class MenuDeAcoesInterativoTests : TelaInterativa
     {
         var modulo = JSInterop.SetupModule(Modulo);
         modulo.SetupVoid("vigiarSaida", _ => true).SetVoidResult();
-        var menu = Menu();
+        var guardado = Guardado();
+        var menu = guardado.Menu;
 
         Botao(menu).Click();
         Botao(menu).KeyDown(new KeyboardEventArgs { Key = "Escape" });
@@ -115,7 +118,7 @@ public class MenuDeAcoesInterativoTests : TelaInterativa
 
         // Uma instalação só, na primeira abertura, com o invólucro inteiro (botão, fundo e lista) e a referência do menu.
         var instalacao = modulo.VerifyInvoke("vigiarSaida");
-        DeveSerOElemento(instalacao.Arguments[0], menu, "_involucro");
+        instalacao.Arguments[0].ShouldBeElementReferenceTo(guardado.Involucro);
         instalacao.Arguments[1].Should().BeOfType<DotNetObjectReference<MenuDeAcoes>>()
             .Which.Value.Should().BeSameAs(menu.Instance);
         DeveEstarAberto(menu);
@@ -124,39 +127,38 @@ public class MenuDeAcoesInterativoTests : TelaInterativa
     [Fact]
     public void Tocar_fora_fecha_e_devolve_o_foco_ao_botao()
     {
-        var menu = Aberto();
+        var aberto = Aberto();
 
-        menu.Find(".aj-menu-acoes__fundo").Click();
+        aberto.Menu.Find(".aj-menu-acoes__fundo").Click();
 
-        DeveEstarFechado(menu);
-        FocoDevolvidoAoBotao(menu);
+        DeveEstarFechado(aberto.Menu);
+        FocoDevolvidoAoBotao(aberto);
     }
 
     [Fact]
     public void Escolher_um_item_fecha_sem_pedir_o_foco()
     {
-        var menu = Aberto();
+        var aberto = Aberto();
 
-        menu.Find(".aj-menu-acoes__item--perigo").Click();
+        aberto.Menu.Find(".aj-menu-acoes__item--perigo").Click();
 
-        DeveEstarFechado(menu);
+        DeveEstarFechado(aberto.Menu);
         // Só o pedido de foco da abertura: para onde o foco vai, decide o que a ação abre.
-        DeveSerOElemento(JSInterop.VerifyFocusAsyncInvoke().Arguments[0], menu, "_lista");
+        JSInterop.VerifyFocusAsyncInvoke().Arguments[0].ShouldBeElementReferenceTo(aberto.Lista);
     }
 
     [Fact]
     public void Abrir_um_segundo_menu_fecha_o_primeiro_sem_mexer_no_foco_dele()
     {
         var primeiro = Aberto("Ações de modelo.pdf");
-        var segundo = Menu("Ações de contrato.pdf");
+        var segundo = Guardado("Ações de contrato.pdf");
+        Botao(segundo.Menu).Click();
 
-        Botao(segundo).Click();
-
-        DeveEstarFechado(primeiro);
-        DeveEstarAberto(segundo);
+        DeveEstarFechado(primeiro.Menu);
+        DeveEstarAberto(segundo.Menu);
         // O primeiro fecha sem pedir foco: o segundo pedido vai para a lista do segundo menu.
         var focos = JSInterop.VerifyFocusAsyncInvoke(calledTimes: 2);
-        DeveSerOElemento(focos[0].Arguments[0], primeiro, "_lista");
-        DeveSerOElemento(focos[1].Arguments[0], segundo, "_lista");
+        focos[0].Arguments[0].ShouldBeElementReferenceTo(primeiro.Lista);
+        focos[1].Arguments[0].ShouldBeElementReferenceTo(segundo.Lista);
     }
 }
