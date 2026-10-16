@@ -1549,10 +1549,10 @@ a.aj-evento{text-decoration:none}
 /* ---------- Ajustes da conferência da fase 9G no navegador ---------- */
 /* Foco à vista: o rolador do conteúdo reserva embaixo a altura das barras que ficam por cima dele (a barra de ações
    fixa, a barra inferior, o botão flutuante), para o elemento que o Tab alcança não ficar escondido atrás delas.
-   Desktop: a barra de ações flutuante (16px da base, 64px de altura). Tablet: a barra de ações presa à base (110px).
+   Desktop: a barra de ações flutuante (64px de altura, 16px acima do respiro de 28px do conteúdo: o topo a 108px do pé). Tablet: a barra de ações presa à base (110px).
    Mobile: a barra inferior (104px), com o botão flutuante (168px), a barra de voltar e a de ações (112px). Os
    valores são os do respiro inferior do conteúdo em cada caso. */
-.aj-app:has(.aj-acoes--fixa) .aj-app__conteudo{scroll-padding-bottom:84px}
+.aj-app:has(.aj-acoes--fixa) .aj-app__conteudo{scroll-padding-bottom:112px}
 @media (max-width:1199.98px){
   .aj-app:has(.aj-acoes--fixa) .aj-app__conteudo{scroll-padding-bottom:110px}
 }
