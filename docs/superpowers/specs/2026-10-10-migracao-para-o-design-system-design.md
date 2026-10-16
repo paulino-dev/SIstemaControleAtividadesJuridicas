@@ -726,7 +726,7 @@ Observações de desenho, sem ação nesta fase:
 
 ### Da fase 9G (emenda de 2026-10-16)
 
-A 9G é a última fase da migração. Commits `ba357fc..9bb6299`, sobre a `main` local com as fases 9A a 9F (`8d5dd3a`). A suíte inteira passou em `ab8100f` (unidade 936 e integração 1415, sem falha; a linha de base era 910 e 1245) e, no código final, a suíte inteira sem falha <!-- números da suíte final -->.
+A 9G é a última fase da migração. Commits `ba357fc..9bb6299`, sobre a `main` local com as fases 9A a 9F (`8d5dd3a`). A suíte inteira passou em `ab8100f` (unidade 936 e integração 1415, sem falha; a linha de base era 910 e 1245) e, no código final (`9bb6299`), unidade 936 e integração 1426, sem falha.
 
 O que a fase entregou:
 
