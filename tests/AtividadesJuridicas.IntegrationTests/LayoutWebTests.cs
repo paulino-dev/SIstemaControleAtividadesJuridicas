@@ -167,8 +167,8 @@ public class LayoutWebTests(BancoFixture banco) : IAsyncLifetime
         html.Should().MatchRegex("<div class=\"aj-exibir-menu\">\\s*<button[^>]*aria-label=\"Exibir menu\"");
     }
 
-    // A regra interina do app.css tratava como "tela ainda não migrada" o conteúdo sem um bloco do design system no
-    // topo. Ela saiu na 9F: toda tela da equipe abre o conteúdo com um bloco aj-, e nenhuma depende mais dela.
+    // Toda tela da equipe abre o conteúdo com um bloco do design system (um filho direto do main com classe aj-): é ele
+    // que dá ao conteúdo a margem e o ritmo do quadro. Uma tela que abrisse com marcação solta ficaria sem eles.
     [Theory]
     [InlineData("/")]
     [InlineData("/atividades")]
@@ -199,7 +199,7 @@ public class LayoutWebTests(BancoFixture banco) : IAsyncLifetime
         var primeiro = Regex.Match(html, "<main class=\"aj-app__conteudo\">(?:\\s|<!--.*?-->)*(<[a-z][^>]*>)",
             RegexOptions.Singleline).Groups[1].Value;
         primeiro.Should().MatchRegex("^<[a-z]+\\b[^>]*\\sclass=\"aj-",
-            "a regra interina do app.css alcançava o conteúdo sem um filho direto cuja classe começa por aj-");
+            "o conteúdo abre com um bloco do design system, que dá a margem e o ritmo do quadro");
     }
 
     [Theory]

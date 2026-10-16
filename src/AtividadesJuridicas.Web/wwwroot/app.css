@@ -1,32 +1,8 @@
-/* Base da aplicação sobre o design system (css/tokens.css e css/componentes.css): caixa, corpo, links e foco.
-   Todas as telas usam as classes aj-. As regras de elemento abaixo da base vêm da marcação antiga e ainda alcançam
-   os componentes do design system (título, parágrafo, rótulo, botão desabilitado, caixa de marcar, conjunto); saem
-   na fase 9G, com a conferência das telas. */
+/* Base da página, sob o design system (css/tokens.css e css/componentes.css): caixa de borda, corpo e foco.
+   Tudo o mais vem das classes aj- do design system; nenhuma regra nova entra aqui (AppCssTests). */
 
 *, *::before, *::after { box-sizing: border-box; }
-html, body { height: 100%; }
 body { margin: 0; background: var(--fundo); color: var(--tinta); font: 400 15px/1.5 var(--font-sans); }
-:where(a) { color: var(--verde); }
-:where(a:hover) { color: var(--tinta); }
 :focus-visible { outline: 2px solid var(--verde); outline-offset: 2px; }
 /* O título recebe o foco a cada navegação (FocoNoTitulo) só para ser anunciado; não é um controle. */
 h1:focus { outline: none; }
-
-/* ---------- Regras de elemento que ainda alcançam o design system (até a fase 9G) ---------- */
-h1 { margin: 0 0 var(--espaco-14); font: 500 var(--aj-titulo)/1.1 var(--font-serif); letter-spacing: -.01em; }
-h2 { margin: var(--espaco-28) 0 var(--espaco-10); font: 700 18px/1.3 var(--font-sans); }
-h3 { margin: var(--espaco-18) 0 var(--espaco-8); font: 700 16px/1.4 var(--font-sans); }
-p { margin: var(--espaco-8) 0; }
-button:disabled { opacity: .55; cursor: not-allowed; }
-
-/* ---------- Campos ---------- */
-label { display: grid; gap: var(--espaco-8); font: 600 var(--aj-fonte-rotulo)/1.4 var(--font-sans); color: var(--tinta-rotulo); }
-.aj-campo-icone input:focus, .aj-campo-filtro :focus { box-shadow: none; }
-input.invalid, select.invalid, textarea.invalid { border: 1.5px solid var(--erro); background: var(--erro-campo); box-shadow: var(--sombra-foco-erro); }
-input[type="checkbox"], input[type="radio"] { width: 18px; min-height: 0; height: 18px; margin: 0; padding: 0; accent-color: var(--verde); }
-label:has(> input[type="checkbox"]), label:has(> input[type="radio"]) { display: flex; align-items: center; gap: var(--espaco-10); min-height: var(--aj-campo); font-weight: 500; color: var(--tinta); }
-fieldset { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(170px, 100%), 1fr)); gap: var(--espaco-8); margin: 0; padding: var(--espaco-12) var(--espaco-14); border: 1px solid var(--borda-opcao); border-radius: var(--raio-12); }
-legend { padding: 0 var(--espaco-6); font: 600 var(--aj-fonte-rotulo)/1.4 var(--font-sans); color: var(--tinta-rotulo); }
-
-/* ---------- Tabelas ---------- */
-td code { font-size: .8rem; word-break: break-all; }
