@@ -38,7 +38,8 @@ else
         <Aviso Tipo="TipoDeAviso.Erro">@_erroDosUsuarios</Aviso>
     }
 
-    @* Desktop: os campos aplicam ao clicar "Buscar"; a paginação e os chips consultam com o que está nos campos (como em Processos.razor). *@
+    @* Desktop: os campos aplicam ao clicar "Buscar"; a paginação e os chips consultam com o filtro aplicado (o do último
+       "Buscar" ou "Filtrar"), como na agenda. *@
     <div class="aj-so-desktop">
         <form class="aj-barra-filtros" role="search" @onsubmit="BuscarAsync" @onsubmit:preventDefault>
             <label class="aj-campo-icone aj-campo-icone--filtro"><Icone Nome="buscar" /><span class="aj-so-leitor">Busca</span><input type="text" class="aj-campo-icone__controle" placeholder="Buscar pelo título da atividade" @bind="_filtro.Busca" /></label>
@@ -59,24 +60,18 @@ else
         </form>
     </div>
 
-    @* O painel abre logo abaixo da linha do tablet e, no mobile, no topo do conteúdo, sob a barra superior. *@
-    @if (_filtrosAbertos)
-    {
-        <div class="aj-tablet-mobile">
-            <form id="filtros-de-atividades" class="aj-painel aj-painel--filtros" @onsubmit="FiltrarDoPainelAsync" @onsubmit:preventDefault>
-                @CampoDeSituacao
-                @if (_ator.EhDiretoria)
-                {
-                    @CamposDePessoas
-                }
-                <label class="aj-opcao"><input type="checkbox" class="aj-opcao__caixa" @bind="_filtro.SoAtrasadas" />Só atrasadas</label>
-                <div class="aj-painel__acoes">
-                    <button type="button" class="aj-botao aj-botao--fantasma" @onclick="LimparFiltros">Limpar</button>
-                    <button type="submit" class="aj-botao aj-botao--primario">Filtrar</button>
-                </div>
-            </form>
-        </div>
-    }
+    @* O painel abre logo abaixo da linha do tablet e, no mobile, no topo do conteúdo, sob a barra superior. Fechado,
+       fica no HTML, escondido, para o aria-controls dos dois botões apontar para ele. *@
+    <div class="aj-tablet-mobile">
+        <PainelDeFiltros Id="filtros-de-atividades" Aberto="_filtrosAbertos" AoFiltrar="FiltrarDoPainelAsync" AoLimpar="LimparFiltros" AoFechar="FecharFiltros">
+            @CampoDeSituacao
+            @if (_ator?.EhDiretoria == true)
+            {
+                @CamposDePessoas
+            }
+            <label class="aj-opcao"><input type="checkbox" class="aj-opcao__caixa" @bind="_filtro.SoAtrasadas" />Só atrasadas</label>
+        </PainelDeFiltros>
+    </div>
 
     <div class="aj-so-tablet">
         <div class="aj-chips" role="group" aria-label="Filtrar por situação">@Chips(ChipsDoTablet)</div>
@@ -153,6 +148,7 @@ else
     private bool _filtrosAbertos;
     private UsuarioAutenticado? _ator;
     private readonly Filtro _filtro = new();
+    private FiltroAplicado _aplicado = FiltroAplicado.Nenhum;
     private PaginaDeAtividades _pagina = Vazia;
     private int _paginaPedida = 1;
     private string? _erro;
@@ -219,7 +215,7 @@ else
     {
         _paginaPedida = pagina;
         var resultado = await Despachante.EnviarAsync(new ListarAtividades(
-            _filtro.Situacao, _filtro.ResponsavelId, _filtro.RevisorId, null, null, _filtro.SoAtrasadas, _filtro.Busca, pagina));
+            _aplicado.Situacao, _aplicado.ResponsavelId, _aplicado.RevisorId, null, null, _aplicado.SoAtrasadas, _aplicado.Busca, pagina));
 
         if (resultado.Erro == TipoErro.AcessoNegado)
         {
@@ -243,10 +239,13 @@ else
             await ConsultarAsync(_pagina.TotalDePaginas);
     }
 
+    // "Buscar" (a barra do desktop, a linha do tablet, a busca do mobile) e o "Filtrar" do painel gravam o filtro
+    // aplicado: tudo o que está nos campos. A troca de página e o "Tentar de novo" consultam com o aplicado.
     private Task BuscarAsync()
     {
         if (_ocupado) return Task.CompletedTask;
 
+        _aplicado = _filtro.Aplicar();
         _recado = null;
         return CarregarAsync(1);
     }
@@ -257,7 +256,8 @@ else
 
     private Task EscolherSituacaoAsync(StatusAtividade situacao) => EscolherAsync(situacao, somenteAtrasadas: false);
 
-    // O chip troca a situação e o "só atrasadas" e busca na hora; a busca digitada, o responsável e o revisor ficam.
+    // O chip troca a situação e o "só atrasadas" do filtro aplicado e busca na hora; a busca, o responsável e o revisor
+    // aplicados ficam (o que está nos campos e não foi aplicado, não). Os campos de situação passam a mostrar a do chip.
     // Com outra consulta em curso, o chip não muda nada (senão marcaria um filtro que não foi aplicado).
     private Task EscolherAsync(StatusAtividade? situacao, bool somenteAtrasadas)
     {
@@ -265,10 +265,25 @@ else
 
         _filtro.Situacao = situacao;
         _filtro.SoAtrasadas = somenteAtrasadas;
-        return BuscarAsync();
+        _aplicado = _aplicado with { Situacao = situacao, SoAtrasadas = somenteAtrasadas };
+        _recado = null;
+        return CarregarAsync(1);
     }
 
-    private void AlternarFiltros() => _filtrosAbertos = !_filtrosAbertos;
+    // Abrir ou fechar o painel pelo botão descarta o que se escolheu nele e não se aplicou: os campos do painel voltam ao
+    // filtro aplicado (a busca, que fica fora dele, não muda).
+    private void AlternarFiltros()
+    {
+        _filtrosAbertos = !_filtrosAbertos;
+        _filtro.VoltarOsDoPainel(_aplicado);
+    }
+
+    // Esc no painel: fecha como o botão.
+    private void FecharFiltros()
+    {
+        _filtrosAbertos = false;
+        _filtro.VoltarOsDoPainel(_aplicado);
+    }
 
     // Esvazia o que o painel traz; a busca digitada fica. Só vale ao filtrar.
     private void LimparFiltros()
@@ -313,11 +328,12 @@ else
 
     private string RotuloDeAtrasadas => _erro is null ? $"Atrasadas · {_pagina.Atrasadas}" : "Atrasadas";
 
-    private string PressionadoTodas => _filtro.Situacao is null && !_filtro.SoAtrasadas ? "true" : "false";
+    // Os chips mostram o filtro aplicado: o que a lista está mostrando, e não o que está escolhido no painel.
+    private string PressionadoTodas => _aplicado.Situacao is null && !_aplicado.SoAtrasadas ? "true" : "false";
 
-    private string PressionadoAtrasadas => _filtro.SoAtrasadas ? "true" : "false";
+    private string PressionadoAtrasadas => _aplicado.SoAtrasadas ? "true" : "false";
 
-    private string Pressionado(StatusAtividade situacao) => _filtro.Situacao == situacao ? "true" : "false";
+    private string Pressionado(StatusAtividade situacao) => _aplicado.Situacao == situacao ? "true" : "false";
 
     private string Expandido => _filtrosAbertos ? "true" : "false";
 
@@ -359,7 +375,10 @@ else
     private static string ClasseDaData(AtividadeResumo atividade) =>
         atividade.Atrasada ? "aj-cartao__data aj-cartao__data--atrasada" : "aj-cartao__data";
 
-    /// <summary>O estado único dos filtros: as três visões o mostram e o mudam.</summary>
+    /// <summary>
+    /// O filtro em edição: as três visões o mostram e o mudam. A consulta não o lê: lê o <see cref="FiltroAplicado"/>,
+    /// que só o "Buscar", o "Filtrar" do painel e os chips gravam.
+    /// </summary>
     private sealed class Filtro
     {
         public string? Busca { get; set; }
@@ -367,5 +386,22 @@ else
         public Guid? ResponsavelId { get; set; }
         public Guid? RevisorId { get; set; }
         public bool SoAtrasadas { get; set; }
+
+        public FiltroAplicado Aplicar() => new(Busca, Situacao, ResponsavelId, RevisorId, SoAtrasadas);
+
+        /// <summary>Os campos do painel (situação, responsável, revisor, só atrasadas) voltam ao aplicado; a busca fica.</summary>
+        public void VoltarOsDoPainel(FiltroAplicado aplicado)
+        {
+            Situacao = aplicado.Situacao;
+            ResponsavelId = aplicado.ResponsavelId;
+            RevisorId = aplicado.RevisorId;
+            SoAtrasadas = aplicado.SoAtrasadas;
+        }
+    }
+
+    /// <summary>O filtro da última busca, o que a lista está mostrando.</summary>
+    private sealed record FiltroAplicado(string? Busca, StatusAtividade? Situacao, Guid? ResponsavelId, Guid? RevisorId, bool SoAtrasadas)
+    {
+        public static readonly FiltroAplicado Nenhum = new(null, null, null, null, false);
     }
 }
