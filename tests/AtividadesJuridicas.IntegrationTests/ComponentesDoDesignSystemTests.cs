@@ -102,6 +102,19 @@ public class ComponentesDoDesignSystemTests
         html.Should().Contain("role=\"alert\"").And.NotContain("alertdialog").And.NotContain("aria-label=").And.NotContain("<strong>");
     }
 
+    [Fact]
+    public async Task Aviso_que_se_revela_tem_tabindex_e_o_comum_continua_sem()
+    {
+        RenderFragment texto = c => c.AddContent(0, "Não foi possível salvar.");
+
+        var revelado = await TelaDeTeste.RenderizarSemDadosAsync<Aviso>(
+            new() { ["Tipo"] = TipoDeAviso.Erro, ["Revelar"] = true, ["ChildContent"] = texto });
+        var comum = await TelaDeTeste.RenderizarSemDadosAsync<Aviso>(
+            new() { ["Tipo"] = TipoDeAviso.Erro, ["ChildContent"] = texto });
+
+        revelado.Should().Contain("<p class=\"aj-aviso aj-aviso--erro\" role=\"alert\" tabindex=\"-1\">");
+        comum.Should().Contain("<p class=\"aj-aviso aj-aviso--erro\" role=\"alert\">").And.NotContain("tabindex");
+    }
     [Theory]
     [InlineData(1, 3, 45, false, "Página 1 de 3 · 45 atividades", true, false)]
     [InlineData(3, 3, 45, false, "Página 3 de 3 · 45 atividades", false, true)]

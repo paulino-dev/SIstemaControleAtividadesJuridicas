@@ -2,7 +2,14 @@
    Com ações, vira a caixa de confirmação (ou o erro com nova tentativa) dos quadros. *@
 @if (Acoes is null)
 {
-    <p class="@(Frase ? $"{Classe} aj-aviso--frase" : Classe)" role="@Papel"><Icone Nome="@NomeDoIcone" /><span>@ChildContent</span></p>
+    @if (Revelar)
+    {
+        <p class="@(Frase ? $"{Classe} aj-aviso--frase" : Classe)" role="@Papel" tabindex="-1" @ref="_frase"><Icone Nome="@NomeDoIcone" /><span>@ChildContent</span></p>
+    }
+    else
+    {
+        <p class="@(Frase ? $"{Classe} aj-aviso--frase" : Classe)" role="@Papel"><Icone Nome="@NomeDoIcone" /><span>@ChildContent</span></p>
+    }
 }
 else
 {
@@ -39,17 +46,38 @@ else
     /// </summary>
     [Parameter] public bool Frase { get; set; }
 
-    private ElementReference _caixa;
+    /// <summary>
+    /// O aviso que precisa ser visto (o resultado de uma ação, o erro de uma gravação): ao aparecer, ganha
+    /// <c>tabindex="-1"</c> e recebe o foco, o que faz o leitor de tela anunciá-lo e a página rolar até ele. Aparecer é
+    /// ser desenhado pela primeira vez com <c>Revelar</c> ou passar a <c>Revelar</c>; um desenho de novo com o mesmo
+    /// aviso à vista não toma o foco. Para revelar uma mensagem nova num aviso que continua à vista, a tela troca a chave
+    /// dele (<c>@key</c>) a cada mensagem.
+    /// </summary>
+    [Parameter] public bool Revelar { get; set; }
 
-    // O diálogo de alerta leva o foco a si mesmo quando aparece: é o foco que faz o leitor de tela anunciá-lo e a
-    // página rolar até ele. Aviso sem Rotulo não mexe no foco, e a caixa que o recebe só existe com ações.
+    private ElementReference _caixa;
+    private ElementReference _frase;
+    private bool _revelarAntes;
+    private bool _focar;
+
+    protected override void OnParametersSet()
+    {
+        if (Revelar && !_revelarAntes) _focar = true;
+        _revelarAntes = Revelar;
+    }
+
+    // O aviso que se revela e o diálogo de alerta levam o foco a si mesmos quando aparecem: é o foco que faz o leitor
+    // de tela anunciá-los e a página rolar até eles. O diálogo (Rotulo com ações) se foca sempre ao aparecer; o resto,
+    // só com Revelar.
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender || Rotulo is null || Acoes is null) return;
+        var confirmacao = firstRender && Rotulo is not null && Acoes is not null;
+        if (!_focar && !confirmacao) return;
 
+        _focar = false;
         try
         {
-            await _caixa.FocusAsync();
+            await (Acoes is null ? _frase : _caixa).FocusAsync();
         }
         catch (Exception ex) when (ex is InvalidOperationException or JSException or JSDisconnectedException)
         {
