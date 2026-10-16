@@ -77,6 +77,40 @@ public class FiltroDaTelaDeAuditoriaTests
         atual.Operacao.Should().Be(OperacaoAuditada.Alteracao);
         atual.UsuarioId.Should().NotBeNull();
     }
+
+    [Fact]
+    public void A_copia_tem_os_mesmos_valores_e_nao_muda_com_o_original()
+    {
+        var atual = Cheio();
+
+        var copia = atual.Copia();
+
+        copia.Should().NotBeSameAs(atual).And.BeEquivalentTo(atual);
+        atual.Entidade = "Perfil";
+        atual.UsuarioId = null;
+        copia.Entidade.Should().Be("Usuario");
+        copia.UsuarioId.Should().NotBeNull();
+    }
+
+    [Fact]
+    public void Voltar_os_do_painel_traz_do_aplicado_tudo_menos_o_periodo()
+    {
+        var aplicado = Cheio();
+        var campos = new FiltroDaTelaDeAuditoria
+        {
+            De = new DateOnly(2026, 2, 1),
+            Ate = new DateOnly(2026, 2, 28),
+            Entidade = "Perfil",
+            Acao = AcaoDeAcesso.Baixou,
+        };
+
+        campos.VoltarOsDoPainel(aplicado);
+
+        // O período fica fora do painel (na linha): o que está nos campos não muda.
+        campos.De.Should().Be(new DateOnly(2026, 2, 1));
+        campos.Ate.Should().Be(new DateOnly(2026, 2, 28));
+        campos.Should().BeEquivalentTo(aplicado, o => o.Excluding(f => f.De).Excluding(f => f.Ate));
+    }
 }
 
 /// <summary>As páginas que o perfil Cliente pode abrir.</summary>

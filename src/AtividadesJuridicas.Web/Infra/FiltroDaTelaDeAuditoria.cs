@@ -15,6 +15,25 @@ public sealed class FiltroDaTelaDeAuditoria
     public string? TipoRecurso { get; set; }
     public AcaoDeAcesso? Acao { get; set; }
 
+    /// <summary>Uma cópia dos campos: o filtro aplicado não muda com o que se digita depois.</summary>
+    public FiltroDaTelaDeAuditoria Copia() => (FiltroDaTelaDeAuditoria)MemberwiseClone();
+
+    /// <summary>
+    /// Fechar o painel sem filtrar: os campos do painel (usuário, operação, entidade, registro, gravação, ação e recurso)
+    /// voltam ao filtro aplicado. O período, que fica fora do painel, não muda.
+    /// </summary>
+    public void VoltarOsDoPainel(FiltroDaTelaDeAuditoria aplicado)
+    {
+        ArgumentNullException.ThrowIfNull(aplicado);
+        UsuarioId = aplicado.UsuarioId;
+        Entidade = aplicado.Entidade;
+        EntidadeId = aplicado.EntidadeId;
+        IdCorrelacao = aplicado.IdCorrelacao;
+        Operacao = aplicado.Operacao;
+        TipoRecurso = aplicado.TipoRecurso;
+        Acao = aplicado.Acao;
+    }
+
     /// <summary>
     /// O botão "ver tudo deste registro" de uma linha: só o período e o registro. Os demais filtros saem, para que a
     /// resposta seja tudo o que há sobre o registro, e não um recorte escondido.

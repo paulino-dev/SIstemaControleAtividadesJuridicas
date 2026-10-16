@@ -72,8 +72,11 @@ public class AuditoriaWebTests(BancoFixture banco) : IAsyncLifetime
             .And.NotContain("class=\"aj-botao\" hidden");
         BlocoDeVisao.De(html, "aj-so-tablet").Should().MatchRegex("(?s)<button type=\"button\" class=\"aj-botao aj-botao--secundario aj-botao--com-icone\"[^>]*>.*?Usuário, operação</button>");
         BlocoDeVisao.De(html, "aj-so-mobile").Should().Contain("aria-label=\"Mais filtros\"");
-        // O painel de filtros só aparece aberto.
-        html.Should().NotContain("aj-painel--filtros").And.NotContain("Identificador inválido.");
+        // O painel de filtros fica no HTML, escondido, para o aria-controls dos dois botões apontar para um form que existe.
+        linha.Should().MatchRegex(
+            "<form id=\"filtros-da-auditoria\" class=\"aj-painel aj-painel--filtros\" hidden[^>]*>\\s*" +
+            "<label class=\"aj-campo-filtro\">\\s*<span>Usuário</span>");
+        html.Should().Contain("<h1 class=\"aj-titulo\">Auditoria</h1>").And.NotContain("Identificador inválido.");
     }
 
     [Fact]
@@ -191,9 +194,11 @@ public class AuditoriaWebTests(BancoFixture banco) : IAsyncLifetime
             await TelaDeTeste.ChamarAsync(tela, "FiltrarDoPainelAsync");
         }));
 
-        // Com o identificador inválido o campo a corrigir continua à vista, junto do aviso.
-        invalido.Should().Contain("Identificador inválido.").And.Contain("id=\"filtros-da-auditoria\"")
-            .And.MatchRegex("(?s)<form id=\"filtros-da-auditoria\".*?placeholder=\"Identificador de correlação\"");
-        valido.Should().Contain("Nenhum registro.").And.NotContain("id=\"filtros-da-auditoria\"");
+        // Com o identificador inválido o painel continua aberto (sem hidden), com o campo a corrigir à vista, junto do aviso.
+        invalido.Should().Contain("Identificador inválido.")
+            .And.MatchRegex("(?s)<form id=\"filtros-da-auditoria\" class=\"aj-painel aj-painel--filtros\"(?![^>]*\\bhidden\\b)[^>]*>.*?placeholder=\"Identificador de correlação\"");
+        // Aplicado, ele fecha: continua no HTML, escondido.
+        valido.Should().Contain("Nenhum registro.")
+            .And.MatchRegex("<form id=\"filtros-da-auditoria\" class=\"aj-painel aj-painel--filtros\" hidden[^>]*>");
     }
 }
