@@ -129,8 +129,10 @@ public class ComponentesDoDesignSystemTests
         }));
 
         html.Should().Contain("<div class=\"aj-paginacao\">").And.Contain($"<span class=\"aj-subtitulo\">{texto}</span>");
-        Regex.IsMatch(html, "<button[^>]*disabled[^>]*>Anterior</button>").Should().Be(anteriorTravado);
-        Regex.IsMatch(html, "<button[^>]*disabled[^>]*>Próxima</button>").Should().Be(proximaTravada);
+        // O botão sem ação fica focável (aria-disabled, não disabled): o foco não cai no body quando ele a perde.
+        Regex.IsMatch(html, "<button[^>]*aria-disabled=\"true\"[^>]*>Anterior</button>").Should().Be(anteriorTravado);
+        Regex.IsMatch(html, "<button[^>]*aria-disabled=\"true\"[^>]*>Próxima</button>").Should().Be(proximaTravada);
+        html.Should().Contain(">Anterior</button>").And.Contain(">Próxima</button>").And.NotMatchRegex("<button[^>]*\\sdisabled[\\s>=]");
         Regex.Matches(html, "<button type=\"button\" class=\"aj-botao aj-botao--secundario\"").Should().HaveCount(2);
     }
 
@@ -448,8 +450,9 @@ public class ComponentesDoDesignSystemTests
             .And.Contain("<span class=\"aj-subtitulo\">Página 1 de 3 · 45 atividades</span>")
             .And.MatchRegex("<button type=\"button\" class=\"aj-botao aj-botao--secundario aj-paginacao__anterior\"[^>]*>\\s*<svg[^>]*>\\s*<path d=\"M15 6l-6 6 6 6\"></path>\\s*</svg>\\s*Anterior</button>")
             .And.MatchRegex("<button type=\"button\" class=\"aj-botao aj-botao--secundario aj-paginacao__proxima\"[^>]*>\\s*Próxima\\s*<svg[^>]*>\\s*<path d=\"M9 6l6 6-6 6\"></path>\\s*</svg>\\s*</button>");
-        Regex.IsMatch(html, "aj-paginacao__anterior\"[^>]*disabled").Should().BeTrue();
-        Regex.IsMatch(html, "aj-paginacao__proxima\"[^>]*disabled").Should().BeFalse();
+        Regex.IsMatch(html, "aj-paginacao__anterior\"[^>]*aria-disabled=\"true\"").Should().BeTrue();
+        Regex.IsMatch(html, "aj-paginacao__proxima\"[^>]*aria-disabled").Should().BeFalse();
+        html.Should().NotMatchRegex("<button[^>]*\\sdisabled[\\s>=]");
     }
 
     [Fact]
