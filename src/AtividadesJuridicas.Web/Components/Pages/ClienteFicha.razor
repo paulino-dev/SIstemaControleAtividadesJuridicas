@@ -53,7 +53,7 @@ else
 
     <div class="aj-lado-a-lado aj-lado-a-lado--painel-primeiro aj-lado-a-lado--ficha">
         <div class="aj-lado-a-lado__painel aj-pilha">
-            <div class="@ClasseDaAba("dados")">
+            <div class="@ClasseDaAba("dados")" id="dados-do-cliente">
                 <section class="aj-painel">
                     <h2>Dados</h2>
                     <dl class="aj-detalhes">
@@ -74,7 +74,7 @@ else
         </div>
 
         <div class="aj-lado-a-lado__lista aj-pilha">
-            <div class="@ClasseDaAba("processos")">
+            <div class="@ClasseDaAba("processos")" id="processos-do-cliente">
                 <section class="aj-painel">
                     <h2>Processos do cliente</h2>
                     <EstadoDaLista Erro="@_erroDosProcessos" Vazio="@(_processos.Itens.Count == 0)" TextoDeVazio="Nenhum processo vinculado." TentarDeNovo="CarregarProcessosAsync">
@@ -112,14 +112,14 @@ else
                 </section>
             </div>
 
-            <div class="@ClasseDaAba("documentos")">
+            <div class="@ClasseDaAba("documentos")" id="documentos-do-cliente">
                 <DocumentosDaFicha @key="c.Id" ClienteId="c.Id" PodeGerenciar="Diretoria" AoContar="ContarDocumentos"
                                    OnAcessoEncerrado="EncerrarAcesso" />
             </div>
 
             @if (Diretoria)
             {
-                <div class="@ClasseDaAba("usuarios")">
+                <div class="@ClasseDaAba("usuarios")" id="usuarios-do-cliente">
                     <section class="aj-painel">
                         <h2>Usuários do cliente</h2>
                         @if (!c.Ativo && _usuarios.Count > 0)
@@ -339,11 +339,11 @@ else
         {
             List<Aba> abas =
             [
-                new("dados", "Dados"),
-                new("processos", "Processos", _erroDosProcessos is null ? _processos.Total : null),
-                new("documentos", "Documentos", _totalDeDocumentos),
+                new("dados", "Dados", Painel: "dados-do-cliente"),
+                new("processos", "Processos", _erroDosProcessos is null ? _processos.Total : null, "processos-do-cliente"),
+                new("documentos", "Documentos", _totalDeDocumentos, "documentos-do-cliente"),
             ];
-            if (Diretoria) abas.Add(new("usuarios", "Usuários", _erroDosUsuarios is null ? _usuarios.Count : null));
+            if (Diretoria) abas.Add(new("usuarios", "Usuários", _erroDosUsuarios is null ? _usuarios.Count : null, "usuarios-do-cliente"));
             return abas;
         }
     }

@@ -66,10 +66,21 @@ public class AtividadeFichaInterativaTests : TelaInterativa
 
         ficha.Find(".aj-abas button[aria-selected=true]").TextContent.Should().Be("Histórico");
         ficha.Markup.Should()
-            .MatchRegex("<div class=\"aj-aba-painel\">\\s*<section class=\"aj-painel aj-painel--ficha aj-painel--historico\">\\s*<h2>Histórico</h2>")
-            .And.MatchRegex("<div class=\"aj-aba-painel aj-aba-painel--oculta\">\\s*<div class=\"aj-grade\">")
-            .And.MatchRegex("<div class=\"aj-aba-painel aj-aba-painel--oculta\">\\s*<section class=\"aj-painel[^\"]*\">\\s*<h2>Comentários</h2>")
-            .And.MatchRegex("<div class=\"aj-aba-painel aj-aba-painel--oculta\">\\s*<section class=\"aj-painel[^\"]*\">\\s*<div class=\"aj-painel__cabecalho\">\\s*<h2>Documentos</h2>");
+            .MatchRegex("<div class=\"aj-aba-painel\" id=\"historico-da-atividade\">\\s*<section class=\"aj-painel aj-painel--ficha aj-painel--historico\">\\s*<h2>Histórico</h2>")
+            .And.MatchRegex("<div class=\"aj-aba-painel aj-aba-painel--oculta\" id=\"detalhes-da-atividade\">\\s*<div class=\"aj-grade\">")
+            .And.MatchRegex("<div class=\"aj-aba-painel aj-aba-painel--oculta\" id=\"comentarios-da-atividade\">\\s*<section class=\"aj-painel[^\"]*\">\\s*<h2>Comentários</h2>")
+            .And.MatchRegex("<div class=\"aj-aba-painel aj-aba-painel--oculta\" id=\"documentos-da-atividade\">\\s*<section class=\"aj-painel[^\"]*\">\\s*<div class=\"aj-painel__cabecalho\">\\s*<h2>Documentos</h2>");
+    }
+
+    [Fact]
+    public void Cada_aba_aponta_para_os_paineis_dela()
+    {
+        Combinar();
+
+        var ficha = Ficha();
+
+        AbasInterativasTests.CadaAbaApontaParaOsPaineisDela(ficha,
+            "detalhes-da-atividade", "comentarios-da-atividade", "documentos-da-atividade", "historico-da-atividade");
     }
 
     [Fact]

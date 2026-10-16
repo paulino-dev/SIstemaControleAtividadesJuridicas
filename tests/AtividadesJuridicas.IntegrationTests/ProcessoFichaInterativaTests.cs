@@ -53,7 +53,17 @@ public class ProcessoFichaInterativaTests : TelaInterativa
         ficha.FindAll(".aj-acoes--fixa button").Single(b => b.TextContent == "Alterar situação").Click();
 
         ficha.Find(".aj-abas button[aria-selected=true]").TextContent.Should().Be("Situação");
-        ficha.Markup.Should().MatchRegex("<div class=\"aj-aba-painel\">\\s*<section class=\"aj-painel\">\\s*<h2>Situação</h2>");
+        ficha.Markup.Should().MatchRegex("<div class=\"aj-aba-painel\" id=\"situacao-do-processo\">\\s*<section class=\"aj-painel\">\\s*<h2>Situação</h2>");
+    }
+
+    [Fact]
+    public void Cada_aba_aponta_para_os_paineis_dela()
+    {
+        var ficha = Ficha();
+
+        // A aba Dados mostra dois invólucros: Dados e Observações (que no tablet vem depois de Clientes).
+        AbasInterativasTests.CadaAbaApontaParaOsPaineisDela(ficha,
+            "dados-do-processo observacoes-do-processo", "clientes-do-processo", "situacao-do-processo");
     }
 
     [Fact]

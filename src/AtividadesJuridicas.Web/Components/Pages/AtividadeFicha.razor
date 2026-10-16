@@ -92,7 +92,7 @@ else
                 @PainelDeHistorico(a)
             </div>
             <div class="aj-tablet-mobile">
-                <div class="@ClasseDaAba("detalhes")">
+                <div class="@ClasseDaAba("detalhes")" id="detalhes-da-atividade">
                     <div class="aj-grade">
                         @PainelDeDescricao(a)
                         <section class="aj-painel aj-painel--ficha aj-painel--detalhes">
@@ -102,14 +102,14 @@ else
                     </div>
                     @PainelDeResponsaveis(a)
                 </div>
-                <div class="@ClasseDaAba("historico")">@PainelDeHistorico(a)</div>
+                <div class="@ClasseDaAba("historico")" id="historico-da-atividade">@PainelDeHistorico(a)</div>
             </div>
             @* A chave é a atividade: abrir outra ficha nesta mesma tela recria os dois componentes. *@
-            <div class="@ClasseDaAba("comentarios")">
+            <div class="@ClasseDaAba("comentarios")" id="comentarios-da-atividade">
                 <ComentariosDaAtividade @key="a.Id" AtividadeId="a.Id" AoContar="ContarComentarios"
                                         OnAcessoEncerrado="EncerrarAcesso" OnAtividadeNaoEncontrada="AtividadeSumiuAsync" />
             </div>
-            <div class="@ClasseDaAba("documentos")">
+            <div class="@ClasseDaAba("documentos")" id="documentos-da-atividade">
                 @* Gerenciar documentos (renomear e excluir) é permissão da Diretoria, que hoje coincide com poder editar a
                    atividade; se as duas regras se separarem, esta linha precisa de uma ação própria. *@
                 <DocumentosDaAtividade @key="a.Id" AtividadeId="a.Id" PodeGerenciar="a.Acoes.Editar" AoContar="ContarDocumentos"
@@ -403,10 +403,10 @@ else
 
     private IReadOnlyList<Aba> AbasDaFicha =>
     [
-        new("detalhes", "Detalhes"),
-        new("comentarios", "Comentários", _totalDeComentarios),
-        new("documentos", "Documentos", _totalDeDocumentos),
-        new("historico", "Histórico"),
+        new("detalhes", "Detalhes", Painel: "detalhes-da-atividade"),
+        new("comentarios", "Comentários", _totalDeComentarios, "comentarios-da-atividade"),
+        new("documentos", "Documentos", _totalDeDocumentos, "documentos-da-atividade"),
+        new("historico", "Histórico", Painel: "historico-da-atividade"),
     ];
 
     private string ClasseDaAba(string aba) => aba == _aba ? "aj-aba-painel" : "aj-aba-painel aj-aba-painel--oculta";

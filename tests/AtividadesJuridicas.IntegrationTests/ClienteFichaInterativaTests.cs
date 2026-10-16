@@ -7,6 +7,8 @@ using AtividadesJuridicas.Domain.Documentos;
 using AtividadesJuridicas.Web.Components.Pages;
 using AtividadesJuridicas.Web.Infra;
 using Bunit;
+using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace AtividadesJuridicas.IntegrationTests;
@@ -75,8 +77,62 @@ public class ClienteFichaInterativaTests : TelaInterativa
         ficha.FindAll(".aj-abas button").Single(b => b.TextContent.StartsWith("Documentos")).Click();
 
         ficha.Find(".aj-abas button[aria-selected=true]").TextContent.Should().Be("Documentos7");   // "Documentos" e o contador 3 + 4
-        ficha.Markup.Should().MatchRegex("<div class=\"aj-aba-painel aj-aba-painel--oculta\">\\s*<section class=\"aj-painel\">\\s*<h2>Dados</h2>")
-            .And.MatchRegex("<div class=\"aj-aba-painel\">\\s*(<[^>]+>\\s*)*?<section class=\"aj-painel\">\\s*<div class=\"aj-painel__cabecalho\">\\s*<h2>Documentos</h2>");
+        ficha.Markup.Should().MatchRegex("<div class=\"aj-aba-painel aj-aba-painel--oculta\" id=\"dados-do-cliente\">\\s*<section class=\"aj-painel\">\\s*<h2>Dados</h2>")
+            .And.MatchRegex("<div class=\"aj-aba-painel\" id=\"documentos-do-cliente\">\\s*(<[^>]+>\\s*)*?<section class=\"aj-painel\">\\s*<div class=\"aj-painel__cabecalho\">\\s*<h2>Documentos</h2>");
+    }
+
+    [Fact]
+    public void Cada_aba_aponta_para_os_paineis_dela()
+    {
+        Combinar();
+
+        var ficha = Ficha();
+
+        AbasInterativasTests.CadaAbaApontaParaOsPaineisDela(ficha,
+            "dados-do-cliente", "processos-do-cliente", "documentos-do-cliente", "usuarios-do-cliente");
+    }
+
+    [Fact]
+    public void Seta_para_a_direita_escolhe_a_aba_seguinte_mostra_o_painel_dela_e_leva_o_foco()
+    {
+        Combinar();
+        var ficha = Ficha();
+
+        ficha.Find(".aj-abas button[aria-selected=true]").KeyDown(new KeyboardEventArgs { Key = "ArrowRight" });
+
+        var escolhida = ficha.Find(".aj-abas button[aria-selected=true]");
+        escolhida.TextContent.Should().Be("Processos0");
+        // O tabindex móvel acompanha a escolha: a nova entra no Tab, a de antes sai.
+        escolhida.GetAttribute("tabindex").Should().Be("0");
+        ficha.Find(".aj-abas button[aria-controls=dados-do-cliente]").GetAttribute("tabindex").Should().Be("-1");
+        ficha.Find("#processos-do-cliente").ClassList.Should().NotContain("aj-aba-painel--oculta").And.Contain("aj-aba-painel");
+        ficha.Find("#dados-do-cliente").ClassList.Should().Contain("aj-aba-painel--oculta");
+        FocosDeElementoPedidos.Should().Be(1);
+    }
+
+    [Fact]
+    public void As_setas_levam_o_foco_a_aba_que_ficou_escolhida_e_nao_a_outra()
+    {
+        Combinar();
+        var ficha = Ficha();
+        // A ficha desenha mais de uma vez antes do teste: os botões das abas (têm @key) já foram atualizados no lugar e o
+        // blazor:elementReference deles ficou vazio, então o elemento não serve de referência (a prova do elemento certo
+        // está em AbasInterativasTests, que desenha as abas uma vez só). Aqui vale que o mesmo botão recebe sempre a mesma
+        // referência: ida, volta e ida de novo pedem a mesma aba duas vezes e a outra no meio.
+        void Teclar(string tecla) =>
+            ficha.Find(".aj-abas button[aria-selected=true]").KeyDown(new KeyboardEventArgs { Key = tecla });
+
+        Teclar("ArrowRight");
+        var processos = ((ElementReference)UltimoFocoPedido().Arguments[0]!).Id;
+        Teclar("ArrowLeft");
+        var dados = ((ElementReference)UltimoFocoPedido().Arguments[0]!).Id;
+        Teclar("ArrowRight");
+        var denovo = ((ElementReference)UltimoFocoPedido().Arguments[0]!).Id;
+
+        FocosDeElementoPedidos.Should().Be(3);
+        processos.Should().NotBeNullOrEmpty().And.NotBe(dados);
+        denovo.Should().Be(processos);
+        ficha.Find(".aj-abas button[aria-selected=true]").TextContent.Should().Be("Processos0");
     }
 
     [Fact]
