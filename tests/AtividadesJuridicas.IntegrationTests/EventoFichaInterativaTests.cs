@@ -468,4 +468,37 @@ public class EventoFichaInterativaTests : TelaInterativa
 
         Despachante.Recebidas.OfType<ObterEvento>().Should().HaveCount(2);
     }
+
+    [Fact]
+    public void Cancelar_a_exclusao_devolve_o_foco_ao_excluir()
+    {
+        Combinar();
+        var ficha = Ficha();
+        ficha.Find("#excluir-evento-desktop").TextContent.Should().Be("Excluir");
+        ficha.Find("#excluir-evento-barra").TextContent.Should().Be("Excluir");
+        Clicar(ficha, ExcluirNaBarra, "Excluir");
+
+        Clicar(ficha, NaConfirmacao, "Cancelar");
+
+        ficha.FindAll("[role=alertdialog]").Should().BeEmpty();
+        UltimoSeletorFocado().Should().Be("#excluir-evento-desktop, #excluir-evento-barra");
+    }
+
+    [Fact]
+    public void Exclusao_recusada_leva_o_foco_ao_aviso_de_erro()
+    {
+        Combinar();
+        Despachante.Responde<ExcluirEvento, Resultado>(Resultado.Falha(TipoErro.Conflito,
+            "O evento foi alterado por outra pessoa. Recarregue e tente novamente."));
+        var ficha = Ficha();
+        Clicar(ficha, ExcluirNoCabecalho, "Excluir");
+
+        Clicar(ficha, NaConfirmacao, "Confirmar exclusão");
+
+        ficha.WaitForAssertion(() => ficha.Find("[role=alert]").TextContent.Should()
+            .Contain("O evento foi alterado por outra pessoa. Recarregue e tente novamente."));
+        var aviso = ficha.Find("[role=alert]");
+        aviso.GetAttribute("tabindex").Should().Be("-1");
+        UltimoFocoPedido().Arguments[0].ShouldBeElementReferenceTo(aviso);
+    }
 }

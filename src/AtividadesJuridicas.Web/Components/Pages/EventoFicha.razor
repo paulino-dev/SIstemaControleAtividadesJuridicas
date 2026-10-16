@@ -3,6 +3,7 @@
 @inject FusoDoEscritorio Fuso
 @inject Recados Recados
 @inject NavigationManager Navegacao
+@inject Foco Foco
 
 <PageTitle>@(_detalhe?.Titulo ?? "Evento")</PageTitle>
 
@@ -12,7 +13,7 @@
     @* A recusa de uma exclusão cuja recarga deixou a ficha fora da tela (a consulta falhou). *@
     @if (_mensagem is not null)
     {
-        <Aviso Tipo="TipoDeAviso.Erro">@_mensagem</Aviso>
+        <Aviso @key="_versaoDoAviso" Tipo="TipoDeAviso.Erro" Revelar="true">@_mensagem</Aviso>
     }
     @if (!_carregado)
     {
@@ -46,7 +47,7 @@ else
     }
     @if (_mensagem is not null)
     {
-        <Aviso Tipo="TipoDeAviso.Erro">@_mensagem</Aviso>
+        <Aviso @key="_versaoDoAviso" Tipo="TipoDeAviso.Erro" Revelar="true">@_mensagem</Aviso>
     }
     @* A confirmação no topo, com o foco nela (Rotulo). A chave é a versão com que foi aberta. *@
     @if (_confirmandoExclusao)
@@ -123,6 +124,12 @@ else
     private bool _ocupado;
     private string? _mensagem;
 
+    // A geração do aviso de resultado: cada mensagem nova recria o Aviso (a chave muda), que se revela de novo.
+    private int _versaoDoAviso;
+
+    // O "Excluir" que abriu a confirmação cancelada: o foco volta à cópia que está à vista.
+    private string? _focoDeVolta;
+
     /// <summary>O período da agenda de onde se veio, só com o que a agenda aceitaria ("" sem origem).</summary>
     private string ConsultaDeOrigem => PeriodoDaAgenda.ConsultaDeOrigem(Visao, Data);
 
@@ -191,6 +198,15 @@ else
         return true;
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_focoDeVolta is not { } seletor) return;
+
+        _focoDeVolta = null;
+        // O Foco engole as falhas do JavaScript: sem foco (circuito caindo, por exemplo) a ficha continua funcionando.
+        await Foco.FocarPrimeiroVisivelAsync(seletor);
+    }
+
     private void EncerrarAcesso()
     {
         _ator = null;
@@ -206,7 +222,7 @@ else
     private RenderFragment AcoesDoDesktop(AcoesDoEvento acoes) => @<text>
         @if (acoes.Excluir)
         {
-            <button type="button" class="aj-botao aj-botao--perigo" disabled="@_ocupado" @onclick="PedirExclusao">Excluir</button>
+            <button type="button" class="aj-botao aj-botao--perigo" id="excluir-evento-desktop" disabled="@_ocupado" @onclick="PedirExclusao">Excluir</button>
         }
         @if (acoes.Editar)
         {
@@ -218,7 +234,7 @@ else
     private RenderFragment BarraFixa(AcoesDoEvento acoes) => @<text>
         @if (acoes.Excluir)
         {
-            <button type="button" class="aj-botao aj-botao--secundario aj-botao--destrutivo" disabled="@_ocupado" @onclick="PedirExclusao">Excluir</button>
+            <button type="button" class="aj-botao aj-botao--secundario aj-botao--destrutivo" id="excluir-evento-barra" disabled="@_ocupado" @onclick="PedirExclusao">Excluir</button>
         }
         @if (acoes.Editar)
         {
@@ -281,7 +297,10 @@ else
 
     private void CancelarExclusao()
     {
-        if (!_ocupado) _confirmandoExclusao = false;
+        if (_ocupado) return;
+
+        _confirmandoExclusao = false;
+        _focoDeVolta = "#excluir-evento-desktop, #excluir-evento-barra";
     }
 
     private async Task ExcluirAsync()
@@ -308,6 +327,7 @@ else
                 await RecarregarAsync();
                 if (_ator is null || _naoEncontrado) return;
                 _mensagem = resultado.Mensagem ?? "Não foi possível excluir o evento.";
+                _versaoDoAviso++;
                 return;
             }
 

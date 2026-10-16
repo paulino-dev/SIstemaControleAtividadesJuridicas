@@ -660,4 +660,57 @@ public class AtividadeFichaInterativaTests : TelaInterativa
         LinksDeAcao(ficha).Should().BeEquivalentTo(
             [$"/atividades/{Id}/editar", $"/atividades/{Id}/responsaveis", $"/atividades/{Id}/devolver"]);
     }
+
+    [Theory]
+    [InlineData("Concluir minha parte", "#concluir-minha-parte-faixa, #concluir-minha-parte-barra")]
+    [InlineData("Aprovar", "#aprovar-faixa, #aprovar-barra")]
+    [InlineData("Excluir", "#excluir-atividade-desktop, #excluir-atividade-tablet, .aj-menu-acoes > [aria-label=\"Mais ações\"]")]
+    public void Cancelar_devolve_o_foco_ao_botao_que_abriu_a_confirmacao(string acao, string seletor)
+    {
+        var acoes = acao switch
+        {
+            "Concluir minha parte" => Acoes(concluir: true),
+            "Aprovar" => Acoes(aprovar: true),
+            _ => Acoes(editar: true, excluir: true),
+        };
+        Combinar(Detalhe(acoes: acoes));
+        var ficha = Ficha();
+        // Cada id do seletor existe uma vez (a cópia da faixa e a da barra fixa, ou a do desktop e a do tablet).
+        foreach (var parte in seletor.Split(", ").Where(p => p.StartsWith('#')))
+            ficha.FindAll(parte).Should().ContainSingle(parte);
+        Clicar(ficha, NaFaixa, acao);
+
+        Clicar(ficha, NaConfirmacao, "Cancelar");
+
+        ficha.FindAll("[role=alertdialog]").Should().BeEmpty();
+        UltimoSeletorFocado().Should().Be(seletor);
+    }
+
+    [Fact]
+    public void O_mais_acoes_do_mobile_e_o_excluir_do_mobile_que_o_foco_de_volta_procura()
+    {
+        Combinar(Detalhe(acoes: Acoes(editar: true, excluir: true)));
+
+        var ficha = FichaComBarra();
+
+        ficha.FindAll(".aj-barra-superior .aj-menu-acoes > [aria-label=\"Mais ações\"]").Should().ContainSingle();
+        ficha.Find("#excluir-atividade-desktop").TextContent.Should().Be("Excluir");
+        ficha.Find("#excluir-atividade-tablet").GetAttribute("aria-label").Should().Be("Excluir atividade");
+    }
+
+    [Fact]
+    public void Concluir_minha_parte_leva_o_foco_ao_aviso_de_resultado()
+    {
+        Combinar(Detalhe(StatusAtividade.Direcionada, Acoes(concluir: true)), ator: AtorDaProducao);
+        Despachante.Responde<ConcluirMinhaParte, Resultado>(Resultado.Ok());
+        var ficha = Ficha();
+        Clicar(ficha, NaFaixa, "Concluir minha parte");
+
+        Clicar(ficha, NaConfirmacao, "Concluir minha parte");
+
+        ficha.WaitForAssertion(() => ficha.Find("p.aj-aviso--sucesso").TextContent.Should().Be("Sua parte foi concluída."));
+        var aviso = ficha.Find("p.aj-aviso--sucesso");
+        aviso.GetAttribute("tabindex").Should().Be("-1");
+        UltimoFocoPedido().Arguments[0].ShouldBeElementReferenceTo(aviso);
+    }
 }

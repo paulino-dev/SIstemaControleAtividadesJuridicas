@@ -176,4 +176,37 @@ public class ClienteFichaInterativaTests : TelaInterativa
         ficha.WaitForAssertion(() => ficha.Markup.Should().Contain("Cliente ativado."));
         ficha.Markup.Should().NotContain("Cliente salvo.");
     }
+
+    private const string Inativar = "#ativar-ou-inativar-desktop, #ativar-ou-inativar-barra";
+
+    [Fact]
+    public void Cancelar_a_inativacao_devolve_o_foco_ao_inativar()
+    {
+        Combinar();
+        var ficha = Ficha();
+        ficha.Find("#ativar-ou-inativar-desktop").TextContent.Should().Be("Inativar");
+        ficha.Find("#ativar-ou-inativar-barra").TextContent.Should().Be("Inativar");
+        ficha.Find("#ativar-ou-inativar-desktop").Click();
+
+        ficha.FindAll("[role=alertdialog] button").Single(b => b.TextContent == "Cancelar").Click();
+
+        ficha.FindAll("[role=alertdialog]").Should().BeEmpty();
+        UltimoSeletorFocado().Should().Be(Inativar);
+    }
+
+    [Fact]
+    public void Confirmar_a_inativacao_leva_o_foco_ao_aviso_de_resultado()
+    {
+        Combinar(usuariosAtivos: 2);
+        Despachante.Responde<DefinirAtivoCliente, Resultado>(Resultado.Ok());
+        var ficha = Ficha();
+        ficha.Find("#ativar-ou-inativar-barra").Click();
+
+        ficha.FindAll("[role=alertdialog] button").Single(b => b.TextContent == "Confirmar inativação").Click();
+
+        ficha.WaitForAssertion(() => ficha.Markup.Should().Contain("Cliente inativado. 2 usuários do portal ficaram sem acesso."));
+        var aviso = ficha.Find("p.aj-aviso--sucesso");
+        aviso.GetAttribute("tabindex").Should().Be("-1");
+        UltimoFocoPedido().Arguments[0].ShouldBeElementReferenceTo(aviso);
+    }
 }
