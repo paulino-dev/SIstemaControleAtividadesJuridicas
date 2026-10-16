@@ -98,7 +98,7 @@ public class PerfisWebTests(BancoFixture banco) : IAsyncLifetime
             await TelaDeTeste.ChamarAsync(tela, "AlternarAtivoAsync", inativo);
         }));
 
-        html.Should().MatchRegex("(?s)<p class=\"aj-aviso aj-aviso--erro\" role=\"alert\">.*?<span>Perfil ativado, mas não foi possível atualizar a lista.</span>")
+        html.Should().MatchRegex("(?s)<p class=\"aj-aviso aj-aviso--erro\" role=\"alert\" tabindex=\"-1\">.*?<span>Perfil ativado, mas não foi possível atualizar a lista.</span>")
             .And.Contain("<p class=\"aj-subtitulo\">1 perfil · 1 inativo</p>");
         BlocoDeVisao.De(html, "aj-so-desktop").Should().Contain("Estagiário");
         html.Should().NotContain("Falha de teste.").And.NotContain(">Tentar de novo</button>");

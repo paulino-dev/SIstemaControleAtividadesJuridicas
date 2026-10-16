@@ -8,7 +8,7 @@
 
     @if (_mensagem is not null)
     {
-        <Aviso Tipo="@(_falhou ? TipoDeAviso.Erro : TipoDeAviso.Sucesso)">@_mensagem</Aviso>
+        <Aviso @key="_versaoDoAviso" Tipo="@(_falhou ? TipoDeAviso.Erro : TipoDeAviso.Sucesso)" Revelar="true">@_mensagem</Aviso>
     }
 
     @if (_acessoEncerrado)
@@ -82,6 +82,10 @@
     private string? _erroDaLista;
     private string _texto = string.Empty;
     private IReadOnlyList<ComentarioDetalhe> _comentarios = [];
+
+    // A geração do aviso de resultado: cada mensagem nova recria o Aviso (a chave muda), que se revela de novo e recebe
+    // o foco (o "Comentar" fica desabilitado durante o envio).
+    private int _versaoDoAviso;
 
     protected override async Task OnInitializedAsync()
     {
@@ -188,5 +192,6 @@
     {
         _mensagem = mensagem;
         _falhou = falhou;
+        _versaoDoAviso++;
     }
 }

@@ -36,7 +36,7 @@ else
     }
     @if (_mensagem is not null)
     {
-        <Aviso Tipo="@(_falhou ? TipoDeAviso.Erro : TipoDeAviso.Sucesso)">@_mensagem</Aviso>
+        <Aviso @key="_versaoDoAviso" Tipo="@(_falhou ? TipoDeAviso.Erro : TipoDeAviso.Sucesso)" Revelar="true">@_mensagem</Aviso>
     }
 
     <div class="aj-so-desktop">
@@ -122,6 +122,10 @@ else
     private bool _falhou;
     private Recado? _recado;
     private Guid? _idCarregado;
+
+    // A geração do aviso de resultado: cada mensagem nova do "Alterar" recria o Aviso (a chave muda), que se revela de
+    // novo e recebe o foco (o "Alterar" fica desabilitado durante a gravação). O recado de outra tela é outro aviso.
+    private int _versaoDoAviso;
 
     private bool Diretoria => _ator?.EhDiretoria == true;
     private string Edicao => $"/processos/{Id}/editar";
@@ -292,6 +296,7 @@ else
             {
                 _mensagem = resultado.Mensagem ?? "Não foi possível alterar a situação.";
             }
+            _versaoDoAviso++;
         }
         finally
         {

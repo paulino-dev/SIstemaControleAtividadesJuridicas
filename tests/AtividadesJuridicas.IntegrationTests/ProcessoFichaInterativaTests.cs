@@ -45,6 +45,36 @@ public class ProcessoFichaInterativaTests : TelaInterativa
             .Equal("Ativo", "Suspenso", "Arquivado");
     }
 
+    // O "Alterar" se desabilita durante a gravação e o resultado aparece no topo: o foco vai ao aviso, que o leitor de
+    // tela anuncia e a página rola até ele.
+    [Fact]
+    public void Alterar_a_situacao_leva_o_foco_ao_aviso_de_resultado()
+    {
+        var ficha = Ficha();
+        var formulario = ficha.FindAll("form.aj-campo-com-botao")[0];
+        formulario.QuerySelector("select")!.Change(nameof(StatusProcesso.Encerrado));
+
+        formulario.Submit();
+
+        ficha.WaitForAssertion(() => ficha.Markup.Should().Contain("Situação alterada para Encerrado."));
+        var aviso = ficha.Find("p.aj-aviso[tabindex='-1']");
+        aviso.TextContent.Should().Contain("Situação alterada para Encerrado.");
+        UltimoFocoPedido().Arguments[0].ShouldBeElementReferenceTo(aviso);
+    }
+
+    [Fact]
+    public void Recado_de_outra_tela_aparece_sem_levar_o_foco()
+    {
+        // Trava: o recado chega com a navegação, e quem leva o foco ao título é o FocoNoTitulo, não o aviso.
+        Services.GetRequiredService<Recados>().Deixar("Processo salvo.");
+
+        var ficha = Ficha();
+
+        ficha.Find("p.aj-aviso--sucesso").TextContent.Should().Contain("Processo salvo.");
+        ficha.Find("p.aj-aviso--sucesso").HasAttribute("tabindex").Should().BeFalse();
+        FocosDeElementoPedidos.Should().Be(0);
+    }
+
     [Fact]
     public void Alterar_situacao_na_barra_do_mobile_abre_a_aba_situacao()
     {

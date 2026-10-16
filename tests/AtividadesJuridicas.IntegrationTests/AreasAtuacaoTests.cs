@@ -168,7 +168,7 @@ public class AreasWebTests(BancoFixture banco) : IAsyncLifetime
             await TelaDeTeste.ChamarAsync(tela, "AlternarAtivoAsync", inativa);
         }));
 
-        html.Should().MatchRegex("(?s)<p class=\"aj-aviso aj-aviso--erro\" role=\"alert\">.*?<span>Área ativada, mas não foi possível atualizar a lista.</span>")
+        html.Should().MatchRegex("(?s)<p class=\"aj-aviso aj-aviso--erro\" role=\"alert\" tabindex=\"-1\">.*?<span>Área ativada, mas não foi possível atualizar a lista.</span>")
             .And.Contain("<p class=\"aj-subtitulo\">1 área · 1 inativa</p>");
         BlocoDeVisao.De(html, "aj-so-desktop").Should().Contain("Previdenciário");
         html.Should().NotContain("Falha de teste.").And.NotContain(">Tentar de novo</button>");

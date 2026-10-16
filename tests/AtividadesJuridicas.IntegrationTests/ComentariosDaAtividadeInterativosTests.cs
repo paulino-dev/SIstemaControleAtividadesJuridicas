@@ -172,6 +172,22 @@ public class ComentariosDaAtividadeInterativosTests : TelaInterativa
         contagens.Should().Equal(2, 3);
     }
 
+    // O "Comentar" se desabilita durante o envio e o resultado aparece no alto do painel: o foco vai ao aviso, que o
+    // leitor de tela anuncia e a página rola até ele.
+    [Fact]
+    public void Comentar_leva_o_foco_ao_aviso_de_resultado()
+    {
+        var painel = Painel();
+        CaixaDoDesktop(painel).Input("Conferi os valores da cláusula terceira.");
+
+        Comentar(painel).Click();
+
+        painel.WaitForAssertion(() => painel.Markup.Should().Contain("Comentário enviado."));
+        var aviso = painel.Find("p.aj-aviso[tabindex='-1']");
+        aviso.TextContent.Should().Contain("Comentário enviado.");
+        UltimoFocoPedido().Arguments[0].ShouldBeElementReferenceTo(aviso);
+    }
+
     [Fact]
     public void O_texto_digitado_numa_forma_vale_na_outra()
     {

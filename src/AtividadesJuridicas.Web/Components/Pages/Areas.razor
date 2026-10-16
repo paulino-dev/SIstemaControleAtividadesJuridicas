@@ -18,7 +18,7 @@ else
 {
     @if (_mensagem is not null)
     {
-        <Aviso Tipo="@(_falhou ? TipoDeAviso.Erro : TipoDeAviso.Sucesso)">@_mensagem</Aviso>
+        <Aviso @key="_versaoDoAviso" Tipo="@(_falhou ? TipoDeAviso.Erro : TipoDeAviso.Sucesso)" Revelar="true">@_mensagem</Aviso>
     }
 
     <div class="aj-lado-a-lado">
@@ -92,6 +92,10 @@ else
     private InputText? _campoNome;
     private IReadOnlyList<AreaAtuacaoResumo> _areas = [];
     private Formulario _form = new();
+
+    // A geração do aviso de resultado: cada mensagem nova de uma ação recria o Aviso (a chave muda), que se revela de
+    // novo e recebe o foco (o item do menu que a pediu fica escondido com o menu fechado).
+    private int _versaoDoAviso;
 
     private string? Subtitulo => _carregado && _autorizado && _erroDaLista is null && _areas.Count > 0
         ? Contagem.ComInativos(_areas.Count, _areas.Count(a => !a.Ativo), "área", "áreas", "inativa", "inativas")
@@ -205,6 +209,7 @@ else
     {
         _falhou = !resultado.Sucesso;
         _mensagem = resultado.Sucesso ? mensagemDeSucesso : resultado.Mensagem;
+        _versaoDoAviso++;
 
         // Perdeu o acesso no meio do uso: some a tela de gestão, o servidor já recusou a gravação.
         if (resultado.Erro == TipoErro.AcessoNegado)
@@ -218,6 +223,7 @@ else
         {
             _falhou = true;
             _mensagem = $"{mensagemDeSucesso.TrimEnd('.')}, mas não foi possível atualizar a lista.";
+            _versaoDoAviso++;
         }
     }
 
