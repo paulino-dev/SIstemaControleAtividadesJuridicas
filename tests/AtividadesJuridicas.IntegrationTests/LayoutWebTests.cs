@@ -111,7 +111,9 @@ public class LayoutWebTests(BancoFixture banco) : IAsyncLifetime
 
         var modulo = await anonimo.GetAsync("/Components/Layout/FocoNoTitulo.razor.js");
         modulo.StatusCode.Should().Be(HttpStatusCode.OK);
-        (await modulo.Content.ReadAsStringAsync()).Should().Contain("export function focarTituloVisivel");
+        (await modulo.Content.ReadAsStringAsync()).Should().Contain("export function focarTituloVisivel")
+            .And.Contain("export function focarPrimeiroVisivel").And.Contain("export function vigiarFoco")
+            .And.Contain("export function zerarRolagem");
 
         // Sem circuito (entrar, erro) quem foca o título é o FocusOnNavigate; com circuito, o módulo.
         (await anonimo.GetStringAsync("/conta/entrar")).Should().Contain("<blazor-focus-on-navigate");

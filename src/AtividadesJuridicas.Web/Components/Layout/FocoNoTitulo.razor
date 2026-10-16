@@ -1,8 +1,10 @@
-@inject IJSRuntime JS
+@inject Foco Foco
 
-@* Depois de cada navegação, o foco vai para o título da página, que é anunciado. Cada visão tem o seu h1 e os
-   das outras ficam escondidos; por isso não serve o FocusOnNavigate, que mira o primeiro h1 do HTML.
-   Nas páginas sem circuito (entrar, erro) não há quem chame o módulo: lá o h1 é um só e vale o do Blazor. *@
+@* Depois de cada navegação, o foco vai para o título da página, que é anunciado, e a rolagem do conteúdo volta ao
+   topo. Cada visão tem o seu h1 e os das outras ficam escondidos; por isso não serve o FocusOnNavigate, que mira o
+   primeiro h1 do HTML. Na primeira renderização com circuito, instala também a rede de segurança do foco (o elemento
+   focado que sai do DOM devolve o foco ao título). Nas páginas sem circuito (entrar, erro) não há quem chame o
+   módulo: lá o h1 é um só e vale o do Blazor. *@
 @if (AssignedRenderMode is null)
 {
     <FocusOnNavigate RouteData="RouteData" Selector="h1" />
@@ -11,35 +13,40 @@
 @code {
     private Type? _ultimaPagina;
     private bool _focar;
+    private bool _zerarRolagem;
+    private bool _vigiando;
 
     [Parameter, EditorRequired] public RouteData RouteData { get; set; } = default!;
 
+    // Página nova é outro tipo de componente na rota. A mesma página com outra consulta (período da agenda, ?produtor=,
+    // paginação) ou outro valor no endereço não refoca nem rola.
     protected override void OnParametersSet()
     {
         if (RouteData.PageType == _ultimaPagina) return;
 
+        // A primeira página não tem rolagem a zerar, e quem já rolou a página pré-renderizada antes do circuito não
+        // deve voltar ao topo quando ele conecta.
+        _zerarRolagem = _ultimaPagina is not null;
         _ultimaPagina = RouteData.PageType;
         _focar = true;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (!_vigiando)
+        {
+            _vigiando = true;
+            await Foco.VigiarAsync();
+        }
+
         if (!_focar) return;
 
         _focar = false;
-        try
+        if (_zerarRolagem)
         {
-            await using var modulo = await JS.InvokeAsync<IJSObjectReference>(
-                "import", "./Components/Layout/FocoNoTitulo.razor.js");
-            await modulo.InvokeVoidAsync("focarTituloVisivel");
+            _zerarRolagem = false;
+            await Foco.ZerarRolagemAsync();
         }
-        catch (JSDisconnectedException)
-        {
-            // O circuito caiu no meio da navegação: não há quem focar.
-        }
-        catch (JSException)
-        {
-            // O foco no título é uma ajuda: uma falha do módulo não pode derrubar a tela.
-        }
+        await Foco.FocarTituloVisivelAsync();
     }
 }
