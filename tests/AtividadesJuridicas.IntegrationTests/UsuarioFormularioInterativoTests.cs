@@ -6,7 +6,11 @@ using Bunit;
 
 namespace AtividadesJuridicas.IntegrationTests;
 
-/// <summary>O formulário de usuário em edição, clicando: a confirmação de inativação e o erro de gravação.</summary>
+/// <summary>
+/// O formulário de usuário em edição, clicando: a confirmação de inativação, o erro de gravação e a rota trocando de
+/// usuário durante a carga (a resposta do usuário anterior chega atrasada e não toma o lugar do usuário da rota, nem o
+/// estado da carga dele).
+/// </summary>
 public class UsuarioFormularioInterativoTests : TelaInterativa
 {
     private static readonly Guid Pedro = Guid.Parse("0199a3f2-7c1e-7000-8000-00000000d102");
@@ -52,5 +56,77 @@ public class UsuarioFormularioInterativoTests : TelaInterativa
         var aviso = tela.Find("p.aj-aviso--erro");
         aviso.GetAttribute("tabindex").Should().Be("-1");
         UltimoFocoPedido().Arguments[0].ShouldBeElementReferenceTo(aviso);
+    }
+
+    private static readonly PerfilDetalhe PerfilDaProducao = new(Producao, "Produção", TipoPerfil.Producao, true, 2);
+
+    private static readonly Guid IdDaAna = Guid.Parse("0199a3f2-7c1e-7000-8000-0000000000b1");
+    private static readonly Guid IdDoBruno = Guid.Parse("0199a3f2-7c1e-7000-8000-0000000000b2");
+
+    // Não há consulta de um só usuário: o formulário o acha na lista.
+    private static Resultado<IReadOnlyList<UsuarioResumo>> Lista() => Resultado<IReadOnlyList<UsuarioResumo>>.Ok(
+    [
+        new UsuarioResumo(IdDaAna, "Ana Antunes", "ana@x.com", Producao, "Produção", TipoPerfil.Producao, null, true, null),
+        new UsuarioResumo(IdDoBruno, "Bruno Barros", "bruno@x.com", Producao, "Produção", TipoPerfil.Producao, null, true, null),
+    ]);
+
+    // A edição da Ana, com a consulta da lista esperando a resposta.
+    private IRenderedComponent<UsuarioFormulario> EdicaoDaAnaEsperando(Task<Resultado<IReadOnlyList<UsuarioResumo>>> lista)
+    {
+        Despachante
+            .Responde<ObterMeuAcesso, UsuarioAutenticado?>(AtorDaDiretoria)
+            .Responde<ListarPerfis, Resultado<IReadOnlyList<PerfilDetalhe>>>(Resultado<IReadOnlyList<PerfilDetalhe>>.Ok([PerfilDaProducao]))
+            .RespondeDepois<ListarUsuarios, Resultado<IReadOnlyList<UsuarioResumo>>>(lista);
+        return Desenhar<UsuarioFormulario>(p => p.Add(c => c.Id, (Guid?)IdDaAna));
+    }
+
+    private static string? Email(IRenderedComponent<UsuarioFormulario> tela) =>
+        tela.Find("form#formulario-do-usuario input[type=email]").GetAttribute("value");
+
+    // C7: a rota passou ao Bruno com a consulta da Ana esperando; o Bruno chega na hora, e a resposta atrasada da Ana não
+    // toma o lugar dele.
+    [Fact]
+    public void Resposta_atrasada_do_usuario_anterior_nao_sobrescreve_o_da_rota()
+    {
+        var daAna = new TaskCompletionSource<Resultado<IReadOnlyList<UsuarioResumo>>>();
+        var tela = EdicaoDaAnaEsperando(daAna.Task);
+        tela.Markup.Should().Contain("Carregando…");
+
+        Despachante.Responde<ListarUsuarios, Resultado<IReadOnlyList<UsuarioResumo>>>(Lista());
+        tela.Render(p => p.Add(c => c.Id, (Guid?)IdDoBruno));
+        tela.WaitForAssertion(() => Email(tela).Should().Be("bruno@x.com"));
+
+        var desenhos = tela.RenderCount;
+        daAna.SetResult(Lista());
+
+        // A carga da Ana termina (a tela desenha de novo) sem mexer no formulário.
+        tela.WaitForAssertion(() => tela.RenderCount.Should().BeGreaterThan(desenhos));
+        Email(tela).Should().Be("bruno@x.com");
+        tela.Find("form#formulario-do-usuario input.aj-campo").GetAttribute("value").Should().Be("Bruno Barros");
+        tela.Markup.Should().NotContain("ana@x.com");
+    }
+
+    // C7: com as duas consultas esperando, a da Ana chega primeiro: a tela continua carregando o Bruno, sem mostrar o
+    // formulário (nem vazio nem o da Ana); a do Bruno chega e o mostra.
+    [Fact]
+    public void Resposta_do_usuario_anterior_com_o_da_rota_ainda_esperando_nao_mostra_o_formulario()
+    {
+        var daAna = new TaskCompletionSource<Resultado<IReadOnlyList<UsuarioResumo>>>();
+        var doBruno = new TaskCompletionSource<Resultado<IReadOnlyList<UsuarioResumo>>>();
+        var tela = EdicaoDaAnaEsperando(daAna.Task);
+        Despachante.RespondeDepois<ListarUsuarios, Resultado<IReadOnlyList<UsuarioResumo>>>(doBruno.Task);
+        tela.Render(p => p.Add(c => c.Id, (Guid?)IdDoBruno));
+
+        var desenhos = tela.RenderCount;
+        daAna.SetResult(Lista());
+
+        tela.WaitForAssertion(() => tela.RenderCount.Should().BeGreaterThan(desenhos));
+        tela.Markup.Should().Contain("Carregando…");
+        tela.FindAll("form#formulario-do-usuario").Should().BeEmpty();
+
+        doBruno.SetResult(Lista());
+
+        tela.WaitForAssertion(() => Email(tela).Should().Be("bruno@x.com"));
+        tela.Markup.Should().NotContain("Carregando…");
     }
 }

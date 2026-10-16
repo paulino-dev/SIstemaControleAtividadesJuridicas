@@ -194,9 +194,12 @@ else
 
     private async Task AoInativarAsync(UsuarioResumo alvo, Resultado resultado)
     {
-        // Os botões das linhas seguem ativos durante o envio: se outra confirmação foi aberta nesse intervalo, ela fica.
-        if (_inativando?.Id == alvo.Id) _inativando = null;
-        await ConcluirAsync(resultado, "Usuário inativado.");
+        // Os botões das linhas seguem ativos durante o envio: se outra confirmação foi aberta nesse intervalo, ela fica,
+        // e o resultado deste (sucesso ou falha) não vai ao topo, ao lado dela, como se fosse dela: a confirmação aberta
+        // limpou a mensagem anterior, e a lista recarregada mostra a situação dele.
+        var outraAberta = _inativando is { } aberta && aberta.Id != alvo.Id;
+        if (!outraAberta) _inativando = null;
+        await ConcluirAsync(resultado, "Usuário inativado.", calarResultado: outraAberta);
     }
 
     private void CancelarInativacao()
@@ -207,7 +210,9 @@ else
         _falhou = false;
     }
 
-    private async Task ConcluirAsync(Resultado resultado, string mensagemDeSucesso)
+    // calarResultado: a confirmação de outro usuário está aberta no topo; o resultado (e o aviso da recarga que falhou)
+    // não vai para lá. A lista recarrega do mesmo jeito, e o acesso encerrado segue como sempre.
+    private async Task ConcluirAsync(Resultado resultado, string mensagemDeSucesso, bool calarResultado = false)
     {
         if (resultado.Erro == TipoErro.AcessoNegado)
         {
@@ -215,12 +220,15 @@ else
             return;
         }
 
-        _falhou = !resultado.Sucesso;
-        _mensagem = resultado.Sucesso ? mensagemDeSucesso : resultado.Mensagem;
-        _versaoDoAviso++;
+        if (!calarResultado)
+        {
+            _falhou = !resultado.Sucesso;
+            _mensagem = resultado.Sucesso ? mensagemDeSucesso : resultado.Mensagem;
+            _versaoDoAviso++;
+        }
 
         // A ação deu certo; se só a recarga falhou, o aviso diz isso e a lista anterior fica na tela.
-        if (!await RecarregarAsync() && _autorizado && resultado.Sucesso)
+        if (!await RecarregarAsync() && _autorizado && resultado.Sucesso && !calarResultado)
         {
             _falhou = true;
             _mensagem = $"{mensagemDeSucesso.TrimEnd('.')}, mas não foi possível atualizar a lista.";

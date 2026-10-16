@@ -229,15 +229,23 @@
         _erroDaCarga = null;
         _mensagem = null;
         _inativando = false;
-        if (Id is null) Limpar();
-        else await CarregarAsync(Id.Value);
+        if (Id is not { } id) Limpar();
+        else
+        {
+            await CarregarAsync(id);
+            // A rota passou a outro usuário durante a espera: o estado da tela é o da carga dele, não o desta.
+            if (Id != id) return;
+        }
         if (_estado == EstadoDeCarga.Carregando) _estado = EstadoDeCarga.Pronto;
     }
 
-    // Não há consulta de um só usuário: ele vem da lista.
+    // Não há consulta de um só usuário: ele vem da lista. Se a rota passou a outro usuário durante a espera, a resposta
+    // é descartada: a carga do outro já está em curso (ou terminou) e é ela que vale.
     private async Task CarregarAsync(Guid id)
     {
         var lista = await Despachante.EnviarAsync(new ListarUsuarios());
+        if (Id != id) return;
+
         if (lista.Erro == TipoErro.AcessoNegado)
         {
             _estado = EstadoDeCarga.AcessoNegado;
