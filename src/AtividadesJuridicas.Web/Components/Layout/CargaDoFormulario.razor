@@ -1,7 +1,7 @@
 @* O lugar do formulário de uma tela própria (cliente, processo, usuário, atividade) enquanto a carga não deixa
    mostrá-lo: carregando, acesso negado, o registro que não existe ou a falha da consulta, com a nova tentativa. O
-   formulário (o conteúdo) só aparece pronto. *@
-@if (Estado == EstadoDeCarga.Carregando)
+   formulário (o conteúdo) só aparece pronto. Durante o "Tentar de novo", o carregando, até a tela terminar a carga. *@
+@if (Estado == EstadoDeCarga.Carregando || _tentando)
 {
     <p class="aj-subtitulo" role="status">Carregando…</p>
 }
@@ -17,7 +17,7 @@ else if (Estado == EstadoDeCarga.Falhou)
 {
     <Aviso Tipo="TipoDeAviso.Erro">
         <ChildContent>@Erro</ChildContent>
-        <Acoes><button type="button" class="aj-botao aj-botao--secundario" @onclick="TentarDeNovo">Tentar de novo</button></Acoes>
+        <Acoes><button type="button" class="aj-botao aj-botao--secundario" @onclick="TentarDeNovoAsync">Tentar de novo</button></Acoes>
     </Aviso>
 }
 else
@@ -39,4 +39,23 @@ else
 
     /// <summary>O formulário, mostrado só com a carga pronta.</summary>
     [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    // "Tentar de novo" em curso: o erro dá lugar ao "Carregando…" até a tela terminar a carga, e um segundo clique que
+    // chegue antes de o botão sumir no navegador não repete a carga.
+    private bool _tentando;
+
+    private async Task TentarDeNovoAsync()
+    {
+        if (_tentando) return;
+
+        _tentando = true;
+        try
+        {
+            await TentarDeNovo.InvokeAsync();
+        }
+        finally
+        {
+            _tentando = false;
+        }
+    }
 }
