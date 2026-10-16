@@ -102,6 +102,8 @@ else
     private Task FiltrarAsync(SituacaoDoAndamento? situacao)
     {
         _situacao = situacao;
+        // Outra situação é outra lista: a anterior sai na hora, e "Carregando…" fica no lugar até a nova chegar.
+        _pagina = null;
         return CarregarAsync(1);
     }
 
@@ -112,12 +114,12 @@ else
     private async Task CarregarAsync(int pagina)
     {
         // Uma resposta que chega depois de outra consulta mais nova é descartada: a lista na tela
-        // nunca é a de uma situação que já não está escolhida.
+        // nunca é a de uma situação que já não está escolhida. Na troca de página, a página anterior fica à vista, com a
+        // paginação esperando (Ocupado), até a nova chegar: o botão tocado continua no lugar, com o foco.
         var geracao = ++_geracao;
         _carregando = true;
         _paginaPedida = pagina;
         _erro = null;
-        _pagina = null;
         try
         {
             var resultado = await Despachante.EnviarAsync(new ListarMeuAndamento(_situacao, pagina));
@@ -132,7 +134,9 @@ else
 
             if (!resultado.Sucesso || resultado.Valor is not { } andamento)
             {
-                // Falha na consulta não é "nenhuma atividade": mostra o erro no lugar da lista.
+                // Falha na consulta não é "nenhuma atividade": mostra o erro no lugar da lista, e a página anterior não
+                // volta à tela no "Tentar de novo".
+                _pagina = null;
                 _erro = resultado.Mensagem ?? "Não foi possível consultar o andamento.";
                 return;
             }
