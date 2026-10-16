@@ -63,7 +63,7 @@ public class DocumentosDaFichaTests(BancoFixture banco) : IAsyncLifetime
             .And.MatchRegex("<td class=\"aj-tabela__acao aj-tabela__acao--varias\"><button type=\"button\" class=\"aj-botao aj-botao--fantasma aj-botao--menor\"[^>]*>Renomear</button><button type=\"button\" class=\"aj-botao aj-botao--fantasma aj-botao--menor\"[^>]*>Acesso</button><button type=\"button\" class=\"aj-botao aj-botao--perigo aj-botao--menor\"[^>]*>Excluir</button></td>")
             .And.Contain("A Diretoria acessa sempre. Em “Acesso” você escolhe os perfis e os usuários que também veem cada documento geral.");
         var linhas = BlocoDeVisao.De(html, "aj-tablet-mobile");
-        linhas.Should().MatchRegex($"(?s)<div class=\"aj-linhas\">\\s*<div class=\"aj-linha\">\\s*<div class=\"aj-linha__texto\">\\s*<a href=\"/documentos/{geral.Valor}/baixar\" download data-enhance-nav=\"false\" class=\"aj-linha__titulo\">procuracao-geral.pdf</a>")
+        linhas.Should().MatchRegex($"(?s)<div class=\"aj-linhas\">\\s*<div class=\"aj-linha\" id=\"documento-{geral.Valor:N}\">\\s*<div class=\"aj-linha__texto\">\\s*<a href=\"/documentos/{geral.Valor}/baixar\" download data-enhance-nav=\"false\" class=\"aj-linha__titulo\">procuracao-geral.pdf</a>")
             .And.Contain("aria-label=\"Ações de procuracao-geral.pdf\"").And.Contain(">Acesso</button>");
     }
 

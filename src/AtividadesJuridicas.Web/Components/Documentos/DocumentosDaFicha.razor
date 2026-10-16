@@ -3,7 +3,7 @@
 
 @if (_mensagem is not null)
 {
-    <Aviso Tipo="@(_falhou ? TipoDeAviso.Erro : TipoDeAviso.Sucesso)">@_mensagem</Aviso>
+    <Aviso @key="_versaoDoAviso" Tipo="@(_falhou ? TipoDeAviso.Erro : TipoDeAviso.Sucesso)" Revelar="true">@_mensagem</Aviso>
 }
 
 @if (AExcluir is { } aExcluir)
@@ -12,7 +12,7 @@
     <Aviso @key="aExcluir.Id" Tipo="TipoDeAviso.Atencao" Rotulo="Confirmar exclusão" Titulo="@($"Confirmar a exclusão de {aExcluir.Nome}?")">
         <ChildContent>O documento é excluído da ficha do cliente.</ChildContent>
         <Acoes>
-            <button type="button" class="aj-botao aj-botao--secundario" disabled="@_removendo" @onclick="CancelarExclusao">Cancelar</button>
+            <button type="button" class="aj-botao aj-botao--secundario" disabled="@_removendo" @onclick="CancelarConfirmacaoDeExclusao">Cancelar</button>
             <button type="button" class="aj-botao aj-botao--primario" disabled="@_removendo" @onclick="() => ExcluirAsync(aExcluir.Id)">Confirmar exclusão</button>
         </Acoes>
     </Aviso>
@@ -23,7 +23,7 @@
         <h2>Documentos</h2>
         @if (PodeGerenciar && !DeAtividades)
         {
-            <button type="button" class="aj-botao aj-botao--secundario aj-botao--com-icone" disabled="@Ocupada" @onclick="AbrirEnvio"><Icone Nome="adicionar" />Enviar documento</button>
+            <button type="button" class="aj-botao aj-botao--secundario aj-botao--com-icone" id="@IdDoEnviarDocumento" disabled="@Ocupada" @onclick="AbrirEnvio"><Icone Nome="adicionar" />Enviar documento</button>
         }
     </div>
 
@@ -34,8 +34,8 @@
         }
     </div>
 
-    <EstadoDaLista Erro="@_erroDaLista" Carregando="@(!_carregado)" Vazio="@(_pagina.Itens.Count == 0)"
-                   TextoDeVazio="Nenhum documento." TentarDeNovo="() => IrParaAsync(_paginaPedida)">
+    <EstadoDaLista Erro="@_erroDaLista" Carregando="@(!_carregado || _recarregando)" Vazio="@(_pagina.Itens.Count == 0)"
+                   TextoDeVazio="Nenhum documento." TentarDeNovo="TentarDeNovoAsync">
         <div class="aj-so-desktop">
             <div class="aj-tabela-caixa aj-tabela-caixa--plana">
                 <table class="aj-tabela">
@@ -59,8 +59,8 @@
                                 @if (PodeGerenciar)
                                 {
                                     @* Os botões colados: o espaço entre eles seria desenhado. *@
-                                    <td class="aj-tabela__acao aj-tabela__acao--varias"><button type="button" class="aj-botao aj-botao--fantasma aj-botao--menor" disabled="@Ocupada" @onclick="() => RenomearLinha(documento)">Renomear</button>@if (Gerais)
-                                        {<button type="button" class="aj-botao aj-botao--fantasma aj-botao--menor" disabled="@Ocupada" @onclick="() => AbrirAcessoDaLinhaAsync(documento.Id)">Acesso</button>}<button type="button" class="aj-botao aj-botao--perigo aj-botao--menor" disabled="@Ocupada" @onclick="() => ExcluirLinha(documento.Id)">Excluir</button></td>
+                                    <td class="aj-tabela__acao aj-tabela__acao--varias"><button type="button" class="aj-botao aj-botao--fantasma aj-botao--menor" id="@IdDoRenomear(documento.Id)" disabled="@Ocupada" @onclick="() => RenomearLinha(documento)">Renomear</button>@if (Gerais)
+                                        {<button type="button" class="aj-botao aj-botao--fantasma aj-botao--menor" id="@IdDoAcesso(documento.Id)" disabled="@Ocupada" @onclick="() => AbrirAcessoDaLinhaAsync(documento.Id)">Acesso</button>}<button type="button" class="aj-botao aj-botao--perigo aj-botao--menor" id="@IdDoExcluir(documento.Id)" disabled="@Ocupada" @onclick="() => ExcluirLinha(documento.Id)">Excluir</button></td>
                                 }
                             </tr>
                         }
@@ -73,7 +73,7 @@
             <div class="aj-linhas">
                 @foreach (var documento in _pagina.Itens)
                 {
-                    <div class="aj-linha" @key="documento.Id">
+                    <div class="aj-linha" id="@IdDaLinha(documento.Id)" @key="documento.Id">
                         <div class="aj-linha__texto"><a href="@TextosDeDocumento.Endereco(documento.Id)" download data-enhance-nav="false" class="aj-linha__titulo">@documento.Nome</a><span class="aj-ajuda">@TextosDeDocumento.Detalhe(documento.TamanhoBytes, documento.EnviadoEm, documento.EnviadoPor, Fuso)</span></div>
                         @if (PodeGerenciar)
                         {
@@ -106,27 +106,27 @@
 
 @if (_envioAberto)
 {
-    <section class="aj-painel">
+    <form class="aj-painel" id="@IdDoPainelDeEnvio" @onsubmit="EnviarAsync" @onsubmit:preventDefault>
         <h2>Enviar documento</h2>
         <span class="aj-ajuda">@($"Vai para {NomeDaArea(_categoria)}.")</span>
-        <label class="aj-rotulo">@RotuloDoArquivo<InputFile @key="_versaoDoCampo" @ref="_campoDeArquivo" OnChange="Escolher" class="aj-campo" /></label>
+        <label class="aj-rotulo">@RotuloDoArquivo<InputFile @key="_versaoDoCampo" @ref="_campoDeArquivo" OnChange="Escolher" class="aj-campo" disabled="@_enviando" /></label>
         <label class="aj-rotulo">Nome (opcional)<input type="text" class="aj-campo" @bind="_nomeDoEnvio" /></label>
-        <div class="aj-painel__acoes"><button type="button" class="aj-botao aj-botao--secundario" disabled="@_enviando" @onclick="DescartarEnvio">Cancelar</button><button type="button" class="aj-botao aj-botao--primario" disabled="@(_arquivo is null || _enviando)" @onclick="EnviarAsync">@(_enviando ? "Enviando…" : "Enviar")</button></div>
-    </section>
+        <div class="aj-painel__acoes"><button type="button" class="aj-botao aj-botao--secundario" disabled="@_enviando" @onclick="CancelarPainelDeEnvio">Cancelar</button><button type="submit" class="aj-botao aj-botao--primario" disabled="@(_arquivo is null || _enviando)">@(_enviando ? "Enviando…" : "Enviar")</button></div>
+    </form>
 }
 
 @if (_renomeando is { } renomeando)
 {
-    <section class="aj-painel">
+    <form class="aj-painel" id="@IdDoPainelDeRenomear" @onsubmit="RenomearAsync" @onsubmit:preventDefault>
         <h2>@($"Renomear \"{renomeando.Nome}\"")</h2>
         <label class="aj-rotulo">Novo nome<input type="text" class="aj-campo" @bind="_novoNome" @ref="_campoDoNovoNome" /></label>
-        <div class="aj-painel__acoes"><button type="button" class="aj-botao aj-botao--secundario" @onclick="FecharRenomear">Cancelar</button><button type="button" class="aj-botao aj-botao--primario" @onclick="RenomearAsync">Salvar nome</button></div>
-    </section>
+        <div class="aj-painel__acoes"><button type="button" class="aj-botao aj-botao--secundario" @onclick="CancelarRenomear">Cancelar</button><button type="submit" class="aj-botao aj-botao--primario" disabled="@_salvandoNome">Salvar nome</button></div>
+    </form>
 }
 
 @if (_acesso is { } acesso)
 {
-    <section class="aj-painel">
+    <form class="aj-painel" id="@IdDoPainelDeAcesso" @onsubmit="SalvarAcessoAsync" @onsubmit:preventDefault>
         <h2>@($"Quem acessa \"{acesso.Nome}\"")</h2>
         <span class="aj-ajuda">A Diretoria acessa sempre. Marque os perfis e os usuários que também podem ver este documento; desmarque para retirar.</span>
         <h3>Perfis</h3>
@@ -159,10 +159,10 @@
             }
         </div>
         <div class="aj-painel__acoes">
-            <button type="button" class="aj-botao aj-botao--secundario" @ref="_cancelarDoAcesso" @onclick="FecharAcesso">Cancelar</button>
-            <button type="button" class="aj-botao aj-botao--primario" @onclick="SalvarAcessoAsync">Salvar acesso</button>
+            <button type="button" class="aj-botao aj-botao--secundario" @ref="_cancelarDoAcesso" @onclick="CancelarAcesso">Cancelar</button>
+            <button type="submit" class="aj-botao aj-botao--primario">Salvar acesso</button>
         </div>
-    </section>
+    </form>
 }
 
 @code {

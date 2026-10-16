@@ -43,7 +43,7 @@ public class DocumentosComunsInterativosTests : TelaInterativa
 
         AbrirEnvio(tela);
 
-        tela.Find("section.aj-painel h2").TextContent.Should().Be("Enviar documento");
+        tela.Find("form.aj-painel h2").TextContent.Should().Be("Enviar documento");
         JSInterop.VerifyFocusAsyncInvoke().Arguments[0].ShouldBeElementReferenceTo(tela.Find("input[type=file]"));
     }
 
@@ -54,17 +54,17 @@ public class DocumentosComunsInterativosTests : TelaInterativa
         AbrirEnvio(tela);
         Escolher(tela);
 
-        tela.FindAll("section.aj-painel button").Single(b => b.TextContent == "Enviar").Click();
+        tela.FindAll("form.aj-painel button").Single(b => b.TextContent == "Enviar").Click();
 
         tela.Find("[role=alertdialog]").GetAttribute("aria-label").Should().Be("Confirmar envio");
         tela.Find("[role=alertdialog] strong").TextContent.Should().Be("Tabela de honorários.pdf · 9 B");
-        tela.Find("section.aj-painel").HasAttribute("hidden").Should().BeTrue();
+        tela.Find("form.aj-painel").HasAttribute("hidden").Should().BeTrue();
 
         tela.FindAll("[role=alertdialog] button").Single(b => b.TextContent == "Cancelar").Click();
 
         tela.FindAll("[role=alertdialog]").Should().BeEmpty();
-        tela.Find("section.aj-painel").HasAttribute("hidden").Should().BeFalse();
-        tela.FindAll("section.aj-painel button").Single(b => b.TextContent == "Enviar").HasAttribute("disabled").Should().BeFalse();
+        tela.Find("form.aj-painel").HasAttribute("hidden").Should().BeFalse();
+        tela.FindAll("form.aj-painel button").Single(b => b.TextContent == "Enviar").HasAttribute("disabled").Should().BeFalse();
     }
 
     [Fact]
@@ -74,14 +74,14 @@ public class DocumentosComunsInterativosTests : TelaInterativa
         var tela = Tela();
         AbrirEnvio(tela);
         Escolher(tela);
-        tela.FindAll("section.aj-painel button").Single(b => b.TextContent == "Enviar").Click();
+        tela.FindAll("form.aj-painel button").Single(b => b.TextContent == "Enviar").Click();
 
         tela.FindAll("[role=alertdialog] button").Single(b => b.TextContent == "Confirmar envio").Click();
 
         tela.WaitForAssertion(() => tela.Markup.Should().Contain("Documento enviado."));
         Despachante.Recebidas.OfType<EnviarDocumentoComum>().Should().ContainSingle()
             .Which.Should().Match<EnviarDocumentoComum>(e => e.ConfirmouVisibilidade && e.NomeArquivo == "Tabela de honorários.pdf");
-        tela.FindAll("section.aj-painel:not(.aj-painel--principal)").Should().BeEmpty();
+        tela.FindAll("form.aj-painel").Should().BeEmpty();
         tela.FindAll("[role=alertdialog]").Should().BeEmpty();
     }
 
@@ -92,18 +92,18 @@ public class DocumentosComunsInterativosTests : TelaInterativa
 
         AbrirEnvio(tela);
         ClicarNaLinha(tela, "Renomear");
-        tela.FindAll("section.aj-painel h2").Select(h => h.TextContent).Should().Equal("Renomear \"Modelo de contrato.pdf\"");
+        tela.FindAll("form.aj-painel h2").Select(h => h.TextContent).Should().Equal("Renomear \"Modelo de contrato.pdf\"");
         JSInterop.VerifyFocusAsyncInvoke(calledTimes: 2)[1].Arguments[0]
-            .ShouldBeElementReferenceTo(tela.Find("section.aj-painel input.aj-campo"));
+            .ShouldBeElementReferenceTo(tela.Find("form.aj-painel input.aj-campo"));
 
         ClicarNaLinha(tela, "Excluir", linha: 1);
-        tela.FindAll("section.aj-painel:not(.aj-painel--principal)").Should().BeEmpty();
+        tela.FindAll("form.aj-painel").Should().BeEmpty();
         tela.Find("[role=alertdialog]").GetAttribute("aria-label").Should().Be("Confirmar exclusão");
         tela.Find("[role=alertdialog] strong").TextContent.Should().Be("Confirmar a exclusão de Modelo de procuração.docx?");
 
         AbrirEnvio(tela);
         tela.FindAll("[role=alertdialog]").Should().BeEmpty();
-        tela.Find("section.aj-painel h2").TextContent.Should().Be("Enviar documento");
+        tela.Find("form.aj-painel h2").TextContent.Should().Be("Enviar documento");
     }
 
     [Fact]
@@ -113,10 +113,10 @@ public class DocumentosComunsInterativosTests : TelaInterativa
         AbrirEnvio(tela);
         Escolher(tela);
 
-        tela.FindAll("section.aj-painel button").Single(b => b.TextContent == "Cancelar").Click();
+        tela.FindAll("form.aj-painel button").Single(b => b.TextContent == "Cancelar").Click();
         AbrirEnvio(tela);
 
-        tela.FindAll("section.aj-painel button").Single(b => b.TextContent == "Enviar").HasAttribute("disabled").Should().BeTrue();
+        tela.FindAll("form.aj-painel button").Single(b => b.TextContent == "Enviar").HasAttribute("disabled").Should().BeTrue();
     }
 
     [Fact]
@@ -131,7 +131,7 @@ public class DocumentosComunsInterativosTests : TelaInterativa
 
         tela.FindAll("table.aj-tabela tbody button").Should().OnlyContain(b => b.HasAttribute("disabled"));
         AbrirEnvio(tela);
-        tela.FindAll("section.aj-painel:not(.aj-painel--principal)").Should().BeEmpty();
+        tela.FindAll("form.aj-painel").Should().BeEmpty();
 
         exclusao.SetResult(Resultado.Ok());
         tela.WaitForAssertion(() => tela.Markup.Should().Contain("Documento excluído."));
@@ -145,13 +145,13 @@ public class DocumentosComunsInterativosTests : TelaInterativa
         var tela = Tela();
         ClicarNaLinha(tela, "Renomear");
 
-        tela.Find("section.aj-painel input.aj-campo").Change("Contrato padrão.pdf");
-        tela.FindAll("section.aj-painel button").Single(b => b.TextContent == "Salvar nome").Click();
+        tela.Find("form.aj-painel input.aj-campo").Change("Contrato padrão.pdf");
+        tela.FindAll("form.aj-painel button").Single(b => b.TextContent == "Salvar nome").Click();
 
         tela.WaitForAssertion(() => tela.Markup.Should().Contain("Nome alterado."));
         Despachante.Recebidas.OfType<RenomearDocumento>().Should().ContainSingle()
             .Which.Should().Be(new RenomearDocumento(Contrato, "Contrato padrão.pdf"));
-        tela.FindAll("section.aj-painel:not(.aj-painel--principal)").Should().BeEmpty();
+        tela.FindAll("form.aj-painel").Should().BeEmpty();
     }
 
     [Fact]
@@ -161,10 +161,10 @@ public class DocumentosComunsInterativosTests : TelaInterativa
         var tela = Tela();
         ClicarNaLinha(tela, "Renomear");
 
-        tela.FindAll("section.aj-painel button").Single(b => b.TextContent == "Salvar nome").Click();
+        tela.FindAll("form.aj-painel button").Single(b => b.TextContent == "Salvar nome").Click();
 
         tela.WaitForAssertion(() => tela.Markup.Should().Contain("Documento não encontrado."));
-        tela.FindAll("section.aj-painel:not(.aj-painel--principal)").Should().BeEmpty();
+        tela.FindAll("form.aj-painel").Should().BeEmpty();
         Despachante.Recebidas.OfType<ListarDocumentosComuns>().Should().HaveCount(2);
         tela.FindAll("table.aj-tabela tbody tr").Should().HaveCount(2);
     }
@@ -182,5 +182,264 @@ public class DocumentosComunsInterativosTests : TelaInterativa
         Despachante.Recebidas.OfType<ListarDocumentosComuns>().Should().HaveCount(2);
         tela.FindAll("[role=alertdialog]").Should().BeEmpty();
         tela.FindAll("table.aj-tabela tbody tr").Should().HaveCount(2);
+    }
+
+    // O "Enviar documento" desta tela: o do cabeçalho (desktop e tablet) ou o flutuante (mobile).
+    private const string EnviarDocumento = ".aj-cabecalho > .aj-botao--primario, .aj-fab[aria-label=\"Enviar documento\"]";
+
+    // O botão de uma ação da linha que abriu o que foi cancelado: o da ação no desktop ou o "⋯" da linha no tablet e no mobile.
+    private static string DesktopOuMenu(string acao, Guid documento) =>
+        $"#documento-{acao}-{documento:N}, #documento-{documento:N} .aj-menu-acoes > .aj-botao";
+
+    private static AngleSharp.Dom.IElement AvisoCom(IRenderedComponent<DocumentosComunsDaDiretoria> tela, string texto) =>
+        tela.FindAll(".aj-aviso").Single(a => a.TextContent.Contains(texto));
+
+    [Fact]
+    public void Os_botoes_que_abrem_tem_o_id_que_o_foco_de_volta_procura()
+    {
+        var tela = Tela();
+
+        tela.Find($"#documento-renomear-{Contrato:N}").TextContent.Should().Be("Renomear");
+        tela.Find($"#documento-excluir-{Contrato:N}").TextContent.Should().Be("Excluir");
+        tela.Find($"#documento-{Contrato:N} .aj-menu-acoes > .aj-botao").GetAttribute("aria-label")
+            .Should().Be("Ações de Modelo de contrato.pdf");
+        tela.Find(".aj-cabecalho > .aj-botao--primario").TextContent.Should().Contain("Enviar documento");
+    }
+
+    [Fact]
+    public void Cancelar_o_painel_de_envio_devolve_o_foco_ao_enviar_documento()
+    {
+        var tela = Tela();
+        AbrirEnvio(tela);
+
+        tela.FindAll("form.aj-painel button").Single(b => b.TextContent == "Cancelar").Click();
+
+        tela.FindAll("form.aj-painel").Should().BeEmpty();
+        UltimoSeletorFocado().Should().Be(EnviarDocumento);
+    }
+
+    [Fact]
+    public void Cancelar_a_confirmacao_de_envio_devolve_o_foco_ao_enviar_do_painel()
+    {
+        var tela = Tela();
+        AbrirEnvio(tela);
+        Escolher(tela);
+        tela.FindAll("form.aj-painel button").Single(b => b.TextContent == "Enviar").Click();
+
+        tela.FindAll("[role=alertdialog] button").Single(b => b.TextContent == "Cancelar").Click();
+
+        tela.Find("form#documentos-envio").HasAttribute("hidden").Should().BeFalse();
+        tela.Find("#documentos-envio .aj-botao--primario").TextContent.Should().Be("Enviar");
+        UltimoSeletorFocado().Should().Be("#documentos-envio .aj-botao--primario");
+    }
+
+    [Fact]
+    public void Cancelar_o_renomear_devolve_o_foco_ao_renomear_da_linha()
+    {
+        var tela = Tela();
+        ClicarNaLinha(tela, "Renomear");
+
+        tela.FindAll("form.aj-painel button").Single(b => b.TextContent == "Cancelar").Click();
+
+        tela.FindAll("form.aj-painel").Should().BeEmpty();
+        UltimoSeletorFocado().Should().Be(DesktopOuMenu("renomear", Contrato));
+    }
+
+    [Fact]
+    public void Cancelar_a_exclusao_devolve_o_foco_ao_excluir_da_linha()
+    {
+        var tela = Tela();
+        ClicarNaLinha(tela, "Excluir", linha: 1);
+
+        tela.FindAll("[role=alertdialog] button").Single(b => b.TextContent == "Cancelar").Click();
+
+        tela.FindAll("[role=alertdialog]").Should().BeEmpty();
+        UltimoSeletorFocado().Should().Be(DesktopOuMenu("excluir", Modelo));
+    }
+
+    [Fact]
+    public void Salvar_nome_leva_o_foco_ao_aviso_de_resultado()
+    {
+        Despachante.Responde<RenomearDocumento, Resultado>(Resultado.Ok());
+        var tela = Tela();
+        ClicarNaLinha(tela, "Renomear");
+
+        tela.FindAll("form.aj-painel button").Single(b => b.TextContent == "Salvar nome").Click();
+
+        tela.WaitForAssertion(() => tela.Markup.Should().Contain("Nome alterado."));
+        var aviso = AvisoCom(tela, "Nome alterado.");
+        aviso.GetAttribute("tabindex").Should().Be("-1");
+        UltimoFocoPedido().Arguments[0].ShouldBeElementReferenceTo(aviso);
+    }
+
+    [Fact]
+    public void Confirmar_a_exclusao_leva_o_foco_ao_aviso_de_resultado()
+    {
+        Despachante.Responde<ExcluirDocumento, Resultado>(Resultado.Ok());
+        var tela = Tela();
+        ClicarNaLinha(tela, "Excluir");
+
+        tela.FindAll("[role=alertdialog] button").Single(b => b.TextContent == "Confirmar exclusão").Click();
+
+        tela.WaitForAssertion(() => tela.Markup.Should().Contain("Documento excluído."));
+        UltimoFocoPedido().Arguments[0].ShouldBeElementReferenceTo(AvisoCom(tela, "Documento excluído."));
+    }
+
+    [Fact]
+    public void Confirmar_o_envio_leva_o_foco_ao_aviso_de_resultado()
+    {
+        Despachante.Responde<EnviarDocumentoComum, Resultado<Guid>>(Resultado<Guid>.Ok(Guid.NewGuid()));
+        var tela = Tela();
+        AbrirEnvio(tela);
+        Escolher(tela);
+        tela.FindAll("form.aj-painel button").Single(b => b.TextContent == "Enviar").Click();
+
+        tela.FindAll("[role=alertdialog] button").Single(b => b.TextContent == "Confirmar envio").Click();
+
+        tela.WaitForAssertion(() => tela.Markup.Should().Contain("Documento enviado."));
+        UltimoFocoPedido().Arguments[0].ShouldBeElementReferenceTo(AvisoCom(tela, "Documento enviado."));
+    }
+
+    [Fact]
+    public void Dois_avisos_seguidos_iguais_revelam_cada_um()
+    {
+        // O arquivo grande demais é recusado na hora, sem consulta: a mesma frase duas vezes, sem desenho no meio.
+        var tela = Tela();
+        AbrirEnvio(tela);
+        tela.FindComponent<InputFile>().UploadFiles(InputFileContent.CreateFromBinary(new byte[51 * 1024 * 1024], "grande.pdf"));
+
+        tela.Find("form#documentos-envio").Submit();
+        var antes = FocosDeElementoPedidos;
+        tela.Find("form#documentos-envio").Submit();
+
+        AvisoCom(tela, "O arquivo passa do limite de 50 MB.").GetAttribute("tabindex").Should().Be("-1");
+        FocosDeElementoPedidos.Should().Be(antes + 1);
+        UltimoFocoPedido().Arguments[0].ShouldBeElementReferenceTo(AvisoCom(tela, "O arquivo passa do limite de 50 MB."));
+    }
+
+    [Fact]
+    public void Com_a_confirmacao_a_vista_enviar_documento_leva_o_foco_a_ela()
+    {
+        var tela = Tela();
+        AbrirEnvio(tela);
+        Escolher(tela);
+        tela.FindAll("form.aj-painel button").Single(b => b.TextContent == "Enviar").Click();
+        var antes = SeletoresFocados.Count;
+
+        AbrirEnvio(tela);
+
+        tela.Find("[role=alertdialog]").GetAttribute("aria-label").Should().Be("Confirmar envio");
+        tela.Find("form#documentos-envio").HasAttribute("hidden").Should().BeTrue();
+        SeletoresFocados.Count.Should().Be(antes + 1);
+        UltimoSeletorFocado().Should().Be("[role=\"alertdialog\"][aria-label=\"Confirmar envio\"]");
+    }
+
+    [Fact]
+    public void Salvar_nome_duas_vezes_seguidas_renomeia_uma_vez_so()
+    {
+        var renomeio = new TaskCompletionSource<Resultado>();
+        Despachante.RespondeDepois<RenomearDocumento, Resultado>(renomeio.Task);
+        var tela = Tela();
+        ClicarNaLinha(tela, "Renomear");
+
+        tela.Find("form#documentos-renomear").Submit();
+        tela.Find("form#documentos-renomear").Submit();   // o segundo Enter, com a primeira gravação em curso
+
+        Despachante.Recebidas.OfType<RenomearDocumento>().Should().ContainSingle();
+        tela.FindAll("form#documentos-renomear button").Single(b => b.TextContent == "Salvar nome")
+            .HasAttribute("disabled").Should().BeTrue();
+
+        renomeio.SetResult(Resultado.Ok());
+        tela.WaitForAssertion(() => tela.Markup.Should().Contain("Nome alterado."));
+        Despachante.Recebidas.OfType<RenomearDocumento>().Should().ContainSingle();
+    }
+
+    [Fact]
+    public void Tentar_de_novo_mostra_carregando_ate_a_resposta()
+    {
+        Despachante.Responde<ListarDocumentosComuns, Resultado<Pagina<DocumentoDoPortal>>>(
+            Resultado<Pagina<DocumentoDoPortal>>.Falha(TipoErro.Validacao, "Falha de teste."));
+        var tela = Desenhar<DocumentosComunsDaDiretoria>();
+        var nova = new TaskCompletionSource<Resultado<Pagina<DocumentoDoPortal>>>();
+        Despachante.RespondeDepois<ListarDocumentosComuns, Resultado<Pagina<DocumentoDoPortal>>>(nova.Task);
+
+        tela.FindAll("button").Single(b => b.TextContent == "Tentar de novo").Click();
+
+        tela.Markup.Should().Contain("Carregando…").And.NotContain("Falha de teste.");
+        tela.FindAll("button").Should().NotContain(b => b.TextContent == "Tentar de novo");
+
+        nova.SetResult(Lista());
+        tela.WaitForAssertion(() => tela.FindAll("table.aj-tabela tbody tr").Should().HaveCount(2));
+        tela.Markup.Should().NotContain("Carregando…");
+        Despachante.Recebidas.OfType<ListarDocumentosComuns>().Should().HaveCount(2);
+    }
+
+    [Fact]
+    public void Cada_painel_e_um_formulario_que_o_Enter_envia()
+    {
+        Despachante.Responde<RenomearDocumento, Resultado>(Resultado.Ok());
+        var tela = Tela();
+        AbrirEnvio(tela);
+        tela.Find("form#documentos-envio").QuerySelectorAll("button").Select(b => (b.TextContent, b.GetAttribute("type")))
+            .Should().Equal(("Cancelar", "button"), ("Enviar", "submit"));
+        Escolher(tela);
+
+        tela.Find("form#documentos-envio").Submit();   // o Enter no campo do nome
+
+        tela.Find("[role=alertdialog]").GetAttribute("aria-label").Should().Be("Confirmar envio");
+        tela.FindAll("[role=alertdialog] button").Single(b => b.TextContent == "Cancelar").Click();
+
+        ClicarNaLinha(tela, "Renomear");
+        tela.Find("form#documentos-renomear").QuerySelectorAll("button").Select(b => (b.TextContent, b.GetAttribute("type")))
+            .Should().Equal(("Cancelar", "button"), ("Salvar nome", "submit"));
+        tela.Find("form#documentos-renomear input.aj-campo").Change("Contrato padrão.pdf");
+
+        tela.Find("form#documentos-renomear").Submit();   // o Enter no campo do novo nome
+
+        tela.WaitForAssertion(() => Despachante.Recebidas.OfType<RenomearDocumento>().Should().ContainSingle()
+            .Which.Should().Be(new RenomearDocumento(Contrato, "Contrato padrão.pdf")));
+    }
+
+    [Fact]
+    public void Durante_o_envio_confirmado_a_confirmacao_fica_a_vista_e_o_campo_de_arquivo_desabilitado()
+    {
+        var envio = new TaskCompletionSource<Resultado<Guid>>();
+        Despachante.RespondeDepois<EnviarDocumentoComum, Resultado<Guid>>(envio.Task);
+        var tela = Tela();
+        AbrirEnvio(tela);
+        Escolher(tela);
+        tela.FindAll("form.aj-painel button").Single(b => b.TextContent == "Enviar").Click();
+
+        tela.FindAll("[role=alertdialog] button").Single(b => b.TextContent == "Confirmar envio").Click();
+
+        var confirmacao = tela.Find("[role=alertdialog]");
+        confirmacao.GetAttribute("aria-label").Should().Be("Confirmar envio");
+        confirmacao.QuerySelectorAll("button").Should().HaveCount(2).And.OnlyContain(b => b.HasAttribute("disabled"));
+        tela.Find("form#documentos-envio").HasAttribute("hidden").Should().BeTrue();
+        tela.Find("input[type=file]").HasAttribute("disabled").Should().BeTrue();
+
+        envio.SetResult(Resultado<Guid>.Ok(Guid.NewGuid()));
+        tela.WaitForAssertion(() => tela.Markup.Should().Contain("Documento enviado."));
+        tela.FindAll("[role=alertdialog]").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Acesso_encerrado_depois_de_salvar_o_nome_nao_deixa_aviso_ao_lado()
+    {
+        var encerrado = false;
+        Despachante.Responde<ListarDocumentosComuns, Resultado<Pagina<DocumentoDoPortal>>>(Lista());
+        var tela = Desenhar<DocumentosComunsDaDiretoria>(p => p.Add(d => d.OnAcessoEncerrado, () => encerrado = true));
+        // O nome é salvo, e a recarga da lista que vem depois responde acesso negado.
+        Despachante
+            .Responde<RenomearDocumento, Resultado>(Resultado.Ok())
+            .Responde<ListarDocumentosComuns, Resultado<Pagina<DocumentoDoPortal>>>(
+                Resultado<Pagina<DocumentoDoPortal>>.Falha(TipoErro.AcessoNegado, "Acesso negado."));
+        ClicarNaLinha(tela, "Renomear");
+
+        tela.FindAll("form.aj-painel button").Single(b => b.TextContent == "Salvar nome").Click();
+
+        tela.WaitForAssertion(() => encerrado.Should().BeTrue());
+        tela.Markup.Should().Contain("Nenhum documento.").And.NotContain("Nome alterado.");
+        tela.FindAll(".aj-aviso").Should().BeEmpty();
     }
 }

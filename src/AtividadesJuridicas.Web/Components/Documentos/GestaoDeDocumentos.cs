@@ -22,6 +22,8 @@ public abstract class GestaoDeDocumentos : ComponentBase
 
     [Inject] protected IDespachante Despachante { get; set; } = default!;
 
+    [Inject] protected Foco Foco { get; set; } = default!;
+
     /// <summary>Avisado quando um caso de uso responde acesso negado: a página decide o que mostrar.</summary>
     [Parameter] public EventCallback OnAcessoEncerrado { get; set; }
 
@@ -58,6 +60,27 @@ public abstract class GestaoDeDocumentos : ComponentBase
     // O envio em curso foi confirmado no aviso de visibilidade (só os Documentos comuns pedem): o gancho padrão o repassa.
     private bool _envioConfirmado;
 
+    // "Salvar nome" em curso: o segundo clique (ou o segundo Enter) não renomeia de novo.
+    protected bool _salvandoNome;
+
+    // "Tentar de novo" em curso: a lista mostra "Carregando…" no lugar do erro até a resposta.
+    protected bool _recarregando;
+
+    // A geração da consulta da lista: a resposta de uma consulta que outra mais nova já substituiu é descartada.
+    private int _geracao;
+
+    // O acesso foi encerrado: a página mostra o aviso dela, e nenhuma mensagem de ação aparece mais.
+    private bool _encerrado;
+
+    /// <summary>
+    /// A geração do aviso de resultado, que as telas usam como chave do <c>Aviso</c>: cada mensagem nova recria o aviso,
+    /// que se revela de novo (o <c>Revelar</c> só age quando o aviso aparece), mesmo que a frase seja a mesma.
+    /// </summary>
+    protected int _versaoDoAviso;
+
+    // O botão que abriu o que acabou de ser cancelado: o foco volta a ele depois do desenho.
+    private string? _focoDeVolta;
+
     protected IReadOnlyDictionary<CategoriaDocumento, int> _porCategoria = new Dictionary<CategoriaDocumento, int>();
 
     protected IBrowserFile? _arquivo;
@@ -81,6 +104,36 @@ public abstract class GestaoDeDocumentos : ComponentBase
     protected sealed record Linha(
         Guid Id, string Nome, long TamanhoBytes, DateTime EnviadoEm, string? EnviadoPor, string? AtividadeTitulo);
 
+    /// <summary>O "Enviar documento" que fica no painel da lista (ficha do cliente e da atividade): um só na tela.</summary>
+    protected const string IdDoEnviarDocumento = "documentos-enviar";
+
+    /// <summary>Os formulários dos painéis de envio, de renomear e de acesso: um de cada, nunca por visão.</summary>
+    protected const string IdDoPainelDeEnvio = "documentos-envio";
+    protected const string IdDoPainelDeRenomear = "documentos-renomear";
+    protected const string IdDoPainelDeAcesso = "documentos-acesso";
+
+    /// <summary>Os botões de uma linha no desktop, um por ação.</summary>
+    protected static string IdDoRenomear(Guid documento) => $"documento-renomear-{documento:N}";
+    protected static string IdDoExcluir(Guid documento) => $"documento-excluir-{documento:N}";
+    protected static string IdDoAcesso(Guid documento) => $"documento-acesso-{documento:N}";
+
+    /// <summary>A linha do tablet e do mobile, onde as ações ficam no "⋯" (o <c>MenuDeAcoes</c>).</summary>
+    protected static string IdDaLinha(Guid documento) => $"documento-{documento:N}";
+
+    // Quem abriu uma ação da linha: o botão da ação no desktop ou o "⋯" da linha no tablet e no mobile. As duas cópias
+    // estão no HTML; o módulo de foco leva o foco à que está à vista.
+    private static string DesktopOuMenu(string idDoBotao, Guid documento) =>
+        $"#{idDoBotao}, #{IdDaLinha(documento)} .aj-menu-acoes > .aj-botao";
+
+    /// <summary>
+    /// O "Enviar documento" que abriu o envio. O padrão é o do painel da lista; os Documentos comuns, com o do cabeçalho e
+    /// o flutuante, sobrescrevem.
+    /// </summary>
+    protected virtual string SeletorDoEnviarDocumento => $"#{IdDoEnviarDocumento}";
+
+    // O "Enviar" do painel, que abriu a confirmação de envio.
+    private const string SeletorDoEnviarDoPainel = "#" + IdDoPainelDeEnvio + " .aj-botao--primario";
+
     protected override async Task OnInitializedAsync()
     {
         _confirmacao = new EnvioComConfirmacao(exigeConfirmacao: CategoriaDosDocumentos == CategoriaDocumento.DocumentoComum);
@@ -95,11 +148,35 @@ public abstract class GestaoDeDocumentos : ComponentBase
         await CarregarAsync(pagina);
     }
 
+    /// <summary>
+    /// "Tentar de novo" da lista: o erro dá lugar ao "Carregando…" até a resposta, e um segundo clique com a consulta em
+    /// curso não consulta de novo.
+    /// </summary>
+    protected async Task TentarDeNovoAsync()
+    {
+        if (_recarregando) return;
+
+        _recarregando = true;
+        _erroDaLista = null;
+        try
+        {
+            await IrParaAsync(_paginaPedida);
+        }
+        finally
+        {
+            _recarregando = false;
+        }
+    }
+
     private async Task CarregarAsync(int pagina)
     {
+        var geracao = ++_geracao;
         _paginaPedida = pagina;
         _excluindo = null;
         var resultado = await ListarPaginaAsync(pagina);
+        // Outra consulta (outra área, outra página) foi pedida enquanto esta esperava: vale a dela, esta é descartada.
+        if (geracao != _geracao) return;
+
         // Só a lista de um cliente traz a contagem por área.
         if (resultado.Valor is PaginaDeDocumentos lidos) _porCategoria = lidos.PorCategoria;
 
@@ -181,6 +258,9 @@ public abstract class GestaoDeDocumentos : ComponentBase
     {
         if (resultado.Erro != TipoErro.AcessoNegado) return false;
 
+        _encerrado = true;
+        _mensagem = null;
+
         _pagina = Vazia;
         _acesso = null;
         _renomeando = null;
@@ -234,6 +314,12 @@ public abstract class GestaoDeDocumentos : ComponentBase
             _focarPainel = false;
             await TentarFocarAsync(FocarPainelAbertoAsync);
         }
+
+        if (_focoDeVolta is { } seletor)
+        {
+            _focoDeVolta = null;
+            await TentarFocarAsync(() => new ValueTask(Foco.FocarPrimeiroVisivelAsync(seletor)));
+        }
     }
 
     // Sem foco (circuito caindo, por exemplo) o que abriu continua visível e funcional.
@@ -257,8 +343,19 @@ public abstract class GestaoDeDocumentos : ComponentBase
         await EnviarEscolhidoAsync(confirmou: true);
     }
 
-    // O arquivo e o nome escolhidos ficam: o usuário pode enviar depois.
-    protected void CancelarEnvio() => _confirmacao.Cancelar();
+    /// <summary>
+    /// A confirmação de envio na tela: esperando a resposta e, depois de confirmada, enquanto o envio dura (os botões dela
+    /// ficam desabilitados e o painel continua escondido).
+    /// </summary>
+    protected bool ConfirmacaoAVista => _confirmacao.AguardandoConfirmacao || (_enviando && _envioConfirmado);
+
+    // "Cancelar" da confirmação: o arquivo e o nome escolhidos ficam (o usuário pode enviar depois), o painel volta à
+    // vista e o foco vai ao "Enviar" dele, que abriu a confirmação.
+    protected void CancelarEnvio()
+    {
+        _confirmacao.Cancelar();
+        _focoDeVolta = SeletorDoEnviarDoPainel;
+    }
 
     // No máximo uma coisa aberta por vez entre o envio, o renomear, o acesso e a confirmação de exclusão: cada abertura
     // fecha as outras. Com um envio ou uma exclusão em curso nada se abre, para não desmontar o que a ação usa.
@@ -267,6 +364,13 @@ public abstract class GestaoDeDocumentos : ComponentBase
     protected void AbrirEnvio()
     {
         if (Ocupada) return;
+
+        // Com a confirmação à vista o envio já está aberto e espera por ela: o foco vai à confirmação, que continua.
+        if (_confirmacao.AguardandoConfirmacao)
+        {
+            _focarAviso = true;
+            return;
+        }
 
         CancelarExclusao();
         _mensagem = null;
@@ -316,6 +420,34 @@ public abstract class GestaoDeDocumentos : ComponentBase
         _envioAberto = false;
     }
 
+    /// <summary>"Cancelar" do painel de envio: fecha descartando o arquivo e devolve o foco ao "Enviar documento".</summary>
+    protected void CancelarPainelDeEnvio()
+    {
+        DescartarEnvio();
+        _focoDeVolta = SeletorDoEnviarDocumento;
+    }
+
+    /// <summary>"Cancelar" do renomear: fecha e devolve o foco ao "Renomear" (ou ao "⋯") da linha.</summary>
+    protected void CancelarRenomear()
+    {
+        if (_renomeando is { } documento) _focoDeVolta = DesktopOuMenu(IdDoRenomear(documento.Id), documento.Id);
+        _renomeando = null;
+    }
+
+    /// <summary>"Cancelar" da confirmação de exclusão: devolve o foco ao "Excluir" (ou ao "⋯") da linha.</summary>
+    protected void CancelarConfirmacaoDeExclusao()
+    {
+        if (_excluindo is { } id) _focoDeVolta = DesktopOuMenu(IdDoExcluir(id), id);
+        _excluindo = null;
+    }
+
+    /// <summary>"Cancelar" do acesso: fecha e devolve o foco ao "Acesso" (ou ao "⋯") da linha.</summary>
+    protected void CancelarAcesso()
+    {
+        if (_acesso is { } acesso) _focoDeVolta = DesktopOuMenu(IdDoAcesso(acesso.DocumentoId), acesso.DocumentoId);
+        _acesso = null;
+    }
+
     /// <summary>Leva o foco ao campo do painel que acabou de abrir. As telas que têm campo a focar sobrescrevem.</summary>
     protected virtual ValueTask FocarPainelAbertoAsync() => ValueTask.CompletedTask;
 
@@ -330,11 +462,11 @@ public abstract class GestaoDeDocumentos : ComponentBase
         if (_arquivo is not { } arquivo || _enviando) return;
 
         _mensagem = null;
+        _envioConfirmado = confirmou;
         _enviando = true;
         try
         {
             await using var conteudo = arquivo.OpenReadStream(DocumentosOpcoes.TamanhoMaximoBytes);
-            _envioConfirmado = confirmou;
             var resultado = await EnviarArquivoAsync(_nomeDoEnvio, arquivo.Name, arquivo.ContentType, conteudo);
             if (await EncerradoAsync(resultado)) return;
 
@@ -378,29 +510,37 @@ public abstract class GestaoDeDocumentos : ComponentBase
 
     protected async Task RenomearAsync()
     {
-        if (_renomeando is not { } documento) return;
+        if (_renomeando is not { } documento || _salvandoNome) return;
 
+        _salvandoNome = true;
         _mensagem = null;
-        var resultado = await Despachante.EnviarAsync(new RenomearDocumento(documento.Id, _novoNome));
-        if (await EncerradoAsync(resultado)) return;
-
-        if (!resultado.Sucesso)
+        try
         {
-            Avisar(resultado.Mensagem, falhou: true);
-            if (resultado.Erro == TipoErro.NaoEncontrado)
+            var resultado = await Despachante.EnviarAsync(new RenomearDocumento(documento.Id, _novoNome));
+            if (await EncerradoAsync(resultado)) return;
+
+            if (!resultado.Sucesso)
             {
-                // O documento já não existe: fecha o painel e atualiza a lista, mantendo a mensagem.
-                if (ReferenceEquals(_renomeando, documento)) _renomeando = null;
-                await CarregarAsync(_pagina.Numero);
+                Avisar(resultado.Mensagem, falhou: true);
+                if (resultado.Erro == TipoErro.NaoEncontrado)
+                {
+                    // O documento já não existe: fecha o painel e atualiza a lista, mantendo a mensagem.
+                    if (ReferenceEquals(_renomeando, documento)) _renomeando = null;
+                    await CarregarAsync(_pagina.Numero);
+                }
+
+                return;
             }
 
-            return;
+            if (ReferenceEquals(_renomeando, documento)) _renomeando = null;
+            await CarregarAsync(_pagina.Numero);
+            if (_erroDaLista is null) Avisar("Nome alterado.", falhou: false);
+            else Avisar("Nome alterado, mas não foi possível atualizar a lista.", falhou: true);
         }
-
-        if (ReferenceEquals(_renomeando, documento)) _renomeando = null;
-        await CarregarAsync(_pagina.Numero);
-        if (_erroDaLista is null) Avisar("Nome alterado.", falhou: false);
-        else Avisar("Nome alterado, mas não foi possível atualizar a lista.", falhou: true);
+        finally
+        {
+            _salvandoNome = false;
+        }
     }
 
     // Métodos, e não lambdas de atribuição, nos @onclick: a exclusão pede um segundo clique.
@@ -521,7 +661,11 @@ public abstract class GestaoDeDocumentos : ComponentBase
 
     private void Avisar(string? mensagem, bool falhou)
     {
+        // Com o acesso encerrado a página mostra o aviso dela: a mensagem da ação não fica ao lado.
+        if (_encerrado) return;
+
         _mensagem = mensagem;
         _falhou = falhou;
+        _versaoDoAviso++;
     }
 }
