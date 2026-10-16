@@ -720,4 +720,22 @@ public class AgendaInterativaTests : TelaInterativa
         Subtitulo(tela).Should().Be("Quinta-feira, 15/10/2026");
         SeletoresFocados.Should().BeEmpty();
     }
+
+    // M3: o "Filtrar" da barra do desktop tocado antes de o Dia aparecer também cancela o foco pedido pelo "+N": o foco
+    // fica no "Filtrar", que continua à vista.
+    [Fact]
+    public void Filtrar_antes_de_o_dia_aparecer_cancela_o_foco_no_titulo_do_dia()
+    {
+        var tela = Agenda("/agenda?visao=mes&data=2026-10-08", AtorDaDiretoria, CincoEm14());
+        var semana = new TaskCompletionSource<Resultado<IReadOnlyList<EventoResumo>>>();
+        Despachante.RespondeDepois<ListarEventos, Resultado<IReadOnlyList<EventoResumo>>>(semana.Task);
+        tela.Find("button[aria-label='Mais 2 eventos em 14/10']").Click();
+
+        tela.Find("form.aj-barra-filtros__grupo").Submit();
+        semana.SetResult(Eventos());
+
+        tela.WaitForAssertion(() => tela.FindAll("h2.aj-dia__cabeca").Should().ContainSingle());
+        Subtitulo(tela).Should().Be("Quarta-feira, 14/10/2026");
+        SeletoresFocados.Should().BeEmpty();
+    }
 }

@@ -305,6 +305,8 @@ else
     {
         _filtroAplicado = _filtro.Aplicar();
         _recado = null;
+        // O foco no título do Dia que um "+N" pediu e que ainda não aconteceu cai: quem filtrou fica com o foco.
+        _focarTituloDoDia = false;
         return ConsultarAsync();
     }
 
@@ -338,10 +340,11 @@ else
     }
 
     // Toda troca de período passa por aqui, e ela cancela o foco no título do Dia que um "+N" pediu e que ainda não
-    // aconteceu: quem tocou a seta, o "Hoje", a visão, a faixa ou a grade fica com o foco.
-    private void IrPara(PeriodoDaAgenda periodo)
+    // aconteceu: quem tocou a seta, o "Hoje", a visão, a faixa ou a grade fica com o foco. O "+N" liga o pedido antes da
+    // navegação, para que o desenho que ela provoca já o encontre.
+    private void IrPara(PeriodoDaAgenda periodo, bool focarTituloDoDia = false)
     {
-        _focarTituloDoDia = false;
+        _focarTituloDoDia = focarTituloDoDia;
         Navegacao.NavigateTo(periodo.Endereco);
     }
 
@@ -357,11 +360,7 @@ else
     private void EscolherNaGrade(DateOnly dia) => IrPara(Periodo.ComData(dia));
 
     // O "+N" da célula do mês leva ao Dia daquela data e, quando o Dia aparecer, o foco ao título dele.
-    private void AbrirDia(DateOnly dia)
-    {
-        IrPara(Periodo.ComVisao(VisaoDaAgenda.Dia).ComData(dia));
-        _focarTituloDoDia = true;
-    }
+    private void AbrirDia(DateOnly dia) => IrPara(Periodo.ComVisao(VisaoDaAgenda.Dia).ComData(dia), focarTituloDoDia: true);
 
     /// <summary>Uma resposta de acesso negado encerra a tela: nada do que estava à vista continua.</summary>
     private void EncerrarAcesso()
