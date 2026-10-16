@@ -186,18 +186,35 @@ public class ComponentesDoDesignSystemTests
     [Fact]
     public async Task Cabecalho_com_acao_traz_o_botao_e_o_botao_flutuante()
     {
-        var botao = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarSemDadosAsync<CabecalhoDePagina>(
+        var botao = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarSemDadosAsync<ComBarraSuperior<CabecalhoDePagina>>(
             new() { ["Titulo"] = "Documentos comuns", ["Acao"] = "Enviar documento" }));
-        var link = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarSemDadosAsync<CabecalhoDePagina>(
+        var link = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarSemDadosAsync<ComBarraSuperior<CabecalhoDePagina>>(
             new() { ["Titulo"] = "Clientes", ["Acao"] = "Novo cliente", ["AcaoHref"] = "/clientes/novo" }));
-        var semAcao = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarSemDadosAsync<CabecalhoDePagina>(new() { ["Titulo"] = "Início" }));
+        var semAcao = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarSemDadosAsync<ComBarraSuperior<CabecalhoDePagina>>(
+            new() { ["Titulo"] = "Início" }));
 
         // O ícone é um componente: pode haver espaço em branco em volta do svg.
         botao.Should().MatchRegex("<button type=\"button\" class=\"aj-botao aj-botao--primario aj-botao--com-icone\"[^>]*>\\s*<svg[^>]*>.*?</svg>\\s*Enviar documento</button>")
             .And.MatchRegex("<button type=\"button\" class=\"aj-fab\" aria-label=\"Enviar documento\"");
         link.Should().MatchRegex("<a href=\"/clientes/novo\" class=\"aj-botao aj-botao--primario aj-botao--com-icone\"[^>]*>\\s*<svg[^>]*>.*?</svg>\\s*Novo cliente</a>")
             .And.MatchRegex("<a href=\"/clientes/novo\" class=\"aj-fab\" aria-label=\"Novo cliente\"");
+        // O botão flutuante vai ao encaixe do fim do conteúdo: depois do cabeçalho, o último elemento desenhado.
+        botao.Should().MatchRegex("(?s)</header>\\s*</div>\\s*<button type=\"button\" class=\"aj-fab\"[^>]*>.*?</button>\\s*$");
+        link.Should().MatchRegex("(?s)</header>\\s*</div>\\s*<a href=\"/clientes/novo\" class=\"aj-fab\"[^>]*>.*?</a>\\s*$");
+        semAcao.Should().Contain("<h1 class=\"aj-titulo\">Início</h1>");
         semAcao.Should().NotContain("aj-fab").And.NotContain("aj-botao--primario");
+    }
+
+    // Sem o encaixe do layout, o botão flutuante não sai junto do cabeçalho: ele não é mais desenhado no lugar antigo
+    // (logo depois do cabeçalho, antes do conteúdo da tela).
+    [Fact]
+    public async Task Cabecalho_sozinho_nao_desenha_o_botao_flutuante_junto_dele()
+    {
+        var html = WebUtility.HtmlDecode(await TelaDeTeste.RenderizarSemDadosAsync<CabecalhoDePagina>(
+            new() { ["Titulo"] = "Clientes", ["Acao"] = "Novo cliente", ["AcaoHref"] = "/clientes/novo" }));
+
+        html.Should().MatchRegex("<a href=\"/clientes/novo\" class=\"aj-botao aj-botao--primario aj-botao--com-icone\"[^>]*>\\s*<svg[^>]*>.*?</svg>\\s*Novo cliente</a>");
+        html.Should().NotContain("aj-fab");
     }
 
     private const string Frase = "Visíveis para todos os clientes do escritório.";

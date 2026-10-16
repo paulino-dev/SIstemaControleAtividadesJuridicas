@@ -169,6 +169,27 @@ public class LayoutWebTests(BancoFixture banco) : IAsyncLifetime
         html.Should().MatchRegex("<div class=\"aj-exibir-menu\">\\s*<button[^>]*aria-label=\"Exibir menu\"");
     }
 
+    // O botão flutuante do mobile vem depois da tela na ordem do documento (e de tabulação): é o último elemento do
+    // conteúdo. A posição fixa no canto não depende da ordem (o aj-fab é posicionado por right e bottom).
+    [Theory]
+    [InlineData("/agenda")]
+    [InlineData("/clientes")]
+    [InlineData("/atividades")]
+    [InlineData("/processos")]
+    [InlineData("/usuarios")]
+    [InlineData("/documentos-comuns")]
+    public async Task Botao_flutuante_vem_depois_do_conteudo_da_tela(string rota)
+    {
+        var admin = await _app.ClienteAutenticadoAsync();
+
+        var html = await PaginaAsync(admin, rota);
+
+        var corpo = Regex.Match(html, "<main class=\"aj-app__conteudo\">.*?</main>", RegexOptions.Singleline).Value;
+        corpo.Should().Contain("<h1 class=\"aj-titulo\">");
+        Regex.Matches(corpo, "class=\"aj-fab\"").Should().ContainSingle();
+        corpo.Should().MatchRegex("(?s)<(a|button)\\b[^>]*class=\"aj-fab\"[^>]*>(?:(?!<(?:a|button)\\b).)*?</\\1>(?:\\s|<!--.*?-->)*</main>$");
+    }
+
     // Toda tela da equipe abre o conteúdo com um bloco do design system (um filho direto do main com classe aj-): é ele
     // que dá ao conteúdo a margem e o ritmo do quadro. Uma tela que abrisse com marcação solta ficaria sem eles.
     [Theory]
