@@ -4,10 +4,11 @@
 @* O Dia da agenda (o dia da data do período). Desktop: a caixa com o número, o nome do dia e o total, e a régua de
    horas, com os cartões em linha posicionados por classes de grade (início e altura em quartos de hora; eventos
    simultâneos dividem a largura em partes). Tablet: uma seção como as da Semana (SecaoDoDia). Mobile: a lista do dia
-   (ListaDoDia). Os três leem os mesmos eventos (só os que tocam o dia). *@
+   (ListaDoDia). Os três leem os mesmos eventos (só os que tocam o dia). Os títulos do desktop e do tablet aceitam o
+   foco por programa (o "+N" do Mês leva o foco a eles). *@
 <div class="aj-so-desktop">
     <section class="@(EHoje ? "aj-dia aj-dia--hoje" : "aj-dia")" aria-label="@RotulosDeAgenda.RotuloLongo(Dia, false)">
-        <h2 class="aj-dia__cabeca"><span class="aj-dia__numero">@RotulosDeAgenda.NumeroDoDia(Dia)</span><span>@RotulosDeAgenda.TituloDoDiaNoDesktop(Dia, EHoje)</span><span class="aj-dia__total">@RotulosDeAgenda.TotalDeEventos(_doDia.Count)</span></h2>
+        <h2 class="aj-dia__cabeca" tabindex="-1"><span class="aj-dia__numero">@RotulosDeAgenda.NumeroDoDia(Dia)</span><span>@RotulosDeAgenda.TituloDoDiaNoDesktop(Dia, EHoje)</span><span class="aj-dia__total">@RotulosDeAgenda.TotalDeEventos(_doDia.Count)</span></h2>
         <div class="aj-regua">
             <div class="aj-regua__horas" aria-hidden="true">
                 @for (var hora = _regua.HoraInicial; hora < _regua.HoraFinal; hora++)
@@ -25,7 +26,7 @@
     </section>
 </div>
 <div class="aj-so-tablet">
-    <SecaoDoDia Dia="Dia" Eventos="_doDia" Hoje="EHoje" Consulta="@Periodo.Consulta" />
+    <SecaoDoDia Dia="Dia" Eventos="_doDia" Hoje="EHoje" Consulta="@Periodo.Consulta" TituloFocavel="true" />
 </div>
 <div class="aj-so-mobile">
     <ListaDoDia Dia="Dia" Eventos="_doDia" Hoje="EHoje" Consulta="@Periodo.Consulta" />

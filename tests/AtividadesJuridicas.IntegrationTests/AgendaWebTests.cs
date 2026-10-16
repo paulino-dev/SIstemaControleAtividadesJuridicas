@@ -104,11 +104,15 @@ public class AgendaWebTests(BancoFixture banco) : IAsyncLifetime
             .And.Contain($"<p class=\"aj-subtitulo\">{RotulosDeAgenda.SubtituloDaSemana(RotulosDeAgenda.SegundaDe(hoje))}</p>")
             .And.MatchRegex("<a href=\"/agenda/novo\" class=\"aj-botao aj-botao--primario aj-botao--com-icone\">\\s*<svg[^>]*>.*?</svg>\\s*Novo evento</a>")
             .And.Contain("<a href=\"/agenda/novo\" class=\"aj-fab\" aria-label=\"Novo evento\">");
+        // O anúncio do período, só para leitor, um por visão: o da Semana no desktop e no tablet, o do Dia no mobile.
+        html.Should().Contain(
+                $"<div class=\"aj-desktop-tablet\"><p class=\"aj-so-leitor\" role=\"status\">{RotulosDeAgenda.SubtituloDaSemana(RotulosDeAgenda.SegundaDe(hoje))}</p></div>")
+            .And.Contain($"<div class=\"aj-so-mobile\"><p class=\"aj-so-leitor\" role=\"status\">{RotulosDeAgenda.SubtituloDoDia(hoje)}</p></div>");
 
         var desktop = BlocoDeVisao.De(html, "aj-so-desktop");
         desktop.Should().MatchRegex(
             "(?s)<div class=\"aj-barra-filtros aj-barra-filtros--dividida\">\\s*<div class=\"aj-barra-filtros__grupo\">\\s*" +
-            "<div class=\"aj-segmentado aj-segmentado--periodo\">\\s*" +
+            "<div class=\"aj-segmentado aj-segmentado--periodo\" role=\"group\" aria-label=\"Período\">\\s*" +
             "<button type=\"button\" class=\"aj-segmentado__seta\" aria-label=\"Período anterior\"[^>]*>\\s*<svg[^>]*>.*?</svg>\\s*</button>\\s*" +
             "<button type=\"button\" class=\"aj-segmentado__hoje\"[^>]*>Hoje</button>\\s*" +
             "<button type=\"button\" class=\"aj-segmentado__seta\" aria-label=\"Próximo período\"[^>]*>\\s*<svg[^>]*>.*?</svg>\\s*</button>\\s*</div>\\s*" +
@@ -134,7 +138,7 @@ public class AgendaWebTests(BancoFixture banco) : IAsyncLifetime
 
         var tablet = BlocoDeVisao.De(html, "aj-so-tablet");
         tablet.Should().MatchRegex(
-            "(?s)<div class=\"aj-barra-filtros aj-barra-filtros--plana\">\\s*<div class=\"aj-segmentado aj-segmentado--periodo\">\\s*" +
+            "(?s)<div class=\"aj-barra-filtros aj-barra-filtros--plana\">\\s*<div class=\"aj-segmentado aj-segmentado--periodo\" role=\"group\" aria-label=\"Período\">\\s*" +
             "<button type=\"button\" class=\"aj-segmentado__seta\" aria-label=\"Semana anterior\"[^>]*>.*?</button>\\s*" +
             "<button type=\"button\" class=\"aj-segmentado__hoje\"[^>]*>Hoje</button>\\s*" +
             "<button type=\"button\" class=\"aj-segmentado__seta\" aria-label=\"Próxima semana\"[^>]*>.*?</button>\\s*</div>\\s*" +
@@ -159,7 +163,7 @@ public class AgendaWebTests(BancoFixture banco) : IAsyncLifetime
                 "<button type=\"button\" class=\"aj-segmentado__opcao\" aria-pressed=\"false\"[^>]*>Semana</button>\\s*" +
                 "<button type=\"button\" class=\"aj-segmentado__opcao\" aria-pressed=\"false\"[^>]*>Mês</button>\\s*</div>")
             .And.MatchRegex(
-                $"(?s)<div class=\"aj-barra-superior__periodo\">\\s*<strong>{RotulosDeAgenda.MesDoMobile(hoje)}</strong>\\s*<div class=\"aj-barra-superior__setas\">\\s*" +
+                $"(?s)<div class=\"aj-barra-superior__periodo\">\\s*<strong>{RotulosDeAgenda.MesDoMobile(hoje)}</strong>\\s*<div class=\"aj-barra-superior__setas\" role=\"group\" aria-label=\"Período\">\\s*" +
                 "<button type=\"button\" class=\"aj-botao aj-botao--fantasma aj-botao--icone\" aria-label=\"Semana anterior\"[^>]*>.*?</button>\\s*" +
                 "<button type=\"button\" class=\"aj-botao aj-botao--fantasma aj-botao--icone\" aria-label=\"Próxima semana\"[^>]*>.*?</button>\\s*</div>\\s*</div>")
             .And.Contain("aj-faixa-dias");

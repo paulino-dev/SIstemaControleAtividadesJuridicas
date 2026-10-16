@@ -3,6 +3,7 @@
 @inject FusoDoEscritorio Fuso
 @inject Recados Recados
 @inject NavigationManager Navegacao
+@inject Foco Foco
 
 <PageTitle>Agenda</PageTitle>
 
@@ -20,7 +21,7 @@
             <div class="aj-segmentado aj-segmentado--recuado aj-segmentado--claro" role="group" aria-label="Visualização">@Visoes(Periodo.NoMobile, semanaLarga: false)</div>
             <div class="aj-barra-superior__periodo">
                 <strong>@RotulosDeAgenda.MesDoMobile(Periodo.Data)</strong>
-                <div class="aj-barra-superior__setas">
+                <div class="aj-barra-superior__setas" role="group" aria-label="Período">
                     <button type="button" class="aj-botao aj-botao--fantasma aj-botao--icone" aria-label="@RotuloDoAnterior(PassoNoMobile)" @onclick="() => IrPara(Periodo.Anterior(PassoNoMobile))"><Icone Nome="voltar" /></button>
                     <button type="button" class="aj-botao aj-botao--fantasma aj-botao--icone" aria-label="@RotuloDoProximo(PassoNoMobile)" @onclick="() => IrPara(Periodo.Proximo(PassoNoMobile))"><Icone Nome="avancar" /></button>
                 </div>
@@ -45,11 +46,17 @@ else if (_ator is null)
 }
 else
 {
+    @* O período à vista, para o leitor de tela: a troca de período (setas, "Hoje", visões, faixa, grade do Mês, "+N")
+       muda o texto, que é anunciado, e o foco fica no controle tocado. Um por visão, porque o período do mobile é o da
+       visão do mobile; a região escondida pela visão não é anunciada. O texto é o do subtítulo do período. *@
+    <div class="aj-desktop-tablet"><p class="aj-so-leitor" role="status">@Subtitulo</p></div>
+    <div class="aj-so-mobile"><p class="aj-so-leitor" role="status">@SubtituloDoMobile</p></div>
+
     @* Desktop: a navegação de período e as visões num grupo; os filtros no outro, aplicados ao "Filtrar". *@
     <div class="aj-so-desktop">
         <div class="aj-barra-filtros aj-barra-filtros--dividida">
             <div class="aj-barra-filtros__grupo">
-                <div class="aj-segmentado aj-segmentado--periodo">
+                <div class="aj-segmentado aj-segmentado--periodo" role="group" aria-label="Período">
                     <button type="button" class="aj-segmentado__seta" aria-label="Período anterior" @onclick="() => IrPara(Periodo.Anterior(Periodo.NoDesktopETablet))"><Icone Nome="voltar" /></button>
                     <button type="button" class="aj-segmentado__hoje" @onclick="IrParaHoje">Hoje</button>
                     <button type="button" class="aj-segmentado__seta" aria-label="Próximo período" @onclick="() => IrPara(Periodo.Proximo(Periodo.NoDesktopETablet))"><Icone Nome="avancar" /></button>
@@ -70,7 +77,7 @@ else
     @* Tablet: as setas com o nome da visão, as visões e o botão que abre o painel de filtros. *@
     <div class="aj-so-tablet">
         <div class="aj-barra-filtros aj-barra-filtros--plana">
-            <div class="aj-segmentado aj-segmentado--periodo">
+            <div class="aj-segmentado aj-segmentado--periodo" role="group" aria-label="Período">
                 <button type="button" class="aj-segmentado__seta" aria-label="@RotuloDoAnterior(Periodo.NoDesktopETablet)" @onclick="() => IrPara(Periodo.Anterior(Periodo.NoDesktopETablet))"><Icone Nome="voltar" /></button>
                 <button type="button" class="aj-segmentado__hoje" @onclick="IrParaHoje">Hoje</button>
                 <button type="button" class="aj-segmentado__seta" aria-label="@RotuloDoProximo(Periodo.NoDesktopETablet)" @onclick="() => IrPara(Periodo.Proximo(Periodo.NoDesktopETablet))"><Icone Nome="avancar" /></button>
@@ -103,11 +110,14 @@ else
 
     @if (_erro is not null)
     {
-        @* Falha na consulta não é "período sem eventos": o erro fica no lugar dos dias. *@
-        <Aviso Tipo="TipoDeAviso.Erro">
-            <ChildContent>@_erro</ChildContent>
-            <Acoes><button type="button" class="aj-botao aj-botao--secundario" @onclick="TentarDeNovoAsync">Tentar de novo</button></Acoes>
-        </Aviso>
+        @* Falha na consulta não é "período sem eventos": o erro fica no lugar dos dias, com o "Tentar de novo" das listas. *@
+        <EstadoDaLista Erro="@_erro" TextoDeVazio="" TentarDeNovo="TentarDeNovoAsync" />
+    }
+    else if (Periodo.Visao == VisaoDaAgenda.Mes)
+    {
+        @* O Mês fica durante a carga (de outro mês, de outro filtro, da nova tentativa): a grade compacta do mobile é onde
+           se toca o dia, inclusive um de fora, que leva ao outro mês, e o dia tocado continua na tela, com o foco. *@
+        <MesDaAgenda Periodo="Periodo" Eventos="_eventos" Hoje="_hoje" Carregando="_carregando" AoAbrirDia="AbrirDia" AoEscolherDia="EscolherNaGrade" />
     }
     else if (_carregando)
     {
@@ -124,13 +134,9 @@ else
     {
         <SemanaDaAgenda Periodo="Periodo" Eventos="_eventos" Hoje="_hoje" />
     }
-    else if (Periodo.Visao == VisaoDaAgenda.Dia)
-    {
-        <DiaDaAgenda Periodo="Periodo" Eventos="_eventos" Hoje="_hoje" />
-    }
     else
     {
-        <MesDaAgenda Periodo="Periodo" Eventos="_eventos" Hoje="_hoje" AoAbrirDia="AbrirDia" AoEscolherDia="EscolherNaGrade" />
+        <DiaDaAgenda Periodo="Periodo" Eventos="_eventos" Hoje="_hoje" />
     }
 }
 
@@ -155,6 +161,12 @@ else
     private FiltroAplicado _filtroAplicado = FiltroAplicado.Nenhum;
     private IReadOnlyList<OpcaoDeUsuario> _usuarios = [];
 
+    // O "+N" do Mês pediu o foco no título do Dia, que aparece depois da carga da semana do dia.
+    private bool _focarTituloDoDia;
+
+    // O título do Dia no desktop e o da seção do Dia no tablet (um deles à vista); o mobile não tem "+N".
+    private const string TituloDoDia = ".aj-dia__cabeca, .aj-secao-dia__cabeca";
+
     protected override async Task OnInitializedAsync()
     {
         _ator = await Despachante.EnviarAsync(new ObterMeuAcesso());
@@ -176,6 +188,33 @@ else
         _periodo = periodo;
         if (_ator is not null) await ConsultarAsync();
         _carregado = true;
+    }
+
+    protected override Task OnAfterRenderAsync(bool firstRender) => FocarTituloDoDiaAsync();
+
+    /// <summary>
+    /// Depois do "+N", o foco vai ao título do Dia quando ele aparece: o "+N" sai da tela com a grade. A página é a mesma
+    /// (só a consulta do endereço muda), e o FocoNoTitulo só age quando a página muda (e foca o título da página, que
+    /// não diz o dia); o título do Dia existe no desktop e no tablet, um escondido pelo CSS, e o serviço Foco foca o que
+    /// está à vista.
+    /// </summary>
+    private async Task FocarTituloDoDiaAsync()
+    {
+        if (!_focarTituloDoDia) return;
+
+        // Sem Dia para mostrar (a consulta falhou, o acesso caiu), o pedido cai: o foco fica com a rede de segurança do
+        // layout.
+        if (_erro is not null || _ator is null)
+        {
+            _focarTituloDoDia = false;
+            return;
+        }
+
+        if (_carregando || _periodo?.Visao != VisaoDaAgenda.Dia) return;
+
+        _focarTituloDoDia = false;
+        // O Foco engole as falhas do JavaScript: sem foco (circuito caindo), o Dia continua à vista.
+        await Foco.FocarPrimeiroVisivelAsync(TituloDoDia);
     }
 
     /// <summary>O dia de hoje no fuso do escritório.</summary>
@@ -298,7 +337,13 @@ else
         _filtro.Voltar(_filtroAplicado);
     }
 
-    private void IrPara(PeriodoDaAgenda periodo) => Navegacao.NavigateTo(periodo.Endereco);
+    // Toda troca de período passa por aqui, e ela cancela o foco no título do Dia que um "+N" pediu e que ainda não
+    // aconteceu: quem tocou a seta, o "Hoje", a visão, a faixa ou a grade fica com o foco.
+    private void IrPara(PeriodoDaAgenda periodo)
+    {
+        _focarTituloDoDia = false;
+        Navegacao.NavigateTo(periodo.Endereco);
+    }
 
     private void IrParaHoje() => IrPara(Periodo.ParaHoje(Hoje()));
 
@@ -311,8 +356,12 @@ else
     // Grade compacta do mês: tocar num dia troca a data e fica no Mês (a lista embaixo é desse dia).
     private void EscolherNaGrade(DateOnly dia) => IrPara(Periodo.ComData(dia));
 
-    // O "+N" da célula do mês leva ao Dia daquela data.
-    private void AbrirDia(DateOnly dia) => IrPara(Periodo.ComVisao(VisaoDaAgenda.Dia).ComData(dia));
+    // O "+N" da célula do mês leva ao Dia daquela data e, quando o Dia aparecer, o foco ao título dele.
+    private void AbrirDia(DateOnly dia)
+    {
+        IrPara(Periodo.ComVisao(VisaoDaAgenda.Dia).ComData(dia));
+        _focarTituloDoDia = true;
+    }
 
     /// <summary>Uma resposta de acesso negado encerra a tela: nada do que estava à vista continua.</summary>
     private void EncerrarAcesso()
@@ -343,8 +392,13 @@ else
         _ => "Próximo mês",
     };
 
-    // O subtítulo do desktop e do tablet diz o período da visão daquelas larguras; o mobile não tem subtítulo.
-    private string? Subtitulo => !Pronto ? null : Periodo.NoDesktopETablet switch
+    // O subtítulo do desktop e do tablet diz o período da visão daquelas larguras. O mobile não tem subtítulo à vista;
+    // o anúncio do período no mobile (a região só para leitor) diz o da visão do mobile, com o mesmo texto.
+    private string? Subtitulo => !Pronto ? null : SubtituloDe(Periodo.NoDesktopETablet);
+
+    private string? SubtituloDoMobile => !Pronto ? null : SubtituloDe(Periodo.NoMobile);
+
+    private string SubtituloDe(VisaoDaAgenda visao) => visao switch
     {
         VisaoDaAgenda.Dia => RotulosDeAgenda.SubtituloDoDia(Periodo.Data),
         VisaoDaAgenda.Mes => RotulosDeAgenda.SubtituloDoMes(Periodo.Data),

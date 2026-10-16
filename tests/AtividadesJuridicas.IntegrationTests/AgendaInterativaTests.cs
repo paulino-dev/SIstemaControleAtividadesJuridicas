@@ -89,6 +89,18 @@ public class AgendaInterativaTests : TelaInterativa
     private static IElement CampoDoPainel<T>(IRenderedComponent<T> tela, string nome) where T : IComponent =>
         Campo(tela, "form#filtros-da-agenda", nome);
 
+    // O seletor do título do Dia que a agenda pede ao módulo de foco (o do desktop e o da seção do tablet: o módulo foca
+    // o que está à vista). Os pedidos se leem pelo SeletoresFocados da TelaInterativa, que já monta o módulo de foco.
+    private const string TituloDoDia = ".aj-dia__cabeca, .aj-secao-dia__cabeca";
+
+    // Cinco eventos em 14/10: a célula do Mês mostra três e o "+2".
+    private static EventoResumo[] CincoEm14() =>
+    [
+        Evento("Primeiro", Local(2026, 10, 14, 9)), Evento("Segundo", Local(2026, 10, 14, 10)),
+        Evento("Terceiro", Local(2026, 10, 14, 11)), Evento("Quarto", Local(2026, 10, 14, 12)),
+        Evento("Quinto", Local(2026, 10, 14, 13)),
+    ];
+
     // Review Focus 1: sem endereço ou com endereço estranho, hoje no padrão de cada largura, com uma consulta só.
     [Theory]
     [InlineData("/agenda")]
@@ -540,6 +552,8 @@ public class AgendaInterativaTests : TelaInterativa
         tela.FindAll(".aj-semana, .aj-secao-dia, .aj-dia-escolhido").Should().BeEmpty();
         tela.Markup.Should().NotContain("Sem eventos");
         tela.FindAll(Desktop).Should().ContainSingle();
+        // O erro com "Tentar de novo" é o das listas (EstadoDaLista), não uma cópia da marcação dele.
+        tela.FindComponents<EstadoDaLista>().Should().ContainSingle().Which.Instance.Erro.Should().Be("Falha de teste.");
 
         Despachante.Responde<ListarEventos, Resultado<IReadOnlyList<EventoResumo>>>(
             Eventos(Evento("Protocolo de documentos", Local(2026, 10, 8, 9, 30), 60, TipoEvento.Outro)));
@@ -587,5 +601,123 @@ public class AgendaInterativaTests : TelaInterativa
         tela.Markup.Should().NotContain("Reunião da semana velha").And.NotContain("Carregando…");
         Subtitulo(tela).Should().Be("Semana de 19/10 a 25/10/2026");
         Consultas.Should().HaveCount(3);
+    }
+
+    // F13: as setas e o "Hoje" de cada largura num grupo com nome, como o segmentado das visões.
+    [Fact]
+    public void Setas_e_hoje_de_cada_largura_ficam_num_grupo_chamado_periodo()
+    {
+        var tela = Agenda("/agenda?data=2026-10-08");
+
+        static string[] Botoes(IElement grupo) =>
+            [.. grupo.QuerySelectorAll("button").Select(b => b.GetAttribute("aria-label") ?? Texto(b))];
+
+        tela.FindAll("[role=group][aria-label='Período']").Should().HaveCount(3);
+        Botoes(tela.Find($"{Desktop} [role=group][aria-label='Período']")).Should().Equal("Período anterior", "Hoje", "Próximo período");
+        Botoes(tela.Find($"{Tablet} [role=group][aria-label='Período']")).Should().Equal("Semana anterior", "Hoje", "Próxima semana");
+        var mobile = tela.Find(Mobile);
+        mobile.GetAttribute("role").Should().Be("group");
+        mobile.GetAttribute("aria-label").Should().Be("Período");
+        Botoes(mobile).Should().Equal("Semana anterior", "Próxima semana");
+    }
+
+    // F8: a troca de período deixa a seta no lugar (o foco fica nela) e anuncia o período novo numa região só para
+    // leitor de cada largura, com o texto do subtítulo do período daquela largura; o anúncio muda já na carga.
+    [Fact]
+    public void Troca_de_periodo_anuncia_o_periodo_novo_e_a_seta_continua_na_tela_durante_a_carga()
+    {
+        const string Anuncio = "div.aj-desktop-tablet > p.aj-so-leitor[role=status]";
+        const string AnuncioDoMobile = "div.aj-so-mobile > p.aj-so-leitor[role=status]";
+        var tela = Agenda("/agenda?data=2026-10-08");
+        Texto(tela.Find(Anuncio)).Should().Be("Semana de 05/10 a 11/10/2026");
+        Texto(tela.Find(AnuncioDoMobile)).Should().Be("Quinta-feira, 08/10/2026");
+
+        var semana = new TaskCompletionSource<Resultado<IReadOnlyList<EventoResumo>>>();
+        Despachante.RespondeDepois<ListarEventos, Resultado<IReadOnlyList<EventoResumo>>>(semana.Task);
+        Botao(tela, Desktop, "Próximo período").Click();
+
+        tela.Markup.Should().Contain("Carregando…");
+        Texto(tela.Find(Anuncio)).Should().Be("Semana de 12/10 a 18/10/2026");
+        Texto(tela.Find(AnuncioDoMobile)).Should().Be("Quinta-feira, 15/10/2026");
+        Subtitulo(tela).Should().Be("Semana de 12/10 a 18/10/2026");
+        tela.FindAll($"{Desktop} button[aria-label='Próximo período']").Should().ContainSingle();
+
+        semana.SetResult(Eventos());
+
+        tela.WaitForAssertion(() => tela.Markup.Should().NotContain("Carregando…"));
+        Texto(tela.Find(Anuncio)).Should().Be("Semana de 12/10 a 18/10/2026");
+        tela.FindAll(Anuncio).Should().ContainSingle();
+        tela.FindAll(AnuncioDoMobile).Should().ContainSingle();
+    }
+
+    // F9: tocar num dia de fora do mês na grade compacta leva ao outro mês, e a grade fica à vista durante a carga, já
+    // com as semanas do mês novo e o dia tocado escolhido: o botão tocado continua na tela. A lista do dia espera.
+    [Fact]
+    public void Grade_compacta_do_mes_fica_a_vista_durante_a_carga_do_mes_novo()
+    {
+        const string Grade = "div.aj-so-mobile > .aj-faixa-dias--mes";
+        var tela = Agenda("/agenda?visao=mes&data=2026-10-08");
+        var novembro = new TaskCompletionSource<Resultado<IReadOnlyList<EventoResumo>>>();
+        Despachante.RespondeDepois<ListarEventos, Resultado<IReadOnlyList<EventoResumo>>>(novembro.Task);
+
+        // 01/11 é o último dia (de fora) da grade de outubro.
+        tela.Find($"{Grade} button[aria-label^='Domingo, 01/11']").Click();
+
+        Endereco.Should().EndWith("/agenda?visao=mes&data=2026-11-01");
+        Consultas.Should().HaveCount(2);
+        // A grade de novembro de 2026 vai de 26/10 a 06/12: seis semanas.
+        tela.FindAll($"{Grade} button.aj-faixa-dias__dia").Should().HaveCount(42);
+        tela.Find($"{Grade} button[aria-pressed=true]").GetAttribute("aria-label").Should().StartWith("Domingo, 01/11");
+        Texto(tela.Find("div.aj-so-mobile > p.aj-subtitulo[role=status]")).Should().Be("Carregando…");
+        Texto(tela.Find("div.aj-desktop-tablet > p.aj-subtitulo[role=status]")).Should().Be("Carregando…");
+        tela.FindAll(".aj-dia-escolhido").Should().BeEmpty();
+
+        novembro.SetResult(Eventos(Evento("Reunião de novembro", Local(2026, 11, 1, 9))));
+
+        tela.WaitForAssertion(() => tela.FindAll("div.aj-so-mobile > .aj-dia-escolhido").Should().ContainSingle());
+        tela.Markup.Should().Contain("Reunião de novembro");
+        tela.FindAll("div.aj-so-mobile > p.aj-subtitulo[role=status]").Should().BeEmpty();
+        tela.FindAll($"{Grade} button.aj-faixa-dias__dia").Should().HaveCount(42);
+    }
+
+    // F11: o "+N" do Mês leva ao Dia e, quando o Dia aparece (depois da carga da semana dele), o foco ao título do Dia à
+    // vista: o "+N" saiu da tela com a grade. Enquanto a semana carrega, nada é pedido ao módulo de foco.
+    [Fact]
+    public void Mais_eventos_do_mes_leva_o_foco_ao_titulo_do_dia_quando_ele_aparece()
+    {
+        var eventos = CincoEm14();
+        var tela = Agenda("/agenda?visao=mes&data=2026-10-08", AtorDaDiretoria, eventos);
+        var semana = new TaskCompletionSource<Resultado<IReadOnlyList<EventoResumo>>>();
+        Despachante.RespondeDepois<ListarEventos, Resultado<IReadOnlyList<EventoResumo>>>(semana.Task);
+
+        tela.Find("button[aria-label='Mais 2 eventos em 14/10']").Click();
+
+        Endereco.Should().EndWith("/agenda?visao=dia&data=2026-10-14");
+        tela.Markup.Should().Contain("Carregando…");
+        SeletoresFocados.Should().BeEmpty();
+
+        semana.SetResult(Eventos(eventos));
+
+        tela.WaitForAssertion(() => SeletoresFocados.Should().Equal(TituloDoDia));
+        tela.Find("h2.aj-dia__cabeca").GetAttribute("tabindex").Should().Be("-1");
+        tela.Find("section.aj-secao-dia > h2.aj-secao-dia__cabeca").GetAttribute("tabindex").Should().Be("-1");
+    }
+
+    // F11: uma seta tocada antes de o Dia aparecer cancela o foco pedido pelo "+N": quem tocou a seta fica com o foco.
+    [Fact]
+    public void Seta_antes_de_o_dia_aparecer_cancela_o_foco_no_titulo_do_dia()
+    {
+        var tela = Agenda("/agenda?visao=mes&data=2026-10-08", AtorDaDiretoria, CincoEm14());
+        var semana = new TaskCompletionSource<Resultado<IReadOnlyList<EventoResumo>>>();
+        Despachante.RespondeDepois<ListarEventos, Resultado<IReadOnlyList<EventoResumo>>>(semana.Task);
+        tela.Find("button[aria-label='Mais 2 eventos em 14/10']").Click();
+
+        // 15/10, a mesma semana: a consulta é a que já espera.
+        Botao(tela, Desktop, "Próximo período").Click();
+        semana.SetResult(Eventos());
+
+        tela.WaitForAssertion(() => tela.FindAll("h2.aj-dia__cabeca").Should().ContainSingle());
+        Subtitulo(tela).Should().Be("Quinta-feira, 15/10/2026");
+        SeletoresFocados.Should().BeEmpty();
     }
 }
