@@ -6,6 +6,7 @@
 @inject FusoDoEscritorio Fuso
 @inject NavigationManager Navegacao
 @inject Recados Recados
+@inject Foco Foco
 
 <PageTitle>@Titulo</PageTitle>
 
@@ -328,6 +329,22 @@
 
     protected override Task OnInitializedAsync() => CarregarAsync();
 
+    // A busca que aparece no lugar do vínculo removido (o "Remover" saiu da tela): o foco vai a ela depois do desenho,
+    // e não ao título da página, aonde a rede de segurança o levaria. As buscas se acham pelo formulário que enviam.
+    private string? _focarBusca;
+    private const string BuscaDeCliente = "input[form=\"busca-de-cliente\"]";
+    private const string BuscaDeProcesso = "input[form=\"busca-de-processo\"], input[form=\"busca-de-processo-curta\"]";
+    private const string BuscaDeAtividade = "input[form=\"busca-de-atividade\"]";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_focarBusca is not { } seletor) return;
+
+        _focarBusca = null;
+        // O Foco engole as falhas do JavaScript e foca a busca à vista (a do processo tem uma por visão).
+        await Foco.FocarPrimeiroVisivelAsync(seletor);
+    }
+
     // A carga inteira, também a do "Tentar de novo": quem está na tela, o evento (edição) e a equipe.
     private async Task CarregarAsync()
     {
@@ -572,6 +589,7 @@
         _clienteId = null;
         _clienteNome = null;
         _clienteIndisponivel = false;
+        _focarBusca = BuscaDeCliente;
     }
 
     private async Task ProcurarProcessosAsync()
@@ -605,6 +623,7 @@
 
         _processoId = null;
         _processoTitulo = null;
+        _focarBusca = BuscaDeProcesso;
     }
 
     private async Task ProcurarAtividadesAsync()
@@ -640,6 +659,7 @@
         _atividadeId = null;
         _atividadeTitulo = null;
         _atividadeExcluida = false;
+        _focarBusca = BuscaDeAtividade;
     }
 
     private void LimparBuscaDeCliente()

@@ -229,6 +229,24 @@ public class EventoFormularioInterativoTests : TelaInterativa
         Enviado.ClienteId.Should().BeNull();
     }
 
+    // Conferência da 9G (D6): o "Remover" sai da tela com o vínculo e a busca aparece no lugar dele; o foco vai à busca
+    // à vista (a de cada visão, no processo), e não ao título da página, aonde a rede de segurança o levaria.
+    [Theory]
+    [InlineData("Remover cliente", "input[form=\"busca-de-cliente\"]", 1)]
+    [InlineData("Remover processo", "input[form=\"busca-de-processo\"], input[form=\"busca-de-processo-curta\"]", 2)]
+    [InlineData("Remover atividade", "input[form=\"busca-de-atividade\"]", 1)]
+    public void Remover_um_vinculo_leva_o_foco_a_busca_que_aparece_no_lugar(string remover, string busca, int buscasNaMarcacao)
+    {
+        var tela = Edicao();
+        tela.FindAll(busca).Should().HaveCount(remover == "Remover cliente" ? 1 : 0);   // com cliente, a busca de trocar do desktop
+
+        tela.Find($"button[aria-label='{remover}']").Click();
+
+        UltimoSeletorFocado().Should().Be(busca);
+        tela.FindAll(busca).Should().HaveCount(buscasNaMarcacao);
+        tela.FindAll($"button[aria-label='{remover}']").Should().BeEmpty();
+    }
+
     [Fact]
     public void Salvar_sem_titulo_data_nem_hora_mostra_campo_obrigatorio_e_o_aviso_e_nao_envia()
     {

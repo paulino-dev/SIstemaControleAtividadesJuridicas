@@ -71,7 +71,7 @@
                     <span class="@(_erroDoCliente is null ? "aj-rotulo" : "aj-rotulo aj-rotulo--erro")">Cliente</span>
                     @if (_form.ClienteId is not null)
                     {
-                        <div class="aj-vinculo__escolhido"><span class="aj-vinculo__nome">@_form.ClienteNome</span><button type="button" class="aj-botao aj-botao--fantasma" @onclick="TrocarCliente">Trocar</button></div>
+                        <div class="aj-vinculo__escolhido"><span class="aj-vinculo__nome">@_form.ClienteNome</span><button type="button" class="aj-botao aj-botao--fantasma" @onclick="TrocarClienteEBuscar">Trocar</button></div>
                     }
                     else
                     {
@@ -316,6 +316,14 @@
         LimparBuscaDeCliente();
     }
 
+    // O "Trocar" sai da tela com o cliente escolhido: o foco vai à busca de cliente que aparece no lugar dele, e não ao
+    // título da página, aonde a rede de segurança o levaria.
+    private void TrocarClienteEBuscar()
+    {
+        TrocarCliente();
+        _focoDeVolta = "input[form=\"busca-de-cliente\"]";
+    }
+
     private void LimparBuscaDeCliente()
     {
         _buscaDeCliente = null;
@@ -451,7 +459,8 @@
         }
     }
 
-    // O "Inativar usuário" que abriu a confirmação cancelada: o foco volta a ele depois do desenho.
+    // Para onde o foco vai depois do desenho: o "Inativar usuário" que abriu a confirmação cancelada, ou a busca de
+    // cliente que o "Trocar" revelou.
     private string? _focoDeVolta;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)

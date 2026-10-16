@@ -44,6 +44,32 @@ public class UsuarioFormularioInterativoTests : TelaInterativa
         UltimoSeletorFocado().Should().Be("#ativar-ou-inativar-usuario");
     }
 
+    // Conferência da 9G (D6): o "Trocar" sai da tela com o cliente escolhido e a busca de cliente aparece no lugar dele;
+    // o foco vai à busca, e não ao título da página, aonde a rede de segurança o levaria.
+    [Fact]
+    public void Trocar_o_cliente_leva_o_foco_a_busca_de_cliente()
+    {
+        var perfilDeCliente = Guid.Parse("0199a3f2-7c1e-7000-8000-00000000e103");
+        var joana = Guid.Parse("0199a3f2-7c1e-7000-8000-00000000d103");
+        Despachante
+            .Responde<ObterMeuAcesso, UsuarioAutenticado?>(AtorDaDiretoria)
+            .Responde<ListarPerfis, Resultado<IReadOnlyList<PerfilDetalhe>>>(Resultado<IReadOnlyList<PerfilDetalhe>>.Ok(
+                [new PerfilDetalhe(perfilDeCliente, "Cliente", TipoPerfil.Cliente, true, 1)]))
+            .Responde<ListarUsuarios, Resultado<IReadOnlyList<UsuarioResumo>>>(Resultado<IReadOnlyList<UsuarioResumo>>.Ok(
+                [new UsuarioResumo(joana, "Joana Figueiredo", "joana@x.com", perfilDeCliente, "Cliente", TipoPerfil.Cliente, null, true, null,
+                    Guid.Parse("0199a3f2-7c1e-7000-8000-0000000000c3"), "Joana Figueiredo", true)]));
+        var tela = Desenhar<UsuarioFormulario>(p => p.Add(f => f.Id, (Guid?)joana));
+        tela.WaitForAssertion(() => tela.Find("div.aj-vinculo__escolhido .aj-vinculo__nome").TextContent.Should().Be("Joana Figueiredo"));
+        const string Busca = "input[form=\"busca-de-cliente\"]";
+        tela.FindAll(Busca).Should().BeEmpty();
+
+        tela.FindAll("div.aj-vinculo__escolhido button").Single(b => b.TextContent == "Trocar").Click();
+
+        UltimoSeletorFocado().Should().Be(Busca);
+        tela.FindAll(Busca).Should().ContainSingle();
+        tela.FindAll("div.aj-vinculo__escolhido").Should().BeEmpty();
+    }
+
     [Fact]
     public void Falha_ao_salvar_leva_o_foco_ao_aviso_de_erro()
     {
