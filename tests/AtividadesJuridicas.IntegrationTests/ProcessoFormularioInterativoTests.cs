@@ -115,12 +115,31 @@ public class ProcessoFormularioInterativoTests : TelaInterativa
         Despachante.Responde<ListarClientes, Resultado<PaginaDeClientes>>(
             Resultado<PaginaDeClientes>.Falha(TipoErro.Validacao, "Não foi possível consultar os clientes."));
         tela.Find("input[form=busca-de-cliente]").Input("coop");
+        // Sem erro, o campo não se diz inválido nem aponta para um erro que não existe.
+        tela.Find("input[form=busca-de-cliente]").HasAttribute("aria-invalid").Should().BeFalse();
+        tela.Find("input[form=busca-de-cliente]").HasAttribute("aria-describedby").Should().BeFalse();
 
         tela.Find("form#busca-de-cliente").Submit();
 
         var clientes = tela.FindAll("section.aj-painel").Single(s => s.QuerySelector("h2")?.TextContent == "Clientes do processo");
-        clientes.QuerySelector("span.aj-campo-erro")!.TextContent.Should().Be("Não foi possível consultar os clientes.");
+        var erro = clientes.QuerySelector("span.aj-campo-erro")!;
+        erro.TextContent.Should().Be("Não foi possível consultar os clientes.");
+        // O leitor de tela ouve o erro ao aparecer e o ouve de novo ao voltar ao campo, que se diz inválido.
+        erro.GetAttribute("role").Should().Be("alert");
+        erro.Id.Should().Be("erro-da-busca-de-cliente");
+        tela.FindAll("#erro-da-busca-de-cliente").Should().ContainSingle();
+        var busca = tela.Find("input[form=busca-de-cliente]");
+        busca.GetAttribute("aria-invalid").Should().Be("true");
+        busca.GetAttribute("aria-describedby").Should().Be("erro-da-busca-de-cliente");
         tela.FindAll(".aj-aviso").Should().BeEmpty();
         Despachante.Recebidas.OfType<SalvarProcesso>().Should().BeEmpty();
+
+        // A busca seguinte dá certo: o erro some, e o campo deixa de se dizer inválido.
+        Despachante.Responde<ListarClientes, Resultado<PaginaDeClientes>>(Resultado<PaginaDeClientes>.Ok(new([], 1, 1, 20, 0, 0)));
+        tela.Find("form#busca-de-cliente").Submit();
+
+        tela.FindAll("span.aj-campo-erro").Should().BeEmpty();
+        tela.Find("input[form=busca-de-cliente]").HasAttribute("aria-invalid").Should().BeFalse();
+        tela.Find("input[form=busca-de-cliente]").HasAttribute("aria-describedby").Should().BeFalse();
     }
 }

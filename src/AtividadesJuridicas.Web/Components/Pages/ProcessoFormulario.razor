@@ -45,10 +45,11 @@
                     {<option value="@polo">@RotulosDeProcesso.Polo(polo)</option>}</select></label><button type="button" class="aj-botao aj-botao--fantasma aj-botao--icone" aria-label="@($"Remover {vinculo.Nome}")" @onclick="() => Desvincular(vinculo)"><Icone Nome="fechar" /></button></div>
             }
             @* O Enter na busca envia o formulário "busca-de-cliente", que fica no fim da tela, e não o do processo. *@
-            <label class="aj-campo-icone"><Icone Nome="buscar" /><span class="aj-so-leitor">Adicionar cliente (nome, CPF ou CNPJ)</span><input type="search" class="aj-campo-icone__controle" form="busca-de-cliente" placeholder="Adicionar cliente por nome, CPF ou CNPJ" @bind="_buscaDeCliente" @bind:event="oninput" /></label>
+            <label class="aj-campo-icone"><Icone Nome="buscar" /><span class="aj-so-leitor">Adicionar cliente (nome, CPF ou CNPJ)</span><input type="search" class="aj-campo-icone__controle" form="busca-de-cliente" placeholder="Adicionar cliente por nome, CPF ou CNPJ" @bind="_buscaDeCliente" @bind:event="oninput" aria-invalid="@(_erroDaBusca is null ? null : "true")" aria-describedby="@(_erroDaBusca is null ? null : "erro-da-busca-de-cliente")" /></label>
             @if (_erroDaBusca is not null)
             {
-                <span class="aj-campo-erro">@_erroDaBusca</span>
+                @* O leitor de tela anuncia o erro ao aparecer e o lê de novo ao voltar ao campo, que se diz inválido. *@
+                <span class="aj-campo-erro" id="erro-da-busca-de-cliente" role="alert">@_erroDaBusca</span>
             }
             @* A chave do candidato não pode ser o Id do cliente: é a mesma do vínculo (mesmo pai), e ao adicionar o Blazor reaproveitaria o elemento do candidato e deixaria o class do vínculo vazio. *@
             @foreach (var candidato in _candidatos)
