@@ -247,4 +247,74 @@ public class DocumentosDaFichaInterativosTests : TelaInterativa
         ficha.WaitForAssertion(() => ficha.Markup.Should().Contain("Procuração.pdf"));
         ficha.Markup.Should().NotContain("Carregando…");
     }
+
+    // Uma página da área "De atividades", com um documento só dela.
+    private static Resultado<PaginaDeDocumentos> PaginaDeAtividades() => Resultado<PaginaDeDocumentos>.Ok(new([
+        new DocumentoResumo(Guid.NewGuid(), "Contestação.pdf", "contestacao.pdf", 1024, CategoriaDocumento.DocumentoAtividade,
+            new DateTime(2026, 9, 3, 13, 0, 0, DateTimeKind.Utc), "Marina Couto", null, "Contestação — cobrança de ISS"),
+    ], 1, 1, 20, Contagem));
+
+    [Fact]
+    public async Task Com_o_chip_esperando_a_carga_inicial_que_chega_nao_diz_que_a_lista_esta_vazia()
+    {
+        // A carga inicial (Gerais) fica esperando; o chip pede outra área, que também fica esperando.
+        var inicial = new TaskCompletionSource<Resultado<PaginaDeDocumentos>>();
+        Despachante.RespondeDepois<ListarDocumentosDoCliente, Resultado<PaginaDeDocumentos>>(inicial.Task);
+        var ficha = Desenhar<DocumentosDaFicha>(p => p.Add(d => d.ClienteId, Maria).Add(d => d.PodeGerenciar, true));
+        var doChip = new TaskCompletionSource<Resultado<PaginaDeDocumentos>>();
+        Despachante.RespondeDepois<ListarDocumentosDoCliente, Resultado<PaginaDeDocumentos>>(doChip.Task);
+        Chip(ficha, "De atividades");
+
+        // A resposta velha chega antes da do chip: é descartada, e a lista não se diz vazia enquanto o chip espera.
+        inicial.SetResult(Pagina(new ListarDocumentosDoCliente(Maria, CategoriaDocumento.DocumentoGeral)));
+        await ficha.InvokeAsync(() => { });
+
+        ficha.Markup.Should().Contain("Carregando…").And.NotContain("Nenhum documento.").And.NotContain("Procuração.pdf");
+
+        doChip.SetResult(PaginaDeAtividades());
+        ficha.WaitForAssertion(() => ficha.Markup.Should().Contain("Contestação.pdf"));
+        ficha.Markup.Should().NotContain("Carregando…").And.NotContain("Nenhum documento.");
+    }
+
+    [Fact]
+    public async Task Com_a_carga_inicial_ainda_esperando_a_resposta_do_chip_aparece()
+    {
+        var inicial = new TaskCompletionSource<Resultado<PaginaDeDocumentos>>();
+        Despachante.RespondeDepois<ListarDocumentosDoCliente, Resultado<PaginaDeDocumentos>>(inicial.Task);
+        var ficha = Desenhar<DocumentosDaFicha>(p => p.Add(d => d.ClienteId, Maria).Add(d => d.PodeGerenciar, true));
+        Despachante.Responde<ListarDocumentosDoCliente, Resultado<PaginaDeDocumentos>>(PaginaDeAtividades());
+
+        Chip(ficha, "De atividades");   // responde na hora; a inicial continua esperando
+
+        ficha.WaitForAssertion(() => ficha.Markup.Should().Contain("Contestação.pdf"));
+        ficha.Markup.Should().NotContain("Carregando…").And.NotContain("Nenhum documento.");
+
+        // A inicial chega depois e é descartada: a área do chip fica.
+        inicial.SetResult(Pagina(new ListarDocumentosDoCliente(Maria, CategoriaDocumento.DocumentoGeral)));
+        await ficha.InvokeAsync(() => { });
+        ficha.Markup.Should().Contain("Contestação.pdf").And.NotContain("Procuração.pdf");
+    }
+
+    [Fact]
+    public async Task Com_o_tentar_de_novo_esperando_a_resposta_do_chip_aparece_sem_carregando()
+    {
+        Despachante.Responde<ListarDocumentosDoCliente, Resultado<PaginaDeDocumentos>>(
+            Resultado<PaginaDeDocumentos>.Falha(TipoErro.Validacao, "Falha de teste."));
+        var ficha = Desenhar<DocumentosDaFicha>(p => p.Add(d => d.ClienteId, Maria).Add(d => d.PodeGerenciar, true));
+        var nova = new TaskCompletionSource<Resultado<PaginaDeDocumentos>>();
+        Despachante.RespondeDepois<ListarDocumentosDoCliente, Resultado<PaginaDeDocumentos>>(nova.Task);
+        ficha.FindAll("button").Single(b => b.TextContent == "Tentar de novo").Click();
+        ficha.Markup.Should().Contain("Carregando…");
+        Despachante.Responde<ListarDocumentosDoCliente, Resultado<PaginaDeDocumentos>>(PaginaDeAtividades());
+
+        Chip(ficha, "De atividades");   // responde na hora; o "Tentar de novo" continua esperando
+
+        ficha.WaitForAssertion(() => ficha.Markup.Should().Contain("Contestação.pdf"));
+        ficha.Markup.Should().NotContain("Carregando…");
+
+        // A nova tentativa chega depois e é descartada: a área do chip fica.
+        nova.SetResult(Pagina(new ListarDocumentosDoCliente(Maria, CategoriaDocumento.DocumentoGeral)));
+        await ficha.InvokeAsync(() => { });
+        ficha.Markup.Should().Contain("Contestação.pdf").And.NotContain("Procuração.pdf").And.NotContain("Carregando…");
+    }
 }

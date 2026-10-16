@@ -138,7 +138,6 @@ public abstract class GestaoDeDocumentos : ComponentBase
     {
         _confirmacao = new EnvioComConfirmacao(exigeConfirmacao: CategoriaDosDocumentos == CategoriaDocumento.DocumentoComum);
         await CarregarAsync(1);
-        _carregado = true;
     }
 
     /// <summary>Troca de página ou nova tentativa: o aviso de uma ação anterior não vale mais.</summary>
@@ -176,6 +175,11 @@ public abstract class GestaoDeDocumentos : ComponentBase
         var resultado = await ListarPaginaAsync(pagina);
         // Outra consulta (outra área, outra página) foi pedida enquanto esta esperava: vale a dela, esta é descartada.
         if (geracao != _geracao) return;
+
+        // A consulta que vale respondeu: a lista deixa de dizer "Carregando…", seja da carga inicial, de um chip ou de um
+        // "Tentar de novo" (a resposta descartada de outra não mexe nisso).
+        _carregado = true;
+        _recarregando = false;
 
         // Só a lista de um cliente traz a contagem por área.
         if (resultado.Valor is PaginaDeDocumentos lidos) _porCategoria = lidos.PorCategoria;
@@ -340,6 +344,9 @@ public abstract class GestaoDeDocumentos : ComponentBase
 
         if (!_confirmacao.Confirmar()) return;
 
+        // O "Confirmar envio" se desabilita enquanto o envio dura: o foco vai à confirmação, que continua à vista, e no
+        // fim o aviso de resultado o recebe.
+        _focarAviso = true;
         await EnviarEscolhidoAsync(confirmou: true);
     }
 

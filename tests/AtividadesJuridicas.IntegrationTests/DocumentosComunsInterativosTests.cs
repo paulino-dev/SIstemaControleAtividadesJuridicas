@@ -325,6 +325,7 @@ public class DocumentosComunsInterativosTests : TelaInterativa
         Escolher(tela);
         tela.FindAll("form.aj-painel button").Single(b => b.TextContent == "Enviar").Click();
         var antes = SeletoresFocados.Count;
+        var focosAntes = FocosDeElementoPedidos;
 
         AbrirEnvio(tela);
 
@@ -332,6 +333,31 @@ public class DocumentosComunsInterativosTests : TelaInterativa
         tela.Find("form#documentos-envio").HasAttribute("hidden").Should().BeTrue();
         SeletoresFocados.Count.Should().Be(antes + 1);
         UltimoSeletorFocado().Should().Be("[role=\"alertdialog\"][aria-label=\"Confirmar envio\"]");
+        // O campo de arquivo, escondido com o painel, não recebe mais o foco.
+        FocosDeElementoPedidos.Should().Be(focosAntes);
+    }
+
+    [Fact]
+    public void Confirmar_envio_leva_o_foco_a_confirmacao_enquanto_o_envio_dura()
+    {
+        // O "Confirmar envio" se desabilita com o clique: o foco não pode ficar nele, e vai à confirmação, que continua.
+        var envio = new TaskCompletionSource<Resultado<Guid>>();
+        Despachante.RespondeDepois<EnviarDocumentoComum, Resultado<Guid>>(envio.Task);
+        var tela = Tela();
+        AbrirEnvio(tela);
+        Escolher(tela);
+        tela.FindAll("form.aj-painel button").Single(b => b.TextContent == "Enviar").Click();
+        var antes = SeletoresFocados.Count;
+
+        tela.FindAll("[role=alertdialog] button").Single(b => b.TextContent == "Confirmar envio").Click();
+
+        tela.Find("[role=alertdialog]").QuerySelectorAll("button").Should().HaveCount(2).And.OnlyContain(b => b.HasAttribute("disabled"));
+        SeletoresFocados.Count.Should().Be(antes + 1);
+        UltimoSeletorFocado().Should().Be("[role=\"alertdialog\"][aria-label=\"Confirmar envio\"]");
+
+        envio.SetResult(Resultado<Guid>.Ok(Guid.NewGuid()));
+        tela.WaitForAssertion(() => tela.Markup.Should().Contain("Documento enviado."));
+        UltimoFocoPedido().Arguments[0].ShouldBeElementReferenceTo(AvisoCom(tela, "Documento enviado."));
     }
 
     [Fact]
