@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.WebEncoders;
 using System.Text.Encodings.Web;
 using System.Text.Unicode;
@@ -83,6 +84,22 @@ await using (var escopo = app.Services.CreateAsyncScope())
 
 // Uma pasta de arquivos errada para a aplicação aqui, e não no primeiro envio.
 app.Services.GetRequiredService<ArmazenamentoEmDisco>().VerificarGravacao();
+
+// Atrás de um proxy reverso (túnel do VS Code, IIS, nginx), o endereço, o esquema e o IP de quem acessa chegam nos
+// cabeçalhos X-Forwarded-*. Sem eles, o redirecionamento ao login aponta para o endereço interno (localhost). Só se
+// liga quando a aplicação está de fato atrás de um proxy que escreve esses cabeçalhos: aberta direto, quem acessa
+// poderia forjá-los.
+if (app.Configuration.GetValue<bool>("ProxyReverso:ConfiarNosCabecalhos"))
+{
+    var cabecalhos = new ForwardedHeadersOptions
+    {
+        ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost,
+    };
+    // O endereço do proxy varia (rede do Docker, máquina do IIS): a confiança vem da configuração, não do IP.
+    cabecalhos.KnownIPNetworks.Clear();
+    cabecalhos.KnownProxies.Clear();
+    app.UseForwardedHeaders(cabecalhos);
+}
 
 if (!app.Environment.IsDevelopment())
 {
