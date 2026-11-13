@@ -275,12 +275,12 @@ textarea.aj-campo{padding:9px var(--espaco-12);resize:vertical}
 
 /* ---------- Barra de ações ---------- */
 .aj-acoes{display:flex;flex-wrap:wrap;align-items:center;justify-content:var(--aj-acoes-alinhamento);gap:var(--espaco-8);padding:var(--espaco-12);border:1px solid var(--borda);border-radius:var(--raio-16);background:var(--superficie);box-shadow:var(--sombra-flutuante)}
-.aj-acoes--fixa{position:sticky;bottom:var(--espaco-16)}
+.aj-acoes--fixa{position:absolute;left:0;right:0;bottom:0;z-index:5;max-width:none;gap:var(--espaco-10);padding:var(--espaco-14) var(--espaco-24);border:0;border-top:1px solid var(--borda);border-radius:0;box-shadow:none}
 @media (max-width:1199.98px){.aj-acoes--fixa{position:absolute;left:0;right:0;bottom:0;z-index:5;gap:var(--espaco-10);padding:var(--espaco-14) var(--espaco-24) var(--espaco-24);border:0;border-top:1px solid var(--borda);border-radius:0;box-shadow:none}}
 @media (max-width:760.98px){.aj-acoes--fixa{display:grid;grid-template-columns:var(--aj-acoes-colunas);padding:var(--espaco-12) var(--espaco-16) var(--espaco-24)}}
 [data-visao="tablet"] .aj-acoes--fixa,[data-visao="mobile"] .aj-acoes--fixa{display:flex;position:absolute;left:0;right:0;bottom:0;z-index:5;gap:var(--espaco-10);padding:var(--espaco-14) var(--espaco-24) var(--espaco-24);border:0;border-top:1px solid var(--borda);border-radius:0;box-shadow:none}
 [data-visao="mobile"] .aj-acoes--fixa{display:grid;grid-template-columns:var(--aj-acoes-colunas);padding:var(--espaco-12) var(--espaco-16) var(--espaco-24)}
-[data-visao="desktop"] .aj-acoes--fixa{position:sticky;left:auto;right:auto;bottom:var(--espaco-16);display:flex;padding:var(--espaco-12);border:1px solid var(--borda);border-radius:var(--raio-16);box-shadow:var(--sombra-flutuante)}
+[data-visao="desktop"] .aj-acoes--fixa{display:flex;position:absolute;left:0;right:0;bottom:0;z-index:5;max-width:none;gap:var(--espaco-10);padding:var(--espaco-14) var(--espaco-24);border:0;border-top:1px solid var(--borda);border-radius:0;box-shadow:none}
 
 /* ---------- Visibilidade por visão ---------- */
 /* Invólucro de um bloco que só existe numa visão. Mostrado, some do layout (display: contents) e os filhos se
@@ -625,6 +625,8 @@ textarea.aj-campo{padding:9px var(--espaco-12);resize:vertical}
 [data-visao="tablet"]{--aj-pagina-padding-acoes:var(--espaco-16) var(--espaco-24) 110px}
 [data-visao="mobile"]{--aj-pagina-padding-acoes:var(--espaco-16) var(--espaco-16) 112px}
 .aj-app:has(:is(.aj-so-tablet,.aj-tablet-mobile)>.aj-acoes--fixa) .aj-app__conteudo{padding:var(--aj-pagina-padding-acoes)}
+@media (min-width:1200px){.aj-app:has(.aj-so-desktop>.aj-acoes--fixa) .aj-app__conteudo{padding-bottom:104px}}
+[data-visao="desktop"] .aj-app:has(.aj-so-desktop>.aj-acoes--fixa) .aj-app__conteudo{padding-bottom:104px}
 
 /* ---------- Clientes e processos (fase 9D) ---------- */
 /* Lado a lado: com o painel primeiro na marcação (a ficha do cliente, que no tablet começa pelos dados), o
@@ -834,6 +836,7 @@ textarea.aj-campo{padding:9px var(--espaco-12);resize:vertical}
 [data-visao="desktop"] .aj-painel--medio{max-width:680px}
 [data-visao="tablet"] .aj-painel--medio,[data-visao="mobile"] .aj-painel--medio{max-width:none}
 .aj-acoes--medio{max-width:680px}
+.aj-acoes--fixa.aj-acoes--medio{max-width:none}
 .aj-conjunto{display:flex;flex-direction:column;gap:var(--espaco-8);min-width:0;margin:0;padding:0;border:0}
 .aj-conjunto>legend{padding:0 0 var(--espaco-8)}
 
@@ -1549,7 +1552,7 @@ a.aj-evento{text-decoration:none}
 /* ---------- Ajustes da conferência da fase 9G no navegador ---------- */
 /* Foco à vista: o rolador do conteúdo reserva embaixo a altura das barras que ficam por cima dele (a barra de ações
    fixa, a barra inferior, o botão flutuante), para o elemento que o Tab alcança não ficar escondido atrás delas.
-   Desktop: a barra de ações flutuante (64px de altura, 16px acima do respiro de 28px do conteúdo: o topo a 108px do pé). Tablet: a barra de ações presa à base (110px).
+   Desktop: a barra de ações em faixa presa ao pé da coluna (a área de conteúdo reserva 104px embaixo). Tablet: a barra de ações presa à base (110px).
    Mobile: a barra inferior (104px), com o botão flutuante (168px), a barra de voltar e a de ações (112px). Os
    valores são os do respiro inferior do conteúdo em cada caso. */
 .aj-app:has(.aj-acoes--fixa) .aj-app__conteudo{scroll-padding-bottom:112px}
