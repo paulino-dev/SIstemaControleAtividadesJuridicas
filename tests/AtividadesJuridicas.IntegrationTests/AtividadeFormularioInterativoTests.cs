@@ -124,7 +124,7 @@ public class AtividadeFormularioInterativoTests : TelaInterativa
     }
 
     [Fact]
-    public void Nova_atividade_salva_envia_os_campos_e_volta_para_a_lista_com_o_recado()
+    public void Nova_atividade_salva_envia_os_campos_e_abre_a_ficha_dela_com_o_recado()
     {
         var tela = Nova();
         Digitar(tela, "Título", "Levantamento de certidões");
@@ -134,7 +134,8 @@ public class AtividadeFormularioInterativoTests : TelaInterativa
 
         tela.Find("form#formulario-da-atividade").Submit();
 
-        tela.WaitForAssertion(() => Endereco.Should().EndWith("/atividades"));
+        // O id é o que o salvar devolveu (a resposta de SalvarAtividade em Respostas()).
+        tela.WaitForAssertion(() => Endereco.Should().EndWith($"/atividades/{AtividadeId}"));
         var enviada = Enviada;
         enviada.Id.Should().BeNull();
         enviada.Titulo.Should().Be("Levantamento de certidões");
