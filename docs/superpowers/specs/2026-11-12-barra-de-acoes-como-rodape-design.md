@@ -54,5 +54,5 @@ ações) e depois é copiada para `wwwroot/css/componentes.css`, igual.
 ## Verificação
 
 Só CSS: a suíte continua passando sem mudança de teste. No navegador (Docker de testes, 1440px): formulário de
-processo e de atividade, com a faixa de borda a borda e o último campo acima dela no fim da rolagem; tela de devolver
-com a faixa inteira; tablet e mobile iguais a antes.
+processo e de atividade, com a faixa de borda a borda e o último campo acima dela no fim da rolagem; tela de troca de
+revisor com a faixa inteira; tablet e mobile iguais a antes.

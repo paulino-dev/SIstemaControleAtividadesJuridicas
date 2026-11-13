@@ -127,8 +127,8 @@
     private string TextoDoManter => _detalhe?.RevisorNome is { } atual ? $"Manter / deduzir (atual: {atual})" : "Manter / deduzir";
     private string ClasseDoRevisor => _erroDoRevisor is null ? "aj-rotulo" : "aj-rotulo aj-rotulo--erro";
 
-    // Na troca de revisor o painel é o médio, e a barra do desktop acompanha a largura dele (como no devolver e no
-    // reabrir); na tela inteira, a barra tem a largura do conteúdo. As duas continuam fixas ao pé.
+    // No desktop a barra fixa é a faixa presa ao pé da coluna, de borda a borda, nas duas telas; na troca de revisor
+    // ela leva também o --medio, que não muda nada na fixa (a marcação fica como está).
     private string ClasseDaBarraDoDesktop => ModoDoRevisor ? "aj-acoes aj-acoes--fixa aj-acoes--medio" : "aj-acoes aj-acoes--fixa";
 
     protected override Task OnInitializedAsync() => CarregarAsync();
