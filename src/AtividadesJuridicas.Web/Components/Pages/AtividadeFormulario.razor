@@ -154,7 +154,8 @@
 
     private string Titulo => Id is null ? "Nova atividade" : "Editar atividade";
 
-    // Depois de salvar: a nova volta à lista; a edição, à ficha (com a origem de Produtores, se veio de lá).
+    // O cancelar: a nova volta à lista; a edição, à ficha (com a origem de Produtores, se veio de lá). Depois de salvar,
+    // as duas vão à ficha (a nova, à que acabou de ser criada).
     private string Voltar => Id is { } id ? OrigemDaAtividade.Ficha(id, De, Produtor) : "/atividades";
 
     // Sem processo escolhido, a busca escolhe um; com processo, troca o escolhido (o exemplo do quadro).
@@ -409,7 +410,7 @@
 
             Recados.Deixar("Atividade salva.");
             navegou = true;
-            Navegacao.NavigateTo(Voltar);
+            Navegacao.NavigateTo(Id is null ? OrigemDaAtividade.Ficha(resultado.Valor, De, Produtor) : Voltar);
         }
         finally
         {
