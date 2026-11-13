@@ -97,7 +97,7 @@ public class AtividadeResponsaveisWebTests(BancoFixture banco) : IAsyncLifetime
         html.Should().NotContain("aj-opcao__caixa").And.NotContain("Direcionamento de")
             .And.NotContain("Manter / deduzir").And.NotContain("Salvar responsáveis");
 
-        // E10: o painel é o médio, e a barra do desktop acompanha a largura dele, como no devolver e no reabrir.
+        // E10: o painel é o médio; a barra do desktop leva o --medio, mas, fixa, é a faixa da coluna inteira.
         BlocoDeVisao.De(html, "aj-so-desktop").Should().MatchRegex(
             $"(?s)<div class=\"aj-acoes aj-acoes--fixa aj-acoes--medio\">\\s*<a href=\"/atividades/{_recurso}\" class=\"aj-botao aj-botao--fantasma\">Cancelar</a>\\s*" +
             "<button type=\"submit\" class=\"aj-botao aj-botao--primario aj-botao--com-icone\" form=\"formulario-de-responsaveis\"[^>]*>\\s*<svg[^>]*>.*?</svg>\\s*Trocar revisor</button>");
