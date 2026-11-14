@@ -61,7 +61,7 @@
 
 ---
 
-### Tarefa 1: Domínio — atividade com solicitação, vínculo conferido e documento levado
+### Task 1: Domínio — atividade com solicitação, vínculo conferido e documento levado
 
 **Files:**
 - Modify: `src/AtividadesJuridicas.Domain/Atividades/Atividade.cs`
@@ -107,7 +107,7 @@
 - [ ] **Step 4: Rodar e ver passar.** Mesmo comando, mais `dotnet build` da solução: os chamadores de `VincularAtividade(Guid, …)` em testes param de compilar e passam a usar a atividade.
 - [ ] **Step 5: Commit.** `feat(domain): atividade com solicitação, vínculo conferido pelo cliente e documento levado para a atividade`.
 
-### Tarefa 2: Persistência — `atividades.solicitacao_id` e a chave de armazenamento compartilhável
+### Task 2: Persistência — `atividades.solicitacao_id` e a chave de armazenamento compartilhável
 
 **Files:**
 - Modify: `src/AtividadesJuridicas.Infrastructure/Persistencia/Configuracoes/AtividadeConfiguracao.cs`
@@ -141,7 +141,7 @@
 - [ ] **Step 4: Rodar e ver passar.** Mesmo comando.
 - [ ] **Step 5: Commit.** `feat(infra): atividade ligada à solicitação e chave de armazenamento compartilhável`.
 
-### Tarefa 3: Aplicação — `CriarAtividadeDaSolicitacao`
+### Task 3: Aplicação — `CriarAtividadeDaSolicitacao`
 
 **Files:**
 - Create: `src/AtividadesJuridicas.Application/Atividades/ValidacaoDoVinculo.cs`
@@ -232,7 +232,7 @@ internal static class ValidacaoDoVinculo
 - [ ] **Step 6: Rodar e ver passar.** `dotnet test tests/AtividadesJuridicas.IntegrationTests --filter FullyQualifiedName~AtividadeDaSolicitacaoTests`.
 - [ ] **Step 7: Commit.** `feat(app): criar atividade a partir da solicitação, com cancelamento, versão e documentos conferidos no servidor`.
 
-### Tarefa 4: Aplicação — exclusão que desvincula e `SolicitacaoId` na ficha
+### Task 4: Aplicação — exclusão que desvincula e `SolicitacaoId` na ficha
 
 **Files:**
 - Modify: `src/AtividadesJuridicas.Application/Atividades/ExcluirAtividade.cs`
@@ -261,7 +261,7 @@ internal static class ValidacaoDoVinculo
 - [ ] **Step 4: Rodar e ver passar.** Mesmo comando e `dotnet test tests/AtividadesJuridicas.IntegrationTests --filter FullyQualifiedName~AtividadeDaSolicitacaoTests`.
 - [ ] **Step 5: Commit.** `feat(app): excluir a atividade devolve a solicitação; a ficha da Diretoria sabe de onde a atividade veio`.
 
-### Tarefa 5: Tela — formulário de atividade com `?solicitacao={id}`
+### Task 5: Tela — formulário de atividade com `?solicitacao={id}`
 
 **Files:**
 - Create: `src/AtividadesJuridicas.Web/Components/Solicitacoes/SolicitacaoNoFormulario.razor`
@@ -328,7 +328,7 @@ internal static class ValidacaoDoVinculo
 - [ ] **Step 4: Rodar e ver passar.** Mesmo comando e `dotnet test tests/AtividadesJuridicas.IntegrationTests --filter "FullyQualifiedName~AtividadeFormulario"` (o formulário sem solicitação não muda).
 - [ ] **Step 5: Commit.** `feat(web): formulário de atividade a partir da solicitação, com cliente travado, comentário e documentos`.
 
-### Tarefa 6: Telas — navegação entre as fichas e emendas da documentação
+### Task 6: Telas — navegação entre as fichas e emendas da documentação
 
 **Files:**
 - Modify: `src/AtividadesJuridicas.Web/Components/Pages/SolicitacaoFicha.razor`
