@@ -1,0 +1,68 @@
+@* O bloco "Solicitação do cliente" no topo do formulário de atividade aberto da solicitação (?solicitacao=): quem
+   abriu, quando, a urgência e a descrição; a caixa do comentário e os documentos que vão para a atividade. As escolhas
+   ficam com o formulário, que as envia; o bloco só as mostra e avisa as mudanças. *@
+@inject FusoDoEscritorio Fuso
+
+<section class="aj-painel aj-painel--descricao" aria-labelledby="titulo-da-solicitacao">
+    <h2 id="titulo-da-solicitacao">Solicitação do cliente</h2>
+    <dl class="aj-detalhes">
+        <div><dt>Aberta por</dt><dd>@Solicitacao.SolicitanteNome</dd></div>
+        <div><dt>Aberta em</dt><dd>@Fuso.Formatar(Solicitacao.AbertaEm)</dd></div>
+        <div><dt>Urgência</dt><dd>@RotulosDeSolicitacao.Urgencia(Solicitacao.Urgencia)</dd></div>
+    </dl>
+    <p>@Solicitacao.Descricao</p>
+    <label class="aj-opcao"><input type="checkbox" class="aj-opcao__caixa" checked="@AnexarComentario" disabled="@Desabilitado" @onchange="MarcarComentarioAsync" />Anexar a descrição da solicitação como comentário da atividade</label>
+
+    @* Sem documentos, a lista e os botões não aparecem. *@
+    @if (Solicitacao.Documentos.Count > 0)
+    {
+        <h3 id="documentos-da-solicitacao">Documentos da solicitação</h3>
+        <div class="aj-opcoes" role="group" aria-labelledby="documentos-da-solicitacao">@foreach (var documento in Solicitacao.Documentos)
+            {<label class="aj-opcao" @key="documento.Id"><input type="checkbox" class="aj-opcao__caixa" checked="@Marcados.Contains(documento.Id)" disabled="@Desabilitado" @onchange="e => MarcarAsync(documento.Id, e)" />@documento.Nome<span class="aj-opcao__nota">@TextosDeDocumento.Detalhe(documento.TamanhoBytes, documento.EnviadoEm, null, Fuso)</span></label>}</div>
+        <div class="aj-painel__acoes"><button type="button" class="aj-botao aj-botao--secundario" disabled="@Desabilitado" @onclick="MarcarTodosAsync">Marcar todos</button><button type="button" class="aj-botao aj-botao--secundario" disabled="@Desabilitado" @onclick="DesmarcarTodosAsync">Desmarcar todos</button></div>
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired] public SolicitacaoDetalhe Solicitacao { get; set; } = default!;
+
+    /// <summary>A caixa "Anexar a descrição da solicitação como comentário da atividade".</summary>
+    [Parameter] public bool AnexarComentario { get; set; }
+    [Parameter] public EventCallback<bool> AnexarComentarioChanged { get; set; }
+
+    /// <summary>Os Ids dos documentos da solicitação marcados para irem para a atividade.</summary>
+    [Parameter] public IReadOnlySet<Guid> Marcados { get; set; } = new HashSet<Guid>();
+    [Parameter] public EventCallback<IReadOnlySet<Guid>> MarcadosChanged { get; set; }
+
+    /// <summary>Com a gravação em curso, as caixas e os botões ficam travados.</summary>
+    [Parameter] public bool Desabilitado { get; set; }
+
+    /// <summary>
+    /// As marcas depois de reler a solicitação: os documentos novos entram marcados e os removidos saem; os demais ficam
+    /// como o diretor os deixou.
+    /// </summary>
+    public static IReadOnlySet<Guid> MarcadosDaReleitura(SolicitacaoDetalhe antes, SolicitacaoDetalhe relida, IReadOnlySet<Guid> marcados)
+    {
+        var conhecidos = antes.Documentos.Select(d => d.Id).ToHashSet();
+        return relida.Documentos.Select(d => d.Id).Where(id => marcados.Contains(id) || !conhecidos.Contains(id)).ToHashSet();
+    }
+
+    /// <summary>Se o cliente mudou o que o bloco mostra: a descrição, a urgência ou os documentos.</summary>
+    public static bool ConteudoMudou(SolicitacaoDetalhe antes, SolicitacaoDetalhe relida) =>
+        antes.Descricao != relida.Descricao || antes.Urgencia != relida.Urgencia
+        || !antes.Documentos.Select(d => d.Id).ToHashSet().SetEquals(relida.Documentos.Select(d => d.Id));
+
+    private Task MarcarComentarioAsync(ChangeEventArgs e) => AnexarComentarioChanged.InvokeAsync(e.Value is true);
+
+    private Task MarcarAsync(Guid documentoId, ChangeEventArgs e)
+    {
+        var marcados = new HashSet<Guid>(Marcados);
+        if (e.Value is true) marcados.Add(documentoId);
+        else marcados.Remove(documentoId);
+        return MarcadosChanged.InvokeAsync(marcados);
+    }
+
+    private Task MarcarTodosAsync() => MarcadosChanged.InvokeAsync(Solicitacao.Documentos.Select(d => d.Id).ToHashSet());
+
+    private Task DesmarcarTodosAsync() => MarcadosChanged.InvokeAsync(new HashSet<Guid>());
+}
