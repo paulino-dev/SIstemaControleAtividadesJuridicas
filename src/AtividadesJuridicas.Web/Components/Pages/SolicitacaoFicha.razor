@@ -31,6 +31,12 @@ else
     }
     else
     {
+        @* Só em Aguardando. Cancelada não oferece: o aviso de cancelamento só aparece quando o cancelamento acontece durante a criação. *@
+        @if (s.Situacao == SituacaoDaSolicitacao.Aguardando)
+        {
+            <div class="aj-painel__botoes"><a href="@($"/atividades/nova?solicitacao={Id}")" class="aj-botao aj-botao--primario">Criar atividade</a></div>
+        }
+
         <div class="aj-lado-a-lado aj-lado-a-lado--painel-primeiro aj-lado-a-lado--ficha aj-lado-a-lado--painel-estreito">
             <aside class="aj-painel aj-painel--ficha aj-painel--detalhes aj-lado-a-lado__painel" aria-label="Dados da solicitação">
                 <h2>Detalhes</h2>

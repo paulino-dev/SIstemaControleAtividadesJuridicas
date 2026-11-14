@@ -112,7 +112,7 @@
 **Files:**
 - Modify: `src/AtividadesJuridicas.Infrastructure/Persistencia/Configuracoes/AtividadeConfiguracao.cs`
 - Modify: `src/AtividadesJuridicas.Infrastructure/Persistencia/Configuracoes/DocumentoConfiguracao.cs:34`
-- Create: migration `AtividadeDaSolicitacao` (em `Persistencia/Migrations`, pelo `dotnet ef migrations add AtividadeDaSolicitacao --project src/AtividadesJuridicas.Infrastructure --startup-project src/AtividadesJuridicas.Web --output-dir Persistencia/Migrations`)
+- Create: migration `AtividadeDaSolicitacao` (em `Persistencia/Migrations`, pelo `dotnet ef migrations add AtividadeDaSolicitacao --project src/AtividadesJuridicas.Infrastructure --startup-project src/AtividadesJuridicas.Infrastructure --output-dir Persistencia/Migrations`)
 - Test: `tests/AtividadesJuridicas.IntegrationTests/PropriedadesAuditadasTests.cs`, `SolicitacoesPersistenciaTests.cs`, `MigracaoDaAtividadeDaSolicitacaoTests.cs` (novo, no molde de `MigracaoDasSolicitacoesTests`)
 
 **Interfaces:**

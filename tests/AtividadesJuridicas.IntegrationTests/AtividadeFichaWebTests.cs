@@ -5,7 +5,9 @@ using System.Text.RegularExpressions;
 using AtividadesJuridicas.Application.Atividades;
 using AtividadesJuridicas.Application.Auditoria;
 using AtividadesJuridicas.Application.Cadastros;
+using AtividadesJuridicas.Application.Solicitacoes;
 using AtividadesJuridicas.Domain.Cadastros;
+using AtividadesJuridicas.Domain.Solicitacoes;
 using AtividadesJuridicas.Web.Components.Layout;
 
 namespace AtividadesJuridicas.IntegrationTests;
@@ -333,6 +335,56 @@ public class AtividadeFichaWebTests(BancoFixture banco) : IAsyncLifetime
         faixa.Should().NotContain("Trocar revisor").And.NotContain("Aprovar").And.NotContain("Devolver");
         Textos(MaisAcoes(html)).Should().Equal("Editar", "Excluir");
         Textos(BarraFixa(html)).Should().Equal("Reabrir");
+    }
+
+    /// <summary>
+    /// "Emitir a certidão", criada pela Diretoria da solicitação da Carla (cliente Maria Silva), direcionada ao Pedro e com
+    /// a Diretoria revisora.
+    /// </summary>
+    private async Task<(Guid Atividade, Guid Solicitacao)> DaSolicitacaoAsync()
+    {
+        var (carla, _) = await _app.CriarCarlaAsync();
+        var aberta = await _app.ExecutarAsync(carla, new AbrirSolicitacao(
+            "Preciso de uma certidão atualizada.", UrgenciaDaSolicitacao.Alta, []));
+        aberta.Sucesso.Should().BeTrue(aberta.Mensagem);
+        var lida = await _app.ExecutarAsync(_admin, new ObterSolicitacao(aberta.Valor));
+        lida.Sucesso.Should().BeTrue(lida.Mensagem);
+
+        var criada = await _app.ExecutarAsync(_admin, new CriarAtividadeDaSolicitacao(
+            aberta.Valor, lida.Valor!.Versao, "Emitir a certidão", "Prazo de 15 dias.", new DateOnly(2090, 6, 15),
+            null, null, 1, false, []));
+        criada.Sucesso.Should().BeTrue(criada.Mensagem);
+        (await _app.ExecutarAsync(_admin, new DefinirResponsaveisDaAtividade(
+            criada.Valor, [new ResponsavelEntrada(_pedro, null)], _admin))).Sucesso.Should().BeTrue();
+        return (criada.Valor, aberta.Valor);
+    }
+
+    [Fact]
+    public async Task Atividade_da_solicitacao_leva_a_diretoria_de_volta_a_ela_e_a_producao_nao_ve_o_botao()
+    {
+        var (atividade, solicitacao) = await DaSolicitacaoAsync();
+
+        var diretoria = await PaginaAsync($"/atividades/{atividade}");
+
+        var faixa = Faixa(diretoria);
+        Textos(faixa).Should().Equal("Editar", "Responsáveis", "Ver solicitação", "Excluir");
+        faixa.Should().Contain($"<a href=\"/solicitacoes/{solicitacao}\" class=\"aj-botao aj-botao--fantasma\">Ver solicitação</a>");
+        Textos(MaisAcoes(diretoria)).Should().Equal("Editar", "Responsáveis", "Ver solicitação", "Excluir");
+        MaisAcoes(diretoria).Should().Contain($"<a href=\"/solicitacoes/{solicitacao}\" class=\"aj-menu-acoes__item\">Ver solicitação</a>");
+
+        // A Produção responsável abre a ficha, mas o servidor nem lhe entrega a solicitação de origem.
+        var producao = await PaginaAsync($"/atividades/{atividade}", comoPedro: true);
+        producao.Should().Contain("<h1 class=\"aj-titulo\">Emitir a certidão</h1>").And.NotContain("Atividade não encontrada.");
+        producao.Should().NotContain("Ver solicitação").And.NotContain($"/solicitacoes/{solicitacao}");
+    }
+
+    [Fact]
+    public async Task Atividade_sem_solicitacao_nao_mostra_ver_solicitacao()
+    {
+        var html = await PaginaAsync($"/atividades/{_minuta}");
+
+        html.Should().Contain("<h1 class=\"aj-titulo\">Minuta de acordo trabalhista</h1>")
+            .And.NotContain("Ver solicitação").And.NotContain("href=\"/solicitacoes/");
     }
 
     [Fact]

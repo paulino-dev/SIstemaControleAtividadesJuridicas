@@ -19,7 +19,8 @@ namespace AtividadesJuridicas.IntegrationTests;
 /// <summary>
 /// O formulário de atividade aberto da solicitação do cliente (<c>/atividades/nova?solicitacao={id}</c>), clicando: o
 /// bloco da solicitação, o cliente travado, o comentário e os documentos, e as respostas da criação (cancelada,
-/// alterada, já em atividade). Também o cliente travado na edição de uma atividade que veio de solicitação.
+/// alterada, já em atividade). Também o cliente travado na edição de uma atividade que veio de solicitação e o
+/// "Ver solicitação" na ficha dela.
 /// </summary>
 public class AtividadeDaSolicitacaoInterativaTests : TelaInterativa
 {
@@ -416,5 +417,96 @@ public class AtividadeDaSolicitacaoInterativaTests : TelaInterativa
 
         tela.Markup.Should().Contain("Solicitação não encontrada.");
         tela.FindAll("form#formulario-da-atividade").Should().BeEmpty();
+    }
+
+    // ---- A ficha da atividade: o caminho de volta para a solicitação ----
+
+    private static readonly Guid AtividadeDaFicha = Guid.Parse("0199a3f2-7c1e-7000-8000-0000000006e2");
+
+    private static AtividadeDetalhe DetalheDaAtividade(Guid? solicitacaoId, AcoesDaAtividade acoes) => new(
+        AtividadeDaFicha, "Emitir a certidão", Descricao, null, StatusAtividade.Criada, false,
+        null, MariaId, "Maria Silva", null, null, Area, "Cível", TipoAutor.Usuario, "Diana Diretora", null, null, [], [],
+        acoes, 7, 2, solicitacaoId);
+
+    private IRenderedComponent<ComBarraSuperior<AtividadeFicha>> FichaDaAtividade(UsuarioAutenticado ator, AtividadeDetalhe detalhe)
+    {
+        Despachante
+            .Responde<ObterMeuAcesso, UsuarioAutenticado?>(ator)
+            .Responde<ObterAtividade, Resultado<AtividadeDetalhe>>(Resultado<AtividadeDetalhe>.Ok(detalhe))
+            .Responde<ListarComentariosDaAtividade, Resultado<IReadOnlyList<ComentarioDetalhe>>>(
+                Resultado<IReadOnlyList<ComentarioDetalhe>>.Ok([]))
+            .Responde<ListarDocumentosDaAtividade, Resultado<Pagina<DocumentoResumo>>>(
+                Resultado<Pagina<DocumentoResumo>>.Ok(new([], 0, 1, 20)));
+        return Desenhar<ComBarraSuperior<AtividadeFicha>>(p => p.AddUnmatched(nameof(AtividadeFicha.Id), AtividadeDaFicha));
+    }
+
+    private static List<string> Textos(IEnumerable<IElement> elementos) =>
+        [.. elementos.Select(e => e.TextContent.Trim()).Where(t => t.Length > 0)];
+
+    private const string NaFaixa = ".aj-painel__botoes--faixa a, .aj-painel__botoes--faixa button";
+    private const string NoMaisAcoes = ".aj-barra-superior .aj-menu-acoes__item";
+
+    [Fact]
+    public void Ficha_da_atividade_da_solicitacao_mostra_ver_solicitacao_depois_do_cadastro_e_antes_de_excluir()
+    {
+        var ficha = FichaDaAtividade(AtorDaDiretoria, DetalheDaAtividade(SolicitacaoId, new(true, true, false, false, false, false, true)));
+
+        // Na faixa: botão fantasma para a ficha da solicitação, depois de Responsáveis e antes de Excluir.
+        var faixa = ficha.FindAll(NaFaixa);
+        Textos(faixa).Should().Equal("Editar", "Responsáveis", "Ver solicitação", "Excluir");
+        var verNaFaixa = faixa.Single(e => e.TextContent == "Ver solicitação");
+        verNaFaixa.TagName.Should().Be("A");
+        verNaFaixa.GetAttribute("href").Should().Be($"/solicitacoes/{SolicitacaoId}");
+        verNaFaixa.ClassList.Should().BeEquivalentTo("aj-botao", "aj-botao--fantasma");
+
+        // No "Mais ações" do mobile: o mesmo destino, antes de Excluir.
+        var menu = ficha.FindAll(NoMaisAcoes);
+        Textos(menu).Should().Equal("Editar", "Responsáveis", "Ver solicitação", "Excluir");
+        var verNoMenu = menu.Single(e => e.TextContent == "Ver solicitação");
+        verNoMenu.GetAttribute("href").Should().Be($"/solicitacoes/{SolicitacaoId}");
+        verNoMenu.ClassList.Should().BeEquivalentTo("aj-menu-acoes__item");
+    }
+
+    [Fact]
+    public void Ver_solicitacao_basta_para_a_faixa_e_o_mais_acoes_aparecerem()
+    {
+        // Sem nenhuma outra ação de cadastro: a solicitação de origem sozinha mantém a faixa e o menu.
+        var ficha = FichaDaAtividade(AtorDaDiretoria, DetalheDaAtividade(SolicitacaoId, new(false, false, false, false, false, false, false)));
+
+        Textos(ficha.FindAll(NaFaixa)).Should().Equal("Ver solicitação");
+        ficha.FindAll(".aj-barra-superior button[aria-label='Mais ações']").Should().ContainSingle();
+        Textos(ficha.FindAll(NoMaisAcoes)).Should().Equal("Ver solicitação");
+        ficha.FindAll(".aj-painel__divisor").Should().BeEmpty("sem ação primária não há o que separar");
+    }
+
+    [Fact]
+    public void Ver_solicitacao_fica_depois_do_divisor_das_acoes_primarias()
+    {
+        var ficha = FichaDaAtividade(AtorDaDiretoria, DetalheDaAtividade(SolicitacaoId, new(false, false, true, false, true, false, false)));
+
+        Textos(ficha.FindAll(NaFaixa)).Should().Equal("Aprovar", "Devolver", "Trocar revisor", "Ver solicitação");
+        ficha.FindAll(".aj-painel__divisor").Should().ContainSingle();
+        Textos(ficha.FindAll(NoMaisAcoes)).Should().Equal("Trocar revisor", "Ver solicitação");
+    }
+
+    [Fact]
+    public void Atividade_sem_solicitacao_nao_mostra_ver_solicitacao()
+    {
+        var ficha = FichaDaAtividade(AtorDaDiretoria, DetalheDaAtividade(null, new(true, true, false, false, false, false, true)));
+
+        Textos(ficha.FindAll(NaFaixa)).Should().Equal("Editar", "Responsáveis", "Excluir");
+        Textos(ficha.FindAll(NoMaisAcoes)).Should().Equal("Editar", "Responsáveis", "Excluir");
+        ficha.Markup.Should().NotContain("Ver solicitação").And.NotContain("/solicitacoes/");
+    }
+
+    [Fact]
+    public void Producao_nao_ve_ver_solicitacao()
+    {
+        // O servidor só devolve o SolicitacaoId à Diretoria: a Produção chega sem ele e a ficha não inventa o botão.
+        var ficha = FichaDaAtividade(AtorDaProducao, DetalheDaAtividade(null, new(false, false, false, true, false, false, false)));
+
+        Textos(ficha.FindAll(NaFaixa)).Should().Equal("Concluir minha parte");
+        ficha.FindAll(".aj-barra-superior button[aria-label='Mais ações']").Should().BeEmpty();
+        ficha.Markup.Should().NotContain("Ver solicitação").And.NotContain("/solicitacoes/");
     }
 }

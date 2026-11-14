@@ -241,4 +241,43 @@ public class SolicitacoesWebTests(BancoFixture banco) : IAsyncLifetime
             .And.MatchRegex("<a href=\"/documentos/[0-9a-f-]{36}/baixar\"[^>]*download[^>]*>rg\\.pdf</a>")
             .And.NotContain("Ver atividade").And.NotContain("Cancelar solicitação").And.NotContain("Carregando");
     }
+
+    /// <summary>Uma solicitação nova da Carla, só com a descrição.</summary>
+    private async Task<Guid> OutraSolicitacaoAsync()
+    {
+        var aberta = await _app.ExecutarAsync(_carla, new AbrirSolicitacao("Preciso de outra certidão.", UrgenciaDaSolicitacao.Baixa, []));
+        aberta.Sucesso.Should().BeTrue(aberta.Mensagem);
+        return aberta.Valor;
+    }
+
+    [Fact]
+    public async Task Ficha_da_diretoria_oferece_criar_atividade_so_em_aguardando()
+    {
+        var admin = await _app.ClienteAutenticadoAsync();
+        var diretoria = await _app.IdDoUsuarioAsync(AplicacaoDeTeste.EmailDoAdmin);
+
+        // Aguardando: o botão primário, antes das colunas, leva ao formulário da atividade com a solicitação.
+        var aguardando = await PaginaAsync(admin, $"/solicitacoes/{_solicitacao}");
+        aguardando.Should().Contain($"<a href=\"/atividades/nova?solicitacao={_solicitacao}\" class=\"aj-botao aj-botao--primario\">Criar atividade</a>");
+        aguardando.IndexOf("Criar atividade", StringComparison.Ordinal).Should()
+            .BeLessThan(aguardando.IndexOf("aj-lado-a-lado", StringComparison.Ordinal));
+
+        // Cancelada pelo cliente: o aviso de cancelamento só aparece durante a criação, então a ficha não oferece o botão.
+        var cancelada = await OutraSolicitacaoAsync();
+        var versao = (await _app.ExecutarAsync(_carla, new ObterMinhaSolicitacao(cancelada))).Valor!.Versao;
+        (await _app.ExecutarAsync(_carla, new CancelarMinhaSolicitacao(cancelada, versao))).Sucesso.Should().BeTrue();
+        var ficha = await PaginaAsync(admin, $"/solicitacoes/{cancelada}");
+        ficha.Should().Contain("Cancelada em").And.NotContain("Criar atividade").And.NotContain("/atividades/nova")
+            .And.NotContain("Carregando").And.NotContain("Página não encontrada");
+
+        // Em atividade: no lugar do botão, o "Ver atividade".
+        var emAtividade = await OutraSolicitacaoAsync();
+        var lida = (await _app.ExecutarAsync(diretoria, new ObterSolicitacao(emAtividade))).Valor!;
+        var criada = await _app.ExecutarAsync(diretoria, new CriarAtividadeDaSolicitacao(
+            emAtividade, lida.Versao, "Emitir a certidão", "Prazo de 15 dias.", null, null, null, 1, false, []));
+        criada.Sucesso.Should().BeTrue(criada.Mensagem);
+        ficha = await PaginaAsync(admin, $"/solicitacoes/{emAtividade}");
+        ficha.Should().Contain($"href=\"/atividades/{criada.Valor}\"").And.Contain("Ver atividade")
+            .And.NotContain("Criar atividade").And.NotContain("/atividades/nova").And.NotContain("Carregando");
+    }
 }

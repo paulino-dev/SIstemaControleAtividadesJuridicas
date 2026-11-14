@@ -39,8 +39,8 @@ else
 {
     var a = _detalhe;
     <CabecalhoDaAtividade Detalhe="a" VoltarPara="@Voltar" Origem="@Origem"
-                          Faixa="@(TemAcaoPrincipal(a.Acoes) || TemAcaoDeCadastro(a.Acoes) ? FaixaDeAcoes(a.Acoes) : null)"
-                          AcaoDaBarra="@(TemAcaoDeCadastro(a.Acoes) ? MaisAcoes(a.Acoes) : null)" />
+                          Faixa="@(TemAcaoPrincipal(a.Acoes) || TemAcaoDeCadastro(a) ? FaixaDeAcoes(a) : null)"
+                          AcaoDaBarra="@(TemAcaoDeCadastro(a) ? MaisAcoes(a) : null)" />
 
     @if (_recado is { } recado)
     {
@@ -245,8 +245,10 @@ else
     // Quando a atividade permite redefinir os responsáveis, o painel "Revisor" da tela de responsáveis já troca o revisor.
     private static bool SoTrocaORevisor(AcoesDaAtividade a) => a.TrocarRevisor && !a.DefinirResponsaveis;
 
-    private static bool TemAcaoDeCadastro(AcoesDaAtividade a) =>
-        a.Editar || a.DefinirResponsaveis || SoTrocaORevisor(a) || a.Excluir;
+    // "Ver solicitação" é da faixa de cadastro: o servidor só entrega o SolicitacaoId à Diretoria, e é ele que faz a faixa e
+    // o "Mais ações" aparecerem mesmo quando nenhuma outra ação de cadastro vale.
+    private static bool TemAcaoDeCadastro(AtividadeDetalhe a) =>
+        a.Acoes.Editar || a.Acoes.DefinirResponsaveis || SoTrocaORevisor(a.Acoes) || a.Acoes.Excluir || a.SolicitacaoId is not null;
 
     /// <summary>
     /// A ação primária: Concluir minha parte, ou Aprovar, ou Reabrir (as regras do servidor não deixam duas valerem juntas).
@@ -265,11 +267,14 @@ else
 
     /// <summary>
     /// A faixa do desktop e do tablet, na ordem do quadro: a ação primária, Devolver, o divisor (só no desktop, e só com
-    /// ação dos dois lados), Editar, Responsáveis, Trocar revisor e, à direita, Excluir (com texto no desktop, só o ícone
-    /// no tablet).
+    /// ação dos dois lados), Editar, Responsáveis, Trocar revisor, Ver solicitação (só com solicitação de origem) e, à
+    /// direita, Excluir (com texto no desktop, só o ícone no tablet).
     /// </summary>
-    private RenderFragment FaixaDeAcoes(AcoesDaAtividade acoes) => @<text>@AcaoPrimaria(acoes, "faixa")@BotaoDevolver(acoes)
-        @if (TemAcaoPrincipal(acoes) && TemAcaoDeCadastro(acoes))
+    private RenderFragment FaixaDeAcoes(AtividadeDetalhe a)
+    {
+        var acoes = a.Acoes;
+        return @<text>@AcaoPrimaria(acoes, "faixa")@BotaoDevolver(acoes)
+        @if (TemAcaoPrincipal(acoes) && TemAcaoDeCadastro(a))
         {<span class="aj-so-desktop"><span class="aj-painel__divisor" aria-hidden="true"></span></span>}
         @if (acoes.Editar)
         {<a href="@Rota("editar")" class="aj-botao aj-botao--fantasma">Editar</a>}
@@ -277,18 +282,27 @@ else
         {<a href="@Rota("responsaveis")" class="aj-botao aj-botao--fantasma">Responsáveis</a>}
         @if (SoTrocaORevisor(acoes))
         {<a href="@Rota("responsaveis")" class="aj-botao aj-botao--fantasma">Trocar revisor</a>}
+        @if (a.SolicitacaoId is { } solicitacao)
+        {<a href="@($"/solicitacoes/{solicitacao}")" class="aj-botao aj-botao--fantasma">Ver solicitação</a>}
         @if (acoes.Excluir)
         {<span class="aj-so-desktop"><button type="button" class="aj-botao aj-botao--perigo aj-botao--com-icone-menor aj-botao--ao-fim" id="excluir-atividade-desktop" disabled="@_ocupado" @onclick="PedirExclusao"><Icone Nome="excluir" />Excluir</button></span><span class="aj-so-tablet"><button type="button" class="aj-botao aj-botao--perigo aj-botao--icone aj-botao--ao-fim" aria-label="Excluir atividade" id="excluir-atividade-tablet" disabled="@_ocupado" @onclick="PedirExclusao"><Icone Nome="excluir" /></button></span>}</text>;
+    }
 
     /// <summary>O "Mais ações" da barra de voltar do mobile, com as ações de cadastro da faixa, Excluir por último.</summary>
-    private RenderFragment MaisAcoes(AcoesDaAtividade acoes) => @<MenuDeAcoes Rotulo="Mais ações">@if (acoes.Editar)
+    private RenderFragment MaisAcoes(AtividadeDetalhe a)
+    {
+        var acoes = a.Acoes;
+        return @<MenuDeAcoes Rotulo="Mais ações">@if (acoes.Editar)
         {<a href="@Rota("editar")" class="aj-menu-acoes__item">Editar</a>}
         @if (acoes.DefinirResponsaveis)
         {<a href="@Rota("responsaveis")" class="aj-menu-acoes__item">Responsáveis</a>}
         @if (SoTrocaORevisor(acoes))
         {<a href="@Rota("responsaveis")" class="aj-menu-acoes__item">Trocar revisor</a>}
+        @if (a.SolicitacaoId is { } solicitacao)
+        {<a href="@($"/solicitacoes/{solicitacao}")" class="aj-menu-acoes__item">Ver solicitação</a>}
         @if (acoes.Excluir)
         {<button type="button" class="aj-menu-acoes__item aj-menu-acoes__item--perigo" disabled="@_ocupado" @onclick="PedirExclusao">Excluir</button>}</MenuDeAcoes>;
+    }
 
     // Métodos, e não lambdas de atribuição, nos @onclick: as confirmações têm regras.
     private void Pedir(Confirmacao confirmacao)

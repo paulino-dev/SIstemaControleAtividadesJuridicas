@@ -284,6 +284,7 @@ Não há tabela nova.
 - Restrições de `documentos` reescritas: `cliente_id` é obrigatório nas categorias Documento Geral, Contrato de Honorários e Documento do cliente, e nulo no Documento comum; `atividade_id` continua existindo só no Documento de Atividade.
 - Não há migration de dados: o perfil "Cliente" é garantido pelo semeador (seção 3).
 - A migration das solicitações reescreveu de novo a restrição de `cliente_id` (a categoria `DocumentoDaSolicitacao` também o exige) e acrescentou `documentos.solicitacao_id`, só na categoria nova (spec das solicitações, seção 8).
+- A migration `AtividadeDaSolicitacao`, da fase B das solicitações, acrescentou `atividades.solicitacao_id` e trocou o índice único de `documentos.chave_armazenamento` por um índice comum: o documento da solicitação levado para a atividade compartilha o arquivo (spec das solicitações, seções 3 e 8).
 
 ## 10. Testes
 
@@ -355,6 +356,14 @@ A fase 8B está concluída, e a modelagem de domínio foi emendada com as regras
 - Feito na fase A das solicitações: o documento da solicitação é a terceira categoria visível ao cliente. A matriz de acesso e a regra de acesso do documento (seções 3 e 4) o cobrem, e a Produção nunca o alcança.
 - Decisão: "Envio de arquivos pelo cliente" saiu do fora do escopo (seção 12), mas o cliente só envia como anexo de uma solicitação. O envio às áreas "Meus documentos" e "Documentos comuns" continua exclusivo da Diretoria.
 - Em aberto: se o cliente que pede pelo Id a solicitação de outro cliente, ou que pede `RemoverDocumentoDaSolicitacao` com o Id de um documento de outro cliente, deve deixar um registro `acesso_negado`. Hoje esses pedidos respondem `NaoEncontrado` sem registro; das respostas `NaoEncontrado`, só a do download de documento registra (seção 7). As respostas `AcessoNegado`, a do portão inclusive, registram sempre.
+
+**Registrado na fase B das solicitações (`2026-11-13-solicitacoes-do-cliente-design.md`): o que mudou no portal.**
+
+- Feito na fase B das solicitações: a lista das requisições abertas ao cliente não mudou e continua com catorze. `CriarAtividadeDaSolicitacao` é da Diretoria e não é marcada: o portão a nega ao cliente (`AcessoNegado`, com o evento `acesso_negado`), sem chamar o caso de uso. O `TipoErro.ConfirmacaoNecessaria`, que ela devolve quando a solicitação está cancelada e o diretor ainda não confirmou, nunca chega ao cliente.
+- Feito na fase B das solicitações: `Atividade.SolicitacaoId` não chega ao portal. O Andamento continua sem identificadores, e `ObterAtividade` só o devolve à Diretoria. A atividade criada a partir de uma solicitação aparece no Andamento como qualquer atividade com cliente, e o cliente dela é sempre o da solicitação: o domínio recusa trocá-lo ("O cliente de uma atividade criada a partir de uma solicitação não pode ser trocado."). O título que a Diretoria lhe dá é lido pelo cliente, como o lembrete do formulário já diz.
+- Feito na fase B das solicitações: `SolicitacaoDoCliente.VincularAtividade` recusa uma atividade de outro cliente no domínio. Sem isso, o cliente leria, na ficha da solicitação, o título de uma atividade que não é dele (critério de sucesso da seção 1).
+- Feito na fase B das solicitações: excluir a atividade devolve a solicitação, e o cliente a vê de novo como "Aguardando análise" ou "Cancelada".
+- Feito na fase B das solicitações: o documento da solicitação levado para a atividade (`Documento.LevarParaAtividade`) é um `DocumentoAtividade` novo que aponta para o mesmo arquivo. A regra de acesso (seção 4) não mudou: o cliente continua lendo o original, `DocumentoDaSolicitacao`, e não alcança o levado, que é de categoria interna; a Produção responsável baixa o levado e nunca o da solicitação. Como um arquivo passa a ter mais de um documento, a garantia de um documento por chave de armazenamento, que era do índice único, vira regra de código: só `LevarParaAtividade` cria documento com a chave de outro, e qualquer remoção física futura procura pela chave todos os documentos que usam o arquivo (spec das solicitações, seção 3). Um teste varre `src` e fixa o único caminho.
 
 ## 12. Fora do escopo
 

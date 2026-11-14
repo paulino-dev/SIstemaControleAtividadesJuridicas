@@ -1,7 +1,7 @@
 # Solicitações do cliente
 
 Data: 2026-11-13
-Estado: fase A implementada (a solicitação); fase B (a atividade a partir da solicitação) ainda sem plano
+Estado: fases A (a solicitação) e B (a atividade a partir da solicitação) implementadas
 Emenda: `2026-10-08-portal-do-cliente-design.md` (seções 1, 2, 3, 4, 6, 7, 9, 10, 11 e 12) e
 `2026-10-06-modelagem-dominio-design.md`
 
@@ -213,7 +213,7 @@ Cliente inativo: a criação é recusada como hoje ("O cliente está inativo.").
 | Rota | Conteúdo |
 |---|---|
 | `/solicitacoes` | Lista da mais antiga para a mais nova, com filtro por situação (uma fileira de chips: Todas, Aguardando, Virou atividade e Cancelada; abre em "Aguardando") e por cliente |
-| `/solicitacoes/{id}` | A ficha completa, com download dos documentos. Em `Aguardando`, botão "Criar atividade" (só na fase B). Em atividade, botão "Ver atividade" |
+| `/solicitacoes/{id}` | A ficha completa, com download dos documentos. Em `Aguardando`, botão "Criar atividade", para `/atividades/nova?solicitacao={id}`. Em atividade, botão "Ver atividade" |
 
 - Menu: "Solicitações" depois de "Atividades", só para a Diretoria. A Produção que abrir a rota recebe "Página não
   encontrada" pela própria página.
@@ -241,7 +241,9 @@ Cliente inativo: a criação é recusada como hoje ("O cliente está inativo.").
 
 ### Ficha da atividade (Diretoria)
 
-Atividade com `SolicitacaoId`: botão "Ver solicitação" no cabeçalho, para `/solicitacoes/{id}`. A Produção não o vê.
+Atividade com `SolicitacaoId`: botão "Ver solicitação", para `/solicitacoes/{id}`. A Produção não o vê. Na faixa de ações
+do desktop e do tablet, é um botão fantasma depois de "Trocar revisor" e antes de "Excluir"; no mobile, entra no "Mais
+ações", também antes de "Excluir".
 
 ## 7. Auditoria
 
@@ -314,8 +316,7 @@ Dois planos de implementação:
 A modelagem de domínio e a spec do portal são emendadas ao fim de cada fase. "Envio de arquivos pelo cliente" sai da
 lista de fora do escopo do portal.
 
-A fase A está concluída, e a spec do portal e a modelagem de domínio foram emendadas com as regras dela. A fase B
-ainda não tem plano.
+As fases A e B estão concluídas, e a spec do portal e a modelagem de domínio foram emendadas com as regras de cada uma.
 
 **Registrado ao fim da fase A: o que foi feito, o que a fase B precisa fazer e o que está em aberto.**
 
@@ -405,3 +406,81 @@ ainda não tem plano.
   Hoje esses pedidos respondem `NaoEncontrado` e não registram nada (como a seção 4 determina); das respostas
   `NaoEncontrado`, só a do download de documento registra `acesso_negado`. As respostas `AcessoNegado`, a do portão
   inclusive, registram sempre. É decisão de produto.
+
+**Registrado ao fim da fase B: o que foi feito, as decisões do plano e o que continua em aberto.**
+
+- Feito na B: `Atividade.SolicitacaoId` (anulável), definido só em `Criar` e nunca alterado; `Guid.Empty` é erro de
+  programação, e uma atividade criada de solicitação exige cliente ("Uma atividade criada a partir de uma solicitação
+  precisa ter cliente."). `Alterar` recusa a troca de cliente antes de mudar qualquer coisa ("O cliente de uma atividade
+  criada a partir de uma solicitação não pode ser trocado."); `SalvarAtividade` devolve a recusa como `Validacao`. O
+  processo escolhido continua precisando ser do cliente, pela regra do vínculo.
+- Feito na B: `VincularAtividade` recebe a `Atividade`, e não mais o Id, e confere nesta ordem: atividade nula
+  (`ArgumentNullException`), `SolicitacaoId` da atividade diferente da solicitação (`ArgumentException`, erro de
+  programação), cliente da atividade diferente do da solicitação (`ExcecaoDeDominio`, "A atividade precisa ser do cliente
+  da solicitação.") e, só então, as regras de hoje (já em atividade, cancelada sem confirmação). É a recusa que a fase A
+  pediu para a B: o cliente nunca lê o título de uma atividade que não é dele.
+- Feito na B: `Documento.LevarParaAtividade(atividadeId, clienteDaAtividade)` é o único caminho que cria um documento com
+  a chave de armazenamento de outro: devolve um `DocumentoAtividade` com o mesmo arquivo (nome, tipo, tamanho, hash e
+  chave) e o nome do documento da solicitação; o original não muda. Categoria diferente de `DocumentoDaSolicitacao` é
+  erro de programação (`InvalidOperationException`); cliente diferente do do documento é `ExcecaoDeDominio` ("O documento
+  precisa ser do cliente da atividade."). A regra que substitui o índice único (seção 3) está no comentário de
+  `Documento.cs`, e `ChaveCompartilhadaTests` a fixa por varredura de `src`: `.LevarParaAtividade(` só aparece em
+  `CriarAtividadeDaSolicitacao.cs` (fora a declaração) e `new ArquivoDoDocumento(` só em `ArquivoEnviado.cs`, que grava
+  chave nova, e em `Documento.cs`. Um caminho novo exige registrar a exceção na seção 3 antes de entrar no teste.
+- Feito na B: uma migration só, `AtividadeDaSolicitacao`, só de DDL. Acrescenta `atividades.solicitacao_id` (anulável,
+  chave estrangeira sem cascata), cria o índice único parcial `ix_atividades_solicitacao_id` (`excluido_em IS NULL`) e
+  troca `ix_documentos_chave_armazenamento` por um índice comum. O `Down` volta o índice único e falha, desfeito pela
+  transação, se já houver chave compartilhada; antes de reverter, é preciso tratar essas linhas (o caso não tem teste
+  próprio). O EF não acusou dependência circular entre `atividades` e `solicitacoes_do_cliente`: uma gravação só insere a
+  atividade e atualiza a solicitação, que já existia.
+- Feito na B: `TipoErro.ConfirmacaoNecessaria`, último valor do enum, só de `CriarAtividadeDaSolicitacao`: a solicitação
+  está cancelada e o diretor ainda não confirmou. A lista de catorze requisições abertas ao cliente não mudou, porque a
+  criação é da Diretoria: o portão a nega ao cliente como a qualquer requisição não marcada.
+- Feito na B: a validação de cliente, processo e área saiu de `SalvarAtividade` para `ValidacaoDoVinculo.ValidarAsync`,
+  usada pelos dois casos de uso, sem mudar mensagens nem comportamento.
+- Feito na B: `CriarAtividadeDaSolicitacao` confere na ordem da seção 5. Os documentos marcados valem se forem vivos,
+  da categoria `DocumentoDaSolicitacao` e desta solicitação; qualquer outro (removido, inexistente, de outra solicitação,
+  comum) dá `Validacao`, "Um documento marcado não está mais nesta solicitação."; um Id repetido na lista vale uma vez.
+  O comentário é a descrição da solicitação, tal como está, com o diretor como autor, e só nasce com a caixa marcada.
+  `ExcecaoDeConcorrencia` (a linha da solicitação mudou entre a leitura e a gravação) responde `Conflito` com a mensagem
+  de "alterada"; `ExcecaoDeConflito` (o índice único de `atividades.solicitacao_id`) responde `Conflito` com "Esta
+  solicitação já virou atividade.", sem olhar qual restrição disparou: hoje é a única alcançável nessa gravação, e se
+  outra passar a ser, vale filtrar por `Restricao`. Duas criações simultâneas: a perdedora cai no índice, o que se
+  verificou em seis execuções seguidas.
+- Decisão do plano: a ordem interna do manipulador. Passadas as verificações, ele monta a atividade, o comentário e os
+  documentos levados e vincula a solicitação, tudo o que o domínio pode recusar, antes de qualquer `Adicionar` nos
+  repositórios, e grava uma vez só: uma recusa do domínio no meio não deixa nada adicionado nem a solicitação alterada em
+  memória.
+- Feito na B: o caminho do `xmin` (o cliente altera a solicitação entre a leitura e a gravação do diretor) não tem teste
+  de integração próprio, porque não há ponto de injeção para parar o manipulador no meio. O unitário cobre a tradução de
+  `ExcecaoDeConcorrencia` em `Conflito`; os testes de cancelamento e de remoção de documento depois do carregamento do
+  formulário cobrem a conferência da versão antes da gravação; e a corrida de duas criações cobre o índice único.
+- Feito na B: `ExcluirAtividade` carrega a solicitação de origem antes de remover e chama `DesvincularAtividade` na mesma
+  gravação, só se ela ainda aponta para aquela atividade; uma solicitação que já aponta para outra não é tocada, e uma
+  que não existe mais é tolerada. Ela volta a `Aguardando` ou a `Cancelada`, conforme `CanceladaEm`, e uma atividade nova
+  pode ser criada dela (o índice parcial ignora a excluída). Com a solicitação rastreada no mesmo contexto, o EF já zera
+  o `AtividadeId` ao remover a atividade; a chamada explícita fica pelo contrato do domínio e pelos unitários, e o teste
+  de integração não distingue a falta dela.
+- Feito na B: `ObterAtividade` devolve `SolicitacaoId`, último parâmetro de `AtividadeDetalhe`, só à Diretoria; a Produção
+  recebe nulo. A ficha da atividade usa o `SolicitacaoId` como ação de cadastro: com ele, a faixa e o "Mais ações"
+  aparecem mesmo sem outra ação.
+- Feito na B: o formulário de atividade em `/atividades/nova?solicitacao={id}`, com o bloco, o comentário e os documentos
+  da seção 6 num componente próprio, `SolicitacaoNoFormulario`, porque o formulário já tinha 436 linhas. O cliente fica
+  travado na criação e na edição: sem busca de cliente, sem "Sem cliente", e a busca de processo traz só os do cliente.
+  A solicitação que já virou atividade, em endereço aberto à mão, mostra só o aviso "Esta solicitação já virou
+  atividade." com "Ver atividade", sem formulário; a cancelada carrega normalmente, e o aviso dela só vem na gravação.
+  Cancelar e voltar levam à ficha da solicitação, com a origem "Solicitação". Nas respostas da gravação, o que o diretor
+  digitou fica; em "alterada", o documento que ele desmarcou continua desmarcado, o novo entra marcado e o removido
+  some; em "cancelada", o aviso traz "Criar mesmo assim", que reenvia com a versão relida, e "Voltar à solicitação".
+- Feito na B: "Criar atividade", botão primário acima das colunas da ficha da solicitação, só em `Aguardando`, e "Ver
+  solicitação" na ficha da atividade, como na seção 6. Nenhum dos dois aparece para quem não é da Diretoria.
+- Feito na B: dos testes da seção 9, entraram todos os que dependiam da criação: as recusas do domínio e a ordem das
+  cinco verificações; o comentário só com a caixa; só os documentos marcados, com a mesma chave; a varredura da chave
+  compartilhada; o isolamento entre clientes, inclusive o documento levado, que o cliente não alcança; a Produção que
+  baixa o documento levado em que é responsável, e não o da solicitação; o cancelamento e a remoção de documento depois
+  de carregado o formulário; a corrida de duas criações; a exclusão que devolve a solicitação; o documento levado e o
+  da solicitação que baixam o mesmo conteúdo, com a exclusão de um não afetando o outro; e, na interface, "Marcar todos"
+  e "Desmarcar todos", o aviso de cancelamento, o recarregamento depois da alteração e os dois botões de navegação.
+- Em aberto, sem decisão: a pergunta da auditoria, herdada da fase A (acima) e sem resposta nova. Se o cliente que pede
+  pelo Id a solicitação de outro cliente, ou um documento de outro cliente pelo `RemoverDocumentoDaSolicitacao`, deve
+  deixar um registro `acesso_negado`; hoje não deixa. É decisão de produto.

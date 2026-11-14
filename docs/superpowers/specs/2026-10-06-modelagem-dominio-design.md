@@ -258,7 +258,7 @@ Regras:
 | `Nome` | Obrigatório; padrão é o nome do arquivo enviado; editável |
 | `NomeArquivoOriginal`, `TipoConteudo`, `TamanhoBytes` | Preenchidos no envio; imutáveis |
 | `HashSha256` | Calculado no envio; imutável |
-| `ChaveArmazenamento` | Localização do arquivo no armazenamento; imutável |
+| `ChaveArmazenamento` | Localização do arquivo no armazenamento; imutável. Gerada pelo servidor a cada envio; só o documento da solicitação levado para a atividade usa a chave de outro documento (ver "Armazenamento") |
 | `Categoria` | Enum: `DocumentoGeral`, `ContratoHonorarios`, `DocumentoAtividade`, `DocumentoDoCliente`, `DocumentoComum`, `DocumentoDaSolicitacao`; imutável |
 | `ClienteId` | Obrigatório em `DocumentoGeral`, `ContratoHonorarios`, `DocumentoDoCliente` e `DocumentoDaSolicitacao`; nulo em `DocumentoComum`. Em `DocumentoAtividade` é sempre o cliente da atividade (nulo se ela for avulsa) |
 | `AtividadeId` | Obrigatório em `DocumentoAtividade` e só nele |
@@ -278,6 +278,7 @@ O arquivo fica fora do banco de dados, atrás de uma interface de armazenamento 
 Não há versionamento. Substituir um documento é enviar um novo e excluir logicamente o anterior.
 
 - A chave de armazenamento é gerada pelo servidor; o nome do arquivo enviado é apenas um metadado (só o último segmento do caminho é guardado) e nunca é usado como caminho.
+- A chave é única por envio, com uma exceção: o documento da solicitação levado para a atividade criada a partir dela (`Documento.LevarParaAtividade`) é um `DocumentoAtividade` novo que aponta para o mesmo arquivo, com a mesma chave e o mesmo hash; nada é copiado. O índice de `documentos.chave_armazenamento` é comum, e não único, e a garantia que ele dava vira regra de código: só `LevarParaAtividade` cria documento com a chave de outro, e um teste varre `src` para fixar esse único caminho. Qualquer remoção física futura do arquivo (limpeza de excluídos, eliminação a pedido do cliente) procura pela chave **todos** os documentos que o usam, e só o apaga quando nenhum documento vivo o usa ou quando a intenção é eliminá-lo de todos.
 - O envio grava primeiro o arquivo e depois o registro; se o registro não for gravado, o arquivo é removido.
 - Limite de 50 MB por arquivo. Arquivo vazio é recusado.
 - A exclusão de um documento é lógica e o arquivo permanece no armazenamento.
@@ -332,6 +333,7 @@ Listagens exibem apenas documentos que o usuário pode acessar, e o total inform
 - Excluir uma atividade não exclui os seus documentos: eles continuam na ficha do cliente para a Diretoria e deixam de aparecer para a Produção.
 - Na ficha do cliente esses documentos aparecem em uma área própria, "Documentos de Atividades", ao lado de "Documentos Gerais" e "Contratos de Honorários", com a indicação da atividade de origem.
 - O vínculo com o cliente não amplia o acesso: a área lista apenas os documentos que o usuário pode acessar pela regra acima. Um usuário de Produção vê ali somente os documentos das atividades em que é responsável.
+- O documento da solicitação marcado na criação da atividade vira um `DocumentoAtividade` do cliente da atividade (`Documento.LevarParaAtividade`), com o nome do documento da solicitação e o mesmo arquivo. O original não muda. Só vale para a categoria `DocumentoDaSolicitacao`, e o cliente da atividade precisa ser o do documento. A Produção responsável baixa o levado, nunca o da solicitação; o cliente continua lendo só o da solicitação.
 
 ### Documentos do portal
 
@@ -341,7 +343,7 @@ Envio:
 - O documento comum tem caso de uso próprio, sem cliente. A requisição leva a confirmação de que o documento ficará visível a todos os clientes; sem ela, o envio é recusado como validação ("Confirme que o documento ficará visível para todos os clientes."), antes de qualquer verificação do arquivo. Só a Diretoria envia, e essa verificação vem primeiro.
 - A tela de Documentos comuns exige a mesma confirmação: ao pedir o envio, mostra o aviso "Documentos desta área ficam visíveis para todos os clientes do escritório. Não envie aqui arquivos de um cliente específico." com "Confirmar envio" e "Cancelar", e só a confirmação envia a requisição. O aviso recebe o foco ao abrir e só abre para um envio que pode seguir: o arquivo acima do limite de tamanho é recusado antes do aviso. Com o aviso aberto, o botão de enviar fica desabilitado. Cancelar mantém o arquivo e o nome escolhidos e não envia nada; trocar o arquivo fecha o aviso. O aviso vale para um envio só: depois de um envio, com sucesso ou com falha, o próximo avisa de novo.
 - Renomear e excluir usam os casos de uso que já existem, que operam por Id e são da Diretoria.
-- O documento da solicitação não passa por esse caso de uso (a categoria é recusada com "Categoria inválida para envio."): nasce na abertura da solicitação ou no anexo a ela, e é removido pela própria solicitação (seção 8, "Solicitações do cliente"). Cada documento da solicitação é gravado como um documento a mais, com arquivo próprio e chave de armazenamento própria.
+- O documento da solicitação não passa por esse caso de uso (a categoria é recusada com "Categoria inválida para envio."): nasce na abertura da solicitação ou no anexo a ela, e é removido pela própria solicitação (seção 8, "Solicitações do cliente"). Cada documento da solicitação é gravado como um documento a mais, com arquivo próprio e chave de armazenamento própria; só ao ser levado para a atividade criada a partir da solicitação o arquivo passa a ser compartilhado (ver "Armazenamento").
 
 Consultas do portal, todas paginadas (20 por página), do documento mais recente para o mais antigo:
 
@@ -374,12 +376,15 @@ Consultas do portal, todas paginadas (20 por página), do documento mais recente
 | `TipoAutor` | Enum: `Usuario` ou `Sistema` |
 | `AutorId` | Usuário de Diretoria quando `TipoAutor = Usuario`; nulo quando `Sistema` |
 | `RevisorId` | Usuário de Diretoria; obrigatório a partir de `Direcionada` |
+| `SolicitacaoId` | Opcional; a solicitação do cliente de onde a atividade nasceu. Definido só na criação e nunca alterado; só a Diretoria o recebe (a Produção recebe nulo) |
 
 Regras de vínculo:
 
 - Com processo, o cliente é obrigatório e deve ser um dos clientes do processo.
 - Atividade avulsa é a que não tem cliente nem processo.
 - Uma atividade pode ter cliente sem processo.
+- Com `SolicitacaoId`, o cliente é obrigatório ("Uma atividade criada a partir de uma solicitação precisa ter cliente.") e é sempre o da solicitação. O domínio recusa trocá-lo, para outro cliente e para nenhum, antes de aplicar qualquer mudança: "O cliente de uma atividade criada a partir de uma solicitação não pode ser trocado." O processo escolhido continua precisando ter esse cliente.
+- Há no máximo uma atividade viva por solicitação: o banco garante com um índice único parcial em `atividades.solicitacao_id`, para as não excluídas.
 
 Regras da complexidade:
 
@@ -497,7 +502,7 @@ Consequência: o título de toda atividade com cliente é lido por esse cliente 
 
 ### Solicitações do cliente
 
-Contexto próprio (`Solicitacoes`), que nasce para virar atividade: o cliente pede trabalho ao escritório pelo portal e a Diretoria atende. O desenho completo está em `2026-11-13-solicitacoes-do-cliente-design.md`; aqui ficam as regras fixadas na fase A. Criar a atividade a partir da solicitação é a fase B.
+Contexto próprio (`Solicitacoes`), que nasce para virar atividade: o cliente pede trabalho ao escritório pelo portal e a Diretoria atende. O desenho completo está em `2026-11-13-solicitacoes-do-cliente-design.md`; aqui ficam as regras fixadas nas fases A e B.
 
 `SolicitacaoDoCliente` (agregado):
 
@@ -513,7 +518,9 @@ Contexto próprio (`Solicitacoes`), que nasce para virar atividade: o cliente pe
 
 - A situação é derivada e nunca gravada: `Aguardando` (sem atividade e sem cancelamento), `Cancelada` (sem atividade e com cancelamento) e `EmAtividade` (com atividade, com ou sem cancelamento anterior).
 - Alterar, cancelar, anexar e remover documento só valem em `Aguardando`; fora dela o domínio recusa ("Esta solicitação não pode mais ser alterada."). Não há volta do cancelamento.
-- Vincular uma atividade vale em `Aguardando`; em `Cancelada`, só com a confirmação da Diretoria ("Cliente cancelou a solicitação, mesmo assim deseja criar a atividade?"); em `EmAtividade`, é recusado ("Esta solicitação já virou atividade."). Desvincular volta a `Aguardando` ou a `Cancelada`, conforme `CanceladaEm`.
+- Vincular uma atividade (`VincularAtividade(Atividade, confirmouCancelada)`, que recebe a atividade e não o Id) confere, nesta ordem, que a atividade foi criada a partir desta solicitação e que é do cliente dela ("A atividade precisa ser do cliente da solicitação."); só então vale em `Aguardando`; em `Cancelada`, só com a confirmação da Diretoria ("Cliente cancelou a solicitação, mesmo assim deseja criar a atividade?"); em `EmAtividade`, é recusado ("Esta solicitação já virou atividade."). Desvincular volta a `Aguardando` ou a `Cancelada`, conforme `CanceladaEm`.
+- `CriarAtividadeDaSolicitacao` é da Diretoria e cria, numa só gravação, a atividade (com `SolicitacaoId` e o cliente da solicitação), o vínculo, o comentário com a descrição da solicitação, se pedido, e os documentos marcados, que viram documentos da atividade (seção 7). Confere, nesta ordem: Diretoria, existência, se já virou atividade (`Conflito`), cancelada sem confirmação (`ConfirmacaoNecessaria`, "Cliente cancelou a solicitação, mesmo assim deseja criar a atividade?"), versão da solicitação (`Conflito`, "O cliente alterou a solicitação enquanto você criava a atividade. Confira os dados atualizados."; vale também com a confirmação), documentos marcados (`Validacao`, "Um documento marcado não está mais nesta solicitação.") e o vínculo de cliente, processo e área, que é o mesmo de `SalvarAtividade`. Duas criações simultâneas da mesma solicitação: só uma passa, pela versão e pelo índice único.
+- Excluir a atividade devolve a solicitação: `ExcluirAtividade` chama `DesvincularAtividade` na mesma gravação, se a solicitação ainda aponta para aquela atividade. Uma atividade nova pode ser criada dela.
 - O cliente enxerga a situação em quatro valores: "Aguardando análise", "Cancelada", "Em andamento" e "Concluída". As duas últimas vêm da atividade viva vinculada, pela regra do Andamento; sem atividade viva, vale a da própria solicitação. A Diretoria enxerga "Aguardando", "Cancelada" e "Virou atividade".
 - Os documentos são do agregado `Documento`, categoria `DocumentoDaSolicitacao` (seção 7). Até 10 documentos vivos por solicitação, 50 MB por arquivo. A abertura grava a solicitação e os documentos juntos: se um arquivo for recusado ou a gravação falhar, nada fica no banco nem no armazenamento.
 - Quem usa: todos os usuários de um cliente veem as solicitações do cliente, com o nome de quem abriu cada uma; alterar, anexar, remover documento e cancelar são só de quem abriu, e quem não abriu recebe validação ("Só quem abriu a solicitação pode alterá-la."). A Diretoria lista todas, da mais antiga para a mais nova, e lê cada uma. A Produção não alcança nada. Solicitação de outro cliente responde `NaoEncontrado` ao cliente.
@@ -615,7 +622,7 @@ Registra consultas.
 ## 11. Tratamento de erros
 
 - Violação de invariante lança exceção de domínio.
-- Os casos de uso devolvem um `Resultado` com tipo de erro: `Validacao`, `NaoEncontrado`, `AcessoNegado`, `Conflito`.
+- Os casos de uso devolvem um `Resultado` com tipo de erro: `Validacao`, `NaoEncontrado`, `AcessoNegado`, `Conflito` e `ConfirmacaoNecessaria`. Esta última é só de `CriarAtividadeDaSolicitacao`: a solicitação foi cancelada pelo cliente e o diretor ainda não confirmou que quer criar a atividade mesmo assim. A tela a distingue das demais recusas para pedir a confirmação, e o cliente nunca a recebe (a criação não é aberta a ele).
 - A interface traduz o tipo de erro em mensagem ao usuário. Erros não previstos são registrados em log técnico e exibidos como mensagem genérica.
 - Um recurso que o usuário não pode ver responde como `NaoEncontrado`, para não revelar a existência dele. Exceção declarada: as listas de Contratos de Honorários e de Documentos do cliente respondem `AcessoNegado` a quem não é da Diretoria (seção 7).
 
@@ -626,6 +633,7 @@ Registra consultas.
 - Portão do cliente: um teste percorre todas as requisições da aplicação e confere que cada uma não aberta ao cliente responde `AcessoNegado` a um ator de perfil `Cliente`, sem chamar o caso de uso, e que toda requisição não aberta responde com `Resultado`. Outro teste fixa a lista das abertas, exatamente estas catorze: `AbrirSolicitacao`, `AlterarMinhaSenha`, `AlterarMinhaSolicitacao`, `AnexarDocumentoASolicitacao`, `AutenticarUsuario`, `BaixarDocumento`, `CancelarMinhaSolicitacao`, `ListarDocumentosComuns`, `ListarMeuAndamento`, `ListarMeusDocumentos`, `ListarMinhasSolicitacoes`, `ObterMeuAcesso`, `ObterMinhaSolicitacao` e `RemoverDocumentoDaSolicitacao`. Abrir uma requisição ao cliente exige alterar os dois.
 - Teste de arquitetura da camada Web: nenhum arquivo da `Web` chega aos dados por repositório, contexto do banco, unidade de trabalho ou manipulador; só pelo despachante, que passa pelo executor. O portão só protege o que passa por ele. A única exceção declarada é a validação do cookie a cada requisição HTTP, que lê só o usuário e o cliente dele.
 - Solicitação do cliente: as transições do agregado (alterar, cancelar, vincular com e sem confirmação, desvincular de volta a `Aguardando` e a `Cancelada`); com PostgreSQL real, o isolamento entre clientes, só quem abriu altera, a abertura que não deixa nada quando um arquivo é recusado e a migration sobre um banco que já tem documentos das categorias de 1 a 5.
+- Atividade a partir da solicitação: no `Domain`, a recusa de trocar o cliente, o vínculo que recusa atividade de outro cliente e o documento levado com o mesmo arquivo; na `Application`, cada uma das verificações da criação, o comentário só com a caixa marcada, só os documentos marcados levados com a mesma chave e a exclusão que desvincula; um teste varre `src` e fixa que só `CriarAtividadeDaSolicitacao` leva documento para a atividade e que `ArquivoDoDocumento` só é montado com chave nova ou pelo próprio documento; com PostgreSQL real, o cancelamento e a remoção de documento depois de carregado o formulário, a corrida de duas criações, o documento levado que baixa o mesmo conteúdo do da solicitação, a exclusão que devolve a solicitação e a migration `AtividadeDaSolicitacao` sobre um banco que já tem atividades.
 - Regra de acesso a documentos: a matriz completa dos três tipos de perfil pelas seis categorias, incluindo o cliente diferente do dono do documento, o usuário de cliente que conste em lista e o cliente sem cliente vinculado.
 - Guarda de rotas nos dois sentidos (inclusive as quatro das solicitações, com Id escrito em formas de Guid que o roteador aceita e recusa): o cliente em página interna e a equipe em página só do portal veem "Página não encontrada" sem que a página seja montada; Documentos comuns, aberta a cliente e Diretoria, é negada à Produção pela própria página.
 
