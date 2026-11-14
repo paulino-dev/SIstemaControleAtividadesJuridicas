@@ -6,6 +6,7 @@ using AtividadesJuridicas.Domain.Cadastros;
 using AtividadesJuridicas.Domain.Comum;
 using AtividadesJuridicas.Domain.Documentos;
 using AtividadesJuridicas.Domain.Identidade;
+using AtividadesJuridicas.Domain.Solicitacoes;
 using Microsoft.EntityFrameworkCore;
 
 namespace AtividadesJuridicas.Infrastructure.Persistencia;
@@ -20,6 +21,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> opcoes) : DbCont
     public DbSet<Documento> Documentos => Set<Documento>();
     public DbSet<Atividade> Atividades => Set<Atividade>();
     public DbSet<Evento> Eventos => Set<Evento>();
+    public DbSet<SolicitacaoDoCliente> SolicitacoesDoCliente => Set<SolicitacaoDoCliente>();
     public DbSet<RegistroAuditoria> RegistrosAuditoria => Set<RegistroAuditoria>();
     public DbSet<RegistroAcesso> RegistrosAcesso => Set<RegistroAcesso>();
 

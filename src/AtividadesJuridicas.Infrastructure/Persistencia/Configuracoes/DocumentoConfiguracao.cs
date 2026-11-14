@@ -2,6 +2,7 @@ using AtividadesJuridicas.Domain.Atividades;
 using AtividadesJuridicas.Domain.Cadastros;
 using AtividadesJuridicas.Domain.Documentos;
 using AtividadesJuridicas.Domain.Identidade;
+using AtividadesJuridicas.Domain.Solicitacoes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -11,13 +12,15 @@ public sealed class DocumentoConfiguracao : IEntityTypeConfiguration<Documento>
 {
     public void Configure(EntityTypeBuilder<Documento> b)
     {
-        // O cliente é obrigatório no documento geral (1), no contrato (2) e no documento do cliente (4); opcional
-        // no documento de atividade (3); e não existe no documento comum (5). Só o de atividade tem atividade.
+        // O cliente é obrigatório no documento geral (1), no contrato (2), no documento do cliente (4) e no documento
+        // da solicitação (6); opcional no documento de atividade (3); e não existe no documento comum (5). Só o de
+        // atividade tem atividade, e só o da solicitação tem solicitação.
         b.ToTable("documentos", t =>
         {
             t.HasCheckConstraint("ck_documentos_cliente_conforme_a_categoria",
-                "(categoria IN (1, 2, 4) AND cliente_id IS NOT NULL) OR categoria = 3 OR (categoria = 5 AND cliente_id IS NULL)");
+                "(categoria IN (1, 2, 4, 6) AND cliente_id IS NOT NULL) OR categoria = 3 OR (categoria = 5 AND cliente_id IS NULL)");
             t.HasCheckConstraint("ck_documentos_atividade_so_na_categoria_3", "(categoria = 3) = (atividade_id IS NOT NULL)");
+            t.HasCheckConstraint("ck_documentos_solicitacao_so_na_categoria_6", "(categoria = 6) = (solicitacao_id IS NOT NULL)");
         });
 
         b.Property(d => d.Nome).HasMaxLength(Documento.TamanhoMaximoNome).IsRequired();
@@ -31,9 +34,11 @@ public sealed class DocumentoConfiguracao : IEntityTypeConfiguration<Documento>
         b.HasIndex(d => d.ChaveArmazenamento).IsUnique();
         b.HasIndex(d => new { d.ClienteId, d.Categoria });
         b.HasIndex(d => d.AtividadeId);
+        b.HasIndex(d => d.SolicitacaoId);
 
         b.HasOne<Cliente>().WithMany().HasForeignKey(d => d.ClienteId).OnDelete(DeleteBehavior.Restrict);
         b.HasOne<Atividade>().WithMany().HasForeignKey(d => d.AtividadeId).OnDelete(DeleteBehavior.Restrict);
+        b.HasOne<SolicitacaoDoCliente>().WithMany().HasForeignKey(d => d.SolicitacaoId).OnDelete(DeleteBehavior.Restrict);
 
         // As listas são gravadas pelos campos privados. ClientCascade (sem cascata no banco) faz o EF marcar
         // como excluída a entrada retirada da coleção (ou a de um documento excluído); o interceptor de

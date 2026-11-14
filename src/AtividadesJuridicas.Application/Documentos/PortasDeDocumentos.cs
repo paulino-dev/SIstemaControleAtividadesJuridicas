@@ -30,9 +30,10 @@ public interface IDocumentoRepositorio
         Guid clienteId, CategoriaDocumento categoria, FiltroDeAcesso? acesso, int pagina, int tamanho, CancellationToken ct);
 
     /// <summary>
-    /// Quantos documentos do cliente (sem os comuns) o usuário lê em cada área, com o mesmo filtro de acesso de
-    /// <see cref="ListarDoClienteAsync"/>. Área que ele não lê não aparece; as lidas e vazias vêm com zero: as quatro
-    /// do cliente sem <paramref name="acesso"/> (Diretoria), só geral e atividade com ele.
+    /// Quantos documentos do cliente o usuário lê em cada área, com o mesmo filtro de acesso de
+    /// <see cref="ListarDoClienteAsync"/>. As categorias do portal que não são áreas da ficha (o documento comum e o
+    /// documento da solicitação) nunca entram nas contagens por área. Área que ele não lê não aparece; as lidas e
+    /// vazias vêm com zero: as quatro do cliente sem <paramref name="acesso"/> (Diretoria), só geral e atividade com ele.
     /// </summary>
     Task<IReadOnlyDictionary<CategoriaDocumento, int>> ContarDoClienteAsync(
         Guid clienteId, FiltroDeAcesso? acesso, CancellationToken ct);

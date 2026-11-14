@@ -33,6 +33,8 @@ public sealed class DocumentoRepositorio(AppDbContext db) : IDocumentoRepositori
             .Select(g => new { Categoria = g.Key, Total = g.Count() })
             .ToDictionaryAsync(g => g.Categoria, g => g.Total, ct);
 
+        // As categorias do portal (comum e da solicitação) nunca entram nas contagens por área: o resultado só tem as
+        // chaves desta lista, e o documento da solicitação (que o filtro de acesso já exclui para a Produção) não está nela.
         // As áreas que o usuário lê e estão vazias aparecem com zero.
         CategoriaDocumento[] lidas = acesso is null
             ? [CategoriaDocumento.DocumentoGeral, CategoriaDocumento.ContratoHonorarios,
