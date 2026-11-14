@@ -30,8 +30,10 @@ public sealed class DocumentoConfiguracao : IEntityTypeConfiguration<Documento>
         b.Property(d => d.ChaveArmazenamento).HasMaxLength(Documento.TamanhoMaximoChave).IsRequired();
         b.Property(d => d.Categoria).HasConversion<int>();
 
-        // Cada arquivo do armazenamento pertence a um único documento, mesmo depois de excluído.
-        b.HasIndex(d => d.ChaveArmazenamento).IsUnique();
+        // Um arquivo do armazenamento pode servir a mais de um documento: o da solicitação e o levado para a atividade
+        // criada a partir dela. Por isso o índice é comum (a busca por chave continua precisando dele); só
+        // Documento.LevarParaAtividade cria um documento com a chave de outro, e as regras estão lá.
+        b.HasIndex(d => d.ChaveArmazenamento);
         b.HasIndex(d => new { d.ClienteId, d.Categoria });
         b.HasIndex(d => d.AtividadeId);
         b.HasIndex(d => d.SolicitacaoId);

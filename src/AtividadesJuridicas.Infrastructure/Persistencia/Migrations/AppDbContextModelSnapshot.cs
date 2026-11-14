@@ -250,6 +250,10 @@ namespace AtividadesJuridicas.Infrastructure.Persistencia.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("revisor_id");
 
+                    b.Property<Guid?>("SolicitacaoId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("solicitacao_id");
+
                     b.Property<int>("Status")
                         .HasColumnType("integer")
                         .HasColumnName("status");
@@ -296,6 +300,11 @@ namespace AtividadesJuridicas.Infrastructure.Persistencia.Migrations
 
                     b.HasIndex("RevisorId")
                         .HasDatabaseName("ix_atividades_revisor_id");
+
+                    b.HasIndex("SolicitacaoId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_atividades_solicitacao_id")
+                        .HasFilter("excluido_em IS NULL");
 
                     b.HasIndex("Status")
                         .HasDatabaseName("ix_atividades_status");
@@ -1033,7 +1042,6 @@ namespace AtividadesJuridicas.Infrastructure.Persistencia.Migrations
                         .HasDatabaseName("ix_documentos_atividade_id");
 
                     b.HasIndex("ChaveArmazenamento")
-                        .IsUnique()
                         .HasDatabaseName("ix_documentos_chave_armazenamento");
 
                     b.HasIndex("SolicitacaoId")
@@ -1545,6 +1553,12 @@ namespace AtividadesJuridicas.Infrastructure.Persistencia.Migrations
                         .HasForeignKey("RevisorId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .HasConstraintName("fk_atividades_usuarios_revisor_id");
+
+                    b.HasOne("AtividadesJuridicas.Domain.Solicitacoes.SolicitacaoDoCliente", null)
+                        .WithMany()
+                        .HasForeignKey("SolicitacaoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_atividades_solicitacoes_do_cliente_solicitacao_id");
                 });
 
             modelBuilder.Entity("AtividadesJuridicas.Domain.Atividades.AtividadeComentario", b =>

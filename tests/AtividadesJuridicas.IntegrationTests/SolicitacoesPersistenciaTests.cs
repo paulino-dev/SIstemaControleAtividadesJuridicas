@@ -528,6 +528,91 @@ public class SolicitacoesPersistenciaTests(BancoFixture banco) : TesteComBanco(b
     }
 
     [Fact]
+    public async Task Atividade_criada_e_vinculada_na_mesma_gravacao()
+    {
+        var solicitacao = await AbrirAsync(_maria, _carla);
+
+        // Uma só gravação: a atividade nova (que aponta para a solicitação) e a solicitação que já existe (que passa
+        // a apontar para a atividade). As duas chaves estrangeiras se cruzam, e o EF precisa achar a ordem.
+        var atividade = await EmEscopoAsync(_admin, async sp =>
+        {
+            var existente = (await sp.GetRequiredService<ISolicitacaoRepositorio>().ObterPorIdAsync(solicitacao, default))!;
+            var nova = Atividade.Criar(
+                new DadosDaAtividade("Certidão da Maria", "Texto da atividade.", new DateOnly(2090, 6, 15), 1),
+                VinculoDaAtividade.Criar(_maria, null, null), TipoAutor.Usuario, _admin, DateTime.UtcNow, solicitacao);
+            sp.GetRequiredService<IAtividadeRepositorio>().Adicionar(nova);
+            existente.VincularAtividade(nova, confirmouCancelada: false);
+            await sp.GetRequiredService<IUnidadeDeTrabalho>().SalvarAsync(default);
+            return nova.Id;
+        });
+
+        var lidaDaAtividade = await EmEscopoAsync(null, sp =>
+            sp.GetRequiredService<IAtividadeRepositorio>().ObterPorIdAsync(atividade, default));
+        lidaDaAtividade.Should().NotBeNull();
+        lidaDaAtividade!.SolicitacaoId.Should().Be(solicitacao);
+        var lidaDaSolicitacao = await LerAsync(solicitacao);
+        lidaDaSolicitacao.AtividadeId.Should().Be(atividade);
+        lidaDaSolicitacao.Situacao.Should().Be(SituacaoDaSolicitacao.EmAtividade);
+    }
+
+    [Fact]
+    public async Task Duas_atividades_vivas_da_mesma_solicitacao_sao_recusadas()
+    {
+        var solicitacao = await AbrirAsync(_maria, _carla);
+        var primeira = await AtividadeDaAsync(solicitacao, "Primeira atividade");
+
+        var segunda = () => AtividadeDaAsync(solicitacao, "Segunda atividade");
+
+        (await segunda.Should().ThrowAsync<ExcecaoDeConflito>()).Which.Restricao
+            .Should().Be("ix_atividades_solicitacao_id");
+        var daSolicitacao = await EmEscopoAsync(null, sp => sp.GetRequiredService<AppDbContext>().Atividades
+            .IgnoreQueryFilters().AsNoTracking().Where(a => a.SolicitacaoId == solicitacao).Select(a => a.Id).ToListAsync());
+        daSolicitacao.Should().Equal(primeira.Id);
+    }
+
+    [Fact]
+    public async Task Atividade_excluida_nao_impede_outra_da_mesma_solicitacao()
+    {
+        var solicitacao = await AbrirAsync(_maria, _carla);
+        var primeira = await AtividadeDaAsync(solicitacao, "Primeira atividade");
+        (await ExecutarAsync(_admin, new ExcluirAtividade(primeira.Id))).Sucesso.Should().BeTrue();
+
+        var segunda = await AtividadeDaAsync(solicitacao, "Segunda atividade");
+
+        var daSolicitacao = await EmEscopoAsync(null, sp => sp.GetRequiredService<AppDbContext>().Atividades
+            .IgnoreQueryFilters().AsNoTracking().Where(a => a.SolicitacaoId == solicitacao)
+            .Select(a => new { a.Id, Excluida = a.ExcluidoEm != null }).ToListAsync());
+        daSolicitacao.Should().BeEquivalentTo([new { primeira.Id, Excluida = true }, new { segunda.Id, Excluida = false }]);
+    }
+
+    [Fact]
+    public async Task Dois_documentos_com_a_mesma_chave_gravam()
+    {
+        var solicitacao = await AbrirAsync(_maria, _carla);
+        var atividade = await AtividadeDaAsync(solicitacao, "Certidão da Maria");
+        var daSolicitacao = await AnexarAsync(solicitacao, _maria, "certidao.pdf");
+
+        // O documento da solicitação levado para a atividade é outro documento, com o mesmo arquivo.
+        var levado = await EmEscopoAsync(_admin, async sp =>
+        {
+            var repositorio = sp.GetRequiredService<IDocumentoRepositorio>();
+            var novo = (await repositorio.ObterPorIdAsync(daSolicitacao, default))!.LevarParaAtividade(atividade.Id, _maria);
+            repositorio.Adicionar(novo);
+            await sp.GetRequiredService<IUnidadeDeTrabalho>().SalvarAsync(default);
+            return novo.Id;
+        });
+
+        var documentos = await EmEscopoAsync(null, sp => sp.GetRequiredService<AppDbContext>().Documentos
+            .AsNoTracking().Where(d => d.Id == daSolicitacao || d.Id == levado).ToListAsync());
+        documentos.Should().HaveCount(2);
+        documentos.Select(d => d.ChaveArmazenamento).Distinct().Should().ContainSingle();
+        documentos.Select(d => d.HashSha256).Distinct().Should().ContainSingle();
+        documentos.Single(d => d.Id == daSolicitacao).Categoria.Should().Be(CategoriaDocumento.DocumentoDaSolicitacao);
+        documentos.Single(d => d.Id == levado).Categoria.Should().Be(CategoriaDocumento.DocumentoAtividade);
+        documentos.Single(d => d.Id == levado).AtividadeId.Should().Be(atividade.Id);
+    }
+
+    [Fact]
     public async Task Filtro_da_producao_nunca_traz_documento_da_solicitacao()
     {
         var solicitacao = await AbrirAsync(_maria, _carla);

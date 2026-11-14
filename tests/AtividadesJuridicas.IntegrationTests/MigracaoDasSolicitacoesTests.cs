@@ -80,7 +80,8 @@ public class MigracaoDasSolicitacoesTests(BancoFixture banco) : IAsyncLifetime
             (await ComandoAsync($"SELECT count(*) FROM pg_constraint WHERE conname = '{RestricaoDaSolicitacao}'")).Should().Be(0L);
             indiceAntes = (string)(await ComandoAsync($"SELECT indexdef FROM pg_indexes WHERE indexname = '{IndiceDaChave}'"))!;
 
-            await migrador.MigrateAsync();
+            // Só até a migration das solicitações: a seguinte (AtividadeDaSolicitacao) troca o índice da chave.
+            await migrador.MigrateAsync("SolicitacoesDoCliente");
         }
 
         // Nenhum dado foi tocado: os cinco documentos continuam como estavam, sem solicitação.

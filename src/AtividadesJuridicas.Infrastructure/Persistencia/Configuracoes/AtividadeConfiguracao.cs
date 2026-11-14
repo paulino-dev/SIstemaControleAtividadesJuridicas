@@ -1,6 +1,7 @@
 using AtividadesJuridicas.Domain.Atividades;
 using AtividadesJuridicas.Domain.Cadastros;
 using AtividadesJuridicas.Domain.Identidade;
+using AtividadesJuridicas.Domain.Solicitacoes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -25,10 +26,13 @@ public sealed class AtividadeConfiguracao : IEntityTypeConfiguration<Atividade>
         b.HasIndex(a => a.DataEntrega);
         b.HasIndex(a => a.ClienteId);
         b.HasIndex(a => a.ProcessoId);
+        // Uma solicitação tem, no máximo, uma atividade viva: a excluída deixa a solicitação livre para outra.
+        b.HasIndex(a => a.SolicitacaoId).IsUnique().HasFilter("excluido_em IS NULL");
 
         b.HasOne<Cliente>().WithMany().HasForeignKey(a => a.ClienteId).OnDelete(DeleteBehavior.Restrict);
         b.HasOne<Processo>().WithMany().HasForeignKey(a => a.ProcessoId).OnDelete(DeleteBehavior.Restrict);
         b.HasOne<AreaAtuacao>().WithMany().HasForeignKey(a => a.AreaAtuacaoId).OnDelete(DeleteBehavior.Restrict);
+        b.HasOne<SolicitacaoDoCliente>().WithMany().HasForeignKey(a => a.SolicitacaoId).OnDelete(DeleteBehavior.Restrict);
         b.HasOne<Usuario>().WithMany().HasForeignKey(a => a.AutorId).OnDelete(DeleteBehavior.Restrict);
         b.HasOne<Usuario>().WithMany().HasForeignKey(a => a.RevisorId).OnDelete(DeleteBehavior.Restrict);
 
