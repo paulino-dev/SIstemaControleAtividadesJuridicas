@@ -22,9 +22,9 @@ public interface IDocumentoRepositorio
     /// <summary>
     /// Do mais recente para o mais antigo. Sem <paramref name="acesso"/>, todos os documentos; com ele,
     /// só os que o perfil ou o usuário alcançam pela lista de acesso, e nunca um contrato de honorários, um
-    /// documento do cliente nem um documento comum (estes são do portal do cliente). Para a categoria dos
-    /// documentos de atividade o filtro não é a lista de acesso: é ser responsável atual de uma atividade
-    /// viva (não excluída) à qual o documento pertence.
+    /// documento do cliente, um documento comum nem um documento da solicitação (estes são do portal do
+    /// cliente). Para a categoria dos documentos de atividade o filtro não é a lista de acesso: é ser
+    /// responsável atual de uma atividade viva (não excluída) à qual o documento pertence.
     /// </summary>
     Task<Pagina<DocumentoResumo>> ListarDoClienteAsync(
         Guid clienteId, CategoriaDocumento categoria, FiltroDeAcesso? acesso, int pagina, int tamanho, CancellationToken ct);
@@ -48,6 +48,15 @@ public interface IDocumentoRepositorio
     /// <paramref name="comAutor"/>.
     /// </summary>
     Task<Pagina<DocumentoDoPortal>> ListarComunsAsync(bool comAutor, int pagina, int tamanho, CancellationToken ct);
+
+    /// <summary>
+    /// Os documentos vivos de uma solicitação, do mais antigo para o mais novo, sem autor. Quem chama já decidiu
+    /// que o usuário vê a solicitação.
+    /// </summary>
+    Task<IReadOnlyList<DocumentoDoPortal>> ListarDaSolicitacaoAsync(Guid solicitacaoId, CancellationToken ct);
+
+    /// <summary>Quantos documentos vivos a solicitação tem.</summary>
+    Task<int> ContarDaSolicitacaoAsync(Guid solicitacaoId, CancellationToken ct);
 
     /// <summary>Os documentos de uma atividade, do mais recente para o mais antigo. Quem chama já decidiu que o usuário vê a atividade.</summary>
     Task<Pagina<DocumentoResumo>> ListarDaAtividadeAsync(Guid atividadeId, int pagina, int tamanho, CancellationToken ct);

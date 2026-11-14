@@ -155,6 +155,31 @@ public class DocumentosTests
     }
 
     [Fact]
+    public async Task EnviarDocumento_recusa_a_categoria_da_solicitacao()
+    {
+        var resultado = await Enviar(_c.Diretor, CategoriaDocumento.DocumentoDaSolicitacao);
+
+        resultado.Erro.Should().Be(TipoErro.Validacao);
+        resultado.Mensagem.Should().Be("Categoria inválida para envio.");
+        _c.Armazenamento.Arquivos.Should().BeEmpty();
+        _c.Documentos.Itens.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task ListarDocumentosDoCliente_recusa_a_categoria_da_solicitacao()
+    {
+        foreach (var ator in new[] { _c.Diretor, _pedro })
+        {
+            var resultado = await Listar(ator, CategoriaDocumento.DocumentoDaSolicitacao);
+
+            resultado.Erro.Should().Be(TipoErro.Validacao);
+            resultado.Mensagem.Should().Be("Categoria inválida para esta consulta.");
+        }
+
+        (await Listar(null, CategoriaDocumento.DocumentoDaSolicitacao)).Erro.Should().Be(TipoErro.AcessoNegado);
+    }
+
+    [Fact]
     public async Task Cliente_inexistente_e_recusado_antes_de_gravar()
     {
         var resultado = await Enviar(_c.Diretor, cliente: Guid.CreateVersion7());

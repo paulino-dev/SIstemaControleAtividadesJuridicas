@@ -22,8 +22,8 @@ public sealed class ListarDocumentosDoClienteManipulador(IContextoDeAcesso conte
         if (await contexto.ObterAsync(ct) is not { } ator)
             return Falha(TipoErro.AcessoNegado, "Acesso negado.");
 
-        // O documento comum não é de cliente: não há o que listar na ficha.
-        if (requisicao.Categoria == CategoriaDocumento.DocumentoComum)
+        // O documento comum não é de cliente e o da solicitação é listado pela solicitação: não há o que listar na ficha.
+        if (requisicao.Categoria is (CategoriaDocumento.DocumentoComum or CategoriaDocumento.DocumentoDaSolicitacao))
             return Falha(TipoErro.Validacao, "Categoria inválida para esta consulta.");
 
         // Contrato de honorários e documento do cliente: Produção não tem acesso, nem à lista.

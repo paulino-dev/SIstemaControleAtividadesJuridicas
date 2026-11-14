@@ -56,6 +56,7 @@ public sealed class DocumentoRepositorio(AppDbContext db) : IDocumentoRepositori
             d.Categoria != CategoriaDocumento.ContratoHonorarios &&
             d.Categoria != CategoriaDocumento.DocumentoDoCliente &&
             d.Categoria != CategoriaDocumento.DocumentoComum &&
+            d.Categoria != CategoriaDocumento.DocumentoDaSolicitacao &&
             ((d.Categoria != CategoriaDocumento.DocumentoAtividade &&
               (d.PerfisComAcesso.Any(a => a.PerfilId == perfilId) ||
                d.UsuariosComAcesso.Any(a => a.UsuarioId == usuarioId))) ||
@@ -76,6 +77,18 @@ public sealed class DocumentoRepositorio(AppDbContext db) : IDocumentoRepositori
         DoPortalAsync(
             db.Documentos.AsNoTracking().Where(d => d.Categoria == CategoriaDocumento.DocumentoComum),
             comAutor, pagina, tamanho, ct);
+
+    // O filtro global de exclusão lógica já deixa de fora os documentos removidos. Sem autor, como no portal.
+    public async Task<IReadOnlyList<DocumentoDoPortal>> ListarDaSolicitacaoAsync(Guid solicitacaoId, CancellationToken ct) =>
+        await db.Documentos.AsNoTracking()
+            .Where(d => d.Categoria == CategoriaDocumento.DocumentoDaSolicitacao && d.SolicitacaoId == solicitacaoId)
+            .OrderBy(d => d.CriadoEm).ThenBy(d => d.Id)
+            .Select(d => new DocumentoDoPortal(d.Id, d.Nome, d.TamanhoBytes, d.CriadoEm, null))
+            .ToListAsync(ct);
+
+    public Task<int> ContarDaSolicitacaoAsync(Guid solicitacaoId, CancellationToken ct) =>
+        db.Documentos.AsNoTracking()
+            .CountAsync(d => d.Categoria == CategoriaDocumento.DocumentoDaSolicitacao && d.SolicitacaoId == solicitacaoId, ct);
 
     private async Task<Pagina<DocumentoDoPortal>> DoPortalAsync(
         IQueryable<Documento> consulta, bool comAutor, int pagina, int tamanho, CancellationToken ct)
