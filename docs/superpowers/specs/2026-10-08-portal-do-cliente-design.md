@@ -224,7 +224,7 @@ A guarda vale nos dois sentidos e compara o endereço já decodificado:
 
 | Rota | Quem | Conteúdo |
 |---|---|---|
-| `/` | Todos | Para o cliente: saudação, os dois totais do andamento e atalhos para as três áreas e para "Nova solicitação" (e para a troca de senha). Para os demais, o início atual. O início faz uma consulta só, a do andamento, e usa apenas os totais; se ela responder acesso negado, o início mostra "Seu acesso foi encerrado. Entre novamente." e não mostra os atalhos; nas demais falhas, os atalhos continuam e a mensagem do erro ocupa o lugar dos totais |
+| `/` | Todos | Para o cliente: saudação, os dois totais do andamento e quatro atalhos, para as três áreas e para "Nova solicitação" (a troca de senha fica no menu, sem atalho). Para os demais, o início atual. O início faz uma consulta só, a do andamento, e usa apenas os totais; se ela responder acesso negado, o início mostra "Seu acesso foi encerrado. Entre novamente." e não mostra os atalhos; nas demais falhas, os atalhos continuam e a mensagem do erro ocupa o lugar dos totais |
 | `/andamento` | Cliente | A lista da seção 5, com os totais no topo e o filtro por situação. Falha na consulta mostra o erro no lugar da lista, com "Tentar de novo"; sem atividades, "Nenhuma atividade." |
 | `/meus-documentos` | Cliente | Documentos do cliente, com download; sem documentos, "Nenhum documento." |
 | `/documentos-comuns` | Cliente e Diretoria | Documentos comuns. O cliente só baixa; a Diretoria envia, renomeia e exclui |
@@ -266,7 +266,7 @@ Não há tabela nova.
 - `usuario_cliente_alterado`: evento de segurança no usuário, com o cliente anterior e o novo, na mesma transação da troca.
 - `ListarMeusDocumentos` e `ListarDocumentosComuns` registram `Listou` no recurso `Documento`. `ListarMeuAndamento` registra `Listou` no recurso `Atividade`. O download registra `Baixou`, como hoje.
 - A criação, a renomeação e a exclusão de documentos das categorias novas aparecem pelos registros do próprio documento.
-- `ListarMinhasSolicitacoes` registra `Listou`, e `ObterMinhaSolicitacao`, `Visualizou`, no recurso `Solicitacao`. A solicitação de outro cliente responde `NaoEncontrado` sem evento de acesso negado; só o download de documento registra `acesso_negado` (se isso muda, é decisão em aberto na spec das solicitações).
+- `ListarMinhasSolicitacoes` registra `Listou`, e `ObterMinhaSolicitacao`, `Visualizou`, no recurso `Solicitacao`. A solicitação de outro cliente, pedida pelo Id, responde `NaoEncontrado`, e essa resposta não gera evento de acesso negado; das respostas `NaoEncontrado` do portal, só a do download de documento registra `acesso_negado` (se isso muda, é decisão em aberto na spec das solicitações). As respostas `AcessoNegado` registram `acesso_negado`, como em toda requisição: a do portão (abaixo) e a do ator que não é cliente.
 - A requisição barrada pelo portão gera `acesso_negado` com o nome da requisição.
 - A consulta de auditoria continua exclusiva da Diretoria e filtra pelos usuários-cliente como por qualquer outro usuário.
 
@@ -354,7 +354,7 @@ A fase 8B está concluída, e a modelagem de domínio foi emendada com as regras
 - Feito na fase A das solicitações: o menu e o início do cliente ganharam "Solicitações" e o atalho "Nova solicitação" (seção 6); a Diretoria ganhou "Solicitações" no menu lateral.
 - Feito na fase A das solicitações: o documento da solicitação é a terceira categoria visível ao cliente. A matriz de acesso e a regra de acesso do documento (seções 3 e 4) o cobrem, e a Produção nunca o alcança.
 - Decisão: "Envio de arquivos pelo cliente" saiu do fora do escopo (seção 12), mas o cliente só envia como anexo de uma solicitação. O envio às áreas "Meus documentos" e "Documentos comuns" continua exclusivo da Diretoria.
-- Em aberto: se o cliente que pede pelo Id a solicitação de outro cliente deve deixar um registro `acesso_negado`. Hoje só o download de documento registra (seção 7).
+- Em aberto: se o cliente que pede pelo Id a solicitação de outro cliente, ou que pede `RemoverDocumentoDaSolicitacao` com o Id de um documento de outro cliente, deve deixar um registro `acesso_negado`. Hoje esses pedidos respondem `NaoEncontrado` sem registro; das respostas `NaoEncontrado`, só a do download de documento registra (seção 7). As respostas `AcessoNegado`, a do portão inclusive, registram sempre.
 
 ## 12. Fora do escopo
 

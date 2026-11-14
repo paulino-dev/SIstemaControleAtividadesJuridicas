@@ -480,7 +480,7 @@ A Diretoria acompanha, por produtor e por mês, as atividades realizadas, separa
 
 ### Andamento
 
-O cliente acompanha de forma macro as atividades ligadas a ele. `ListarMeuAndamento` é a única visão de atividades do perfil `Cliente`; não há ficha da atividade para ele. (A ficha de uma solicitação do cliente mostra, da atividade vinculada, só o título e a situação simplificada, os mesmos dados do andamento.)
+O cliente acompanha de forma macro as atividades ligadas a ele. `ListarMeuAndamento` é a única visão de atividades do perfil `Cliente`; não há ficha da atividade para ele. (A ficha de uma solicitação do cliente mostra, da atividade vinculada, só o título, a situação simplificada e, quando ela está concluída, "Concluída em", os mesmos dados do andamento.)
 
 - Só o ator de perfil `Cliente` com cliente vinculado a executa; os demais recebem `AcessoNegado`. A consulta não recebe Id de cliente: usa o do ator.
 - Entram as atividades vivas cujo `ClienteId` é o do ator, em qualquer status, desde a criação. Atividade avulsa e atividade excluída não aparecem.
@@ -600,7 +600,7 @@ Registra consultas.
 - A consulta interna que a interface faz para saber quem é o usuário atual não gera registro.
 - Em documentos: listar os documentos de um cliente ou de uma atividade registra `Listou`; baixar registra `Baixou`; ver a lista de acesso de um documento registra `Visualizou`. As consultas do portal (`ListarMeusDocumentos` e `ListarDocumentosComuns`) registram `Listou` no recurso `Documento`, com a página em `Detalhe`; o download do cliente registra `Baixou`, como o da equipe.
 - Em atividades: listar registra `Listou`; abrir uma atividade registra `Visualizou`; listar os comentários de uma atividade registra `Listou` (recurso `AtividadeComentario`). A consulta do portal (`ListarMeuAndamento`) registra `Listou` no recurso `Atividade`, com a situação e a página em `Detalhe`.
-- Em solicitações: listar (`ListarMinhasSolicitacoes`, pelo cliente, e `ListarSolicitacoes`, pela Diretoria) registra `Listou` e abrir uma (`ObterMinhaSolicitacao` e `ObterSolicitacao`) registra `Visualizou`, no recurso `Solicitacao`, com a situação, o cliente e a página em `Detalhe` nas listagens. A solicitação de outro cliente, pedida pelo cliente, responde `NaoEncontrado` sem evento de acesso negado; se esse registro deve existir é decisão de produto em aberto.
+- Em solicitações: listar (`ListarMinhasSolicitacoes`, pelo cliente, e `ListarSolicitacoes`, pela Diretoria) registra `Listou` e abrir uma (`ObterMinhaSolicitacao` e `ObterSolicitacao`) registra `Visualizou`, no recurso `Solicitacao`. As duas listagens registram a situação e a página em `Detalhe`; só a da Diretoria registra também o cliente filtrado. A solicitação de outro cliente, pedida pelo cliente, responde `NaoEncontrado` sem evento de acesso negado; se esse registro deve existir é decisão de produto em aberto.
 - Na agenda: listar eventos registra `Listou`; abrir um evento registra `Visualizou`.
 - Na produtividade: consultar a produtividade de um produtor registra `Visualizou` (recurso `Produtividade`), com o produtor em `RecursoId` e o período em `Detalhe`. A lista de produtores fica registrada pela listagem de usuários, que a tela reutiliza.
 

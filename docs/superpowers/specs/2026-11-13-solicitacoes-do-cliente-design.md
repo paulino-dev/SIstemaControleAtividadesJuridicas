@@ -2,7 +2,8 @@
 
 Data: 2026-11-13
 Estado: fase A implementada (a solicitação); fase B (a atividade a partir da solicitação) ainda sem plano
-Emenda: `2026-10-08-portal-do-cliente-design.md` (seções 3, 4, 6 e 12) e `2026-10-06-modelagem-dominio-design.md`
+Emenda: `2026-10-08-portal-do-cliente-design.md` (seções 1, 2, 3, 4, 6, 7, 9, 10, 11 e 12) e
+`2026-10-06-modelagem-dominio-design.md`
 
 ## 1. Objetivo
 
@@ -260,6 +261,11 @@ Atividade com `SolicitacaoId`: botão "Ver solicitação" no cabeçalho, para `/
 - `ix_documentos_chave_armazenamento` deixa de ser único e continua como índice comum (a busca por chave é a da
   eliminação). Na fase B, junto da criação de atividade. Desfazer a migration volta o índice único e falha se já
   houver chave compartilhada: antes de reverter o esquema, é preciso tratar essas linhas.
+- Desfazer a migration da fase A (`SolicitacoesDoCliente`): o `Down` apaga a tabela `solicitacoes_do_cliente`, com
+  todas as solicitações, e a coluna `documentos.solicitacao_id`, e volta a restrição de `cliente_id` sem a categoria 6.
+  Se existir algum documento da categoria 6 (`DocumentoDaSolicitacao`), mesmo excluído logicamente, a restrição
+  recusa e o `Down` falha inteiro, desfeito pela transação, sem apagar nada. Antes de reverter, é preciso tratar
+  esses documentos; sem eles, a reversão apaga todas as solicitações.
 
 ## 9. Testes
 
@@ -325,9 +331,28 @@ ainda não tem plano.
   cliente) e cria `ck_documentos_solicitacao_so_na_categoria_6` (`solicitacao_id` existe só nessa categoria e é
   obrigatório nela). Ficam para a B, como na seção 8: `atividades.solicitacao_id` e a troca do índice único da chave
   de armazenamento.
-- Feito na A: a abertura é uma gravação só (`ArquivoEnviado.GravarVariosAsync`). Todos os arquivos são validados antes
-  de o primeiro ser gravado; se um for recusado ou a gravação no banco falhar, os arquivos já gravados são removidos
-  e nada fica no banco.
+- Feito na A: a abertura é uma gravação só (`ArquivoEnviado.GravarVariosAsync`). O nome e a presença de todos os
+  arquivos são validados antes de o primeiro conteúdo ser aberto. Os conteúdos são abertos um por vez
+  (`ArquivoParaEnviar.AbrirConteudo`), cada um só na hora de ser gravado e fechado antes do próximo: no Blazor Server
+  a transferência do navegador começa na abertura, e um fluxo aberto à espera estoura o tempo sem dados. O limite de
+  50 MB é conferido enquanto cada arquivo é gravado. Se um for recusado, se abrir ou gravar um conteúdo falhar, ou se
+  a gravação no banco falhar, os arquivos já gravados são removidos e nada fica no banco.
+- Feito na A: a tela recusa já na escolha, pelo nome, o arquivo acima de 50 MB e o arquivo vazio ("O arquivo
+  vazio.pdf está vazio.", ou "Os arquivos a.pdf, b.pdf estão vazios."), na abertura e no anexo da edição; os demais
+  arquivos da mesma escolha ficam. O servidor recusa o vazio do mesmo jeito ("O arquivo está vazio."), mas sem dizer
+  qual.
+- Feito na A: depois de abrir, a tela deixa um recado ("Solicitação enviada. A equipe verifica sua solicitação em até
+  24 horas úteis.") e vai para a ficha, que o mostra uma vez, como o "Solicitação alterada." da edição. Recarregar a
+  ficha ou voltar a ela pelo navegador não o repete; o endereço não leva parâmetro (`?enviada=1` deixou de existir).
+- Feito na A: o documento da solicitação só muda pelas mãos do cliente que abriu a solicitação, enquanto ela aguarda
+  (o anexo e a remoção). A Diretoria não exclui nem nega a solicitação nem os documentos dela: `ExcluirDocumento` e
+  `RenomearDocumento` recusam a categoria 6 com `Validacao`, "Documento de solicitação só é alterado pelo cliente que
+  a abriu.", e nada muda; nas outras categorias, os dois seguem como antes.
+- Feito na A: os documentos de uma solicitação vêm do mais antigo para o mais novo (`CriadoEm`); os gravados no mesmo
+  instante, como os de uma abertura com vários arquivos, pelo nome e depois pelo Id. A ordem é a mesma no
+  repositório e no fake dos testes unitários.
+- Feito na A: o documento recebe o cliente da solicitação (`solicitacao.ClienteId`), e não o do usuário que pede, na
+  abertura e no anexo.
 - Feito na A: o contador `VersaoDosDocumentos` (não auditado) sobe a cada anexo e a cada remoção. A linha da
   solicitação é regravada e o `xmin` muda: quem abriu a tela, ou o outro anexo simultâneo, antes da mudança recebe
   `Conflito` ("A solicitação foi alterada. Recarregue e tente de novo.") e nada é sobrescrito.
@@ -348,8 +373,11 @@ ainda não tem plano.
   duas listas: a Produção recebe "Página não encontrada" pela própria página, sem consulta.
 - Feito na A: na edição, `Conflito` ou `NaoEncontrado` em qualquer operação da página (salvar, anexar ou remover
   documento) relê o formulário inteiro (campos, versão e documentos) e mostra a mensagem, para que o texto antigo não
-  seja salvo com a versão nova. Uma operação que dá certo só atualiza a versão e os documentos, e o que foi digitado
-  fica. Se a releitura mostra que a solicitação não pode mais ser alterada, a tela volta à ficha com a mensagem. Na
+  seja salvo com a versão nova. Se essa releitura não encontra a solicitação, a página passa ao estado de "não
+  encontrada", sem a mensagem. Qualquer outra recusa (que não seja `Conflito` nem `NaoEncontrado`) relê só a versão e
+  os documentos, sem tocar nos campos, e mostra a mensagem. Uma operação que dá certo só atualiza a versão e os
+  documentos, e o que foi digitado fica. Se a releitura mostra que a solicitação não pode mais ser alterada, a tela
+  volta à ficha com a mensagem. Na
   abertura, os arquivos podem ser escolhidos em mais de uma vez: cada escolha soma às anteriores, o limite de 10 vale
   para a soma e cada arquivo tem "Remover" antes do envio. Falha ao enviar mantém o formulário.
 - Feito na A: o menu do cliente ganha "Solicitações" depois de Andamento, no menu lateral e no trilho (na barra
@@ -372,6 +400,8 @@ ainda não tem plano.
   mas a Diretoria a vê como "Virou atividade", porque a situação do domínio vem de `AtividadeId`.
 - Para a B: o resto da seção 8 (`atividades.solicitacao_id` com índice único parcial e o índice comum da chave de
   armazenamento) e a regra de código que substitui o índice único, com o teste que a fixa.
-- Em aberto, sem decisão: se o cliente que pede pelo Id a solicitação de outro cliente deve deixar um registro
-  `acesso_negado`. Hoje as requisições do portal respondem `NaoEncontrado` e não registram nada (como a seção 4
-  determina); só o download de documento registra `acesso_negado`. É decisão de produto.
+- Em aberto, sem decisão: se o cliente que pede pelo Id a solicitação de outro cliente, ou que pede
+  `RemoverDocumentoDaSolicitacao` com o Id de um documento de outro cliente, deve deixar um registro `acesso_negado`.
+  Hoje esses pedidos respondem `NaoEncontrado` e não registram nada (como a seção 4 determina); das respostas
+  `NaoEncontrado`, só a do download de documento registra `acesso_negado`. As respostas `AcessoNegado`, a do portão
+  inclusive, registram sempre. É decisão de produto.
