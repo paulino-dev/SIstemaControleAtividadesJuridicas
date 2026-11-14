@@ -15,6 +15,7 @@ public sealed class SolicitacaoDoCliente : Entidade
     public const string NaoPodeMaisSerAlterada = "Esta solicitação não pode mais ser alterada.";
     public const string JaVirouAtividade = "Esta solicitação já virou atividade.";
     public const string CanceladaPeloCliente = "Cliente cancelou a solicitação, mesmo assim deseja criar a atividade?";
+    public const string AtividadeDeOutroCliente = "A atividade precisa ser do cliente da solicitação.";
 
     private SolicitacaoDoCliente() { }
 
@@ -92,16 +93,20 @@ public sealed class SolicitacaoDoCliente : Entidade
 
     /// <summary>
     /// Liga a solicitação à atividade criada a partir dela. Uma solicitação cancelada pelo cliente só vira
-    /// atividade se a Diretoria confirmar; o cancelamento fica registrado.
+    /// atividade se a Diretoria confirmar; o cancelamento fica registrado. A atividade tem de ter nascido desta
+    /// solicitação (erro de programação, se não) e ser do cliente dela.
     /// </summary>
-    public void VincularAtividade(Guid atividadeId, bool confirmouCancelada)
+    public void VincularAtividade(Atividade atividade, bool confirmouCancelada)
     {
-        if (atividadeId == Guid.Empty) throw new ArgumentException("Informe a atividade.", nameof(atividadeId));
+        ArgumentNullException.ThrowIfNull(atividade);
+        if (atividade.SolicitacaoId != Id)
+            throw new ArgumentException("A atividade não foi criada a partir desta solicitação.", nameof(atividade));
+        if (atividade.ClienteId != ClienteId) throw new ExcecaoDeDominio(AtividadeDeOutroCliente);
         if (Situacao == SituacaoDaSolicitacao.EmAtividade) throw new ExcecaoDeDominio(JaVirouAtividade);
         if (Situacao == SituacaoDaSolicitacao.Cancelada && !confirmouCancelada)
             throw new ExcecaoDeDominio(CanceladaPeloCliente);
 
-        AtividadeId = atividadeId;
+        AtividadeId = atividade.Id;
     }
 
     /// <summary>

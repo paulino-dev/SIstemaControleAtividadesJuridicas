@@ -44,6 +44,8 @@ public sealed class Documento : Entidade
 
     public const string SemListaDeAcesso = "Documento visível ao cliente não tem lista de acesso.";
 
+    public const string DocumentoDeOutroCliente = "O documento precisa ser do cliente da atividade.";
+
     private const string ClienteObrigatorio = "O cliente do documento é obrigatório.";
     private const string PerfilInativo = "Perfil inativo não pode receber acesso a documento.";
     private const string UsuarioInativo = "Usuário inativo não pode receber acesso a documento.";
@@ -140,6 +142,30 @@ public sealed class Documento : Entidade
         var documento = Criar(CategoriaDocumento.DocumentoAtividade, clienteId, nome, arquivo);
         documento.AtividadeId = atividadeId;
         return documento;
+    }
+
+    /// <summary>
+    /// Leva o documento da solicitação para a atividade criada a partir dela: devolve um documento de atividade novo
+    /// que usa o mesmo arquivo (mesma chave de armazenamento e mesmo hash), com o nome deste documento; este fica
+    /// como está. <paramref name="clienteDaAtividade"/> tem de ser o cliente do documento.
+    /// </summary>
+    /// <remarks>
+    /// Regras que substituem o índice único de <c>ChaveArmazenamento</c> (um arquivo, vários documentos):
+    /// só este caminho cria um documento com a chave de outro, e todo outro envio grava um arquivo novo, com chave
+    /// nova; a exclusão de documento é lógica e não toca no arquivo físico; e uma remoção física futura procura
+    /// pela chave <em>todos</em> os documentos que usam o arquivo, e só o apaga quando nenhum documento vivo o usa
+    /// (ou quando a intenção é justamente eliminá-lo de todos).
+    /// </remarks>
+    public Documento LevarParaAtividade(Guid atividadeId, Guid clienteDaAtividade)
+    {
+        if (Categoria != CategoriaDocumento.DocumentoDaSolicitacao)
+            throw new InvalidOperationException("Só o documento da solicitação pode ser levado para a atividade.");
+        if (clienteDaAtividade != ClienteId)
+            throw new ExcecaoDeDominio(DocumentoDeOutroCliente);
+
+        return CriarDeAtividade(
+            atividadeId, clienteDaAtividade, Nome,
+            new ArquivoDoDocumento(NomeArquivoOriginal, TipoConteudo, TamanhoBytes, HashSha256, ChaveArmazenamento));
     }
 
     /// <summary>O cliente do documento de atividade é sempre o da atividade: ela mudou de cliente (ou ficou sem).</summary>

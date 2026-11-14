@@ -1,8 +1,8 @@
-using AtividadesJuridicas.Application.Atividades;
 using AtividadesJuridicas.Application.Auditoria;
 using AtividadesJuridicas.Application.Comum;
 using AtividadesJuridicas.Application.Identidade;
 using AtividadesJuridicas.Application.Solicitacoes;
+using AtividadesJuridicas.Domain.Atividades;
 using AtividadesJuridicas.Domain.Auditoria;
 using AtividadesJuridicas.Domain.Cadastros;
 using AtividadesJuridicas.Domain.Identidade;
@@ -49,13 +49,14 @@ public class SolicitacoesDaDiretoriaTests
 
     private SolicitacaoDoCliente Solicitacao(Guid id) => _c.Solicitacoes.Itens.Single(s => s.Id == id);
 
-    private async Task<Guid> AtividadeAsync(string titulo)
+    /// <summary>Uma atividade da Maria criada a partir da solicitação, já no repositório.</summary>
+    private Atividade AtividadeDa(Guid solicitacao, string titulo)
     {
-        var resultado = await new SalvarAtividadeManipulador(
-                _c.Como(_c.Diretor), _c.Atividades, _c.Clientes, _c.Processos, _c.Areas, _c.Relogio, _c.Unidade, _c.Documentos)
-            .ManipularAsync(new SalvarAtividade(null, titulo, "Texto.", new DateOnly(2026, 10, 20), _maria.Id, null, null, 1), default);
-        resultado.Sucesso.Should().BeTrue(resultado.Mensagem);
-        return resultado.Valor;
+        var atividade = Atividade.Criar(
+            new DadosDaAtividade(titulo, "Texto.", new DateOnly(2026, 10, 20), 1),
+            VinculoDaAtividade.Criar(_maria.Id, null, null), TipoAutor.Usuario, _c.Diretor.Id, _c.Relogio.AgoraUtc, solicitacao);
+        _c.Atividades.Adicionar(atividade);
+        return atividade;
     }
 
     [Fact]
@@ -210,21 +211,21 @@ public class SolicitacoesDaDiretoriaTests
         var id = await AbertaAsync(_carla);
         var cancelamento = new DateTime(2026, 10, 5, 12, 0, 0, DateTimeKind.Utc);
         Solicitacao(id).Cancelar(cancelamento);
-        var atividade = await AtividadeAsync("Certidão da Maria");
+        var atividade = AtividadeDa(id, "Certidão da Maria");
         Solicitacao(id).VincularAtividade(atividade, confirmouCancelada: true);
 
         var ficha = (await Obter(_c.Diretor, id)).Valor!;
 
         ficha.Situacao.Should().Be(SituacaoDaSolicitacao.EmAtividade);
         ficha.CanceladaEm.Should().Be(cancelamento, "o cancelamento fica preservado quando a solicitação vira atividade");
-        ficha.AtividadeId.Should().Be(atividade);
+        ficha.AtividadeId.Should().Be(atividade.Id);
         ficha.AtividadeTitulo.Should().Be("Certidão da Maria");
 
         // A atividade excluída não tem título: o vínculo continua como está gravado.
-        _c.Atividades.Remover(_c.Atividades.Itens.Single(a => a.Id == atividade));
+        _c.Atividades.Remover(atividade);
         var semAtividade = (await Obter(_c.Diretor, id)).Valor!;
 
-        semAtividade.AtividadeId.Should().Be(atividade);
+        semAtividade.AtividadeId.Should().Be(atividade.Id);
         semAtividade.AtividadeTitulo.Should().BeNull();
     }
 

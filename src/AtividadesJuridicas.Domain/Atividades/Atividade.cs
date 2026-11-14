@@ -20,6 +20,12 @@ public sealed class Atividade : Entidade
 
     public const string MotivoDeResponsavelRemovido = "Responsável pendente removido.";
 
+    public const string ClienteDaSolicitacaoTravado =
+        "O cliente de uma atividade criada a partir de uma solicitação não pode ser trocado.";
+
+    public const string SolicitacaoExigeCliente =
+        "Uma atividade criada a partir de uma solicitação precisa ter cliente.";
+
     private const string SoAlteraResponsaveis =
         "Os responsáveis só podem ser alterados enquanto a atividade está criada, direcionada, em correção ou reaberta.";
     private const string SoAguardandoRevisao =
@@ -51,6 +57,9 @@ public sealed class Atividade : Entidade
     public Guid? AutorId { get; private set; }
     public Guid? RevisorId { get; private set; }
 
+    /// <summary>A solicitação do cliente que originou a atividade. Definida só na criação e nunca alterada.</summary>
+    public Guid? SolicitacaoId { get; private set; }
+
     /// <summary>Versão da linha, mantida pelo banco (controle de concorrência otimista).</summary>
     [NaoAuditar]
     public uint Versao { get; private set; }
@@ -75,12 +84,20 @@ public sealed class Atividade : Entidade
 
     private bool AguardaRevisao => Status is StatusAtividade.Feita or StatusAtividade.Corrigida;
 
+    /// <param name="solicitacaoId">
+    /// A solicitação do cliente de onde a atividade nasce; exige que o vínculo tenha cliente (o da solicitação).
+    /// </param>
     public static Atividade Criar(
-        DadosDaAtividade dados, VinculoDaAtividade vinculo, TipoAutor tipoAutor, Guid? autorId, DateTime agoraUtc)
+        DadosDaAtividade dados, VinculoDaAtividade vinculo, TipoAutor tipoAutor, Guid? autorId, DateTime agoraUtc,
+        Guid? solicitacaoId = null)
     {
         ExigirUtc(agoraUtc);
+        if (solicitacaoId == Guid.Empty)
+            throw new ArgumentException("Solicitação inválida.", nameof(solicitacaoId));
         Validar(dados, StatusAtividade.Criada);
         ArgumentNullException.ThrowIfNull(vinculo);
+        if (solicitacaoId is not null && vinculo.ClienteId is null)
+            throw new ExcecaoDeDominio(SolicitacaoExigeCliente);
         if (!Enum.IsDefined(tipoAutor))
             throw new ExcecaoDeDominio("Tipo de autor inválido.");
         if (tipoAutor == TipoAutor.Usuario && (autorId is null || autorId == Guid.Empty))
@@ -88,17 +105,26 @@ public sealed class Atividade : Entidade
         if (tipoAutor == TipoAutor.Sistema && autorId is not null)
             throw new ExcecaoDeDominio("Atividade criada pelo sistema não tem autor.");
 
-        var atividade = new Atividade { TipoAutor = tipoAutor, AutorId = autorId, Status = StatusAtividade.Criada };
+        var atividade = new Atividade
+        {
+            TipoAutor = tipoAutor, AutorId = autorId, Status = StatusAtividade.Criada, SolicitacaoId = solicitacaoId,
+        };
         atividade.Aplicar(dados, vinculo);
         atividade._historico.Add(new AtividadeHistoricoStatus(
             atividade.Id, 1, null, StatusAtividade.Criada, autorId, agoraUtc, null));
         return atividade;
     }
 
+    /// <summary>
+    /// Em atividade criada a partir de uma solicitação, o cliente é o da solicitação e não pode ser trocado
+    /// (nem removido); o processo escolhido tem de ser dele, pela regra do vínculo.
+    /// </summary>
     public void Alterar(DadosDaAtividade dados, VinculoDaAtividade vinculo)
     {
         Validar(dados, Status);
         ArgumentNullException.ThrowIfNull(vinculo);
+        if (SolicitacaoId is not null && vinculo.ClienteId != ClienteId)
+            throw new ExcecaoDeDominio(ClienteDaSolicitacaoTravado);
         Aplicar(dados, vinculo);
     }
 

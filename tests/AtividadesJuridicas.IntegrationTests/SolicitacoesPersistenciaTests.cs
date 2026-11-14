@@ -124,6 +124,21 @@ public class SolicitacoesPersistenciaTests(BancoFixture banco) : TesteComBanco(b
         return criada.Valor;
     }
 
+    /// <summary>
+    /// Grava, pelo domínio, uma atividade da Maria criada a partir da solicitação. Não vincula a solicitação:
+    /// o vínculo vai à parte, com a atividade devolvida.
+    /// </summary>
+    private Task<Atividade> AtividadeDaAsync(Guid solicitacao, string titulo) =>
+        EmEscopoAsync(_admin, async sp =>
+        {
+            var atividade = Atividade.Criar(
+                new DadosDaAtividade(titulo, "Texto da atividade.", new DateOnly(2090, 6, 15), 1),
+                VinculoDaAtividade.Criar(_maria, null, null), TipoAutor.Usuario, _admin, DateTime.UtcNow, solicitacao);
+            sp.GetRequiredService<IAtividadeRepositorio>().Adicionar(atividade);
+            await sp.GetRequiredService<IUnidadeDeTrabalho>().SalvarAsync(default);
+            return atividade;
+        });
+
     /// <summary>A Diretoria é a única responsável e a revisora: ao concluir a parte, a atividade se conclui.</summary>
     private async Task ConcluirAtividadeAsync(Guid atividade)
     {
@@ -139,7 +154,7 @@ public class SolicitacoesPersistenciaTests(BancoFixture banco) : TesteComBanco(b
         var descricao = new string('d', SolicitacaoDoCliente.TamanhoMaximoDescricao);
         var aberta = await AbrirAsync(_maria, _carla, descricao, UrgenciaDaSolicitacao.Alta);
         var cancelada = await AbrirAsync(_maria, _marcos);
-        var atividade = await AtividadeAsync("Certidão da Maria");
+        var atividade = await AtividadeDaAsync(cancelada, "Certidão da Maria");
         var agora = new DateTime(2026, 11, 13, 15, 30, 0, DateTimeKind.Utc);
         await MudarAsync(cancelada, _marcos, s => s.Cancelar(agora));
         await MudarAsync(cancelada, _admin, s => s.VincularAtividade(atividade, confirmouCancelada: true));
@@ -162,7 +177,7 @@ public class SolicitacoesPersistenciaTests(BancoFixture banco) : TesteComBanco(b
 
         var vinculada = await LerAsync(cancelada);
         vinculada.CanceladaEm.Should().Be(agora);
-        vinculada.AtividadeId.Should().Be(atividade);
+        vinculada.AtividadeId.Should().Be(atividade.Id);
         vinculada.Situacao.Should().Be(SituacaoDaSolicitacao.EmAtividade);
 
         // A urgência fica como inteiro no banco, não como texto.
@@ -339,10 +354,12 @@ public class SolicitacoesPersistenciaTests(BancoFixture banco) : TesteComBanco(b
             SituacaoParaOCliente.AguardandoAnalise, SituacaoParaOCliente.Cancelada);
 
         // Atividade viva e não concluída: em andamento, mesmo para a que o cliente cancelou.
-        var daVinculada = await AtividadeAsync("Atividade da vinculada");
-        var daCanceladaEVinculada = await AtividadeAsync("Atividade da cancelada");
-        await MudarAsync(vinculada, _admin, s => s.VincularAtividade(daVinculada, confirmouCancelada: false));
-        await MudarAsync(canceladaEVinculada, _admin, s => s.VincularAtividade(daCanceladaEVinculada, confirmouCancelada: true));
+        var atividadeDaVinculada = await AtividadeDaAsync(vinculada, "Atividade da vinculada");
+        var atividadeDaCancelada = await AtividadeDaAsync(canceladaEVinculada, "Atividade da cancelada");
+        var daVinculada = atividadeDaVinculada.Id;
+        var daCanceladaEVinculada = atividadeDaCancelada.Id;
+        await MudarAsync(vinculada, _admin, s => s.VincularAtividade(atividadeDaVinculada, confirmouCancelada: false));
+        await MudarAsync(canceladaEVinculada, _admin, s => s.VincularAtividade(atividadeDaCancelada, confirmouCancelada: true));
         await ConferirAsync(
             SituacaoParaOCliente.AguardandoAnalise, SituacaoParaOCliente.Cancelada,
             SituacaoParaOCliente.EmAndamento, SituacaoParaOCliente.EmAndamento);
@@ -385,7 +402,7 @@ public class SolicitacoesPersistenciaTests(BancoFixture banco) : TesteComBanco(b
         var excluida = await AbrirAsync(_maria, _carla, "Excluída.");
         await ExcluirLogicamenteAsync(excluida);
         await MudarAsync(cancelada, _carla, s => s.Cancelar(new DateTime(2026, 11, 13, 15, 30, 0, DateTimeKind.Utc)));
-        var atividade = await AtividadeAsync("Certidão da Maria");
+        var atividade = await AtividadeDaAsync(vinculada, "Certidão da Maria");
         await MudarAsync(vinculada, _admin, s => s.VincularAtividade(atividade, confirmouCancelada: false));
         await AnexarAsync(primeira, _maria, "a.pdf");
         await AnexarAsync(primeira, _maria, "b.pdf");

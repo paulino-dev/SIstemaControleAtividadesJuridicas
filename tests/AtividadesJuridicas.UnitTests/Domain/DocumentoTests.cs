@@ -727,6 +727,65 @@ public class DocumentoTests
         Documento.CriarDeAtividade(Guid.CreateVersion7(), Cliente, null, Arquivo()).SolicitacaoId.Should().BeNull();
     }
 
+    [Fact]
+    public void LevarParaAtividade_cria_documento_de_atividade_com_o_mesmo_arquivo()
+    {
+        var original = Documento.CriarDaSolicitacao(Solicitacao, Cliente, "  Comprovante de residência ", Arquivo("comprovante.pdf", tamanho: 4321));
+        var atividade = Guid.CreateVersion7();
+
+        var levado = original.LevarParaAtividade(atividade, Cliente);
+
+        levado.Id.Should().NotBe(original.Id);
+        levado.Categoria.Should().Be(CategoriaDocumento.DocumentoAtividade);
+        levado.AtividadeId.Should().Be(atividade);
+        levado.ClienteId.Should().Be(Cliente);
+        levado.SolicitacaoId.Should().BeNull();
+        levado.Nome.Should().Be("Comprovante de residência");
+        levado.NomeArquivoOriginal.Should().Be("comprovante.pdf");
+        levado.TipoConteudo.Should().Be("application/pdf");
+        levado.TamanhoBytes.Should().Be(4321);
+        levado.HashSha256.Should().Be(Hash);
+        levado.ChaveArmazenamento.Should().Be(Chave);
+        levado.PerfisComAcesso.Should().BeEmpty();
+        levado.UsuariosComAcesso.Should().BeEmpty();
+        levado.VisivelAoCliente.Should().BeFalse();
+
+        original.Categoria.Should().Be(CategoriaDocumento.DocumentoDaSolicitacao);
+        original.SolicitacaoId.Should().Be(Solicitacao);
+        original.AtividadeId.Should().BeNull();
+        original.ClienteId.Should().Be(Cliente);
+        original.Nome.Should().Be("Comprovante de residência");
+        original.ChaveArmazenamento.Should().Be(Chave);
+    }
+
+    [Theory]
+    [InlineData(CategoriaDocumento.DocumentoGeral)]
+    [InlineData(CategoriaDocumento.ContratoHonorarios)]
+    [InlineData(CategoriaDocumento.DocumentoAtividade)]
+    [InlineData(CategoriaDocumento.DocumentoDoCliente)]
+    [InlineData(CategoriaDocumento.DocumentoComum)]
+    public void LevarParaAtividade_so_vale_para_documento_da_solicitacao(CategoriaDocumento categoria)
+    {
+        var documento = DaCategoria(categoria, NovoUsuario("Pedro", _producao));
+
+        var acao = () => documento.LevarParaAtividade(Guid.CreateVersion7(), Cliente);
+
+        acao.Should().Throw<InvalidOperationException>();
+    }
+
+    [Fact]
+    public void LevarParaAtividade_exige_o_cliente_do_documento()
+    {
+        var documento = Documento.CriarDaSolicitacao(Solicitacao, Cliente, null, Arquivo());
+
+        var deOutroCliente = () => documento.LevarParaAtividade(Guid.CreateVersion7(), Guid.CreateVersion7());
+        var vazio = () => documento.LevarParaAtividade(Guid.CreateVersion7(), Guid.Empty);
+
+        deOutroCliente.Should().Throw<ExcecaoDeDominio>().Which.Message.Should().Be(Documento.DocumentoDeOutroCliente);
+        vazio.Should().Throw<ExcecaoDeDominio>().Which.Message.Should().Be(Documento.DocumentoDeOutroCliente);
+        Documento.DocumentoDeOutroCliente.Should().Be("O documento precisa ser do cliente da atividade.");
+    }
+
     /// <summary>Quem consulta, na matriz da regra de acesso.</summary>
     public enum Consulente
     {

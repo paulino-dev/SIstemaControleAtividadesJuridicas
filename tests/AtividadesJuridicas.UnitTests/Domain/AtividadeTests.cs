@@ -155,6 +155,99 @@ public class AtividadeTests
         atividade.Historico.Should().HaveCount(2);
     }
 
+    // ---- Atividade criada a partir de uma solicitação ----
+
+    private Atividade DaSolicitacao(Guid cliente, Guid solicitacao) => Atividade.Criar(
+        Dados(), VinculoDaAtividade.Criar(cliente, null, null), TipoAutor.Usuario, _diana.UsuarioId, T0, solicitacao);
+
+    [Fact]
+    public void Criar_com_solicitacao_guarda_o_Id()
+    {
+        var cliente = Guid.CreateVersion7();
+        var solicitacao = Guid.CreateVersion7();
+
+        var daSolicitacao = DaSolicitacao(cliente, solicitacao);
+        var semSolicitacao = Atividade.Criar(
+            Dados(), VinculoDaAtividade.Criar(cliente, null, null), TipoAutor.Usuario, _diana.UsuarioId, T0);
+
+        daSolicitacao.SolicitacaoId.Should().Be(solicitacao);
+        daSolicitacao.ClienteId.Should().Be(cliente);
+        semSolicitacao.SolicitacaoId.Should().BeNull();
+        Nova().SolicitacaoId.Should().BeNull();
+    }
+
+    [Fact]
+    public void Criar_com_solicitacao_exige_cliente()
+    {
+        var acao = () => Atividade.Criar(
+            Dados(), VinculoDaAtividade.Avulsa, TipoAutor.Usuario, _diana.UsuarioId, T0, Guid.CreateVersion7());
+
+        acao.Should().Throw<ExcecaoDeDominio>().Which.Message.Should().Be(Atividade.SolicitacaoExigeCliente);
+        Atividade.SolicitacaoExigeCliente.Should().Be("Uma atividade criada a partir de uma solicitação precisa ter cliente.");
+    }
+
+    [Fact]
+    public void Criar_com_solicitacao_vazia_e_erro_de_programacao()
+    {
+        var acao = () => Atividade.Criar(
+            Dados(), VinculoDaAtividade.Criar(Guid.CreateVersion7(), null, null), TipoAutor.Usuario, _diana.UsuarioId, T0, Guid.Empty);
+
+        acao.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public void Alterar_atividade_com_solicitacao_recusa_trocar_o_cliente()
+    {
+        var cliente = Guid.CreateVersion7();
+        var area = Guid.CreateVersion7();
+        var atividade = DaSolicitacao(cliente, Guid.CreateVersion7());
+        var paraOutroCliente = () => atividade.Alterar(
+            Dados("Outro título", new DateOnly(2026, 11, 1)), VinculoDaAtividade.Criar(Guid.CreateVersion7(), null, area));
+        var paraNenhum = () => atividade.Alterar(
+            Dados("Outro título", new DateOnly(2026, 11, 1)), VinculoDaAtividade.Criar(null, null, area));
+
+        paraOutroCliente.Should().Throw<ExcecaoDeDominio>().Which.Message.Should().Be(Atividade.ClienteDaSolicitacaoTravado);
+        paraNenhum.Should().Throw<ExcecaoDeDominio>().Which.Message.Should().Be(Atividade.ClienteDaSolicitacaoTravado);
+        Atividade.ClienteDaSolicitacaoTravado.Should()
+            .Be("O cliente de uma atividade criada a partir de uma solicitação não pode ser trocado.");
+        atividade.ClienteId.Should().Be(cliente);
+        atividade.Titulo.Should().Be("Elaborar contestação");
+        atividade.DataEntrega.Should().Be(Entrega);
+        atividade.AreaAtuacaoId.Should().BeNull();
+    }
+
+    [Fact]
+    public void Alterar_atividade_com_solicitacao_aceita_o_mesmo_cliente()
+    {
+        var cliente = Guid.CreateVersion7();
+        var solicitacao = Guid.CreateVersion7();
+        var area = Guid.CreateVersion7();
+        var processo = NovoProcesso(area, cliente);
+        var atividade = DaSolicitacao(cliente, solicitacao);
+
+        atividade.Alterar(Dados("Novo título"), VinculoDaAtividade.Criar(cliente, processo, null));
+
+        atividade.Titulo.Should().Be("Novo título");
+        atividade.ClienteId.Should().Be(cliente);
+        atividade.ProcessoId.Should().Be(processo.Id);
+        atividade.AreaAtuacaoId.Should().Be(area);
+        atividade.SolicitacaoId.Should().Be(solicitacao);
+    }
+
+    [Fact]
+    public void Alterar_atividade_sem_solicitacao_troca_o_cliente_como_antes()
+    {
+        var atividade = Atividade.Criar(
+            Dados(), VinculoDaAtividade.Criar(Guid.CreateVersion7(), null, null), TipoAutor.Usuario, _diana.UsuarioId, T0);
+        var outro = Guid.CreateVersion7();
+
+        atividade.Alterar(Dados(), VinculoDaAtividade.Criar(outro, null, null));
+        atividade.ClienteId.Should().Be(outro);
+
+        atividade.Alterar(Dados(), VinculoDaAtividade.Avulsa);
+        atividade.ClienteId.Should().BeNull();
+    }
+
     // ---- Vínculo ----
 
     private static Processo NovoProcesso(Guid area, params Guid[] clientes) => Processo.Criar(

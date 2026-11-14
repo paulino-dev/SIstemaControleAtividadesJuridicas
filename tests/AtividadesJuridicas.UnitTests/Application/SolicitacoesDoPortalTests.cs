@@ -103,13 +103,14 @@ public class SolicitacoesDoPortalTests
         ("Cancelar", (ator, versao) => Cancelar(ator, solicitacao, versao)),
     ];
 
-    private async Task<Guid> AtividadeAsync(string titulo)
+    /// <summary>Uma atividade da Maria criada a partir da solicitação, já no repositório.</summary>
+    private Atividade AtividadeDa(Guid solicitacao, string titulo)
     {
-        var resultado = await new SalvarAtividadeManipulador(
-                _c.Como(_c.Diretor), _c.Atividades, _c.Clientes, _c.Processos, _c.Areas, _c.Relogio, _c.Unidade, _c.Documentos)
-            .ManipularAsync(new SalvarAtividade(null, titulo, "Texto.", new DateOnly(2026, 10, 20), _maria.Id, null, null, 1), default);
-        resultado.Sucesso.Should().BeTrue(resultado.Mensagem);
-        return resultado.Valor;
+        var atividade = Atividade.Criar(
+            new DadosDaAtividade(titulo, "Texto.", new DateOnly(2026, 10, 20), 1),
+            VinculoDaAtividade.Criar(_maria.Id, null, null), TipoAutor.Usuario, _c.Diretor.Id, _c.Relogio.AgoraUtc, solicitacao);
+        _c.Atividades.Adicionar(atividade);
+        return atividade;
     }
 
     private async Task ConcluirAsync(Guid atividade)
@@ -513,7 +514,7 @@ public class SolicitacoesDoPortalTests
     public async Task Obter_segue_a_atividade_viva_vinculada()
     {
         var id = await AbertaAsync(_carla);
-        var atividade = await AtividadeAsync("Certidão da Maria");
+        var atividade = AtividadeDa(id, "Certidão da Maria");
         Solicitacao(id).VincularAtividade(atividade, confirmouCancelada: false);
 
         var emAndamento = (await Obter(_carla, id)).Valor!;
@@ -523,16 +524,15 @@ public class SolicitacoesDoPortalTests
         emAndamento.AtividadeConcluidaEm.Should().BeNull();
         emAndamento.PodeAlterar.Should().BeFalse("a solicitação já virou atividade");
 
-        await ConcluirAsync(atividade);
+        await ConcluirAsync(atividade.Id);
         var concluida = (await Obter(_carla, id)).Valor!;
 
         concluida.Situacao.Should().Be(SituacaoParaOCliente.Concluida);
         concluida.AtividadeTitulo.Should().Be("Certidão da Maria");
-        concluida.AtividadeConcluidaEm.Should().NotBeNull()
-            .And.Be(_c.Atividades.Itens.Single(a => a.Id == atividade).ConcluidaEm);
+        concluida.AtividadeConcluidaEm.Should().NotBeNull().And.Be(atividade.ConcluidaEm);
 
         // A atividade excluída deixa de valer: volta a situação da própria solicitação.
-        _c.Atividades.Remover(_c.Atividades.Itens.Single(a => a.Id == atividade));
+        _c.Atividades.Remover(atividade);
         var semAtividade = (await Obter(_carla, id)).Valor!;
 
         semAtividade.Situacao.Should().Be(SituacaoParaOCliente.AguardandoAnalise);
@@ -545,12 +545,12 @@ public class SolicitacoesDoPortalTests
     {
         var id = await AbertaAsync(_carla);
         (await Cancelar(_carla, id)).Sucesso.Should().BeTrue();
-        var atividade = await AtividadeAsync("Certidão da Maria");
+        var atividade = AtividadeDa(id, "Certidão da Maria");
         Solicitacao(id).VincularAtividade(atividade, confirmouCancelada: true);
 
         (await Obter(_carla, id)).Valor!.Situacao.Should().Be(SituacaoParaOCliente.EmAndamento);
 
-        _c.Atividades.Remover(_c.Atividades.Itens.Single(a => a.Id == atividade));
+        _c.Atividades.Remover(atividade);
 
         (await Obter(_carla, id)).Valor!.Situacao.Should().Be(SituacaoParaOCliente.Cancelada);
     }

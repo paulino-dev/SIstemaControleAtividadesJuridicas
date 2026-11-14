@@ -1,3 +1,4 @@
+using AtividadesJuridicas.Domain.Atividades;
 using AtividadesJuridicas.Domain.Comum;
 using AtividadesJuridicas.Domain.Solicitacoes;
 
@@ -19,6 +20,12 @@ public class SolicitacaoDoClienteTests
         solicitacao.Cancelar(T0);
         return solicitacao;
     }
+
+    private static readonly DadosDaAtividade DadosDeAtividade = new("Atender a solicitação", "Descrição da atividade.", null, 1);
+
+    /// <summary>A atividade criada a partir da solicitação: do cliente dela e com o Id dela.</summary>
+    private static Atividade AtividadeDa(SolicitacaoDoCliente solicitacao) => Atividade.Criar(
+        DadosDeAtividade, VinculoDaAtividade.Criar(solicitacao.ClienteId, null, null), TipoAutor.Sistema, null, T0, solicitacao.Id);
 
     // WithMessage trata "?" como curinga; aqui a mensagem precisa ser exatamente esta.
     private static void DeveRecusarCom(Action acao, string mensagem) =>
@@ -161,23 +168,51 @@ public class SolicitacaoDoClienteTests
     public void Vincular_em_aguardando_vira_em_atividade()
     {
         var solicitacao = Nova();
-        var atividadeId = Guid.CreateVersion7();
+        var atividade = AtividadeDa(solicitacao);
 
-        solicitacao.VincularAtividade(atividadeId, confirmouCancelada: false);
+        solicitacao.VincularAtividade(atividade, confirmouCancelada: false);
 
         solicitacao.Situacao.Should().Be(SituacaoDaSolicitacao.EmAtividade);
-        solicitacao.AtividadeId.Should().Be(atividadeId);
+        solicitacao.AtividadeId.Should().Be(atividade.Id);
         solicitacao.CanceladaEm.Should().BeNull();
     }
 
     [Fact]
-    public void Vincular_recusa_atividade_vazia_como_erro_de_programacao()
+    public void Vincular_recusa_atividade_nula_como_erro_de_programacao()
     {
         var solicitacao = Nova();
 
-        var acao = () => solicitacao.VincularAtividade(Guid.Empty, confirmouCancelada: false);
+        var acao = () => solicitacao.VincularAtividade(null!, confirmouCancelada: false);
 
-        acao.Should().Throw<ArgumentException>();
+        acao.Should().Throw<ArgumentNullException>();
+        solicitacao.AtividadeId.Should().BeNull();
+    }
+
+    [Fact]
+    public void Vincular_recusa_atividade_de_outro_cliente()
+    {
+        var solicitacao = Nova();
+        var deOutroCliente = Atividade.Criar(
+            DadosDeAtividade, VinculoDaAtividade.Criar(Guid.CreateVersion7(), null, null), TipoAutor.Sistema, null, T0, solicitacao.Id);
+
+        DeveRecusarCom(() => solicitacao.VincularAtividade(deOutroCliente, confirmouCancelada: false), SolicitacaoDoCliente.AtividadeDeOutroCliente);
+        solicitacao.AtividadeId.Should().BeNull();
+        solicitacao.Situacao.Should().Be(SituacaoDaSolicitacao.Aguardando);
+    }
+
+    [Fact]
+    public void Vincular_recusa_atividade_criada_de_outra_solicitacao()
+    {
+        var solicitacao = Nova();
+        var vinculo = VinculoDaAtividade.Criar(_clienteId, null, null);
+        var deOutraSolicitacao = Atividade.Criar(DadosDeAtividade, vinculo, TipoAutor.Sistema, null, T0, Guid.CreateVersion7());
+        var semSolicitacao = Atividade.Criar(DadosDeAtividade, vinculo, TipoAutor.Sistema, null, T0);
+
+        var daOutra = () => solicitacao.VincularAtividade(deOutraSolicitacao, confirmouCancelada: false);
+        var avulsa = () => solicitacao.VincularAtividade(semSolicitacao, confirmouCancelada: false);
+
+        daOutra.Should().Throw<ArgumentException>();
+        avulsa.Should().Throw<ArgumentException>();
         solicitacao.AtividadeId.Should().BeNull();
     }
 
@@ -185,16 +220,16 @@ public class SolicitacaoDoClienteTests
     public void Vincular_cancelada_exige_confirmacao()
     {
         var solicitacao = Cancelada();
-        var atividadeId = Guid.CreateVersion7();
+        var atividade = AtividadeDa(solicitacao);
 
-        DeveRecusarCom(() => solicitacao.VincularAtividade(atividadeId, confirmouCancelada: false), SolicitacaoDoCliente.CanceladaPeloCliente);
+        DeveRecusarCom(() => solicitacao.VincularAtividade(atividade, confirmouCancelada: false), SolicitacaoDoCliente.CanceladaPeloCliente);
         solicitacao.Situacao.Should().Be(SituacaoDaSolicitacao.Cancelada);
         solicitacao.AtividadeId.Should().BeNull();
 
-        solicitacao.VincularAtividade(atividadeId, confirmouCancelada: true);
+        solicitacao.VincularAtividade(atividade, confirmouCancelada: true);
 
         solicitacao.Situacao.Should().Be(SituacaoDaSolicitacao.EmAtividade);
-        solicitacao.AtividadeId.Should().Be(atividadeId);
+        solicitacao.AtividadeId.Should().Be(atividade.Id);
         solicitacao.CanceladaEm.Should().Be(T0);
     }
 
@@ -204,20 +239,20 @@ public class SolicitacaoDoClienteTests
     public void Vincular_duas_vezes_e_recusado(bool confirmouCancelada)
     {
         var solicitacao = Nova();
-        var primeira = Guid.CreateVersion7();
+        var primeira = AtividadeDa(solicitacao);
         solicitacao.VincularAtividade(primeira, confirmouCancelada);
 
-        DeveRecusarCom(() => solicitacao.VincularAtividade(Guid.CreateVersion7(), confirmouCancelada), SolicitacaoDoCliente.JaVirouAtividade);
-        solicitacao.AtividadeId.Should().Be(primeira);
+        DeveRecusarCom(() => solicitacao.VincularAtividade(AtividadeDa(solicitacao), confirmouCancelada), SolicitacaoDoCliente.JaVirouAtividade);
+        solicitacao.AtividadeId.Should().Be(primeira.Id);
     }
 
     [Fact]
     public void Desvincular_volta_ao_estado_anterior()
     {
         var aguardando = Nova();
-        aguardando.VincularAtividade(Guid.CreateVersion7(), confirmouCancelada: false);
+        aguardando.VincularAtividade(AtividadeDa(aguardando), confirmouCancelada: false);
         var cancelada = Cancelada();
-        cancelada.VincularAtividade(Guid.CreateVersion7(), confirmouCancelada: true);
+        cancelada.VincularAtividade(AtividadeDa(cancelada), confirmouCancelada: true);
 
         aguardando.DesvincularAtividade();
         cancelada.DesvincularAtividade();
@@ -247,7 +282,7 @@ public class SolicitacaoDoClienteTests
     public void Em_atividade_nao_se_altera_nem_cancela()
     {
         var solicitacao = Nova("Original", UrgenciaDaSolicitacao.Baixa);
-        solicitacao.VincularAtividade(Guid.CreateVersion7(), confirmouCancelada: false);
+        solicitacao.VincularAtividade(AtividadeDa(solicitacao), confirmouCancelada: false);
 
         DeveRecusarCom(() => solicitacao.Alterar("Outra", UrgenciaDaSolicitacao.Alta), SolicitacaoDoCliente.NaoPodeMaisSerAlterada);
         DeveRecusarCom(() => solicitacao.Cancelar(T0), SolicitacaoDoCliente.NaoPodeMaisSerAlterada);
@@ -266,5 +301,6 @@ public class SolicitacaoDoClienteTests
         SolicitacaoDoCliente.NaoPodeMaisSerAlterada.Should().Be("Esta solicitação não pode mais ser alterada.");
         SolicitacaoDoCliente.JaVirouAtividade.Should().Be("Esta solicitação já virou atividade.");
         SolicitacaoDoCliente.CanceladaPeloCliente.Should().Be("Cliente cancelou a solicitação, mesmo assim deseja criar a atividade?");
+        SolicitacaoDoCliente.AtividadeDeOutroCliente.Should().Be("A atividade precisa ser do cliente da solicitação.");
     }
 }
