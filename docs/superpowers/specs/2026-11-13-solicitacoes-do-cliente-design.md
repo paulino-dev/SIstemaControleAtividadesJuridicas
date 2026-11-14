@@ -1,7 +1,7 @@
 # Solicitações do cliente
 
 Data: 2026-11-13
-Estado: aguardando revisão
+Estado: fase A implementada (a solicitação); fase B (a atividade a partir da solicitação) ainda sem plano
 Emenda: `2026-10-08-portal-do-cliente-design.md` (seções 3, 4, 6 e 12) e `2026-10-06-modelagem-dominio-design.md`
 
 ## 1. Objetivo
@@ -127,11 +127,17 @@ Regras comuns:
   `NaoEncontrado`.
 - Todos os usuários do mesmo cliente veem as solicitações do cliente, com o nome de quem abriu cada uma. Alterar,
   anexar, remover documento e cancelar são só de quem abriu.
+- Quem não abriu a solicitação recebe `Validacao` ("Só quem abriu a solicitação pode alterá-la."), e não
+  `AcessoNegado`: nas telas, `AcessoNegado` quer dizer "acesso encerrado". Os quatro comandos que alteram uma
+  solicitação existente conferem primeiro quem abriu e depois a versão.
 - Em qualquer situação diferente de `Aguardando`, as alterações respondem `Validacao`: "Esta solicitação não pode
   mais ser alterada."
 - `VersaoEsperada` diferente da atual responde `Conflito`, como nas atividades.
+- Até 10 documentos vivos por solicitação, contados na abertura e a cada anexo; acima disso, `Validacao`: "Anexe até
+  10 documentos por solicitação." O limite por arquivo é o de hoje (50 MB).
+- Nas listas, o trecho da descrição são os primeiros 140 caracteres, com "…" quando ela foi cortada.
 - O download usa `BaixarDocumento`, já aberto ao cliente; quem decide é a regra de acesso do documento.
-- A lista de requisições abertas ao cliente, fixada em teste, ganha as sete acima.
+- A lista de requisições abertas ao cliente, fixada em teste, ganha as sete acima (são catorze ao todo).
 
 ### Diretoria
 
@@ -205,8 +211,8 @@ Cliente inativo: a criação é recusada como hoje ("O cliente está inativo.").
 
 | Rota | Conteúdo |
 |---|---|
-| `/solicitacoes` | Lista da mais antiga para a mais nova, com filtro por situação (abre em "Aguardando") e por cliente |
-| `/solicitacoes/{id}` | A ficha completa, com download dos documentos. Em `Aguardando`, botão "Criar atividade". Em atividade, botão "Ver atividade" |
+| `/solicitacoes` | Lista da mais antiga para a mais nova, com filtro por situação (uma fileira de chips: Todas, Aguardando, Virou atividade e Cancelada; abre em "Aguardando") e por cliente |
+| `/solicitacoes/{id}` | A ficha completa, com download dos documentos. Em `Aguardando`, botão "Criar atividade" (só na fase B). Em atividade, botão "Ver atividade" |
 
 - Menu: "Solicitações" depois de "Atividades", só para a Diretoria. A Produção que abrir a rota recebe "Página não
   encontrada" pela própria página.
@@ -240,7 +246,7 @@ Atividade com `SolicitacaoId`: botão "Ver solicitação" no cabeçalho, para `/
 
 - As gravações de solicitação, de documento e de atividade aparecem pelos registros de entidade, como hoje.
 - `ListarMinhasSolicitacoes`, `ObterMinhaSolicitacao`, `ListarSolicitacoes` e `ObterSolicitacao` registram a consulta
-  (`Listou` ou `Consultou`) no recurso `Solicitacao`.
+  (`Listou` ou `Visualizou`) no recurso `Solicitacao`.
 - O download registra `Baixou`, como hoje.
 
 ## 8. Persistência
@@ -301,3 +307,71 @@ Dois planos de implementação:
 
 A modelagem de domínio e a spec do portal são emendadas ao fim de cada fase. "Envio de arquivos pelo cliente" sai da
 lista de fora do escopo do portal.
+
+A fase A está concluída, e a spec do portal e a modelagem de domínio foram emendadas com as regras dela. A fase B
+ainda não tem plano.
+
+**Registrado ao fim da fase A: o que foi feito, o que a fase B precisa fazer e o que está em aberto.**
+
+- Feito na A: o agregado `SolicitacaoDoCliente` e a categoria `DocumentoDaSolicitacao` (valor 6), como nas seções 3 e 4.
+  O documento da solicitação é visível ao cliente (`Documento.VisivelAoCliente`): a Produção nunca o alcança, nas
+  listagens internas e no download. `ListarDocumentosDoCliente` com essa categoria responde "Categoria inválida para
+  esta consulta.", como com o documento comum, e `EnviarDocumento` a recusa ("Categoria inválida para envio."): o
+  documento da solicitação só nasce pela abertura ou pelo anexo.
+- Feito na A: uma migration só, `SolicitacoesDoCliente`, só de DDL. Cria `solicitacoes_do_cliente` (urgência em
+  inteiro, com `ck_solicitacoes_urgencia`; a versão é o `xmin`; chaves estrangeiras sem cascata; índices por
+  `(cliente_id, criado_em)`, `criado_em`, `atividade_id` e `solicitante_id`) e `documentos.solicitacao_id` (chave
+  estrangeira sem cascata e índice). Reescreve `ck_documentos_cliente_conforme_a_categoria` (a categoria 6 exige
+  cliente) e cria `ck_documentos_solicitacao_so_na_categoria_6` (`solicitacao_id` existe só nessa categoria e é
+  obrigatório nela). Ficam para a B, como na seção 8: `atividades.solicitacao_id` e a troca do índice único da chave
+  de armazenamento.
+- Feito na A: a abertura é uma gravação só (`ArquivoEnviado.GravarVariosAsync`). Todos os arquivos são validados antes
+  de o primeiro ser gravado; se um for recusado ou a gravação no banco falhar, os arquivos já gravados são removidos
+  e nada fica no banco.
+- Feito na A: o contador `VersaoDosDocumentos` (não auditado) sobe a cada anexo e a cada remoção. A linha da
+  solicitação é regravada e o `xmin` muda: quem abriu a tela, ou o outro anexo simultâneo, antes da mudança recebe
+  `Conflito` ("A solicitação foi alterada. Recarregue e tente de novo.") e nada é sobrescrito.
+- Feito na A: o cliente vê a situação de `SituacaoParaOCliente` (`AguardandoAnalise`, `Cancelada`, `EmAndamento` e
+  `Concluida`), calculada na própria consulta da lista: atividade viva concluída vale "Concluída", atividade viva vale
+  "Em andamento" e, sem atividade viva, vale a da solicitação (cancelada ou aguardando análise). O filtro usa a mesma
+  expressão.
+- Feito na A: o trecho da descrição (`SolicitacoesOpcoes.Trecho`) mantém os espaços que ficam no corte, sem aparar, e
+  nunca parte um par substituto (um emoji, por exemplo) ao meio: se o 140º caractere abriria um par, o trecho termina
+  um antes.
+- Feito na A: o cliente vê o nome de quem abriu cada solicitação do cliente, mas não o de quem enviou um documento: os
+  documentos da solicitação saem sem autor.
+- Feito na A: a guarda de rotas do portal aceita `minhas-solicitacoes/{id}` e `minhas-solicitacoes/{id}/editar`, nas
+  duas guardas (aberta ao cliente e só do portal), quando o trecho do Id é um Guid para `Guid.TryParse`. É o mesmo
+  critério da restrição `{Id:guid}` do roteador, e não uma expressão regular de formato: toda forma de Guid que o
+  roteador aceita (32 dígitos, com chaves) monta uma página só do portal e nunca chega à equipe; o que o roteador
+  recusa (36 hífens, por exemplo) não vale como Id. `/solicitacoes` e `/solicitacoes/{id}` não entram em nenhuma das
+  duas listas: a Produção recebe "Página não encontrada" pela própria página, sem consulta.
+- Feito na A: na edição, `Conflito` ou `NaoEncontrado` em qualquer operação da página (salvar, anexar ou remover
+  documento) relê o formulário inteiro (campos, versão e documentos) e mostra a mensagem, para que o texto antigo não
+  seja salvo com a versão nova. Uma operação que dá certo só atualiza a versão e os documentos, e o que foi digitado
+  fica. Se a releitura mostra que a solicitação não pode mais ser alterada, a tela volta à ficha com a mensagem. Na
+  abertura, os arquivos podem ser escolhidos em mais de uma vez: cada escolha soma às anteriores, o limite de 10 vale
+  para a soma e cada arquivo tem "Remover" antes do envio. Falha ao enviar mantém o formulário.
+- Feito na A: o menu do cliente ganha "Solicitações" depois de Andamento, no menu lateral e no trilho (na barra
+  inferior, em "Mais"); o da Diretoria, depois de Atividades, só no menu lateral (no trilho e na barra, por "Mais").
+  O início do cliente ganha o atalho "Nova solicitação".
+- Feito na A: a ficha da Diretoria não tem "Criar atividade". Com atividade viva vinculada, mostra o título e "Ver
+  atividade"; com `AtividadeId` preenchido e a atividade excluída, mostra só a situação "Virou atividade", sem título
+  e sem link.
+- Feito na A: a lista de catorze requisições abertas ao cliente mudou nos quatro lugares: o teste que a fixa, a seção
+  3 da spec do portal e os dois pontos da modelagem de domínio (seções 5 e 12).
+- Feito na A: dos testes da seção 9 entraram os que não dependem da criação de atividade: as transições da
+  solicitação, a matriz de acesso com a categoria nova, a lista fixa de catorze requisições, só quem abriu altera, o
+  isolamento entre clientes, a Produção sem acesso, as rotas fechadas por perfil e a migration sobre um banco que já
+  tem documentos das categorias de 1 a 5. O resto é da B.
+- Para a B: `VincularAtividade` e `CriarAtividadeDaSolicitacao` precisam recusar uma atividade de outro cliente.
+  `ObterAtividadeAsync` não filtra pelo cliente, e as duas fichas leem dela o título e a situação: sem essa recusa, o
+  cliente leria o título de uma atividade que não é dele.
+- Para a B: `ExcluirAtividade` precisa chamar `DesvincularAtividade` na mesma gravação. Até lá, a solicitação cuja
+  atividade foi excluída continua com `AtividadeId`: o cliente a vê de novo como "Aguardando análise" ou "Cancelada",
+  mas a Diretoria a vê como "Virou atividade", porque a situação do domínio vem de `AtividadeId`.
+- Para a B: o resto da seção 8 (`atividades.solicitacao_id` com índice único parcial e o índice comum da chave de
+  armazenamento) e a regra de código que substitui o índice único, com o teste que a fixa.
+- Em aberto, sem decisão: se o cliente que pede pelo Id a solicitação de outro cliente deve deixar um registro
+  `acesso_negado`. Hoje as requisições do portal respondem `NaoEncontrado` e não registram nada (como a seção 4
+  determina); só o download de documento registra `acesso_negado`. É decisão de produto.
