@@ -1,0 +1,252 @@
+@page "/solicitacoes"
+@inject IDespachante Despachante
+@inject FusoDoEscritorio Fuso
+
+<PageTitle>Solicitações</PageTitle>
+
+@if (!_carregado)
+{
+    <CabecalhoDePagina Titulo="Solicitações" />
+    <p class="aj-subtitulo" role="status">Carregando…</p>
+}
+else if (_ator is null)
+{
+    <CabecalhoDePagina Titulo="Solicitações" />
+    <Aviso Tipo="TipoDeAviso.Erro">Seu acesso foi encerrado. Entre novamente.</Aviso>
+}
+else if (!_ator.EhDiretoria)
+{
+    @* Interna e só da Diretoria: para a Produção a página não existe, e nada é consultado. *@
+    <NaoEncontrada />
+}
+else
+{
+    <CabecalhoDePagina Titulo="Solicitações" Subtitulo="@Subtitulo" />
+
+    <div class="aj-chips" role="group" aria-label="Filtrar por situação">
+        <button type="button" class="aj-chip" aria-pressed="@Pressionado(null)" @onclick="() => FiltrarAsync(null)">Todas</button>@foreach (var situacao in Situacoes)
+        {<button type="button" class="aj-chip" aria-pressed="@Pressionado(situacao)" @key="situacao" @onclick="() => FiltrarAsync(situacao)">@RotulosDeSolicitacao.ParaADiretoria(situacao)</button>}
+    </div>
+
+    <section class="aj-painel">
+        @if (_cliente is { } cliente)
+        {
+            <div class="aj-vinculo__escolhido aj-vinculo__escolhido--detalhado"><span class="aj-vinculo__texto"><span class="aj-ajuda">Cliente</span><span class="aj-vinculo__titulo">@cliente.Nome</span></span><button type="button" class="aj-botao aj-botao--fantasma aj-botao--icone" aria-label="Todos os clientes" @onclick="TodosOsClientesAsync"><Icone Nome="fechar" /></button></div>
+        }
+        @* O Enter na busca envia o formulário escondido do fim da tela. *@
+        <label class="aj-campo-icone"><Icone Nome="buscar" /><span class="aj-so-leitor">Filtrar por cliente (nome, CPF ou CNPJ)</span><input type="search" class="aj-campo-icone__controle" form="busca-de-cliente" placeholder="@ExemploDaBusca" @bind="_buscaDeCliente" @bind:event="oninput" /></label>
+        @if (_clientesEncontrados.Count > 0)
+        {
+            <ul class="aj-resultados">@foreach (var candidato in _clientesEncontrados)
+                {<li @key="candidato.Id"><button type="button" class="aj-resultados__item" @onclick="() => EscolherClienteAsync(candidato)"><span class="aj-resultados__texto"><span class="aj-resultados__titulo">@candidato.Nome</span><span class="aj-resultados__meta">@TextosDoCliente.Documento(candidato.Tipo, candidato.Documento)</span></span><span class="aj-resultados__acao">Escolher</span></button></li>}</ul>
+        }
+        @if (_nenhumCliente)
+        {
+            <span class="aj-ajuda">Nenhum cliente encontrado.</span>
+        }
+        @if (_clientesTruncados)
+        {
+            <span class="aj-ajuda">Mostrando os primeiros resultados. Refine a busca para ver outros.</span>
+        }
+        @if (_erroDaBusca is not null)
+        {
+            <Aviso Tipo="TipoDeAviso.Erro">@_erroDaBusca</Aviso>
+        }
+    </section>
+
+    <EstadoDaLista Erro="@_erro" Carregando="@(_pagina is null)" Vazio="@(_pagina is { Itens.Count: 0 })"
+                   TextoDeVazio="Nenhuma solicitação." TentarDeNovo="TentarDeNovoAsync">
+        @if (_pagina is { } pagina)
+        {
+            <div class="aj-so-desktop">
+                <div class="aj-tabela-caixa">
+                    <table class="aj-tabela">
+                        <thead><tr><th scope="col">Aberta em</th><th scope="col">Cliente</th><th scope="col">Aberta por</th><th scope="col">Urgência</th><th scope="col">Solicitação</th><th scope="col">Documentos</th><th scope="col">Situação</th><th scope="col"><span class="aj-so-leitor">Ações</span></th></tr></thead>
+                        <tbody>
+                            @foreach (var solicitacao in pagina.Itens)
+                            {
+                                <tr @key="solicitacao.Id">
+                                    <td class="aj-tabela__data">@Fuso.Formatar(solicitacao.AbertaEm)</td>
+                                    <td class="aj-tabela__principal">@solicitacao.ClienteNome</td>
+                                    <td>@solicitacao.SolicitanteNome</td>
+                                    <td>@RotulosDeSolicitacao.Urgencia(solicitacao.Urgencia)</td>
+                                    <td class="aj-tabela__secundaria">@solicitacao.Trecho</td>
+                                    <td class="aj-tabela__data">@solicitacao.Documentos</td>
+                                    <td><span class="@RotulosDeSolicitacao.Etiqueta(solicitacao.Situacao)">@RotulosDeSolicitacao.ParaADiretoria(solicitacao.Situacao)</span></td>
+                                    <td class="aj-tabela__acao"><a href="@Ficha(solicitacao.Id)" class="aj-botao aj-botao--fantasma aj-botao--seta">Abrir<Icone Nome="avancar" /></a></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <Paginacao Numero="pagina.Numero" TotalDePaginas="pagina.TotalDePaginas" Total="pagina.Total"
+                           Singular="solicitação" Plural="solicitações" Ocupado="_carregando" IrPara="IrParaAsync" />
+            </div>
+
+            <div class="aj-tablet-mobile">
+                <div class="aj-grade">
+                    @foreach (var solicitacao in pagina.Itens)
+                    {
+                        <a href="@Ficha(solicitacao.Id)" class="aj-cartao" @key="solicitacao.Id">
+                            <span class="aj-cartao__etiquetas"><span class="@RotulosDeSolicitacao.Etiqueta(solicitacao.Situacao)">@RotulosDeSolicitacao.ParaADiretoria(solicitacao.Situacao)</span></span>
+                            <span class="aj-cartao__titulo">@solicitacao.ClienteNome</span>
+                            <span class="aj-cartao__meta">@solicitacao.Trecho</span>
+                            <span class="aj-cartao__rodape"><span class="aj-cartao__resumo">@Resumo(solicitacao)</span><span class="aj-cartao__data">@Fuso.Formatar(solicitacao.AbertaEm)</span></span>
+                        </a>
+                    }
+                </div>
+                <Paginacao Numero="pagina.Numero" TotalDePaginas="pagina.TotalDePaginas" Total="pagina.Total"
+                           Singular="solicitação" Plural="solicitações" Ocupado="_carregando" IrPara="IrParaAsync" />
+            </div>
+        }
+    </EstadoDaLista>
+
+    <form id="busca-de-cliente" hidden @onsubmit="ProcurarClientesAsync" @onsubmit:preventDefault></form>
+}
+
+@code {
+    private static readonly SituacaoDaSolicitacao[] Situacoes =
+        [SituacaoDaSolicitacao.Aguardando, SituacaoDaSolicitacao.EmAtividade, SituacaoDaSolicitacao.Cancelada];
+
+    private bool _carregado;
+    private UsuarioAutenticado? _ator;
+
+    private bool _carregando;
+    private int _geracao;
+    private int _paginaPedida = 1;
+
+    // A lista abre no que espera a Diretoria: as que aguardam.
+    private SituacaoDaSolicitacao? _situacao = SituacaoDaSolicitacao.Aguardando;
+    private ClienteResumo? _cliente;
+    private string? _erro;
+    private Pagina<SolicitacaoResumo>? _pagina;
+
+    private string? _buscaDeCliente;
+    private IReadOnlyList<ClienteResumo> _clientesEncontrados = [];
+    private bool _nenhumCliente;
+    private bool _clientesTruncados;
+    private string? _erroDaBusca;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // O perfil antes de qualquer consulta: a Produção não chega a consultar.
+        _ator = await Despachante.EnviarAsync(new ObterMeuAcesso());
+        if (_ator is { EhDiretoria: true }) await CarregarAsync(1);
+        _carregado = true;
+    }
+
+    private string? Subtitulo => _pagina is { } pagina ? Contagem.De(pagina.Total, "solicitação", "solicitações") : null;
+
+    private string ExemploDaBusca => _cliente is null
+        ? "Filtrar por cliente: nome, CPF ou CNPJ"
+        : "Trocar o cliente: nome, CPF ou CNPJ";
+
+    private static string Ficha(Guid id) => $"/solicitacoes/{id}";
+
+    private static string Resumo(SolicitacaoResumo solicitacao) =>
+        $"{RotulosDeSolicitacao.Urgencia(solicitacao.Urgencia)} · {solicitacao.SolicitanteNome} · {Contagem.De(solicitacao.Documentos, "documento", "documentos")}";
+
+    private string Pressionado(SituacaoDaSolicitacao? situacao) => _situacao == situacao ? "true" : "false";
+
+    private Task FiltrarAsync(SituacaoDaSolicitacao? situacao)
+    {
+        _situacao = situacao;
+        // Outra situação é outra lista: a anterior sai na hora, e "Carregando…" fica no lugar até a nova chegar.
+        _pagina = null;
+        return CarregarAsync(1);
+    }
+
+    private async Task ProcurarClientesAsync()
+    {
+        _erroDaBusca = null;
+        var resultado = await Despachante.EnviarAsync(new ListarClientes(_buscaDeCliente, IncluirInativos: true));
+        if (resultado.Erro == TipoErro.AcessoNegado)
+        {
+            Encerrar();
+            return;
+        }
+
+        var itens = resultado.Valor?.Itens ?? [];
+        _clientesEncontrados = itens;
+        // Os avisos valem só para uma busca que deu certo; uma falha mostra o erro no lugar deles.
+        _nenhumCliente = resultado.Sucesso && itens.Count == 0;
+        _clientesTruncados = resultado.Sucesso && resultado.Valor!.Total > itens.Count;
+        if (!resultado.Sucesso) _erroDaBusca = resultado.Mensagem ?? "Não foi possível consultar os clientes.";
+    }
+
+    private Task EscolherClienteAsync(ClienteResumo cliente)
+    {
+        _cliente = cliente;
+        LimparBusca();
+        _pagina = null;
+        return CarregarAsync(1);
+    }
+
+    private Task TodosOsClientesAsync()
+    {
+        _cliente = null;
+        _pagina = null;
+        return CarregarAsync(1);
+    }
+
+    private void LimparBusca()
+    {
+        _buscaDeCliente = null;
+        _clientesEncontrados = [];
+        _nenhumCliente = false;
+        _clientesTruncados = false;
+        _erroDaBusca = null;
+    }
+
+    private void Encerrar()
+    {
+        _ator = null;
+        _pagina = null;
+    }
+
+    private Task TentarDeNovoAsync() => _carregando ? Task.CompletedTask : CarregarAsync(_paginaPedida);
+
+    private Task IrParaAsync(int pagina) => _carregando ? Task.CompletedTask : CarregarAsync(pagina);
+
+    private async Task CarregarAsync(int pagina)
+    {
+        // A resposta que chega depois de outra consulta mais nova é descartada: a lista na tela é sempre a do filtro
+        // escolhido. Na troca de página, a anterior fica à vista, com a paginação esperando, até a nova chegar.
+        var geracao = ++_geracao;
+        _carregando = true;
+        _paginaPedida = pagina;
+        _erro = null;
+        try
+        {
+            var resultado = await Despachante.EnviarAsync(new ListarSolicitacoes(_situacao, _cliente?.Id, pagina));
+            if (geracao != _geracao) return;
+
+            if (resultado.Erro == TipoErro.AcessoNegado)
+            {
+                Encerrar();
+                return;
+            }
+
+            if (!resultado.Sucesso || resultado.Valor is not { } lista)
+            {
+                // Falha na consulta não é "nenhuma solicitação": o erro fica no lugar da lista.
+                _pagina = null;
+                _erro = resultado.Mensagem ?? "Não foi possível consultar as solicitações.";
+                return;
+            }
+
+            // A página ficou além do fim (solicitações mudaram enquanto a Diretoria paginava): volta à última.
+            if (lista.Itens.Count == 0 && lista.Total > 0 && lista.Numero > lista.TotalDePaginas)
+            {
+                await CarregarAsync(lista.TotalDePaginas);
+                return;
+            }
+
+            _pagina = lista;
+        }
+        finally
+        {
+            if (geracao == _geracao) _carregando = false;
+        }
+    }
+}

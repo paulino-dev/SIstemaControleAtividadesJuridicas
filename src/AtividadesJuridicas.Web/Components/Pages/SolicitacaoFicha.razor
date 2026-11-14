@@ -1,0 +1,124 @@
+@page "/solicitacoes/{Id:guid}"
+@inject IDespachante Despachante
+@inject FusoDoEscritorio Fuso
+
+<PageTitle>Solicitação</PageTitle>
+
+@if (_carregado && _ator is { EhDiretoria: false })
+{
+    @* Interna e só da Diretoria: para a Produção a página não existe, e nada é consultado. *@
+    <NaoEncontrada />
+}
+else
+{
+    <CabecalhoDeDetalhe Titulo="Solicitação" Subtitulo="@Subtitulo" VoltarPara="/solicitacoes" Origem="Solicitações" />
+
+    @if (!_carregado)
+    {
+        <p class="aj-subtitulo" role="status">Carregando…</p>
+    }
+    else if (_ator is null)
+    {
+        <Aviso Tipo="TipoDeAviso.Erro">Seu acesso foi encerrado. Entre novamente.</Aviso>
+    }
+    else if (_naoEncontrada)
+    {
+        <Aviso Tipo="TipoDeAviso.Erro">Solicitação não encontrada.</Aviso>
+    }
+    else if (_detalhe is not { } s)
+    {
+        <EstadoDaLista Erro="@(_erro ?? "Não foi possível consultar a solicitação.")" TextoDeVazio="" TentarDeNovo="CarregarAsync" />
+    }
+    else
+    {
+        <div class="aj-lado-a-lado aj-lado-a-lado--painel-primeiro aj-lado-a-lado--ficha aj-lado-a-lado--painel-estreito">
+            <aside class="aj-painel aj-painel--ficha aj-painel--detalhes aj-lado-a-lado__painel" aria-label="Dados da solicitação">
+                <h2>Detalhes</h2>
+                <dl class="aj-detalhes">
+                    <div><dt>Situação</dt><dd><span class="@RotulosDeSolicitacao.Etiqueta(s.Situacao)">@RotulosDeSolicitacao.ParaADiretoria(s.Situacao)</span></dd></div>
+                    <div><dt>Cliente</dt><dd><a href="@($"/clientes/{s.ClienteId}")">@s.ClienteNome</a></dd></div>
+                    <div><dt>Aberta por</dt><dd>@s.SolicitanteNome</dd></div>
+                    <div><dt>Aberta em</dt><dd>@Fuso.Formatar(s.AbertaEm)</dd></div>
+                    <div><dt>Urgência</dt><dd>@RotulosDeSolicitacao.Urgencia(s.Urgencia)</dd></div>
+                    @if (s.CanceladaEm is not null)
+                    {
+                        <div><dt>Cancelada em</dt><dd>@Fuso.Formatar(s.CanceladaEm)</dd></div>
+                    }
+                    @* A atividade só aparece viva: o vínculo com uma excluída fica só na situação, sem link. *@
+                    @if (s.AtividadeId is { } atividadeId && s.AtividadeTitulo is not null)
+                    {
+                        <div><dt>Atividade</dt><dd>@s.AtividadeTitulo<br /><a href="@($"/atividades/{atividadeId}")">Ver atividade</a></dd></div>
+                    }
+                </dl>
+            </aside>
+
+            <div class="aj-lado-a-lado__lista aj-pilha">
+                <section class="aj-painel aj-painel--ficha aj-painel--descricao">
+                    <h2>Descrição</h2>
+                    <p>@s.Descricao</p>
+                </section>
+                <section class="aj-painel aj-painel--ficha">
+                    <h2>Documentos</h2>
+                    <EstadoDaLista Vazio="@(s.Documentos.Count == 0)" TextoDeVazio="Nenhum documento.">
+                        <div class="aj-linhas">
+                            @foreach (var documento in s.Documentos)
+                            {
+                                @* Link fora da navegação do Blazor: é um download. O "download" impede o roteador de interceptar. *@
+                                <div class="aj-linha" @key="documento.Id"><div class="aj-linha__texto"><span class="aj-linha__titulo"><a href="@TextosDeDocumento.Endereco(documento.Id)" download data-enhance-nav="false">@documento.Nome</a></span><span class="aj-ajuda">@TextosDeDocumento.Detalhe(documento.TamanhoBytes, documento.EnviadoEm, null, Fuso)</span></div><a href="@TextosDeDocumento.Endereco(documento.Id)" download data-enhance-nav="false" class="aj-botao aj-botao--secundario aj-botao--icone" aria-label="@($"Baixar {documento.Nome}")"><Icone Nome="baixar" /></a></div>
+                            }
+                        </div>
+                    </EstadoDaLista>
+                </section>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private bool _carregado;
+    private UsuarioAutenticado? _ator;
+    private SolicitacaoDetalhe? _detalhe;
+    private bool _naoEncontrada;
+    private string? _erro;
+    private Guid? _idCarregado;
+
+    private string? Subtitulo => _detalhe is { } s ? $"{s.ClienteNome} · aberta em {Fuso.Formatar(s.AbertaEm)}" : null;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_idCarregado == Id) return;
+
+        _idCarregado = Id;
+        await CarregarAsync();
+    }
+
+    /// <summary>A carga inteira: o perfil e a solicitação. Também é o "Tentar de novo".</summary>
+    private async Task CarregarAsync()
+    {
+        _carregado = false;
+        _detalhe = null;
+        _naoEncontrada = false;
+        _erro = null;
+
+        // O perfil antes de qualquer consulta: a Produção não chega a consultar.
+        _ator = await Despachante.EnviarAsync(new ObterMeuAcesso());
+        if (_ator is { EhDiretoria: true }) await LerAsync();
+
+        _carregado = true;
+    }
+
+    private async Task LerAsync()
+    {
+        var resultado = await Despachante.EnviarAsync(new ObterSolicitacao(Id));
+        if (resultado.Erro == TipoErro.AcessoNegado)
+            _ator = null;
+        else if (resultado.Erro == TipoErro.NaoEncontrado)
+            _naoEncontrada = true;
+        else if (!resultado.Sucesso || resultado.Valor is null)
+            _erro = resultado.Mensagem ?? "Não foi possível consultar a solicitação.";
+        else
+            _detalhe = resultado.Valor;
+    }
+}

@@ -11,9 +11,10 @@
 @* Três navegações, uma por visão; o CSS mostra a da largura atual (menu no desktop, trilho no tablet, barra
    inferior no mobile). Em tablet e mobile, "Mais" abre o menu completo por cima da tela; aberto, o resto (trilho,
    coluna e barra inferior) fica inerte: o teclado e o leitor de tela só alcançam o menu, e um só nav "Principal".
-   O usuário de cliente vê o menu do portal: no menu lateral, Início, Andamento, Meus documentos, Documentos comuns e
-   Minha senha; no trilho, os quatro primeiros (Minha senha fica no avatar); na barra inferior, Início, Andamento e
-   Documentos (Meus documentos), e o restante em "Mais". *@
+   O usuário de cliente vê o menu do portal: no menu lateral, Início, Andamento, Solicitações, Meus documentos,
+   Documentos comuns e Minha senha; no trilho, os cinco primeiros (Minha senha fica no avatar); na barra inferior,
+   Início, Andamento e Documentos (Meus documentos), e o restante em "Mais". As Solicitações da Diretoria ficam só no
+   menu lateral, depois de Atividades (no trilho e na barra inferior, pelo "Mais"). *@
 <div class="aj-app @(_menuEscondido ? "aj-app--menu-escondido" : null) @(_menuAberto ? "aj-app--menu-aberto" : null)">
     <aside class="aj-menu" id="menu-principal" @onkeydown="AoTeclarNoMenu">
         <div class="aj-menu__topo">
@@ -30,6 +31,7 @@
                 @if (EhCliente)
                 {
                     <NavLink class="aj-menu__item" href="/andamento"><Icone Nome="atividades" />Andamento</NavLink>
+                    <NavLink class="aj-menu__item" href="/minhas-solicitacoes"><Icone Nome="enviar" />Solicitações</NavLink>
                     <NavLink class="aj-menu__item" href="/meus-documentos"><Icone Nome="documento" />Meus documentos</NavLink>
                     <NavLink class="aj-menu__item" href="/documentos-comuns"><Icone Nome="pasta" />Documentos comuns</NavLink>
                     <NavLink class="aj-menu__item" href="/minha-senha"><Icone Nome="usuarios" />Minha senha</NavLink>
@@ -37,6 +39,10 @@
                 else
                 {
                     <NavLink class="aj-menu__item" href="/atividades"><Icone Nome="atividades" />Atividades</NavLink>
+                    @if (_ator is { EhDiretoria: true })
+                    {
+                        <NavLink class="aj-menu__item" href="/solicitacoes"><Icone Nome="enviar" />Solicitações</NavLink>
+                    }
                     <NavLink class="aj-menu__item" href="/agenda"><Icone Nome="agenda" />Agenda</NavLink>
                 }
             </div>
@@ -84,6 +90,7 @@
         @if (EhCliente)
         {
             <a class="aj-trilho__item" href="/andamento" aria-current="@Atual("andamento")"><Icone Nome="atividades" />Andamento</a>
+            <a class="aj-trilho__item" href="/minhas-solicitacoes" aria-current="@Atual("minhas-solicitacoes")"><Icone Nome="enviar" />Solicitações</a>
             <a class="aj-trilho__item aj-trilho__item--duas-linhas" href="/meus-documentos" aria-current="@Atual("meus-documentos")"><Icone Nome="documento" />Meus documentos</a>
             <a class="aj-trilho__item aj-trilho__item--duas-linhas" href="/documentos-comuns" aria-current="@Atual("documentos-comuns")"><Icone Nome="pasta" />Documentos comuns</a>
         }
@@ -196,12 +203,14 @@
 
     // O que cada navegação mostra a cada perfil, pelo primeiro trecho do endereço. As listas repetem a marcação
     // acima: destino novo entra nos dois lugares. "Mais" acende quando a tela está no menu e fora da barra da visão.
-    private static readonly string[] MenuDoCliente = ["", "andamento", "meus-documentos", "documentos-comuns"];
+    private static readonly string[] MenuDoCliente =
+        ["", "andamento", "minhas-solicitacoes", "meus-documentos", "documentos-comuns"];
     private static readonly string[] MenuDaProducao = ["", "atividades", "agenda", "clientes", "processos"];
     private static readonly string[] MenuDaDiretoria =
-        [.. MenuDaProducao, "documentos-comuns", "areas", "usuarios", "produtores", "perfis", "auditoria"];
+        [.. MenuDaProducao, "solicitacoes", "documentos-comuns", "areas", "usuarios", "produtores", "perfis", "auditoria"];
     private static readonly string[] TrilhoDaEquipe = ["", "atividades", "agenda", "clientes", "processos"];
-    private static readonly string[] TrilhoDoCliente = ["", "andamento", "meus-documentos", "documentos-comuns"];
+    private static readonly string[] TrilhoDoCliente =
+        ["", "andamento", "minhas-solicitacoes", "meus-documentos", "documentos-comuns"];
     private static readonly string[] BarraDaEquipe = ["", "atividades", "agenda"];
     private static readonly string[] BarraDoCliente = ["", "andamento", "meus-documentos"];
 

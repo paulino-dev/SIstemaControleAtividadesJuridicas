@@ -162,7 +162,7 @@ public class PortalDoClienteWebTests(BancoFixture banco) : IAsyncLifetime
         // Lista exata: um item de menu novo fora do bloco da equipe apareceria aqui e quebraria o teste.
         var menu = Regex.Match(html, "<nav[^>]*>.*?</nav>", RegexOptions.Singleline).Value;
         Regex.Matches(menu, "href=\"([^\"]*)\"").Select(m => m.Groups[1].Value)
-            .Should().Equal("/", "/andamento", "/meus-documentos", "/documentos-comuns", "/minha-senha");
+            .Should().Equal("/", "/andamento", "/minhas-solicitacoes", "/meus-documentos", "/documentos-comuns", "/minha-senha");
         html.Should().NotContain("Seu perfil é de");
     }
 
@@ -183,7 +183,7 @@ public class PortalDoClienteWebTests(BancoFixture banco) : IAsyncLifetime
         var barra = Navegacao(html, "aj-nav-inferior");
         trilho.Should().NotBeEmpty();
         barra.Should().NotBeEmpty();
-        Destinos(trilho).Should().Equal("/", "/andamento", "/meus-documentos", "/documentos-comuns", "/minha-senha");
+        Destinos(trilho).Should().Equal("/", "/andamento", "/minhas-solicitacoes", "/meus-documentos", "/documentos-comuns", "/minha-senha");
         Destinos(barra).Should().Equal("/", "/andamento", "/meus-documentos");
         // O rótulo é "Documentos", sozinho: "Meus documentos" e "Documentos comuns" não casam.
         barra.Should().MatchRegex(@"</span>\s*Documentos\s*</a>");
@@ -356,9 +356,9 @@ public class PortalDoClienteWebTests(BancoFixture banco) : IAsyncLifetime
         var corpo = Regex.Match(html, "<main[^>]*>.*?</main>", RegexOptions.Singleline).Value;
         corpo.Should().MatchRegex(@"<span class=""aj-ajuda"">Em andamento</span>\s*<b>2</b>")
             .And.MatchRegex(@"<span class=""aj-ajuda"">Concluídas</span>\s*<b>1</b>");
-        // O quadro tem três atalhos; a senha fica no menu e no avatar.
+        // O quadro tem quatro atalhos; a senha fica no menu e no avatar.
         Regex.Matches(corpo, "href=\"([^\"]*)\"").Select(m => m.Groups[1].Value)
-            .Should().Equal("/andamento", "/meus-documentos", "/documentos-comuns");
+            .Should().Equal("/andamento", "/meus-documentos", "/documentos-comuns", "/minhas-solicitacoes/nova");
         corpo.Should().Contain("Olá, Carla Cliente.").And.NotContain("Carregando").And.NotContain("Contestação trabalhista");
     }
 

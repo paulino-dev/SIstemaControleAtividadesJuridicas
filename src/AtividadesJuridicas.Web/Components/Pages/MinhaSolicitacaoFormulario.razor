@@ -1,0 +1,467 @@
+@page "/minhas-solicitacoes/nova"
+@page "/minhas-solicitacoes/{Id:guid}/editar"
+@using System.ComponentModel.DataAnnotations
+@inject IDespachante Despachante
+@inject NavigationManager Navegacao
+@inject Recados Recados
+@inject FusoDoEscritorio Fuso
+
+<PageTitle>@Titulo</PageTitle>
+
+<CabecalhoDeDetalhe Titulo="@Titulo" Subtitulo="@Subtitulo" VoltarPara="@Voltar" Origem="@Origem" />
+
+@if (_encerrado)
+{
+    <Aviso Tipo="TipoDeAviso.Erro">Seu acesso foi encerrado. Entre novamente.</Aviso>
+}
+else
+{
+    <CargaDoFormulario Estado="_estado" Erro="@_erroDaCarga" TextoNaoEncontrado="Solicitação não encontrada." TentarDeNovo="CarregarAsync">
+        @if (_mensagem is not null)
+        {
+            <Aviso @key="_versaoDoAviso" Tipo="@(_falhou ? TipoDeAviso.Erro : TipoDeAviso.Sucesso)" Revelar="true">@_mensagem</Aviso>
+        }
+
+        <EditForm EditContext="_contexto" OnValidSubmit="SalvarAsync" FormName="solicitacao" id="formulario-da-solicitacao" class="aj-lado-a-lado aj-lado-a-lado--formulario">
+            <DataAnnotationsValidator />
+            <section class="aj-painel aj-painel--principal aj-lado-a-lado__lista">
+                <h2>Solicitação</h2>
+                <p class="aj-ajuda">A equipe verifica sua solicitação em até 24 horas úteis.</p>
+                <RotuloDeCampo Texto="Descrição" Para="() => _form.Descricao"><InputTextArea @bind-Value="_form.Descricao" rows="6" maxlength="@SolicitacaoDoCliente.TamanhoMaximoDescricao" class="aj-campo" placeholder="Conte o que você precisa do escritório." /></RotuloDeCampo>
+                @* Um grupo de botões não cabe num label: o rótulo é o próprio grupo, e o erro vem do contexto do formulário. *@
+                <div class="@ClasseDaUrgencia" role="group" aria-label="Urgência" aria-invalid="@(ErroDaUrgencia is null ? null : "true")" aria-describedby="@(ErroDaUrgencia is null ? null : "erro-da-urgencia")">Urgência<div class="aj-segmentado">@foreach (var urgencia in Urgencias)
+                    {<button type="button" class="aj-segmentado__opcao" aria-pressed="@Marcada(urgencia)" @key="urgencia" disabled="@_ocupado" @onclick="() => EscolherUrgencia(urgencia)">@RotulosDeSolicitacao.Urgencia(urgencia)</button>}</div>@if (ErroDaUrgencia is { } erro)
+                    {<span class="aj-campo-erro" id="erro-da-urgencia">@erro</span>}</div>
+            </section>
+
+            <section class="aj-painel aj-lado-a-lado__painel">
+                <h2>Documentos</h2>
+                @if (Id is null)
+                {
+                    @* Cada escolha fica no campo em que foi feita: o campo escolhido se esconde (os arquivos moram nele até o
+                       envio) e um campo novo, vazio, toma o lugar, para outra escolha somar à lista. *@
+                    <div class="aj-rotulo">
+                        <label for="@IdDoCampo(_lotes[^1])">@RotuloDosArquivos</label>
+                        @foreach (var lote in _lotes)
+                        {
+                            <InputFile @key="lote" id="@IdDoCampo(lote)" multiple class="aj-campo" hidden="@(lote != _lotes[^1])" disabled="@_ocupado" OnChange="Escolher" />
+                        }
+                    </div>
+                    @if (_escolhidos.Count > 0)
+                    {
+                        <div class="aj-linhas">
+                            @foreach (var escolhido in _escolhidos)
+                            {
+                                <div class="aj-linha" @key="escolhido"><div class="aj-linha__texto"><span class="aj-linha__titulo">@escolhido.Arquivo.Name</span><span class="aj-ajuda">@TamanhoDeArquivo.Formatar(escolhido.Arquivo.Size)</span></div><button type="button" class="aj-botao aj-botao--fantasma aj-botao--menor" aria-label="@($"Remover {escolhido.Arquivo.Name}")" disabled="@_ocupado" @onclick="() => RemoverEscolhido(escolhido)">Remover</button></div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <span class="aj-ajuda">Nenhum documento escolhido.</span>
+                    }
+                }
+                else
+                {
+                    @if (_documentos.Count > 0)
+                    {
+                        <div class="aj-linhas">
+                            @foreach (var documento in _documentos)
+                            {
+                                <div class="aj-linha" @key="documento.Id"><div class="aj-linha__texto"><span class="aj-linha__titulo"><a href="@TextosDeDocumento.Endereco(documento.Id)" download data-enhance-nav="false">@documento.Nome</a></span><span class="aj-ajuda">@TextosDeDocumento.Detalhe(documento.TamanhoBytes, documento.EnviadoEm, null, Fuso)</span></div><button type="button" class="aj-botao aj-botao--fantasma aj-botao--menor" aria-label="@($"Remover {documento.Nome}")" disabled="@_ocupado" @onclick="() => RemoverDocumentoAsync(documento)">Remover</button></div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <span class="aj-ajuda">Nenhum documento.</span>
+                    }
+                    @* Um arquivo por vez, enviado assim que é escolhido; o campo volta vazio depois de cada envio. *@
+                    <label class="aj-rotulo">Anexar documento<InputFile @key="_versaoDoAnexo" class="aj-campo" disabled="@_ocupado" OnChange="AnexarAsync" /></label>
+                    <span class="aj-ajuda">@AjudaDoAnexo</span>
+                }
+            </section>
+        </EditForm>
+
+        @* As barras de ação ficam fora do formulário e o enviam pelo atributo form. *@
+        <div class="aj-so-desktop">
+            <div class="aj-acoes aj-acoes--fixa"><a href="@Voltar" class="aj-botao aj-botao--fantasma">Cancelar</a><button type="submit" class="aj-botao aj-botao--primario aj-botao--com-icone" form="formulario-da-solicitacao" disabled="@_ocupado"><Icone Nome="@IconeDoEnvio" />@TextoDoEnvio</button></div>
+        </div>
+        <div class="aj-tablet-mobile">
+            <div class="aj-acoes aj-acoes--fixa"><a href="@Voltar" class="aj-botao aj-botao--secundario">Cancelar</a><button type="submit" class="aj-botao aj-botao--primario aj-botao--com-icone" form="formulario-da-solicitacao" disabled="@_ocupado"><Icone Nome="@IconeDoEnvio" />@TextoDoEnvio</button></div>
+        </div>
+    </CargaDoFormulario>
+}
+
+@code {
+    [Parameter] public Guid? Id { get; set; }
+
+    private const long UmMegabyte = 1024 * 1024;
+
+    private static readonly UrgenciaDaSolicitacao[] Urgencias =
+        [UrgenciaDaSolicitacao.Baixa, UrgenciaDaSolicitacao.Media, UrgenciaDaSolicitacao.Alta];
+
+    private EstadoDeCarga _estado = EstadoDeCarga.Carregando;
+    private string? _erroDaCarga;
+    private bool _encerrado;
+    private bool _ocupado;
+    private string? _mensagem;
+    private bool _falhou;
+
+    // A geração do aviso: cada mensagem nova recria o Aviso (a chave muda), que se revela de novo.
+    private int _versaoDoAviso;
+
+    private Formulario _form = new();
+    private EditContext? _contexto;
+
+    // A solicitação nova: os arquivos escolhidos e os campos em que cada escolha foi feita (o último é o visível).
+    private sealed record Escolhido(int Lote, IBrowserFile Arquivo);
+
+    private readonly List<Escolhido> _escolhidos = [];
+    private readonly List<int> _lotes = [0];
+    private int _proximoLote = 1;
+
+    // A edição: a versão com que a tela leu a solicitação e os documentos dela.
+    private uint _versao;
+    private IReadOnlyList<DocumentoDoPortal> _documentos = [];
+    private int _versaoDoAnexo;
+
+    private string Titulo => Id is null ? "Nova solicitação" : "Editar solicitação";
+
+    private string? Subtitulo => _estado == EstadoDeCarga.Pronto && !_encerrado
+        ? Id is null ? "Diga do que precisa e anexe os documentos que ajudam a explicar." : "Altere o que mudou e os documentos anexados."
+        : null;
+
+    private string Voltar => Id is { } id ? $"/minhas-solicitacoes/{id}" : "/minhas-solicitacoes";
+
+    private string Origem => Id is null ? "Minhas solicitações" : "Solicitação";
+
+    private string TextoDoEnvio => Id is null ? "Enviar solicitação" : "Salvar alterações";
+
+    private string IconeDoEnvio => Id is null ? "enviar" : "confirmar";
+
+    private static string RotuloDosArquivos =>
+        $"Documentos (até {SolicitacoesOpcoes.MaximoDeDocumentos}, de até {DocumentosOpcoes.TamanhoMaximoBytes / UmMegabyte} MB cada)";
+
+    private static string AjudaDoAnexo =>
+        $"Um arquivo por vez, de até {DocumentosOpcoes.TamanhoMaximoBytes / UmMegabyte} MB, enviado assim que é escolhido.";
+
+    private static string IdDoCampo(int lote) => $"arquivos-da-solicitacao-{lote}";
+
+    private void Avisar(string? mensagem, bool falhou)
+    {
+        _mensagem = mensagem;
+        _falhou = falhou;
+        _versaoDoAviso++;
+    }
+
+    protected override Task OnInitializedAsync() => CarregarAsync();
+
+    /// <summary>A carga inteira, também a do "Tentar de novo". A nova não consulta nada: o formulário já está pronto.</summary>
+    private async Task CarregarAsync()
+    {
+        _mensagem = null;
+        if (Id is null)
+        {
+            _form = new Formulario();
+            _contexto = new EditContext(_form);
+            _estado = EstadoDeCarga.Pronto;
+            return;
+        }
+
+        _estado = EstadoDeCarga.Carregando;
+        _erroDaCarga = null;
+        if (await LerAsync() is not { } detalhe) return;
+
+        _form = new Formulario { Descricao = detalhe.Descricao, Urgencia = detalhe.Urgencia };
+        _contexto = new EditContext(_form);
+        _estado = EstadoDeCarga.Pronto;
+    }
+
+    /// <summary>
+    /// Lê a solicitação e guarda a versão e os documentos. Devolve nulo quando a tela não segue: acesso encerrado, não
+    /// encontrada, falha, ou a solicitação que não pode mais ser alterada (a tela volta para a ficha).
+    /// </summary>
+    private async Task<MinhaSolicitacaoDetalhe?> LerAsync(string? recadoParaAFicha = null)
+    {
+        var resultado = await Despachante.EnviarAsync(new ObterMinhaSolicitacao(Id!.Value));
+        if (resultado.Erro == TipoErro.AcessoNegado)
+        {
+            _encerrado = true;
+            return null;
+        }
+
+        if (resultado.Erro == TipoErro.NaoEncontrado)
+        {
+            _estado = EstadoDeCarga.NaoEncontrado;
+            return null;
+        }
+
+        if (!resultado.Sucesso || resultado.Valor is not { } detalhe)
+        {
+            _estado = EstadoDeCarga.Falhou;
+            _erroDaCarga = resultado.Mensagem ?? "Não foi possível consultar a solicitação.";
+            return null;
+        }
+
+        if (!detalhe.PodeAlterar)
+        {
+            // Sem poder alterar, a edição não tem o que mostrar: a ficha diz o porquê (e o recado, o que aconteceu).
+            if (recadoParaAFicha is not null) Recados.Deixar(recadoParaAFicha, TipoDeAviso.Erro);
+            Navegacao.NavigateTo(Voltar);
+            return null;
+        }
+
+        _versao = detalhe.Versao;
+        _documentos = detalhe.Documentos;
+        return detalhe;
+    }
+
+    private string Marcada(UrgenciaDaSolicitacao urgencia) => _form.Urgencia == urgencia ? "true" : "false";
+
+    private string? ErroDaUrgencia => _contexto?.GetValidationMessages(FieldIdentifier.Create(() => _form.Urgencia)).FirstOrDefault();
+
+    private string ClasseDaUrgencia => ErroDaUrgencia is null ? "aj-rotulo" : "aj-rotulo aj-rotulo--erro";
+
+    private void EscolherUrgencia(UrgenciaDaSolicitacao urgencia)
+    {
+        _form.Urgencia = urgencia;
+        // Revalida o campo: "Escolha a urgência." sai assim que uma é escolhida.
+        _contexto?.NotifyFieldChanged(FieldIdentifier.Create(() => _form.Urgencia));
+    }
+
+    // ---- Solicitação nova: a escolha dos arquivos ----
+
+    private void Escolher(InputFileChangeEventArgs e)
+    {
+        _mensagem = null;
+        // Cancelar o diálogo de arquivos dispara a troca com zero arquivos: o que já estava escolhido continua.
+        if (e.FileCount == 0) return;
+
+        var lote = _lotes[^1];
+        if (_escolhidos.Count + e.FileCount > SolicitacoesOpcoes.MaximoDeDocumentos)
+        {
+            Avisar(SolicitacoesOpcoes.LimiteDeDocumentos, falhou: true);
+            TrocarCampo(lote);
+            return;
+        }
+
+        var arquivos = e.GetMultipleFiles(e.FileCount);
+        var grandes = arquivos.Where(a => a.Size > DocumentosOpcoes.TamanhoMaximoBytes).Select(a => a.Name).ToList();
+        var aceitos = arquivos.Where(a => a.Size <= DocumentosOpcoes.TamanhoMaximoBytes).ToList();
+        _escolhidos.AddRange(aceitos.Select(arquivo => new Escolhido(lote, arquivo)));
+
+        if (grandes.Count > 0)
+            Avisar(grandes.Count == 1
+                ? $"O arquivo {grandes[0]} passa do limite de {DocumentosOpcoes.TamanhoMaximoBytes / UmMegabyte} MB."
+                : $"Os arquivos {string.Join(", ", grandes)} passam do limite de {DocumentosOpcoes.TamanhoMaximoBytes / UmMegabyte} MB.",
+                falhou: true);
+
+        // Com arquivo aceito, o campo fica (escondido) com eles e um campo novo entra; sem nenhum, o campo é trocado
+        // por um vazio.
+        if (aceitos.Count > 0) _lotes.Add(_proximoLote++);
+        else TrocarCampo(lote);
+    }
+
+    private void TrocarCampo(int lote)
+    {
+        _lotes.Remove(lote);
+        _lotes.Add(_proximoLote++);
+    }
+
+    private void RemoverEscolhido(Escolhido escolhido)
+    {
+        if (_ocupado) return;
+
+        _mensagem = null;
+        _escolhidos.Remove(escolhido);
+        // O campo escondido sem arquivo nenhum na lista não tem mais o que guardar.
+        if (escolhido.Lote != _lotes[^1] && _escolhidos.All(e => e.Lote != escolhido.Lote)) _lotes.Remove(escolhido.Lote);
+    }
+
+    // ---- Edição: os documentos, um de cada vez ----
+
+    private async Task AnexarAsync(InputFileChangeEventArgs e)
+    {
+        if (_ocupado || e.FileCount == 0 || Id is not { } id) return;
+
+        _mensagem = null;
+        var arquivo = e.File;
+        if (arquivo.Size > DocumentosOpcoes.TamanhoMaximoBytes)
+        {
+            Avisar($"O arquivo {arquivo.Name} passa do limite de {DocumentosOpcoes.TamanhoMaximoBytes / UmMegabyte} MB.", falhou: true);
+            _versaoDoAnexo++;   // o campo volta vazio
+            return;
+        }
+
+        if (_documentos.Count >= SolicitacoesOpcoes.MaximoDeDocumentos)
+        {
+            Avisar(SolicitacoesOpcoes.LimiteDeDocumentos, falhou: true);
+            _versaoDoAnexo++;
+            return;
+        }
+
+        try
+        {
+            await ExecutarAsync(async () =>
+            {
+                await using var conteudo = arquivo.OpenReadStream(DocumentosOpcoes.TamanhoMaximoBytes);
+                return await Despachante.EnviarAsync(new AnexarDocumentoASolicitacao(
+                    id, arquivo.Name, arquivo.ContentType, conteudo, _versao));
+            }, "Documento anexado.");
+        }
+        finally
+        {
+            // O arquivo mora no campo até ser lido: só depois do envio o campo é recriado, vazio.
+            _versaoDoAnexo++;
+        }
+    }
+
+    private Task RemoverDocumentoAsync(DocumentoDoPortal documento) =>
+        ExecutarAsync(async () => await Despachante.EnviarAsync(new RemoverDocumentoDaSolicitacao(documento.Id, _versao)),
+            "Documento removido.");
+
+    /// <summary>
+    /// Uma operação de documento: um clique duplo não repete; acesso negado encerra a tela; depois dela, com sucesso ou
+    /// não, a solicitação é relida (a versão muda a cada documento) e o resultado aparece.
+    /// </summary>
+    private async Task ExecutarAsync(Func<Task<Resultado>> operacao, string sucesso)
+    {
+        if (_ocupado) return;
+
+        _ocupado = true;
+        try
+        {
+            Resultado resultado;
+            try
+            {
+                resultado = await operacao();
+            }
+            catch (Exception ex) when (ex is IOException or JSException or TimeoutException or OperationCanceledException)
+            {
+                // A leitura do arquivo no navegador foi interrompida (conexão caiu, arquivo removido, tempo esgotado).
+                Avisar("Não foi possível enviar o arquivo. Escolha-o de novo e tente outra vez.", falhou: true);
+                return;
+            }
+
+            if (resultado.Erro == TipoErro.AcessoNegado)
+            {
+                _encerrado = true;
+                return;
+            }
+
+            var mensagem = resultado.Sucesso ? sucesso : resultado.Mensagem ?? "Não foi possível alterar os documentos.";
+            if (await LerAsync(resultado.Sucesso ? null : mensagem) is null) return;
+            Avisar(mensagem, falhou: !resultado.Sucesso);
+        }
+        finally
+        {
+            _ocupado = false;
+        }
+    }
+
+    // ---- Enviar (nova) ou salvar (edição) ----
+
+    private async Task SalvarAsync()
+    {
+        if (_ocupado || _form.Urgencia is not { } urgencia) return;
+
+        _ocupado = true;
+        var navegou = false;
+        try
+        {
+            _mensagem = null;
+            if (Id is { } id) navegou = await AlterarAsync(id, urgencia);
+            else navegou = await AbrirAsync(urgencia);
+        }
+        finally
+        {
+            // Depois do sucesso a página vai embora: o botão fica travado para um clique tardio não enviar de novo.
+            if (!navegou) _ocupado = false;
+        }
+    }
+
+    private async Task<bool> AbrirAsync(UrgenciaDaSolicitacao urgencia)
+    {
+        var abertos = new List<Stream>();
+        try
+        {
+            var arquivos = new List<ArquivoParaEnviar>();
+            foreach (var escolhido in _escolhidos)
+            {
+                var conteudo = escolhido.Arquivo.OpenReadStream(DocumentosOpcoes.TamanhoMaximoBytes);
+                abertos.Add(conteudo);
+                arquivos.Add(new ArquivoParaEnviar(escolhido.Arquivo.Name, escolhido.Arquivo.ContentType, conteudo));
+            }
+
+            var resultado = await Despachante.EnviarAsync(new AbrirSolicitacao(_form.Descricao, urgencia, arquivos));
+            if (resultado.Erro == TipoErro.AcessoNegado)
+            {
+                _encerrado = true;
+                return false;
+            }
+
+            if (!resultado.Sucesso)
+            {
+                // O formulário fica com o que foi digitado e escolhido.
+                Avisar(resultado.Mensagem, falhou: true);
+                return false;
+            }
+
+            Navegacao.NavigateTo($"/minhas-solicitacoes/{resultado.Valor}?enviada=1");
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or JSException or TimeoutException or OperationCanceledException)
+        {
+            Avisar("Não foi possível enviar os arquivos. Escolha-os de novo e tente outra vez.", falhou: true);
+            return false;
+        }
+        finally
+        {
+            foreach (var conteudo in abertos) await conteudo.DisposeAsync();
+        }
+    }
+
+    private async Task<bool> AlterarAsync(Guid id, UrgenciaDaSolicitacao urgencia)
+    {
+        var resultado = await Despachante.EnviarAsync(new AlterarMinhaSolicitacao(id, _form.Descricao, urgencia, _versao));
+        if (resultado.Erro == TipoErro.AcessoNegado)
+        {
+            _encerrado = true;
+            return false;
+        }
+
+        if (resultado.Sucesso)
+        {
+            Recados.Deixar("Solicitação alterada.");
+            Navegacao.NavigateTo(Voltar);
+            return true;
+        }
+
+        var mensagem = resultado.Mensagem ?? "Não foi possível salvar a solicitação.";
+        if (resultado.Erro is TipoErro.Conflito or TipoErro.NaoEncontrado)
+        {
+            // Outra tela mudou a solicitação: a tela relê tudo (o que está no servidor agora) e avisa.
+            await CarregarAsync();
+            if (_estado != EstadoDeCarga.Pronto || _encerrado) return false;
+        }
+        else if (await LerAsync(mensagem) is null)
+        {
+            return false;
+        }
+
+        Avisar(mensagem, falhou: true);
+        return false;
+    }
+
+    private sealed class Formulario
+    {
+        [Required(ErrorMessage = "A descrição da solicitação é obrigatória.")]
+        [StringLength(SolicitacaoDoCliente.TamanhoMaximoDescricao, ErrorMessage = "A descrição da solicitação deve ter até 4000 caracteres.")]
+        public string Descricao { get; set; } = string.Empty;
+
+        // Nula é "ainda não escolhida": nenhuma urgência vem marcada.
+        [Required(ErrorMessage = "Escolha a urgência.")]
+        public UrgenciaDaSolicitacao? Urgencia { get; set; }
+    }
+}
