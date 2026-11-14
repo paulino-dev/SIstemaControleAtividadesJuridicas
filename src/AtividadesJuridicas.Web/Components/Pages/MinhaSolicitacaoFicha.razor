@@ -1,0 +1,235 @@
+@page "/minhas-solicitacoes/{Id:guid}"
+@inject IDespachante Despachante
+@inject FusoDoEscritorio Fuso
+@inject Recados Recados
+@inject Foco Foco
+
+<PageTitle>Solicitação</PageTitle>
+
+<CabecalhoDeDetalhe Titulo="Solicitação" Subtitulo="@Subtitulo" VoltarPara="/minhas-solicitacoes" Origem="Minhas solicitações" />
+
+@if (!_carregado)
+{
+    <p class="aj-subtitulo" role="status">Carregando…</p>
+}
+else if (_encerrado)
+{
+    <Aviso Tipo="TipoDeAviso.Erro">Seu acesso foi encerrado. Entre novamente.</Aviso>
+}
+else if (_detalhe is not { } s)
+{
+    @if (_mensagem is not null)
+    {
+        <Aviso @key="_versaoDoAviso" Tipo="@(_falhou ? TipoDeAviso.Erro : TipoDeAviso.Sucesso)" Revelar="true">@_mensagem</Aviso>
+    }
+    @if (_naoEncontrada)
+    {
+        @* A solicitação foi excluída ou é de outro cliente: o servidor responde igual nos dois casos. *@
+        <Aviso Tipo="TipoDeAviso.Erro">Solicitação não encontrada.</Aviso>
+    }
+    else
+    {
+        <EstadoDaLista Erro="@(_erro ?? "Não foi possível consultar a solicitação.")" TextoDeVazio="" TentarDeNovo="CarregarAsync" />
+    }
+}
+else
+{
+    @* O recado da tela anterior: "Solicitação enviada. …" depois de abrir, ou o motivo de a edição ter voltado. *@
+    @if (_recado is { } recado)
+    {
+        <Aviso Tipo="@recado.Tipo">@recado.Texto</Aviso>
+    }
+    @if (_mensagem is not null)
+    {
+        <Aviso @key="_versaoDoAviso" Tipo="@(_falhou ? TipoDeAviso.Erro : TipoDeAviso.Sucesso)" Revelar="true">@_mensagem</Aviso>
+    }
+    @if (_confirmando)
+    {
+        <Aviso Tipo="TipoDeAviso.Atencao" Rotulo="Confirmar cancelamento" Titulo="Cancelar esta solicitação? Ela não poderá ser reaberta.">
+            <ChildContent>A equipe deixa de analisar o pedido. Para pedir de novo, abra outra solicitação.</ChildContent>
+            <Acoes><button type="button" class="aj-botao aj-botao--secundario" disabled="@_ocupado" @onclick="Voltar">Voltar</button><button type="button" class="aj-botao aj-botao--perigo" disabled="@_ocupado" @onclick="CancelarAsync">Sim, cancelar</button></Acoes>
+        </Aviso>
+    }
+    @if (s.PodeAlterar)
+    {
+        <div class="aj-painel__botoes"><a href="@($"/minhas-solicitacoes/{Id}/editar")" class="aj-botao aj-botao--secundario">Editar</a><button type="button" class="aj-botao aj-botao--perigo" id="cancelar-solicitacao" disabled="@_ocupado" @onclick="PedirCancelamento">Cancelar solicitação</button></div>
+    }
+
+    <div class="aj-lado-a-lado aj-lado-a-lado--painel-primeiro aj-lado-a-lado--ficha aj-lado-a-lado--painel-estreito">
+        <aside class="aj-painel aj-painel--ficha aj-painel--detalhes aj-lado-a-lado__painel" aria-label="Dados da solicitação">
+            <h2>Detalhes</h2>
+            <dl class="aj-detalhes">
+                <div><dt>Situação</dt><dd><span class="@RotulosDeSolicitacao.Etiqueta(s.Situacao)">@RotulosDeSolicitacao.ParaOCliente(s.Situacao)</span></dd></div>
+                <div><dt>Urgência</dt><dd>@RotulosDeSolicitacao.Urgencia(s.Urgencia)</dd></div>
+                <div><dt>Aberta por</dt><dd>@s.SolicitanteNome</dd></div>
+                <div><dt>Aberta em</dt><dd>@Fuso.Formatar(s.AbertaEm)</dd></div>
+                @if (s.AtividadeTitulo is not null)
+                {
+                    <div><dt>Atividade</dt><dd>@s.AtividadeTitulo</dd></div>
+                }
+                @if (s.AtividadeConcluidaEm is not null)
+                {
+                    <div><dt>Concluída em</dt><dd>@Fuso.FormatarData(s.AtividadeConcluidaEm)</dd></div>
+                }
+            </dl>
+        </aside>
+
+        <div class="aj-lado-a-lado__lista aj-pilha">
+            <section class="aj-painel aj-painel--ficha aj-painel--descricao">
+                <h2>Descrição</h2>
+                <p>@s.Descricao</p>
+            </section>
+            <section class="aj-painel aj-painel--ficha">
+                <h2>Documentos</h2>
+                <EstadoDaLista Vazio="@(s.Documentos.Count == 0)" TextoDeVazio="Nenhum documento.">
+                    <div class="aj-linhas">
+                        @foreach (var documento in s.Documentos)
+                        {
+                            @* Link fora da navegação do Blazor: é um download. O "download" impede o roteador de interceptar. *@
+                            <div class="aj-linha" @key="documento.Id"><div class="aj-linha__texto"><span class="aj-linha__titulo"><a href="@TextosDeDocumento.Endereco(documento.Id)" download data-enhance-nav="false">@documento.Nome</a></span><span class="aj-ajuda">@TextosDeDocumento.Detalhe(documento.TamanhoBytes, documento.EnviadoEm, null, Fuso)</span></div><a href="@TextosDeDocumento.Endereco(documento.Id)" download data-enhance-nav="false" class="aj-botao aj-botao--secundario aj-botao--icone" aria-label="@($"Baixar {documento.Nome}")"><Icone Nome="baixar" /></a></div>
+                        }
+                    </div>
+                </EstadoDaLista>
+            </section>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private bool _carregado;
+    private bool _encerrado;
+    private bool _naoEncontrada;
+    private string? _erro;
+    private MinhaSolicitacaoDetalhe? _detalhe;
+    private Guid? _idCarregado;
+    private Recado? _recado;
+
+    private bool _confirmando;
+    private bool _ocupado;
+    private string? _mensagem;
+    private bool _falhou;
+    private int _versaoDoAviso;
+    private bool _focarCancelar;
+
+    private string? Subtitulo => _detalhe is { } s ? $"Aberta em {Fuso.Formatar(s.AbertaEm)}" : null;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_idCarregado == Id) return;
+
+        var primeira = _idCarregado is null;
+        _idCarregado = Id;
+        if (primeira) _recado = Recados.Retirar();
+        await CarregarAsync();
+    }
+
+    /// <summary>A carga inteira; também é o "Tentar de novo".</summary>
+    private async Task CarregarAsync()
+    {
+        _carregado = false;
+        _mensagem = null;
+        _confirmando = false;
+        await RecarregarAsync();
+        _carregado = true;
+    }
+
+    /// <summary>Relê a solicitação; devolve se a ficha ficou mostrando dados atuais.</summary>
+    private async Task<bool> RecarregarAsync()
+    {
+        var resultado = await Despachante.EnviarAsync(new ObterMinhaSolicitacao(Id));
+        _naoEncontrada = false;
+        _erro = null;
+
+        if (resultado.Erro == TipoErro.AcessoNegado)
+        {
+            _encerrado = true;
+            _detalhe = null;
+            return false;
+        }
+
+        if (resultado.Erro == TipoErro.NaoEncontrado)
+        {
+            _detalhe = null;
+            _naoEncontrada = true;
+            return false;
+        }
+
+        if (!resultado.Sucesso || resultado.Valor is null)
+        {
+            _detalhe = null;
+            _erro = resultado.Mensagem ?? "Não foi possível consultar a solicitação.";
+            return false;
+        }
+
+        _detalhe = resultado.Valor;
+        return true;
+    }
+
+    private void Avisar(string mensagem, bool falhou)
+    {
+        _mensagem = mensagem;
+        _falhou = falhou;
+        _versaoDoAviso++;
+    }
+
+    private void PedirCancelamento()
+    {
+        if (_ocupado || _detalhe is null) return;
+
+        _recado = null;
+        _mensagem = null;
+        _confirmando = true;
+    }
+
+    // "Voltar" da confirmação: nada muda, e o foco volta ao "Cancelar solicitação".
+    private void Voltar()
+    {
+        if (_ocupado) return;
+
+        _confirmando = false;
+        _focarCancelar = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_focarCancelar) return;
+
+        _focarCancelar = false;
+        await Foco.FocarPrimeiroVisivelAsync("#cancelar-solicitacao");
+    }
+
+    private async Task CancelarAsync()
+    {
+        if (_ocupado || _detalhe is not { } detalhe) return;
+
+        _ocupado = true;
+        try
+        {
+            // A versão com que a ficha foi lida: se outra tela mudou a solicitação, o servidor recusa com conflito.
+            var resultado = await Despachante.EnviarAsync(new CancelarMinhaSolicitacao(Id, detalhe.Versao));
+            if (resultado.Erro == TipoErro.AcessoNegado)
+            {
+                _encerrado = true;
+                _detalhe = null;
+                return;
+            }
+
+            _confirmando = false;
+            // Com sucesso ou não, a ficha mostra o que o servidor tem agora (os botões acompanham o PodeAlterar).
+            var atualizada = await RecarregarAsync();
+            if (_encerrado) return;
+
+            if (!resultado.Sucesso)
+                Avisar(resultado.Mensagem ?? "Não foi possível cancelar a solicitação.", falhou: true);
+            else
+                Avisar(atualizada ? "Solicitação cancelada." : "Solicitação cancelada, mas não foi possível atualizar a ficha.",
+                    falhou: !atualizada);
+        }
+        finally
+        {
+            _ocupado = false;
+        }
+    }
+}

@@ -692,6 +692,41 @@ public class DocumentoTests
         vazio.Should().Throw<ExcecaoDeDominio>().WithMessage("O arquivo está vazio.");
     }
 
+    private static readonly Guid Solicitacao = Guid.CreateVersion7();
+
+    [Fact]
+    public void Documento_da_solicitacao_exige_solicitacao_e_cliente()
+    {
+        var semSolicitacao = () => Documento.CriarDaSolicitacao(Guid.Empty, Cliente, null, Arquivo());
+        var semCliente = () => Documento.CriarDaSolicitacao(Solicitacao, Guid.Empty, null, Arquivo());
+
+        semSolicitacao.Should().Throw<ExcecaoDeDominio>().WithMessage("A solicitação do documento é obrigatória.");
+        semCliente.Should().Throw<ExcecaoDeDominio>().WithMessage("O cliente do documento é obrigatório.");
+    }
+
+    [Fact]
+    public void Documento_da_solicitacao_e_visivel_ao_cliente_e_sem_lista()
+    {
+        var documento = Documento.CriarDaSolicitacao(Solicitacao, Cliente, "  Comprovante ", Arquivo());
+
+        documento.Categoria.Should().Be(CategoriaDocumento.DocumentoDaSolicitacao);
+        ((int)documento.Categoria).Should().Be(6);
+        documento.SolicitacaoId.Should().Be(Solicitacao);
+        documento.ClienteId.Should().Be(Cliente);
+        documento.AtividadeId.Should().BeNull();
+        documento.Nome.Should().Be("Comprovante");
+        documento.PerfisComAcesso.Should().BeEmpty();
+        documento.UsuariosComAcesso.Should().BeEmpty();
+        documento.VisivelAoCliente.Should().BeTrue();
+
+        // A solicitação só existe na categoria 6.
+        Geral(_producao).SolicitacaoId.Should().BeNull();
+        Contrato().SolicitacaoId.Should().BeNull();
+        Documento.CriarDoCliente(Cliente, null, Arquivo()).SolicitacaoId.Should().BeNull();
+        Documento.CriarComum(null, OutroArquivo()).SolicitacaoId.Should().BeNull();
+        Documento.CriarDeAtividade(Guid.CreateVersion7(), Cliente, null, Arquivo()).SolicitacaoId.Should().BeNull();
+    }
+
     /// <summary>Quem consulta, na matriz da regra de acesso.</summary>
     public enum Consulente
     {
@@ -708,6 +743,7 @@ public class DocumentoTests
             [CategoriaDocumento.DocumentoAtividade] = [true, true, false, false, false, false, false],
             [CategoriaDocumento.DocumentoDoCliente] = [true, false, false, true, false, false, false],
             [CategoriaDocumento.DocumentoComum] = [true, false, false, true, true, true, false],
+            [CategoriaDocumento.DocumentoDaSolicitacao] = [true, false, false, true, false, false, false],
         };
 
         var dados = new TheoryData<CategoriaDocumento, Consulente, bool>();
@@ -728,6 +764,7 @@ public class DocumentoTests
             case CategoriaDocumento.ContratoHonorarios: return Contrato();
             case CategoriaDocumento.DocumentoAtividade: return Documento.CriarDeAtividade(Guid.CreateVersion7(), Cliente, null, Arquivo());
             case CategoriaDocumento.DocumentoDoCliente: return Documento.CriarDoCliente(Cliente, null, Arquivo());
+            case CategoriaDocumento.DocumentoDaSolicitacao: return Documento.CriarDaSolicitacao(Solicitacao, Cliente, null, Arquivo());
             default: return Documento.CriarComum(null, OutroArquivo());
         }
     }
@@ -776,6 +813,7 @@ public class DocumentoTests
     [Theory]
     [InlineData(CategoriaDocumento.DocumentoDoCliente)]
     [InlineData(CategoriaDocumento.DocumentoComum)]
+    [InlineData(CategoriaDocumento.DocumentoDaSolicitacao)]
     public void Categorias_visiveis_ao_cliente_nao_tem_lista_de_acesso(CategoriaDocumento categoria)
     {
         var pedro = NovoUsuario("Pedro", _producao);

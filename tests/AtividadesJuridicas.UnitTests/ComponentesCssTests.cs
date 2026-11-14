@@ -33,6 +33,15 @@ public class ComponentesCssTests
     }
 
     [Fact]
+    public void Link_nos_detalhes_da_ficha_usa_a_cor_da_marca_como_na_tabela_e_na_linha()
+    {
+        var css = Componentes();
+        foreach (var bloco in new[] { ".aj-tabela", ".aj-linha", ".aj-detalhes" })
+            css.Should().Contain($":where({bloco} a){{color:var(--verde)}}")
+                .And.Contain($":where({bloco} a:hover){{color:var(--tinta)}}");
+    }
+
+    [Fact]
     public void Barra_fixa_media_ocupa_a_coluna()
     {
         var css = Componentes();

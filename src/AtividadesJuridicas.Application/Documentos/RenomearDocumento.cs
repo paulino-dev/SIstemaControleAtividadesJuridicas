@@ -1,9 +1,11 @@
 using AtividadesJuridicas.Application.Comum;
 using AtividadesJuridicas.Application.Identidade;
 using AtividadesJuridicas.Domain.Comum;
+using AtividadesJuridicas.Domain.Documentos;
 
 namespace AtividadesJuridicas.Application.Documentos;
 
+/// <summary>O documento da solicitação não é renomeado por aqui: só o cliente que abriu a solicitação mexe nele.</summary>
 public sealed record RenomearDocumento(Guid Id, string Nome) : IRequisicao<Resultado>;
 
 public sealed class RenomearDocumentoManipulador(
@@ -17,6 +19,8 @@ public sealed class RenomearDocumentoManipulador(
 
         var documento = await documentos.ObterPorIdAsync(requisicao.Id, ct);
         if (documento is null) return Resultado.Falha(TipoErro.NaoEncontrado, "Documento não encontrado.");
+        if (documento.Categoria == CategoriaDocumento.DocumentoDaSolicitacao)
+            return Resultado.Falha(TipoErro.Validacao, DocumentosOpcoes.DocumentoDaSolicitacaoSoPeloCliente);
 
         try
         {

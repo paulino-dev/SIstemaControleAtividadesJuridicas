@@ -181,6 +181,50 @@ public class RotasDoClienteTests
     [InlineData("qualquer-coisa")]
     public void Paginas_internas_e_desconhecidas_nao_sao_permitidas(string caminho) =>
         RotasDoCliente.Permite(caminho).Should().BeFalse();
+
+    [Theory]
+    [InlineData("minhas-solicitacoes")]
+    [InlineData("minhas-solicitacoes/")]
+    [InlineData("Minhas-Solicitacoes")]
+    [InlineData("minhas-solicitacoes?situacao=1")]
+    [InlineData("minhas-solicitacoes/nova")]
+    [InlineData("minhas-solicitacoes/Nova")]
+    [InlineData("minhas-solicitacoes/0199a3f2-7c1e-7000-8000-00000000abcd")]
+    [InlineData("minhas-solicitacoes/0199A3F2-7C1E-7000-8000-00000000ABCD")]
+    [InlineData("minhas-solicitacoes/0199a3f2-7c1e-7000-8000-00000000abcd?enviada=1")]
+    [InlineData("minhas-solicitacoes/0199a3f2-7c1e-7000-8000-00000000abcd#topo")]
+    [InlineData("minhas-solicitacoes/0199a3f2-7c1e-7000-8000-00000000abcd/editar")]
+    [InlineData("minhas-solicitacoes/0199A3F2-7C1E-7000-8000-00000000ABCD/Editar")]
+    [InlineData("minhas-solicitacoes/0199a3f2-7c1e-7000-8000-00000000abcd/editar/")]
+    // Os outros formatos que a restrição {Id:guid} do roteador aceita (Guid.TryParse): montam a mesma página, então
+    // também são só do portal. Com o padrão de 36 caracteres do brief, a equipe abriria a página por eles.
+    [InlineData("minhas-solicitacoes/0199a3f27c1e7000800000000000abcd")]
+    [InlineData("minhas-solicitacoes/{0199a3f2-7c1e-7000-8000-00000000abcd}")]
+    [InlineData("minhas-solicitacoes/%7B0199a3f2-7c1e-7000-8000-00000000abcd%7D")]
+    [InlineData("minhas-solicitacoes/0199a3f27c1e7000800000000000abcd/editar")]
+    public void Rotas_das_solicitacoes_do_portal_abrem_ao_cliente_e_sao_exclusivas(string caminho)
+    {
+        RotasDoCliente.Permite(caminho).Should().BeTrue();
+        RotasDoCliente.Exclusiva(caminho).Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData("minhas-solicitacoes/abc")]
+    [InlineData("minhas-solicitacoes/0199a3f2-7c1e-7000-8000-00000000abcd/excluir")]
+    [InlineData("minhas-solicitacoes/0199a3f2-7c1e-7000-8000-00000000abcd/editar/mais")]
+    [InlineData("minhas-solicitacoes/nova/editar")]
+    // 36 hífens casariam com o padrão [0-9a-fA-F-]{36} do brief, mas não são um Guid.
+    [InlineData("minhas-solicitacoes/------------------------------------")]
+    [InlineData("minhas-solicitacoes/------------------------------------/editar")]
+    [InlineData("minhas-solicitacoes/0199a3f27c1e7000800000000000abc")]
+    [InlineData("minhas-solicitacoesx")]
+    [InlineData("solicitacoes")]
+    [InlineData("solicitacoes/0199a3f2-7c1e-7000-8000-00000000abcd")]
+    public void Rotas_parecidas_nao_abrem(string caminho)
+    {
+        RotasDoCliente.Permite(caminho).Should().BeFalse();
+        RotasDoCliente.Exclusiva(caminho).Should().BeFalse();
+    }
 }
 
 public class EnvioComConfirmacaoTests

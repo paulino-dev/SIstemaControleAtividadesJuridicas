@@ -49,7 +49,7 @@ public class PropriedadesAuditadasTests
             ["Documento"] =
             [
                 "AtividadeId", "Categoria", "ChaveArmazenamento", "ClienteId", "HashSha256", "Nome", "NomeArquivoOriginal",
-                "TamanhoBytes", "TipoConteudo",
+                "SolicitacaoId", "TamanhoBytes", "TipoConteudo",
             ],
             ["DocumentoPerfilAcesso"] = ["DocumentoId", "PerfilId"],
             ["DocumentoUsuarioAcesso"] = ["DocumentoId", "UsuarioId"],
@@ -66,6 +66,7 @@ public class PropriedadesAuditadasTests
                 "ParteContraria", "Status", "Titulo", "ValorCausa",
             ],
             ["ProcessoCliente"] = ["ClienteId", "Polo", "ProcessoId"],
+            ["SolicitacaoDoCliente"] = ["AtividadeId", "CanceladaEm", "ClienteId", "Descricao", "SolicitanteId", "Urgencia"],
             ["Usuario"] = ["Ativo", "ClienteId", "Email", "Nome", "NumeroOab", "PerfilId"],
         };
 

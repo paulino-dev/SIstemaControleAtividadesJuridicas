@@ -9,6 +9,12 @@ public static class DocumentosOpcoes
     public const int TamanhoDaPagina = 20;
     public const string TipoDeConteudoPadrao = "application/octet-stream";
     public const string ConfirmacaoExigida = "Confirme que o documento ficará visível para todos os clientes.";
+
+    /// <summary>
+    /// A recusa da Diretoria ao renomear ou excluir um documento da solicitação: os anexos de uma solicitação só mudam
+    /// pelas mãos do cliente que a abriu, enquanto ela aguarda.
+    /// </summary>
+    public const string DocumentoDaSolicitacaoSoPeloCliente = "Documento de solicitação só é alterado pelo cliente que a abriu.";
 }
 
 /// <summary>Quem está consultando, quando a consulta precisa respeitar a lista de acesso.</summary>
@@ -22,17 +28,18 @@ public interface IDocumentoRepositorio
     /// <summary>
     /// Do mais recente para o mais antigo. Sem <paramref name="acesso"/>, todos os documentos; com ele,
     /// só os que o perfil ou o usuário alcançam pela lista de acesso, e nunca um contrato de honorários, um
-    /// documento do cliente nem um documento comum (estes são do portal do cliente). Para a categoria dos
-    /// documentos de atividade o filtro não é a lista de acesso: é ser responsável atual de uma atividade
-    /// viva (não excluída) à qual o documento pertence.
+    /// documento do cliente, um documento comum nem um documento da solicitação (estes são do portal do
+    /// cliente). Para a categoria dos documentos de atividade o filtro não é a lista de acesso: é ser
+    /// responsável atual de uma atividade viva (não excluída) à qual o documento pertence.
     /// </summary>
     Task<Pagina<DocumentoResumo>> ListarDoClienteAsync(
         Guid clienteId, CategoriaDocumento categoria, FiltroDeAcesso? acesso, int pagina, int tamanho, CancellationToken ct);
 
     /// <summary>
-    /// Quantos documentos do cliente (sem os comuns) o usuário lê em cada área, com o mesmo filtro de acesso de
-    /// <see cref="ListarDoClienteAsync"/>. Área que ele não lê não aparece; as lidas e vazias vêm com zero: as quatro
-    /// do cliente sem <paramref name="acesso"/> (Diretoria), só geral e atividade com ele.
+    /// Quantos documentos do cliente o usuário lê em cada área, com o mesmo filtro de acesso de
+    /// <see cref="ListarDoClienteAsync"/>. As categorias do portal que não são áreas da ficha (o documento comum e o
+    /// documento da solicitação) nunca entram nas contagens por área. Área que ele não lê não aparece; as lidas e
+    /// vazias vêm com zero: as quatro do cliente sem <paramref name="acesso"/> (Diretoria), só geral e atividade com ele.
     /// </summary>
     Task<IReadOnlyDictionary<CategoriaDocumento, int>> ContarDoClienteAsync(
         Guid clienteId, FiltroDeAcesso? acesso, CancellationToken ct);
@@ -48,6 +55,16 @@ public interface IDocumentoRepositorio
     /// <paramref name="comAutor"/>.
     /// </summary>
     Task<Pagina<DocumentoDoPortal>> ListarComunsAsync(bool comAutor, int pagina, int tamanho, CancellationToken ct);
+
+    /// <summary>
+    /// Os documentos vivos de uma solicitação, do mais antigo para o mais novo, sem autor; os gravados no mesmo
+    /// instante (os de uma solicitação aberta com vários arquivos), pelo nome e depois pelo Id. Quem chama já decidiu
+    /// que o usuário vê a solicitação.
+    /// </summary>
+    Task<IReadOnlyList<DocumentoDoPortal>> ListarDaSolicitacaoAsync(Guid solicitacaoId, CancellationToken ct);
+
+    /// <summary>Quantos documentos vivos a solicitação tem.</summary>
+    Task<int> ContarDaSolicitacaoAsync(Guid solicitacaoId, CancellationToken ct);
 
     /// <summary>Os documentos de uma atividade, do mais recente para o mais antigo. Quem chama já decidiu que o usuário vê a atividade.</summary>
     Task<Pagina<DocumentoResumo>> ListarDaAtividadeAsync(Guid atividadeId, int pagina, int tamanho, CancellationToken ct);
@@ -90,6 +107,14 @@ public sealed record PaginaDeDocumentos(
 /// <paramref name="EnviadoPor"/> só vem preenchido para a Diretoria.
 /// </summary>
 public sealed record DocumentoDoPortal(Guid Id, string Nome, long TamanhoBytes, DateTime EnviadoEm, string? EnviadoPor = null);
+
+/// <summary>
+/// Um arquivo que chega para ser gravado. <paramref name="NomeArquivo"/> é o nome que o navegador informou: só o
+/// último segmento é guardado, e ele nunca é usado como caminho. <paramref name="AbrirConteudo"/> abre o conteúdo só
+/// quando ele vai ser lido: quem recebe abre um arquivo por vez, lê e fecha antes de abrir o próximo (no Blazor Server
+/// a transferência do navegador começa na abertura, e um fluxo aberto à espera estoura o tempo sem dados).
+/// </summary>
+public sealed record ArquivoParaEnviar(string NomeArquivo, string? TipoConteudo, Func<Stream> AbrirConteudo);
 
 /// <summary>Quem recebe fecha <paramref name="Conteudo"/>.</summary>
 public sealed record ArquivoParaBaixar(string NomeArquivo, long TamanhoBytes, Stream Conteudo) : IAsyncDisposable, IDisposable

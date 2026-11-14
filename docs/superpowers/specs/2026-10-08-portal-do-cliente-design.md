@@ -3,10 +3,11 @@
 Data: 2026-10-08
 Estado: aguardando revisão
 Emenda: `2026-10-06-modelagem-dominio-design.md`, seções 5, 6, 7, 8, 10, 12 e 13
+Emendada por: `2026-11-13-solicitacoes-do-cliente-design.md`, nas seções 1, 2, 3, 4, 6, 7, 9, 10, 11 e 12
 
 ## 1. Objetivo
 
-O cliente do escritório passa a ser um agente do sistema. Ele faz login para baixar os documentos que o escritório disponibiliza a ele e para acompanhar, de forma macro, o andamento das atividades ligadas a ele. Não altera nada além da própria senha.
+O cliente do escritório passa a ser um agente do sistema. Ele faz login para baixar os documentos que o escritório disponibiliza a ele e para acompanhar, de forma macro, o andamento das atividades ligadas a ele. Não altera nada além da própria senha e, desde as solicitações, do que ele mesmo pediu ao escritório (`2026-11-13-solicitacoes-do-cliente-design.md`).
 
 Entram duas áreas de documentos:
 
@@ -29,7 +30,7 @@ Entram duas áreas de documentos:
 | Vínculo | Cada usuário-cliente pertence a exatamente um cliente; um cliente pode ter vários usuários |
 | Isolamento | Portão central no executor de requisições: o perfil Cliente só roda o que está marcado como aberto a ele |
 | Andamento | Lista de atividades com situação simplificada: "Em andamento" ou "Concluída" |
-| Documentos | Duas categorias novas do agregado `Documento`, sem lista de acesso |
+| Documentos | Duas categorias novas do agregado `Documento`, sem lista de acesso (as solicitações trouxeram uma terceira, `DocumentoDaSolicitacao`) |
 | Alerta dos Documentos comuns | Confirmação antes do envio, exigida também pelo caso de uso |
 | Cliente inativo | Os usuários dele perdem o acesso até a reativação |
 
@@ -78,7 +79,7 @@ O executor de requisições consulta o ator antes de chamar o caso de uso:
 - Ator de tipo `Diretoria` ou `Producao`: nada muda.
 - Ator de tipo `Cliente`: a requisição só segue se estiver marcada com `IRequisicaoAbertaAoCliente`. Caso contrário, o executor responde `AcessoNegado` sem chamar o caso de uso, e a tentativa gera o evento `acesso_negado` com o nome da requisição.
 
-Requisições abertas ao cliente:
+Requisições abertas ao cliente (catorze; as sete últimas são as das solicitações):
 
 | Requisição | Para quê |
 |---|---|
@@ -89,17 +90,24 @@ Requisições abertas ao cliente:
 | `ListarMeusDocumentos` | Documentos do cliente do usuário |
 | `ListarDocumentosComuns` | Documentos comuns |
 | `ListarMeuAndamento` | Andamento das atividades do cliente do usuário |
+| `AbrirSolicitacao` | Abrir uma solicitação, com os documentos dela |
+| `ListarMinhasSolicitacoes` | Solicitações do cliente do usuário |
+| `ObterMinhaSolicitacao` | A ficha de uma solicitação do cliente do usuário |
+| `AlterarMinhaSolicitacao` | Alterar a descrição e a urgência (só quem abriu, só aguardando) |
+| `AnexarDocumentoASolicitacao` | Anexar um documento (só quem abriu, só aguardando) |
+| `RemoverDocumentoDaSolicitacao` | Remover um documento anexado (só quem abriu, só aguardando) |
+| `CancelarMinhaSolicitacao` | Cancelar (só quem abriu, só aguardando) |
 
 Regras:
 
 - Abrir mais uma requisição ao cliente é marcar o tipo dela e acrescentá-la à lista fixada em teste. As duas mudanças aparecem na revisão.
-- As consultas do portal não recebem Id de cliente: usam o `ClienteId` do ator, lido do banco. Não há como pedir dados de outro cliente alterando a requisição.
+- As requisições do portal não recebem Id de cliente: usam o `ClienteId` do ator, lido do banco. Não há como pedir dados de outro cliente alterando a requisição. A solicitação de outro cliente responde `NaoEncontrado`.
 - Toda requisição não marcada responde com `Resultado`, para o portão poder negá-la. `ObterMeuAcesso` é a única que responde outro tipo e está marcada.
 - O portão custa uma leitura a mais de usuário e perfil por requisição.
 
 ### Matriz de acesso
 
-A matriz da seção 5 da modelagem ganha uma coluna e duas linhas:
+A matriz da seção 5 da modelagem ganha uma coluna e duas linhas (e, com as solicitações, mais duas: "Documentos da solicitação" e "Solicitações"):
 
 | Recurso | Diretoria | Produção | Cliente |
 |---|---|---|---|
@@ -111,6 +119,8 @@ A matriz da seção 5 da modelagem ganha uma coluna e duas linhas:
 | Documentos de Atividades | Tudo | Os das atividades em que é responsável | Sem acesso |
 | Documentos do cliente | Tudo | Sem acesso | Leitura dos do próprio cliente |
 | Documentos comuns | Tudo | Sem acesso | Leitura |
+| Documentos da solicitação | Tudo | Sem acesso | Leitura dos das solicitações do próprio cliente |
+| Solicitações | Lê todas | Sem acesso | Abre e lê as do próprio cliente; altera e cancela as que abriu |
 | Atividades | Tudo | Somente as em que é responsável | Andamento das do próprio cliente (seção 5) |
 | Agenda | Todos os eventos | Os seus | Sem acesso |
 | Auditoria | Consulta | Sem acesso | Sem acesso |
@@ -119,12 +129,13 @@ A matriz da seção 5 da modelagem ganha uma coluna e duas linhas:
 
 ### Categorias novas
 
-`CategoriaDocumento` ganha dois valores:
+`CategoriaDocumento` ganha dois valores (e um terceiro, `DocumentoDaSolicitacao`, com as solicitações):
 
 | Categoria | `ClienteId` | `AtividadeId` | Lista de acesso | Quem lê | Quem envia, renomeia e exclui |
 |---|---|---|---|---|---|
 | `DocumentoDoCliente` | Obrigatório | Nulo | Não há | Diretoria e os usuários daquele cliente | Diretoria |
 | `DocumentoComum` | Nulo | Nulo | Não há | Diretoria e todo usuário de perfil `Cliente` | Diretoria |
+| `DocumentoDaSolicitacao` (com `SolicitacaoId` obrigatório) | Obrigatório | Nulo | Não há | Diretoria e os usuários daquele cliente | Quem abriu a solicitação, pela abertura ou pelo anexo; só ele remove, e só enquanto ela aguarda |
 
 Armazenamento, limite de 50 MB, recusa de arquivo vazio, download como anexo com tipo neutro, exclusão lógica e ausência de versionamento valem como nas categorias existentes.
 
@@ -133,13 +144,13 @@ Armazenamento, limite de 50 MB, recusa de arquivo vazio, download como anexo com
 Continua sendo uma única função de domínio. Ela passa a receber o cliente do usuário (nulo para quem não é do tipo `Cliente`) e decide nesta ordem:
 
 1. Perfil de tipo `Diretoria` acessa sempre.
-2. Perfil de tipo `Cliente` acessa `DocumentoDoCliente` cujo `ClienteId` é o seu e `DocumentoComum`. Não acessa nenhuma outra categoria, ainda que o usuário ou o perfil conste em alguma lista.
-3. `DocumentoDoCliente` e `DocumentoComum` nunca são acessados por perfil de tipo `Producao`.
+2. Perfil de tipo `Cliente` acessa `DocumentoDoCliente` e `DocumentoDaSolicitacao` cujo `ClienteId` é o seu e `DocumentoComum`. Não acessa nenhuma outra categoria, ainda que o usuário ou o perfil conste em alguma lista.
+3. `DocumentoDoCliente`, `DocumentoComum` e `DocumentoDaSolicitacao` nunca são acessados por perfil de tipo `Producao`.
 4. Contrato de Honorários, Documento de Atividade e Documento Geral seguem as regras atuais.
 
 Complementos:
 
-- As duas categorias novas não têm lista de acesso. Definir acesso nelas é recusado pelo domínio, como já ocorre no documento de atividade.
+- As categorias postas para o cliente não têm lista de acesso. Definir acesso nelas é recusado pelo domínio, como já ocorre no documento de atividade.
 - O domínio recusa perfil de tipo `Cliente` e usuário de perfil `Cliente` em qualquer lista de acesso, de qualquer categoria.
 - Baixar um documento sem ter acesso responde como não encontrado e gera `acesso_negado` com o documento, como hoje.
 
@@ -152,6 +163,7 @@ Um Documento Geral nasce liberado para todos os perfis **internos** ativos (tipo
 - `DocumentoDoCliente` é enviado pelo caso de uso de envio que já existe, que passa a aceitar essa categoria. O cliente precisa existir; cliente inativo continua recebendo documentos.
 - `DocumentoComum` tem um caso de uso próprio, `EnviarDocumentoComum`, sem cliente. A requisição leva o campo `ConfirmouVisibilidade`; sem ele verdadeiro, o envio é recusado como validação, com a mensagem "Confirme que o documento ficará visível para todos os clientes."
 - Renomear e excluir usam os casos de uso atuais, que já operam por Id e são da Diretoria.
+- `DocumentoDaSolicitacao` não é enviado por esse caso de uso, que responde "Categoria inválida para envio.": nasce pela abertura de uma solicitação ou pelo anexo a ela, e o cliente o remove pela própria solicitação (spec das solicitações, seção 4).
 
 ### Listagens
 
@@ -161,7 +173,7 @@ Um Documento Geral nasce liberado para todos os perfis **internos** ativos (tipo
 | `ListarMeusDocumentos` | Perfil `Cliente`; os demais recebem `AcessoNegado` | Os `DocumentoDoCliente` do cliente do ator |
 | `ListarDocumentosComuns` | Diretoria e perfil `Cliente`; Produção recebe `AcessoNegado` | Todos os `DocumentoComum` |
 
-- `ListarDocumentosDoCliente` com a categoria `DocumentoComum` responde `Validacao` ("Categoria inválida para esta consulta."): o documento comum não é de cliente e tem consulta própria.
+- `ListarDocumentosDoCliente` com a categoria `DocumentoComum` responde `Validacao` ("Categoria inválida para esta consulta."): o documento comum não é de cliente e tem consulta própria. O mesmo vale para `DocumentoDaSolicitacao`: ele não tem listagem, aparece na ficha da solicitação.
 - As três são paginadas, do mais recente para o mais antigo, como as listagens atuais. As duas do portal desempatam pelo Id.
 - O cliente recebe de cada documento o Id (para o download), o nome, o tamanho e a data de envio. Não recebe o nome do arquivo enviado, a categoria nem o nome de quem enviou. O tamanho é mostrado em português do Brasil, qualquer que seja a cultura do servidor.
 - Para a Diretoria, as listagens continuam trazendo quem enviou.
@@ -189,22 +201,22 @@ Consequência: o título de toda atividade com cliente passa a ser lido por esse
 
 | Tipo | Itens |
 |---|---|
-| `Diretoria` | Os atuais, mais "Documentos comuns" |
+| `Diretoria` | Os atuais, mais "Documentos comuns" e "Solicitações" |
 | `Producao` | Os atuais |
-| `Cliente` | Início, Andamento, Meus documentos, Documentos comuns, Minha senha |
+| `Cliente` | Início, Andamento, Solicitações, Meus documentos, Documentos comuns, Minha senha |
 
 O layout tem três navegações, e cada item fica assim nelas:
 
-- Menu lateral (desktop): o cliente tem o grupo "Portal" com os cinco itens. A Diretoria tem "Documentos comuns" no grupo "Cadastros", depois de Processos; a Produção não ganha o item.
-- Trilho (tablet): o cliente tem Início, Andamento, Meus documentos e Documentos comuns, mais "Mais". Minha senha fica no avatar do rodapé.
-- Barra inferior (mobile): o cliente tem Início, Andamento e "Documentos" (Meus documentos), mais "Mais". O restante abre em "Mais", que mostra o menu completo.
-- No trilho e na barra inferior, a Diretoria chega a "Documentos comuns" por "Mais".
+- Menu lateral (desktop): o cliente tem o grupo "Portal" com os seis itens, "Solicitações" depois de Andamento. A Diretoria tem "Documentos comuns" no grupo "Cadastros", depois de Processos, e "Solicitações" depois de Atividades; a Produção não ganha nenhum dos dois itens.
+- Trilho (tablet): o cliente tem Início, Andamento, Solicitações, Meus documentos e Documentos comuns, mais "Mais". Minha senha fica no avatar do rodapé.
+- Barra inferior (mobile): o cliente tem Início, Andamento e "Documentos" (Meus documentos), mais "Mais". O restante, "Solicitações" inclusive, abre em "Mais", que mostra o menu completo.
+- No trilho e na barra inferior, a Diretoria chega a "Documentos comuns" e a "Solicitações" por "Mais".
 
 Uma página interna aberta por um usuário-cliente mostra "Página não encontrada" e não é montada: não chega a consultar nada. O cookie de um usuário de perfil `Cliente` leva uma marca de portal (`atividades:portal`), que serve só para o layout saber, sem esperar consulta, que não deve montar páginas internas. A marca não autoriza nada: perfil, estado ativo e cliente continuam lidos do banco a cada operação, e quem nega é o portão. Como o usuário não troca entre o tipo `Cliente` e os internos, a marca não envelhece.
 
 A guarda vale nos dois sentidos e compara o endereço já decodificado:
 
-- `/andamento` e `/meus-documentos` são só do portal: abertas pela equipe, mostram "Página não encontrada" e não são montadas.
+- `/andamento` e `/meus-documentos` são só do portal: abertas pela equipe, mostram "Página não encontrada" e não são montadas. O mesmo vale para as quatro rotas das solicitações do cliente: `/minhas-solicitacoes`, `/minhas-solicitacoes/nova`, `/minhas-solicitacoes/{id}` e `/minhas-solicitacoes/{id}/editar`. O trecho do Id vale quando é um Guid para `Guid.TryParse`, o mesmo critério da restrição `{Id:guid}` do roteador. As rotas da Diretoria (`/solicitacoes` e `/solicitacoes/{id}`) são internas: fechadas ao cliente pela guarda, e "Página não encontrada" para a Produção pela própria página.
 - `/documentos-comuns` é compartilhada com a Diretoria e por isso o layout a monta para a equipe: para a Produção, a própria página mostra "Página não encontrada".
 - A resposta é sempre 200 (seção 11).
 
@@ -212,10 +224,12 @@ A guarda vale nos dois sentidos e compara o endereço já decodificado:
 
 | Rota | Quem | Conteúdo |
 |---|---|---|
-| `/` | Todos | Para o cliente: saudação, os dois totais do andamento e atalhos para as três áreas (e para a troca de senha). Para os demais, o início atual. O início faz uma consulta só, a do andamento, e usa apenas os totais; se ela responder acesso negado, o início mostra "Seu acesso foi encerrado. Entre novamente." e não mostra os atalhos; nas demais falhas, os atalhos continuam e a mensagem do erro ocupa o lugar dos totais |
+| `/` | Todos | Para o cliente: saudação, os dois totais do andamento e quatro atalhos, para as três áreas e para "Nova solicitação" (a troca de senha fica no menu, sem atalho). Para os demais, o início atual. O início faz uma consulta só, a do andamento, e usa apenas os totais; se ela responder acesso negado, o início mostra "Seu acesso foi encerrado. Entre novamente." e não mostra os atalhos; nas demais falhas, os atalhos continuam e a mensagem do erro ocupa o lugar dos totais |
 | `/andamento` | Cliente | A lista da seção 5, com os totais no topo e o filtro por situação. Falha na consulta mostra o erro no lugar da lista, com "Tentar de novo"; sem atividades, "Nenhuma atividade." |
 | `/meus-documentos` | Cliente | Documentos do cliente, com download; sem documentos, "Nenhum documento." |
 | `/documentos-comuns` | Cliente e Diretoria | Documentos comuns. O cliente só baixa; a Diretoria envia, renomeia e exclui |
+| `/minhas-solicitacoes`, `/minhas-solicitacoes/nova`, `/minhas-solicitacoes/{id}` e `/minhas-solicitacoes/{id}/editar` | Cliente | A lista, a abertura, a ficha e a edição das solicitações do cliente. Ver `2026-11-13-solicitacoes-do-cliente-design.md`, seção 6 |
+| `/solicitacoes` e `/solicitacoes/{id}` | Diretoria | A lista e a ficha de todas as solicitações. A Produção recebe "Página não encontrada" pela própria página |
 
 ### Ficha do cliente (Diretoria)
 
@@ -252,6 +266,7 @@ Não há tabela nova.
 - `usuario_cliente_alterado`: evento de segurança no usuário, com o cliente anterior e o novo, na mesma transação da troca.
 - `ListarMeusDocumentos` e `ListarDocumentosComuns` registram `Listou` no recurso `Documento`. `ListarMeuAndamento` registra `Listou` no recurso `Atividade`. O download registra `Baixou`, como hoje.
 - A criação, a renomeação e a exclusão de documentos das categorias novas aparecem pelos registros do próprio documento.
+- `ListarMinhasSolicitacoes` registra `Listou`, e `ObterMinhaSolicitacao`, `Visualizou`, no recurso `Solicitacao`. A solicitação de outro cliente, pedida pelo Id, responde `NaoEncontrado`, e essa resposta não gera evento de acesso negado; das respostas `NaoEncontrado` do portal, só a do download de documento registra `acesso_negado` (se isso muda, é decisão em aberto na spec das solicitações). As respostas `AcessoNegado` registram `acesso_negado`, como em toda requisição: a do portão (abaixo) e a do ator que não é cliente.
 - A requisição barrada pelo portão gera `acesso_negado` com o nome da requisição.
 - A consulta de auditoria continua exclusiva da Diretoria e filtra pelos usuários-cliente como por qualquer outro usuário.
 
@@ -268,12 +283,13 @@ Não há tabela nova.
 - O banco não garante sozinho o par perfil–cliente, porque o tipo fica na tabela de perfis; quem garante é o domínio, com teste de integração.
 - Restrições de `documentos` reescritas: `cliente_id` é obrigatório nas categorias Documento Geral, Contrato de Honorários e Documento do cliente, e nulo no Documento comum; `atividade_id` continua existindo só no Documento de Atividade.
 - Não há migration de dados: o perfil "Cliente" é garantido pelo semeador (seção 3).
+- A migration das solicitações reescreveu de novo a restrição de `cliente_id` (a categoria `DocumentoDaSolicitacao` também o exige) e acrescentou `documentos.solicitacao_id`, só na categoria nova (spec das solicitações, seção 8).
 
 ## 10. Testes
 
 Unitários no `Domain`:
 
-- Regra de acesso a documentos: a matriz completa de três tipos de perfil por cinco categorias, incluindo cliente diferente do dono do documento e usuário-cliente que conste em lista.
+- Regra de acesso a documentos: a matriz completa de três tipos de perfil por seis categorias (cinco, antes das solicitações), incluindo cliente diferente do dono do documento e usuário-cliente que conste em lista.
 - Invariante do `ClienteId` do usuário e recusa da troca entre tipo `Cliente` e tipos internos.
 - Recusa de usuário-cliente como responsável, revisor e participante, e de perfil ou usuário-cliente em lista de acesso.
 - Documento comum sem cliente; Documento do cliente exige cliente.
@@ -281,7 +297,7 @@ Unitários no `Domain`:
 Unitários na `Application`:
 
 - O portão: para cada requisição existente, descoberta por reflexão, um ator de tipo `Cliente` recebe `AcessoNegado` quando ela não está marcada, e o caso de uso não é chamado.
-- A lista das requisições marcadas é exatamente a da seção 3.
+- A lista das requisições marcadas é exatamente a da seção 3 (catorze, com as das solicitações).
 - Toda requisição não marcada responde com `Resultado`.
 - `EnviarDocumentoComum` recusa sem a confirmação.
 - A situação do andamento para cada um dos sete status.
@@ -297,7 +313,7 @@ De integração, com PostgreSQL real:
 
 De interface:
 
-- Páginas internas fechadas ao cliente; páginas só do portal (Andamento e Meus documentos) fechadas a quem não é cliente; Documentos comuns aberta ao cliente e à Diretoria, e "não encontrada" para a Produção pela própria página.
+- Páginas internas fechadas ao cliente; páginas só do portal (Andamento, Meus documentos e as quatro das solicitações) fechadas a quem não é cliente; Documentos comuns aberta ao cliente e à Diretoria, e "não encontrada" para a Produção pela própria página.
 - Menu por tipo de perfil.
 - O envio de Documento comum só acontece depois da confirmação.
 
@@ -331,8 +347,19 @@ A fase 8B está concluída, e a modelagem de domínio foi emendada com as regras
 - Feito na 8B: a guarda contra dois envios seguidos na busca de cliente da tela de usuários e a redação dos três trechos da modelagem ("Bloqueio de login", "reativar o cliente devolve o acesso" e o termo "sem ator").
 - Feito na 8B: as asserções mais estritas em dois testes do portal. O teste dos casos de uso internos passou a consultar o processo real da própria cliente e a conferir "sem valor" de forma estrita; o teste de download negado passou a conferir também o contrato da cliente, ao lado do Documento Geral.
 
+**Registrado na fase A das solicitações (`2026-11-13-solicitacoes-do-cliente-design.md`): o que mudou no portal.**
+
+- Feito na fase A das solicitações: a lista das requisições abertas ao cliente, agora com catorze, mudou nos mesmos quatro lugares: o teste que a fixa, a seção 3 desta spec e os dois pontos da modelagem de domínio (seções 5 e 12). As sete novas são `AbrirSolicitacao`, `AlterarMinhaSolicitacao`, `AnexarDocumentoASolicitacao`, `CancelarMinhaSolicitacao`, `ListarMinhasSolicitacoes`, `ObterMinhaSolicitacao` e `RemoverDocumentoDaSolicitacao`.
+- Feito na fase A das solicitações: a guarda de rotas ganhou as quatro rotas do portal, duas delas com Id. O Id vale pelo mesmo critério do roteador (`Guid.TryParse`), e não por uma expressão de formato; as quatro entram nas duas guardas (abertas ao cliente e só do portal).
+- Feito na fase A das solicitações: o menu e o início do cliente ganharam "Solicitações" e o atalho "Nova solicitação" (seção 6); a Diretoria ganhou "Solicitações" no menu lateral.
+- Feito na fase A das solicitações: o documento da solicitação é a terceira categoria visível ao cliente. A matriz de acesso e a regra de acesso do documento (seções 3 e 4) o cobrem, e a Produção nunca o alcança.
+- Decisão: "Envio de arquivos pelo cliente" saiu do fora do escopo (seção 12), mas o cliente só envia como anexo de uma solicitação. O envio às áreas "Meus documentos" e "Documentos comuns" continua exclusivo da Diretoria.
+- Em aberto: se o cliente que pede pelo Id a solicitação de outro cliente, ou que pede `RemoverDocumentoDaSolicitacao` com o Id de um documento de outro cliente, deve deixar um registro `acesso_negado`. Hoje esses pedidos respondem `NaoEncontrado` sem registro; das respostas `NaoEncontrado`, só a do download de documento registra (seção 7). As respostas `AcessoNegado`, a do portão inclusive, registram sempre.
+
 ## 12. Fora do escopo
 
-Envio de arquivos pelo cliente; aviso ao cliente por e-mail ou mensagem; cadastro do usuário pelo próprio cliente e recuperação de senha por e-mail; um usuário representando mais de um cliente; ocultar uma atividade do cliente; ficha, comentários ou anexos de atividade para o cliente; processos e agenda para o cliente; publicar um Documento Geral existente na área do cliente; versionamento de documentos.
+Aviso ao cliente por e-mail ou mensagem; cadastro do usuário pelo próprio cliente e recuperação de senha por e-mail; um usuário representando mais de um cliente; ocultar uma atividade do cliente; ficha, comentários ou anexos de atividade para o cliente; processos e agenda para o cliente; publicar um Documento Geral existente na área do cliente; versionamento de documentos.
 
 "Portal do cliente" sai da lista de fora do escopo da modelagem de domínio.
+
+"Envio de arquivos pelo cliente" saiu desta lista com as solicitações: o cliente envia arquivos, mas só como anexo de uma solicitação (`2026-11-13-solicitacoes-do-cliente-design.md`). Enviar documento às áreas "Meus documentos" e "Documentos comuns" continua fora do escopo do portal: é da Diretoria.

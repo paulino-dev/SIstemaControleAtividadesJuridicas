@@ -448,6 +448,9 @@ textarea.aj-campo{padding:9px var(--espaco-12);resize:vertical}
 /* Tabela: o link dentro dela (o nome que baixa o arquivo) usa a cor da marca, sem depender da folha da página. */
 :where(.aj-tabela a){color:var(--verde)}
 :where(.aj-tabela a:hover){color:var(--tinta)}
+/* Detalhes da ficha: o link no valor (o cliente, a atividade) usa a cor da marca, como na tabela e na linha. */
+:where(.aj-detalhes a){color:var(--verde)}
+:where(.aj-detalhes a:hover){color:var(--tinta)}
 
 /* Ícone preenchido: os três pontos de "mais ações". */
 .aj-app svg.aj-icone-cheio,svg.aj-icone-cheio{fill:currentColor;stroke:none}

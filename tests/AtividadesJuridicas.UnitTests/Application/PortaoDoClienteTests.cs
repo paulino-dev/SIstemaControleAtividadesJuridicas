@@ -40,7 +40,12 @@ public class PortaoDoClienteTests
     public void As_requisicoes_abertas_ao_cliente_sao_exatamente_estas()
     {
         Requisicoes().Where(r => Aberta(r.Tipo)).Select(r => r.Tipo.Name).Order().Should().Equal(
-            ["AlterarMinhaSenha", "AutenticarUsuario", "BaixarDocumento", "ListarDocumentosComuns", "ListarMeuAndamento", "ListarMeusDocumentos", "ObterMeuAcesso"],
+            [
+                "AbrirSolicitacao", "AlterarMinhaSenha", "AlterarMinhaSolicitacao", "AnexarDocumentoASolicitacao",
+                "AutenticarUsuario", "BaixarDocumento", "CancelarMinhaSolicitacao", "ListarDocumentosComuns",
+                "ListarMeuAndamento", "ListarMeusDocumentos", "ListarMinhasSolicitacoes", "ObterMeuAcesso",
+                "ObterMinhaSolicitacao", "RemoverDocumentoDaSolicitacao",
+            ],
             "abrir uma requisição ao cliente é uma decisão de segurança: acrescente-a aqui e na spec do portal");
     }
 

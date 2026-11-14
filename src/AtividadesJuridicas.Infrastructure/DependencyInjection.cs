@@ -5,6 +5,7 @@ using AtividadesJuridicas.Application.Cadastros;
 using AtividadesJuridicas.Application.Comum;
 using AtividadesJuridicas.Application.Documentos;
 using AtividadesJuridicas.Application.Identidade;
+using AtividadesJuridicas.Application.Solicitacoes;
 using AtividadesJuridicas.Infrastructure.Armazenamento;
 using AtividadesJuridicas.Infrastructure.Comum;
 using AtividadesJuridicas.Infrastructure.Persistencia;
@@ -50,6 +51,7 @@ public static class DependencyInjection
         servicos.AddScoped<IProcessoRepositorio, ProcessoRepositorio>();
         servicos.AddScoped<IDocumentoRepositorio, DocumentoRepositorio>();
         servicos.AddScoped<IAtividadeRepositorio, AtividadeRepositorio>();
+        servicos.AddScoped<ISolicitacaoRepositorio, SolicitacaoRepositorio>();
         servicos.AddScoped<IComentarioRepositorio, ComentarioRepositorio>();
         servicos.AddScoped<IEventoRepositorio, EventoRepositorio>();
         servicos.AddScoped<IAtividadesDoProcesso, AtividadesDoProcesso>();

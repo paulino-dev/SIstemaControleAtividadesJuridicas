@@ -16,10 +16,14 @@ internal static class ArquivoEnviado
     /// Valida o arquivo e o nome do documento. Devolve a mensagem de recusa ou nulo, e o nome do arquivo
     /// reduzido ao último segmento do caminho informado.
     /// </summary>
-    public static string? Validar(string? nomeArquivo, Stream? conteudo, string? nome, out string nomeDoArquivo)
+    public static string? Validar(string? nomeArquivo, Stream? conteudo, string? nome, out string nomeDoArquivo) =>
+        Validar(nomeArquivo, conteudo is not null, nome, out nomeDoArquivo);
+
+    /// <summary>A mesma validação, com <paramref name="temConteudo"/> dizendo se o arquivo trouxe conteúdo.</summary>
+    private static string? Validar(string? nomeArquivo, bool temConteudo, string? nome, out string nomeDoArquivo)
     {
         nomeDoArquivo = SoONome(nomeArquivo);
-        if (nomeDoArquivo.Length == 0 || conteudo is null)
+        if (nomeDoArquivo.Length == 0 || !temConteudo)
             return "Informe o arquivo.";
 
         // O domínio também valida, mas só depois de o arquivo estar gravado: o que dá para recusar, recusa-se antes.
@@ -55,8 +59,7 @@ internal static class ArquivoEnviado
         }
         catch (ExcecaoDeArquivoGrandeDemais)
         {
-            return Falha(TipoErro.Validacao,
-                $"O arquivo passa do limite de {DocumentosOpcoes.TamanhoMaximoBytes / UmMegabyte} MB.");
+            return Falha(TipoErro.Validacao, ArquivoGrandeDemais);
         }
 
         // Daqui em diante o arquivo já está gravado: qualquer saída sem registro no banco o remove.
@@ -81,6 +84,67 @@ internal static class ArquivoEnviado
             await TentarRemoverAsync(armazenamento, gravado.Chave);
             throw;
         }
+    }
+
+    /// <summary>
+    /// Grava vários arquivos e o que os registra, tudo ou nada: valida os nomes de todos antes de abrir o primeiro
+    /// conteúdo; abre, grava e fecha um arquivo por vez (o tamanho é conferido enquanto cada um é gravado); entrega os
+    /// gravados a <paramref name="registrar"/> (que cria os documentos e os põe no repositório) e salva. Em qualquer
+    /// recusa ou exceção, também ao abrir um conteúdo, remove todos os já gravados.
+    /// </summary>
+    public static async Task<Resultado> GravarVariosAsync(
+        IArmazenamentoDeArquivos armazenamento, IUnidadeDeTrabalho unidade, IReadOnlyList<ArquivoParaEnviar> arquivos,
+        Func<IReadOnlyList<ArquivoDoDocumento>, Task> registrar, CancellationToken ct)
+    {
+        var nomes = new List<string>(arquivos.Count);
+        foreach (var arquivo in arquivos)
+        {
+            if (Validar(arquivo.NomeArquivo, arquivo.AbrirConteudo is not null, null, out var nomeDoArquivo) is { } recusa)
+                return Resultado.Falha(TipoErro.Validacao, recusa);
+            nomes.Add(nomeDoArquivo);
+        }
+
+        var gravados = new List<ArquivoDoDocumento>(arquivos.Count);
+        try
+        {
+            for (var i = 0; i < arquivos.Count; i++)
+            {
+                ArquivoArmazenado gravado;
+                await using (var conteudo = arquivos[i].AbrirConteudo())
+                    gravado = await armazenamento.GravarAsync(conteudo, DocumentosOpcoes.TamanhoMaximoBytes, ct);
+                gravados.Add(new ArquivoDoDocumento(
+                    nomes[i], TipoDe(arquivos[i].TipoConteudo), gravado.TamanhoBytes, gravado.HashSha256, gravado.Chave));
+            }
+
+            await registrar(gravados);
+            await unidade.SalvarAsync(ct);
+            return Resultado.Ok();
+        }
+        catch (ExcecaoDeArquivoGrandeDemais)
+        {
+            await TentarRemoverTodosAsync(armazenamento, gravados);
+            return Resultado.Falha(TipoErro.Validacao, ArquivoGrandeDemais);
+        }
+        catch (ExcecaoDeDominio ex)
+        {
+            await TentarRemoverTodosAsync(armazenamento, gravados);
+            return Resultado.Falha(TipoErro.Validacao, ex.Message);
+        }
+        catch
+        {
+            await TentarRemoverTodosAsync(armazenamento, gravados);
+            throw;
+        }
+    }
+
+    private static string ArquivoGrandeDemais =>
+        $"O arquivo passa do limite de {DocumentosOpcoes.TamanhoMaximoBytes / UmMegabyte} MB.";
+
+    private static async Task TentarRemoverTodosAsync(
+        IArmazenamentoDeArquivos armazenamento, IEnumerable<ArquivoDoDocumento> gravados)
+    {
+        foreach (var arquivo in gravados)
+            await TentarRemoverAsync(armazenamento, arquivo.ChaveArmazenamento);
     }
 
     /// <summary>A limpeza nunca pode trocar o desfecho original: se ela mesma falhar, o arquivo fica órfão e só isso se perde.</summary>

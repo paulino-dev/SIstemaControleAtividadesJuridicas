@@ -155,6 +155,31 @@ public class DocumentosTests
     }
 
     [Fact]
+    public async Task EnviarDocumento_recusa_a_categoria_da_solicitacao()
+    {
+        var resultado = await Enviar(_c.Diretor, CategoriaDocumento.DocumentoDaSolicitacao);
+
+        resultado.Erro.Should().Be(TipoErro.Validacao);
+        resultado.Mensagem.Should().Be("Categoria inválida para envio.");
+        _c.Armazenamento.Arquivos.Should().BeEmpty();
+        _c.Documentos.Itens.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task ListarDocumentosDoCliente_recusa_a_categoria_da_solicitacao()
+    {
+        foreach (var ator in new[] { _c.Diretor, _pedro })
+        {
+            var resultado = await Listar(ator, CategoriaDocumento.DocumentoDaSolicitacao);
+
+            resultado.Erro.Should().Be(TipoErro.Validacao);
+            resultado.Mensagem.Should().Be("Categoria inválida para esta consulta.");
+        }
+
+        (await Listar(null, CategoriaDocumento.DocumentoDaSolicitacao)).Erro.Should().Be(TipoErro.AcessoNegado);
+    }
+
+    [Fact]
     public async Task Cliente_inexistente_e_recusado_antes_de_gravar()
     {
         var resultado = await Enviar(_c.Diretor, cliente: Guid.CreateVersion7());
@@ -503,6 +528,67 @@ public class DocumentosTests
         resultado.Sucesso.Should().BeTrue(resultado.Mensagem);
         _c.Documentos.Itens.Should().BeEmpty();
         _c.Armazenamento.Arquivos.Should().ContainKey(documento.ChaveArmazenamento);
+    }
+
+    private static ArquivoDoDocumento ArquivoGravado() =>
+        new("anexo.pdf", "application/pdf", 10, new string('a', 64), $"2026/11/{Guid.NewGuid():N}");
+
+    private Documento Guardado(CategoriaDocumento categoria)
+    {
+        var arquivo = ArquivoGravado();
+        var documento = categoria switch
+        {
+            CategoriaDocumento.DocumentoGeral => Documento.CriarGeral(_maria.Id, null, arquivo, [_c.PerfilDiretor]),
+            CategoriaDocumento.ContratoHonorarios => Documento.CriarContratoDeHonorarios(_maria.Id, null, arquivo),
+            CategoriaDocumento.DocumentoAtividade => Documento.CriarDeAtividade(Guid.CreateVersion7(), _maria.Id, null, arquivo),
+            CategoriaDocumento.DocumentoDoCliente => Documento.CriarDoCliente(_maria.Id, null, arquivo),
+            CategoriaDocumento.DocumentoComum => Documento.CriarComum(null, arquivo),
+            CategoriaDocumento.DocumentoDaSolicitacao => Documento.CriarDaSolicitacao(Guid.CreateVersion7(), _maria.Id, null, arquivo),
+            _ => throw new ArgumentOutOfRangeException(nameof(categoria)),
+        };
+        _c.Documentos.Adicionar(documento);
+        return documento;
+    }
+
+    [Fact]
+    public async Task Diretor_nao_renomeia_nem_exclui_documento_da_solicitacao()
+    {
+        var documento = Guardado(CategoriaDocumento.DocumentoDaSolicitacao);
+        var salvamentos = _c.Unidade.Salvamentos;
+
+        var renomear = await new RenomearDocumentoManipulador(_c.Como(_c.Diretor), _c.Documentos, _c.Unidade)
+            .ManipularAsync(new RenomearDocumento(documento.Id, "Outro nome"), default);
+        var excluir = await new ExcluirDocumentoManipulador(_c.Como(_c.Diretor), _c.Documentos, _c.Unidade)
+            .ManipularAsync(new ExcluirDocumento(documento.Id), default);
+
+        renomear.Erro.Should().Be(TipoErro.Validacao);
+        renomear.Mensagem.Should().Be("Documento de solicitação só é alterado pelo cliente que a abriu.");
+        excluir.Erro.Should().Be(TipoErro.Validacao);
+        excluir.Mensagem.Should().Be("Documento de solicitação só é alterado pelo cliente que a abriu.");
+        documento.Nome.Should().Be("anexo.pdf");
+        _c.Documentos.Itens.Should().ContainSingle().Which.Should().BeSameAs(documento);
+        _c.Unidade.Salvamentos.Should().Be(salvamentos);
+    }
+
+    [Theory]
+    [InlineData(CategoriaDocumento.DocumentoGeral)]
+    [InlineData(CategoriaDocumento.ContratoHonorarios)]
+    [InlineData(CategoriaDocumento.DocumentoAtividade)]
+    [InlineData(CategoriaDocumento.DocumentoDoCliente)]
+    [InlineData(CategoriaDocumento.DocumentoComum)]
+    public async Task Diretor_renomeia_e_exclui_documento_das_outras_categorias(CategoriaDocumento categoria)
+    {
+        var documento = Guardado(categoria);
+
+        var renomear = await new RenomearDocumentoManipulador(_c.Como(_c.Diretor), _c.Documentos, _c.Unidade)
+            .ManipularAsync(new RenomearDocumento(documento.Id, "Outro nome"), default);
+        var excluir = await new ExcluirDocumentoManipulador(_c.Como(_c.Diretor), _c.Documentos, _c.Unidade)
+            .ManipularAsync(new ExcluirDocumento(documento.Id), default);
+
+        renomear.Sucesso.Should().BeTrue(renomear.Mensagem);
+        documento.Nome.Should().Be("Outro nome");
+        excluir.Sucesso.Should().BeTrue(excluir.Mensagem);
+        _c.Documentos.Itens.Should().BeEmpty();
     }
 
     [Fact]

@@ -1012,6 +1012,10 @@ namespace AtividadesJuridicas.Infrastructure.Persistencia.Migrations
                         .HasColumnType("character varying(255)")
                         .HasColumnName("nome_arquivo_original");
 
+                    b.Property<Guid?>("SolicitacaoId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("solicitacao_id");
+
                     b.Property<long>("TamanhoBytes")
                         .HasColumnType("bigint")
                         .HasColumnName("tamanho_bytes");
@@ -1032,6 +1036,9 @@ namespace AtividadesJuridicas.Infrastructure.Persistencia.Migrations
                         .IsUnique()
                         .HasDatabaseName("ix_documentos_chave_armazenamento");
 
+                    b.HasIndex("SolicitacaoId")
+                        .HasDatabaseName("ix_documentos_solicitacao_id");
+
                     b.HasIndex("ClienteId", "Categoria")
                         .HasDatabaseName("ix_documentos_cliente_id_categoria");
 
@@ -1039,7 +1046,9 @@ namespace AtividadesJuridicas.Infrastructure.Persistencia.Migrations
                         {
                             t.HasCheckConstraint("ck_documentos_atividade_so_na_categoria_3", "(categoria = 3) = (atividade_id IS NOT NULL)");
 
-                            t.HasCheckConstraint("ck_documentos_cliente_conforme_a_categoria", "(categoria IN (1, 2, 4) AND cliente_id IS NOT NULL) OR categoria = 3 OR (categoria = 5 AND cliente_id IS NULL)");
+                            t.HasCheckConstraint("ck_documentos_cliente_conforme_a_categoria", "(categoria IN (1, 2, 4, 6) AND cliente_id IS NOT NULL) OR categoria = 3 OR (categoria = 5 AND cliente_id IS NULL)");
+
+                            t.HasCheckConstraint("ck_documentos_solicitacao_so_na_categoria_6", "(categoria = 6) = (solicitacao_id IS NOT NULL)");
                         });
                 });
 
@@ -1300,6 +1309,95 @@ namespace AtividadesJuridicas.Infrastructure.Persistencia.Migrations
                     b.ToTable("usuarios", (string)null);
                 });
 
+            modelBuilder.Entity("AtividadesJuridicas.Domain.Solicitacoes.SolicitacaoDoCliente", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("AtividadeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("atividade_id");
+
+                    b.Property<DateTime?>("AtualizadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("atualizado_em");
+
+                    b.Property<Guid?>("AtualizadoPor")
+                        .HasColumnType("uuid")
+                        .HasColumnName("atualizado_por");
+
+                    b.Property<DateTime?>("CanceladaEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("cancelada_em");
+
+                    b.Property<Guid>("ClienteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("cliente_id");
+
+                    b.Property<DateTime>("CriadoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("criado_em");
+
+                    b.Property<Guid?>("CriadoPor")
+                        .HasColumnType("uuid")
+                        .HasColumnName("criado_por");
+
+                    b.Property<string>("Descricao")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("descricao");
+
+                    b.Property<DateTime?>("ExcluidoEm")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("excluido_em");
+
+                    b.Property<Guid?>("ExcluidoPor")
+                        .HasColumnType("uuid")
+                        .HasColumnName("excluido_por");
+
+                    b.Property<Guid>("SolicitanteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("solicitante_id");
+
+                    b.Property<int>("Urgencia")
+                        .HasColumnType("integer")
+                        .HasColumnName("urgencia");
+
+                    b.Property<uint>("Versao")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.Property<int>("VersaoDosDocumentos")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("versao_dos_documentos");
+
+                    b.HasKey("Id")
+                        .HasName("pk_solicitacoes_do_cliente");
+
+                    b.HasIndex("AtividadeId")
+                        .HasDatabaseName("ix_solicitacoes_do_cliente_atividade_id");
+
+                    b.HasIndex("CriadoEm")
+                        .HasDatabaseName("ix_solicitacoes_do_cliente_criado_em");
+
+                    b.HasIndex("SolicitanteId")
+                        .HasDatabaseName("ix_solicitacoes_do_cliente_solicitante_id");
+
+                    b.HasIndex("ClienteId", "CriadoEm")
+                        .HasDatabaseName("ix_solicitacoes_do_cliente_cliente_id_criado_em");
+
+                    b.ToTable("solicitacoes_do_cliente", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_solicitacoes_urgencia", "urgencia IN (1, 2, 3)");
+                        });
+                });
+
             modelBuilder.Entity("AtividadesJuridicas.Domain.Cadastros.ClientePessoaFisica", b =>
                 {
                     b.HasBaseType("AtividadesJuridicas.Domain.Cadastros.Cliente");
@@ -1539,6 +1637,12 @@ namespace AtividadesJuridicas.Infrastructure.Persistencia.Migrations
                         .HasForeignKey("ClienteId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .HasConstraintName("fk_documentos_clientes_cliente_id");
+
+                    b.HasOne("AtividadesJuridicas.Domain.Solicitacoes.SolicitacaoDoCliente", null)
+                        .WithMany()
+                        .HasForeignKey("SolicitacaoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_documentos_solicitacoes_do_cliente_solicitacao_id");
                 });
 
             modelBuilder.Entity("AtividadesJuridicas.Domain.Documentos.DocumentoPerfilAcesso", b =>
@@ -1589,6 +1693,29 @@ namespace AtividadesJuridicas.Infrastructure.Persistencia.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_usuarios_perfis_perfil_id");
+                });
+
+            modelBuilder.Entity("AtividadesJuridicas.Domain.Solicitacoes.SolicitacaoDoCliente", b =>
+                {
+                    b.HasOne("AtividadesJuridicas.Domain.Atividades.Atividade", null)
+                        .WithMany()
+                        .HasForeignKey("AtividadeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_solicitacoes_do_cliente_atividades_atividade_id");
+
+                    b.HasOne("AtividadesJuridicas.Domain.Cadastros.Cliente", null)
+                        .WithMany()
+                        .HasForeignKey("ClienteId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_solicitacoes_do_cliente_clientes_cliente_id");
+
+                    b.HasOne("AtividadesJuridicas.Domain.Identidade.Usuario", null)
+                        .WithMany()
+                        .HasForeignKey("SolicitanteId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_solicitacoes_do_cliente_usuarios_solicitante_id");
                 });
 
             modelBuilder.Entity("AtividadesJuridicas.Domain.Agenda.Evento", b =>

@@ -8,11 +8,13 @@ using AtividadesJuridicas.Application.Cadastros;
 using AtividadesJuridicas.Application.Comum;
 using AtividadesJuridicas.Application.Documentos;
 using AtividadesJuridicas.Application.Identidade;
+using AtividadesJuridicas.Application.Solicitacoes;
 using AtividadesJuridicas.Domain.Agenda;
 using AtividadesJuridicas.Domain.Atividades;
 using AtividadesJuridicas.Domain.Cadastros;
 using AtividadesJuridicas.Domain.Documentos;
 using AtividadesJuridicas.Domain.Identidade;
+using AtividadesJuridicas.Domain.Solicitacoes;
 
 namespace AtividadesJuridicas.UnitTests.Application;
 
@@ -539,6 +541,76 @@ public sealed class EventoRepositorioFalso(
     public void Remover(Evento evento) => Itens.Remove(evento);
 }
 
+public sealed class SolicitacaoRepositorioFalso(
+    UsuarioRepositorioFalso usuarios, ClienteRepositorioFalso clientes, AtividadeRepositorioFalso atividades,
+    DocumentoRepositorioFalso documentos) : ISolicitacaoRepositorio
+{
+    public List<SolicitacaoDoCliente> Itens { get; } = [];
+
+    public Task<SolicitacaoDoCliente?> ObterPorIdAsync(Guid id, CancellationToken ct) =>
+        Task.FromResult(Itens.FirstOrDefault(s => s.Id == id));
+
+    public void Adicionar(SolicitacaoDoCliente solicitacao) => Itens.Add(solicitacao);
+
+    // Mesma regra da consulta real: a atividade viva (ainda no repositório) decide; sem ela, vale a situação da
+    // própria solicitação. Sem relógio de criação, a ordem de inserção faz o papel dela: a mais recente primeiro.
+    public Task<Pagina<SolicitacaoDoPortal>> ListarDoClienteAsync(
+        Guid clienteId, SituacaoParaOCliente? situacao, int pagina, int tamanho, CancellationToken ct)
+    {
+        var todas = Enumerable.Reverse(Itens)
+            .Where(s => s.ClienteId == clienteId)
+            .Select(s => (Solicitacao: s, Situacao: SituacaoParaOClienteDe(s)))
+            .Where(s => situacao is null || s.Situacao == situacao)
+            .ToList();
+
+        var itens = todas.Skip((pagina - 1) * tamanho).Take(tamanho).Select(s => new SolicitacaoDoPortal(
+            s.Solicitacao.Id, s.Solicitacao.CriadoEm, SolicitacoesOpcoes.Trecho(s.Solicitacao.Descricao),
+            s.Solicitacao.Urgencia, s.Situacao, NomeDoUsuario(s.Solicitacao.SolicitanteId) ?? string.Empty,
+            DocumentosDe(s.Solicitacao))).ToList();
+
+        return Task.FromResult(new Pagina<SolicitacaoDoPortal>(itens, todas.Count, pagina, tamanho));
+    }
+
+    // Da mais antiga para a mais nova: a ordem de inserção.
+    public Task<Pagina<SolicitacaoResumo>> ListarAsync(
+        SituacaoDaSolicitacao? situacao, Guid? clienteId, int pagina, int tamanho, CancellationToken ct)
+    {
+        var todas = Itens
+            .Where(s => (situacao is null || s.Situacao == situacao) && (clienteId is null || s.ClienteId == clienteId))
+            .ToList();
+
+        var itens = todas.Skip((pagina - 1) * tamanho).Take(tamanho).Select(s => new SolicitacaoResumo(
+            s.Id, s.CriadoEm, s.ClienteId, clientes.Itens.FirstOrDefault(c => c.Id == s.ClienteId)?.Nome ?? string.Empty,
+            NomeDoUsuario(s.SolicitanteId) ?? string.Empty, s.Urgencia, SolicitacoesOpcoes.Trecho(s.Descricao),
+            DocumentosDe(s), s.Situacao)).ToList();
+
+        return Task.FromResult(new Pagina<SolicitacaoResumo>(itens, todas.Count, pagina, tamanho));
+    }
+
+    public Task<AtividadeDaSolicitacao?> ObterAtividadeAsync(Guid atividadeId, CancellationToken ct) =>
+        Task.FromResult(atividades.Itens.Where(a => a.Id == atividadeId)
+            .Select(a => new AtividadeDaSolicitacao(a.Id, a.Titulo, a.Status, a.ConcluidaEm)).FirstOrDefault());
+
+    public Task<string?> NomeDoUsuarioAsync(Guid usuarioId, CancellationToken ct) =>
+        Task.FromResult(NomeDoUsuario(usuarioId));
+
+    public Task<string?> NomeDoClienteAsync(Guid clienteId, CancellationToken ct) =>
+        Task.FromResult(clientes.Itens.FirstOrDefault(c => c.Id == clienteId)?.Nome);
+
+    private string? NomeDoUsuario(Guid usuarioId) => usuarios.Itens.FirstOrDefault(u => u.Id == usuarioId)?.Nome;
+
+    private int DocumentosDe(SolicitacaoDoCliente solicitacao) =>
+        documentos.Itens.Count(d => d.Categoria == CategoriaDocumento.DocumentoDaSolicitacao && d.SolicitacaoId == solicitacao.Id);
+
+    private SituacaoParaOCliente SituacaoParaOClienteDe(SolicitacaoDoCliente solicitacao)
+    {
+        var atividade = atividades.Itens.FirstOrDefault(a => a.Id == solicitacao.AtividadeId);
+        return atividade is not null
+            ? (atividade.Status == StatusAtividade.Concluida ? SituacaoParaOCliente.Concluida : SituacaoParaOCliente.EmAndamento)
+            : solicitacao.CanceladaEm is not null ? SituacaoParaOCliente.Cancelada : SituacaoParaOCliente.AguardandoAnalise;
+    }
+}
+
 /// <summary>Monta um cenário com os dois perfis padrão e um diretor ativo.</summary>
 public sealed class Cenario
 {
@@ -557,6 +629,7 @@ public sealed class Cenario
     public RelogioFixo Relogio { get; } = new();
     public AuditoriaFalsa Auditoria { get; } = new();
     public DocumentoRepositorioFalso Documentos { get; }
+    public SolicitacaoRepositorioFalso Solicitacoes { get; }
     public ResponsaveisDeAtividadeFalso ResponsaveisDeAtividade { get; }
     public ArmazenamentoFalso Armazenamento { get; } = new();
     public Perfil PerfilDiretor { get; } = Perfil.Criar("Diretor", TipoPerfil.Diretoria);
@@ -578,6 +651,7 @@ public sealed class Cenario
         Eventos = new EventoRepositorioFalso(Usuarios, Clientes, Processos);
         AtividadesDoProcesso = new AtividadesDoProcessoFalso(Atividades);
         Documentos = new DocumentoRepositorioFalso(Atividades);
+        Solicitacoes = new SolicitacaoRepositorioFalso(Usuarios, Clientes, Atividades, Documentos);
         ResponsaveisDeAtividade = new ResponsaveisDeAtividadeFalso(Atividades);
         Comentarios = new ComentarioRepositorioFalso(Usuarios);
         Perfis.Itens.AddRange([PerfilDiretor, PerfilProducao]);
@@ -662,7 +736,7 @@ public sealed class DocumentoRepositorioFalso(AtividadeRepositorioFalso? ativida
     public Task<Pagina<DocumentoResumo>> ListarDoClienteAsync(
         Guid clienteId, CategoriaDocumento categoria, FiltroDeAcesso? acesso, int pagina, int tamanho, CancellationToken ct)
     {
-        // Mesma regra da consulta real: sem filtro (Diretoria) vê tudo; com filtro, nunca contrato nem as categorias do cliente, e o
+        // Mesma regra da consulta real: sem filtro (Diretoria) vê tudo; com filtro, nunca contrato nem as categorias do portal, e o
         // documento de atividade só para quem é responsável hoje de uma atividade viva.
         // O fake não tem relógio: a ordem de inserção faz as vezes da data, do mais recente para o mais antigo.
         var todos = Enumerable.Reverse(Itens)
@@ -708,6 +782,17 @@ public sealed class DocumentoRepositorioFalso(AtividadeRepositorioFalso? ativida
         Task.FromResult(DoPortal(
             Enumerable.Reverse(Itens).Where(d => d.Categoria == CategoriaDocumento.DocumentoComum), comAutor, pagina, tamanho));
 
+    // A mesma ordem da consulta real: CriadoEm, nome e Id. O fake não carimba CriadoEm, então aqui todos têm o mesmo
+    // instante e vêm pelo nome. O que foi removido sai de Itens.
+    public Task<IReadOnlyList<DocumentoDoPortal>> ListarDaSolicitacaoAsync(Guid solicitacaoId, CancellationToken ct) =>
+        Task.FromResult<IReadOnlyList<DocumentoDoPortal>>([.. Itens
+            .Where(d => d.Categoria == CategoriaDocumento.DocumentoDaSolicitacao && d.SolicitacaoId == solicitacaoId)
+            .OrderBy(d => d.CriadoEm).ThenBy(d => d.Nome, StringComparer.Ordinal).ThenBy(d => d.Id)
+            .Select(d => new DocumentoDoPortal(d.Id, d.Nome, d.TamanhoBytes, d.CriadoEm))]);
+
+    public Task<int> ContarDaSolicitacaoAsync(Guid solicitacaoId, CancellationToken ct) =>
+        Task.FromResult(Itens.Count(d => d.Categoria == CategoriaDocumento.DocumentoDaSolicitacao && d.SolicitacaoId == solicitacaoId));
+
     private Pagina<DocumentoDoPortal> DoPortal(IEnumerable<Documento> documentos, bool comAutor, int pagina, int tamanho)
     {
         var todos = documentos.ToList();
@@ -723,7 +808,7 @@ public sealed class DocumentoRepositorioFalso(AtividadeRepositorioFalso? ativida
     private bool PodeVer(Documento d, FiltroDeAcesso acesso)
     {
         if (d.Categoria is CategoriaDocumento.ContratoHonorarios or CategoriaDocumento.DocumentoDoCliente
-            or CategoriaDocumento.DocumentoComum) return false;
+            or CategoriaDocumento.DocumentoComum or CategoriaDocumento.DocumentoDaSolicitacao) return false;
         if (d.Categoria == CategoriaDocumento.DocumentoAtividade)
             return atividades?.Itens.Any(a => a.Id == d.AtividadeId && a.EhResponsavel(acesso.UsuarioId)) ?? false;
         return d.PerfisComAcesso.Any(a => a.PerfilId == acesso.PerfilId) ||

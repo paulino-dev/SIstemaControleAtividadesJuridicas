@@ -10,6 +10,7 @@ public enum CategoriaDocumento
     DocumentoAtividade = 3,
     DocumentoDoCliente = 4,
     DocumentoComum = 5,
+    DocumentoDaSolicitacao = 6,
 }
 
 /// <summary>O arquivo já gravado no armazenamento: nome enviado, tipo, tamanho, hash e onde ficou.</summary>
@@ -61,17 +62,24 @@ public sealed class Documento : Entidade
     public CategoriaDocumento Categoria { get; private set; }
 
     /// <summary>
-    /// Obrigatório em documento geral, em contrato de honorários e em documento do cliente; em documento de
-    /// atividade é o da atividade (nulo se avulsa); no documento comum não existe.
+    /// Obrigatório em documento geral, em contrato de honorários, em documento do cliente e em documento da
+    /// solicitação; em documento de atividade é o da atividade (nulo se avulsa); no documento comum não existe.
     /// </summary>
     public Guid? ClienteId { get; private set; }
 
     /// <summary>Obrigatório no documento de atividade e só nele.</summary>
     public Guid? AtividadeId { get; private set; }
 
-    /// <summary>Verdadeiro nas categorias postas para o cliente: documento do cliente e documento comum.</summary>
+    /// <summary>Obrigatório no documento da solicitação e só nele.</summary>
+    public Guid? SolicitacaoId { get; private set; }
+
+    /// <summary>
+    /// Verdadeiro nas categorias postas para o cliente: documento do cliente, documento comum e documento da
+    /// solicitação.
+    /// </summary>
     public bool VisivelAoCliente =>
-        Categoria is CategoriaDocumento.DocumentoDoCliente or CategoriaDocumento.DocumentoComum;
+        Categoria is CategoriaDocumento.DocumentoDoCliente or CategoriaDocumento.DocumentoComum
+            or CategoriaDocumento.DocumentoDaSolicitacao;
 
     public IReadOnlyCollection<DocumentoPerfilAcesso> PerfisComAcesso => _perfisComAcesso;
     public IReadOnlyCollection<DocumentoUsuarioAcesso> UsuariosComAcesso => _usuariosComAcesso;
@@ -105,6 +113,20 @@ public sealed class Documento : Entidade
     /// <summary>Documento comum, visível a todos os clientes: não tem cliente e nasce com as listas vazias.</summary>
     public static Documento CriarComum(string? nome, ArquivoDoDocumento arquivo) =>
         Criar(CategoriaDocumento.DocumentoComum, null, nome, arquivo);
+
+    /// <summary>
+    /// Documento anexado a uma solicitação do cliente, visível a ele no portal: nasce com as listas de acesso vazias.
+    /// <paramref name="clienteId"/> é o cliente da solicitação.
+    /// </summary>
+    public static Documento CriarDaSolicitacao(Guid solicitacaoId, Guid clienteId, string? nome, ArquivoDoDocumento arquivo)
+    {
+        if (solicitacaoId == Guid.Empty)
+            throw new ExcecaoDeDominio("A solicitação do documento é obrigatória.");
+
+        var documento = Criar(CategoriaDocumento.DocumentoDaSolicitacao, clienteId, nome, arquivo);
+        documento.SolicitacaoId = solicitacaoId;
+        return documento;
+    }
 
     /// <summary>
     /// Documento de atividade: nasce com as listas de acesso vazias, porque o acesso é o dos responsáveis atuais
@@ -153,11 +175,12 @@ public sealed class Documento : Entidade
     {
         if (tipoPerfil == TipoPerfil.Diretoria) return true;
 
-        // O cliente alcança só o que foi posto para ele: os documentos do próprio cliente e os comuns. Nenhuma
-        // outra categoria, ainda que ele conste em alguma lista.
+        // O cliente alcança só o que foi posto para ele: os documentos do próprio cliente, os das próprias
+        // solicitações e os comuns. Nenhuma outra categoria, ainda que ele conste em alguma lista.
         if (tipoPerfil == TipoPerfil.Cliente)
             return Categoria == CategoriaDocumento.DocumentoComum ||
-                   (Categoria == CategoriaDocumento.DocumentoDoCliente && clienteDoUsuario is { } cliente && ClienteId == cliente);
+                   (Categoria is (CategoriaDocumento.DocumentoDoCliente or CategoriaDocumento.DocumentoDaSolicitacao)
+                    && clienteDoUsuario is { } cliente && ClienteId == cliente);
 
         // Daqui em diante só a Produção: um tipo de perfil desconhecido não acessa nada.
         if (tipoPerfil != TipoPerfil.Producao) return false;
@@ -234,7 +257,7 @@ public sealed class Documento : Entidade
         ArgumentNullException.ThrowIfNull(arquivo);
         if (clienteId == Guid.Empty || (clienteId is null
                 && categoria is (CategoriaDocumento.DocumentoGeral or CategoriaDocumento.ContratoHonorarios
-                    or CategoriaDocumento.DocumentoDoCliente)))
+                    or CategoriaDocumento.DocumentoDoCliente or CategoriaDocumento.DocumentoDaSolicitacao)))
             throw new ExcecaoDeDominio(ClienteObrigatorio);
         if (string.IsNullOrWhiteSpace(arquivo.NomeOriginal))
             throw new ExcecaoDeDominio("O nome do arquivo é obrigatório.");
