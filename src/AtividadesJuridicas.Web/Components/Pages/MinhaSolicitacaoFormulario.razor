@@ -158,7 +158,13 @@ else
     protected override Task OnInitializedAsync() => CarregarAsync();
 
     /// <summary>A carga inteira, também a do "Tentar de novo". A nova não consulta nada: o formulário já está pronto.</summary>
-    private async Task CarregarAsync()
+    private Task CarregarAsync() => CarregarTudoAsync(null);
+
+    /// <summary>
+    /// A carga inteira: os campos, a versão e os documentos, todos do que está no servidor agora.
+    /// <paramref name="recadoParaAFicha"/>: o que a ficha mostra se a solicitação não puder mais ser alterada.
+    /// </summary>
+    private async Task CarregarTudoAsync(string? recadoParaAFicha)
     {
         _mensagem = null;
         if (Id is null)
@@ -171,7 +177,7 @@ else
 
         _estado = EstadoDeCarga.Carregando;
         _erroDaCarga = null;
-        if (await LerAsync() is not { } detalhe) return;
+        if (await LerAsync(recadoParaAFicha) is not { } detalhe) return;
 
         _form = new Formulario { Descricao = detalhe.Descricao, Urgencia = detalhe.Urgencia };
         _contexto = new EditContext(_form);
@@ -350,14 +356,41 @@ else
                 return;
             }
 
-            var mensagem = resultado.Sucesso ? sucesso : resultado.Mensagem ?? "Não foi possível alterar os documentos.";
-            if (await LerAsync(resultado.Sucesso ? null : mensagem) is null) return;
-            Avisar(mensagem, falhou: !resultado.Sucesso);
+            if (!resultado.Sucesso)
+            {
+                await RelerDepoisDaRecusaAsync(resultado, resultado.Mensagem ?? "Não foi possível alterar os documentos.");
+                return;
+            }
+
+            // Com sucesso, só a versão e os documentos mudaram no servidor: o que foi digitado nos campos fica.
+            if (await LerAsync() is null) return;
+            Avisar(sucesso, falhou: false);
         }
         finally
         {
             _ocupado = false;
         }
+    }
+
+    /// <summary>
+    /// Depois de uma recusa do servidor, a tela relê a solicitação e mostra a mensagem. Conflito e "não encontrada"
+    /// querem dizer que outra tela mudou a solicitação: a tela relê tudo, também os campos, para não salvar o texto
+    /// antigo com a versão nova. Nas outras recusas, só a versão e os documentos (o que foi digitado fica). Se a
+    /// solicitação não puder mais ser alterada, a tela volta à ficha, que mostra a mensagem como recado.
+    /// </summary>
+    private async Task RelerDepoisDaRecusaAsync(Resultado resultado, string mensagem)
+    {
+        if (resultado.Erro is TipoErro.Conflito or TipoErro.NaoEncontrado)
+        {
+            await CarregarTudoAsync(mensagem);
+            if (_estado != EstadoDeCarga.Pronto || _encerrado) return;
+        }
+        else if (await LerAsync(mensagem) is null)
+        {
+            return;
+        }
+
+        Avisar(mensagem, falhou: true);
     }
 
     // ---- Enviar (nova) ou salvar (edição) ----
@@ -404,7 +437,7 @@ else
             if (!resultado.Sucesso)
             {
                 // O formulário fica com o que foi digitado e escolhido.
-                Avisar(resultado.Mensagem, falhou: true);
+                Avisar(resultado.Mensagem ?? "Não foi possível enviar a solicitação.", falhou: true);
                 return false;
             }
 
@@ -438,19 +471,7 @@ else
             return true;
         }
 
-        var mensagem = resultado.Mensagem ?? "Não foi possível salvar a solicitação.";
-        if (resultado.Erro is TipoErro.Conflito or TipoErro.NaoEncontrado)
-        {
-            // Outra tela mudou a solicitação: a tela relê tudo (o que está no servidor agora) e avisa.
-            await CarregarAsync();
-            if (_estado != EstadoDeCarga.Pronto || _encerrado) return false;
-        }
-        else if (await LerAsync(mensagem) is null)
-        {
-            return false;
-        }
-
-        Avisar(mensagem, falhou: true);
+        await RelerDepoisDaRecusaAsync(resultado, resultado.Mensagem ?? "Não foi possível salvar a solicitação.");
         return false;
     }
 

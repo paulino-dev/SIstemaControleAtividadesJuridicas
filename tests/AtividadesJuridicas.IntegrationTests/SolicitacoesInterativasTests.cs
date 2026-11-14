@@ -5,7 +5,9 @@ using AtividadesJuridicas.Application.Identidade;
 using AtividadesJuridicas.Application.Solicitacoes;
 using AtividadesJuridicas.Domain.Cadastros;
 using AtividadesJuridicas.Domain.Solicitacoes;
+using AtividadesJuridicas.Web.Components.Layout;
 using AtividadesJuridicas.Web.Components.Pages;
+using AtividadesJuridicas.Web.Infra;
 using Bunit;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
@@ -99,6 +101,172 @@ public class SolicitacoesInterativasTests : TelaInterativa
 
         tela.Markup.Should().Contain("Anexe até 10 documentos por solicitação.");
         tela.FindAll(".aj-linha").Should().BeEmpty();
+    }
+
+    private static InputFileContent[] Arquivos(int quantos, string prefixo) =>
+        Enumerable.Range(1, quantos).Select(n => InputFileContent.CreateFromText("conteúdo", $"{prefixo}-{n}.pdf")).ToArray();
+
+    private static string[] Escolhidos(IRenderedComponent<MinhaSolicitacaoFormulario> tela) =>
+        tela.FindAll(".aj-linha .aj-linha__titulo").Select(t => t.TextContent).ToArray();
+
+    [Fact]
+    public void Arquivo_acima_de_50_mb_e_recusado_na_tela_e_os_demais_da_escolha_ficam()
+    {
+        var grande = InputFileContent.CreateFromBinary(new byte[DocumentosOpcoes.TamanhoMaximoBytes + 1], "grande.pdf");
+        var tela = Desenhar<MinhaSolicitacaoFormulario>();
+
+        // Sozinho, é recusado e a lista continua vazia.
+        tela.FindComponents<InputFile>()[^1].UploadFiles(grande);
+
+        tela.Markup.Should().Contain("O arquivo grande.pdf passa do limite de 50 MB.");
+        Escolhidos(tela).Should().BeEmpty();
+
+        // Numa escolha mista, só ele sai: o outro entra na lista.
+        tela.FindComponents<InputFile>()[^1].UploadFiles(grande, InputFileContent.CreateFromText("conteúdo", "rg.pdf"));
+
+        tela.Markup.Should().Contain("O arquivo grande.pdf passa do limite de 50 MB.");
+        Escolhidos(tela).Should().Equal("rg.pdf");
+    }
+
+    [Fact]
+    public void Limite_de_dez_arquivos_vale_para_a_soma_das_escolhas()
+    {
+        var tela = Desenhar<MinhaSolicitacaoFormulario>();
+        tela.FindComponents<InputFile>()[^1].UploadFiles(Arquivos(6, "primeira"));
+        Escolhidos(tela).Should().HaveCount(6);
+
+        // 6 + 5 passa de 10: a segunda escolha é recusada inteira, e a primeira fica.
+        tela.FindComponents<InputFile>()[^1].UploadFiles(Arquivos(5, "segunda"));
+
+        tela.Markup.Should().Contain("Anexe até 10 documentos por solicitação.");
+        Escolhidos(tela).Should().HaveCount(6).And.OnlyContain(nome => nome.StartsWith("primeira-"));
+
+        // 6 + 4 chega a 10: entra.
+        tela.FindComponents<InputFile>()[^1].UploadFiles(Arquivos(4, "terceira"));
+
+        Escolhidos(tela).Should().HaveCount(10);
+        tela.Markup.Should().NotContain("Anexe até 10 documentos por solicitação.");
+    }
+
+    [Fact]
+    public void Falha_ao_enviar_mantem_o_formulario_para_tentar_de_novo()
+    {
+        var tentativas = new List<string[]>();
+        Despachante.Responde<AbrirSolicitacao, Resultado<Guid>>(abrir =>
+        {
+            tentativas.Add(abrir.Arquivos.Select(a => a.NomeArquivo).ToArray());
+            return tentativas.Count == 1
+                ? Resultado<Guid>.Falha(TipoErro.Validacao, "Falha de teste.")
+                : Resultado<Guid>.Ok(SolicitacaoId);
+        });
+        var tela = Desenhar<MinhaSolicitacaoFormulario>();
+        tela.Find("textarea").Change("Preciso de uma certidão atualizada.");
+        tela.FindAll("div.aj-segmentado button").Single(b => b.TextContent == "Média").Click();
+        tela.FindComponents<InputFile>()[^1].UploadFiles(InputFileContent.CreateFromText("conteúdo", "rg.pdf"));
+
+        tela.Find("form#formulario-da-solicitacao").Submit();
+
+        tela.WaitForAssertion(() => tela.Markup.Should().Contain("Falha de teste."));
+        Endereco.Should().NotContain("/minhas-solicitacoes/");
+        tela.Find("textarea").GetAttribute("value").Should().Be("Preciso de uma certidão atualizada.");
+        tela.FindAll("div.aj-segmentado button").Single(b => b.TextContent == "Média").GetAttribute("aria-pressed").Should().Be("true");
+        Escolhidos(tela).Should().Equal("rg.pdf");
+        tela.FindAll("button[type=submit]").Should().OnlyContain(b => !b.HasAttribute("disabled"));
+
+        // A nova tentativa manda o mesmo arquivo, lido de novo do campo em que ele foi escolhido.
+        tela.Find("form#formulario-da-solicitacao").Submit();
+
+        tela.WaitForAssertion(() => Endereco.Should().EndWith($"/minhas-solicitacoes/{SolicitacaoId}?enviada=1"));
+        tentativas.Should().HaveCount(2);
+        tentativas[1].Should().Equal("rg.pdf");
+    }
+
+    // A solicitação como o servidor a tem depois de outra tela mexer nela: outro texto e outra versão.
+    private static MinhaSolicitacaoDetalhe MudadaPorOutraTela(bool podeAlterar = true) =>
+        Detalhe(podeAlterar, versao: 9) with { Descricao = "Texto que outra tela salvou.", Urgencia = UrgenciaDaSolicitacao.Baixa };
+
+    [Fact]
+    public void Conflito_ao_salvar_a_edicao_rele_os_campos_e_a_versao_e_mostra_a_mensagem()
+    {
+        var leituras = 0;
+        Despachante
+            .Responde<ObterMinhaSolicitacao, Resultado<MinhaSolicitacaoDetalhe>>(_ => Resultado<MinhaSolicitacaoDetalhe>.Ok(
+                ++leituras == 1 ? Detalhe(podeAlterar: true) : MudadaPorOutraTela()))
+            .Responde<AlterarMinhaSolicitacao, Resultado>(alterar => alterar.VersaoEsperada == 9
+                ? Resultado.Ok()
+                : Resultado.Falha(TipoErro.Conflito, SolicitacoesOpcoes.Alterada));
+        var tela = Desenhar<MinhaSolicitacaoFormulario>(p => p.Add(x => x.Id, (Guid?)SolicitacaoId));
+        tela.Find("textarea").Change("Texto digitado sobre a versão antiga.");
+
+        tela.Find("form#formulario-da-solicitacao").Submit();
+
+        tela.WaitForAssertion(() => tela.Markup.Should().Contain(SolicitacoesOpcoes.Alterada));
+        tela.Find("textarea").GetAttribute("value").Should().Be("Texto que outra tela salvou.");
+        tela.FindAll("div.aj-segmentado button").Single(b => b.TextContent == "Baixa").GetAttribute("aria-pressed").Should().Be("true");
+
+        // Salvar de novo vai com a versão relida.
+        tela.Find("form#formulario-da-solicitacao").Submit();
+
+        tela.WaitForAssertion(() => Endereco.Should().EndWith($"/minhas-solicitacoes/{SolicitacaoId}"));
+        Despachante.Recebidas.OfType<AlterarMinhaSolicitacao>().Last().Should().Be(new AlterarMinhaSolicitacao(
+            SolicitacaoId, "Texto que outra tela salvou.", UrgenciaDaSolicitacao.Baixa, 9));
+    }
+
+    [Fact]
+    public void Conflito_em_operacao_de_documento_rele_os_campos_e_nao_salva_o_texto_antigo_com_a_versao_nova()
+    {
+        var leituras = 0;
+        Despachante
+            .Responde<ObterMinhaSolicitacao, Resultado<MinhaSolicitacaoDetalhe>>(_ => Resultado<MinhaSolicitacaoDetalhe>.Ok(
+                ++leituras == 1 ? Detalhe(podeAlterar: true) : MudadaPorOutraTela()))
+            .Responde<RemoverDocumentoDaSolicitacao, Resultado>(Resultado.Falha(TipoErro.Conflito, SolicitacoesOpcoes.Alterada))
+            .Responde<AlterarMinhaSolicitacao, Resultado>(Resultado.Ok());
+        var tela = Desenhar<MinhaSolicitacaoFormulario>(p => p.Add(x => x.Id, (Guid?)SolicitacaoId));
+        tela.Find("textarea").Change("Texto digitado sobre a versão antiga.");
+
+        tela.FindAll(".aj-linha button").Single(b => b.TextContent == "Remover").Click();
+
+        tela.WaitForAssertion(() => tela.Markup.Should().Contain(SolicitacoesOpcoes.Alterada));
+        tela.Find("textarea").GetAttribute("value").Should().Be("Texto que outra tela salvou.");
+
+        tela.Find("form#formulario-da-solicitacao").Submit();
+
+        tela.WaitForAssertion(() => Despachante.Recebidas.OfType<AlterarMinhaSolicitacao>().Should().ContainSingle()
+            .Which.Should().Be(new AlterarMinhaSolicitacao(
+                SolicitacaoId, "Texto que outra tela salvou.", UrgenciaDaSolicitacao.Baixa, 9)));
+    }
+
+    [Fact]
+    public void Documento_removido_com_sucesso_mantem_o_que_foi_digitado()
+    {
+        Despachante
+            .Responde<ObterMinhaSolicitacao, Resultado<MinhaSolicitacaoDetalhe>>(
+                Resultado<MinhaSolicitacaoDetalhe>.Ok(Detalhe(podeAlterar: true)))
+            .Responde<RemoverDocumentoDaSolicitacao, Resultado>(Resultado.Ok());
+        var tela = Desenhar<MinhaSolicitacaoFormulario>(p => p.Add(x => x.Id, (Guid?)SolicitacaoId));
+        tela.Find("textarea").Change("Texto ainda não salvo.");
+
+        tela.FindAll(".aj-linha button").Single(b => b.TextContent == "Remover").Click();
+
+        tela.WaitForAssertion(() => tela.Markup.Should().Contain("Documento removido."));
+        tela.Find("textarea").GetAttribute("value").Should().Be("Texto ainda não salvo.");
+    }
+
+    [Fact]
+    public void Conflito_ao_salvar_que_tira_a_edicao_leva_a_mensagem_para_a_ficha()
+    {
+        var leituras = 0;
+        Despachante
+            .Responde<ObterMinhaSolicitacao, Resultado<MinhaSolicitacaoDetalhe>>(_ => Resultado<MinhaSolicitacaoDetalhe>.Ok(
+                ++leituras == 1 ? Detalhe(podeAlterar: true) : MudadaPorOutraTela(podeAlterar: false)))
+            .Responde<AlterarMinhaSolicitacao, Resultado>(Resultado.Falha(TipoErro.Conflito, SolicitacoesOpcoes.Alterada));
+        var tela = Desenhar<MinhaSolicitacaoFormulario>(p => p.Add(x => x.Id, (Guid?)SolicitacaoId));
+
+        tela.Find("form#formulario-da-solicitacao").Submit();
+
+        tela.WaitForAssertion(() => Endereco.Should().EndWith($"/minhas-solicitacoes/{SolicitacaoId}"));
+        Services.GetRequiredService<Recados>().Retirar().Should()
+            .Be(new Recado(SolicitacoesOpcoes.Alterada, TipoDeAviso.Erro));
     }
 
     [Fact]
