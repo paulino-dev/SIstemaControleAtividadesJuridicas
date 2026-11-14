@@ -106,9 +106,13 @@ public class AtividadeDaSolicitacaoInterativaTests : TelaInterativa
     private static string? Valor(IRenderedComponent<AtividadeFormulario> tela, string rotulo) =>
         Rotulo(tela, rotulo).QuerySelector("input, textarea")!.GetAttribute("value");
 
+    // A descrição da atividade não vem da solicitação: o diretor a escreve.
+    private const string DescricaoDaAtividade = "Emitir a certidão no cartório.";
+
     private static void Preencher(IRenderedComponent<AtividadeFormulario> tela)
     {
         Digitar(tela, "Título", "Emitir a certidão");
+        Digitar(tela, "Descrição", DescricaoDaAtividade);
         tela.FindAll("div.aj-segmentado button").Single(b => b.TextContent == "2").Click();
     }
 
@@ -135,7 +139,7 @@ public class AtividadeDaSolicitacaoInterativaTests : TelaInterativa
     private IReadOnlyList<CriarAtividadeDaSolicitacao> Enviadas => [.. Despachante.Recebidas.OfType<CriarAtividadeDaSolicitacao>()];
 
     [Fact]
-    public void Abre_com_o_cliente_travado_e_a_descricao_preenchida()
+    public void Abre_com_o_cliente_travado_e_o_titulo_e_a_descricao_vazios()
     {
         var tela = DaSolicitacao();
 
@@ -151,7 +155,8 @@ public class AtividadeDaSolicitacaoInterativaTests : TelaInterativa
         tela.FindAll("input[form=busca-de-cliente]").Should().BeEmpty();
         tela.FindAll("button[aria-label='Sem cliente']").Should().BeEmpty();
 
-        Valor(tela, "Descrição").Should().Be(Descricao);
+        // A descrição da solicitação fica no bloco (e vai para o comentário); a da atividade é o diretor quem escreve.
+        Valor(tela, "Descrição").Should().BeNullOrEmpty();
         Valor(tela, "Título").Should().BeNullOrEmpty();
         CaixaDoComentario(tela).HasAttribute("checked").Should().BeTrue();
         Documentos(tela).Should().Equal(("rg.pdf", true), ("procuracao.pdf", true));
@@ -225,7 +230,6 @@ public class AtividadeDaSolicitacaoInterativaTests : TelaInterativa
     {
         var tela = DaSolicitacao();
         Preencher(tela);
-        Digitar(tela, "Descrição", "Emitir a certidão no cartório.");
         CaixaDoComentario(tela).Change(false);
         tela.FindAll("[aria-labelledby=documentos-da-solicitacao] input")[0].Change(false);
 
@@ -276,7 +280,7 @@ public class AtividadeDaSolicitacaoInterativaTests : TelaInterativa
         else
             aviso.TextContent.Should().NotContain(SolicitacoesOpcoes.AlteradaDuranteACriacao);
         Valor(tela, "Título").Should().Be("Emitir a certidão");
-        Valor(tela, "Descrição").Should().Be(Descricao, "a descrição da atividade é a que o diretor tem no campo");
+        Valor(tela, "Descrição").Should().Be(DescricaoDaAtividade, "a descrição da atividade é a que o diretor tem no campo");
 
         Clicar(tela, "Criar mesmo assim");
 
@@ -304,7 +308,7 @@ public class AtividadeDaSolicitacaoInterativaTests : TelaInterativa
         Bloco(tela).TextContent.Should().Contain("Preciso de duas certidões.").And.NotContain(Descricao);
         Documentos(tela).Should().Equal(("rg.pdf", false), ("procuracao.pdf", true), ("comprovante.pdf", true));
         Valor(tela, "Título").Should().Be("Emitir a certidão");
-        Valor(tela, "Descrição").Should().Be(Descricao);
+        Valor(tela, "Descrição").Should().Be(DescricaoDaAtividade);
 
         Salvar(tela);
 

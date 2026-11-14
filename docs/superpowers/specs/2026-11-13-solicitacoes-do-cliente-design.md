@@ -225,7 +225,8 @@ Cliente inativo: a criação é recusada como hoje ("O cliente está inativo.").
 
 - Bloco "Solicitação do cliente" no topo: quem abriu, quando, urgência e a descrição.
 - O cliente vem preenchido e travado, sem a busca de cliente. A busca de processo mostra só os processos desse cliente.
-- A descrição da atividade vem preenchida com a descrição da solicitação e pode ser editada. O título vem vazio.
+- O título e a descrição da atividade vêm vazios: o diretor escreve os dois. A descrição da solicitação fica no bloco
+  e vai para o comentário pela caixa abaixo. (Emenda de 2026-11-14: a descrição vinha preenchida com a da solicitação.)
 - Caixa "Anexar a descrição da solicitação como comentário da atividade", marcada.
 - Lista "Documentos da solicitação", cada um com a sua caixa, todas marcadas, e os botões "Marcar todos" e
   "Desmarcar todos". Sem documentos, a lista não aparece.

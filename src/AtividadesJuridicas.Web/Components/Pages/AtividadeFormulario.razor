@@ -298,8 +298,9 @@
                 return;
             }
 
-            // A cancelada carrega como as outras: o aviso do cancelamento só vem na gravação. O título fica vazio.
-            _form = new Formulario { Descricao = solicitacao.Descricao };
+            // A cancelada carrega como as outras: o aviso do cancelamento só vem na gravação. Título e descrição ficam
+            // vazios: a descrição da solicitação está no bloco e pode ir para o comentário da atividade.
+            _form = new Formulario();
             _clienteId = solicitacao.ClienteId;
             _clienteNome = solicitacao.ClienteNome;
             _anexarComentario = true;
