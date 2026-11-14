@@ -101,6 +101,12 @@ public sealed record PaginaDeDocumentos(
 /// </summary>
 public sealed record DocumentoDoPortal(Guid Id, string Nome, long TamanhoBytes, DateTime EnviadoEm, string? EnviadoPor = null);
 
+/// <summary>
+/// Um arquivo que chega para ser gravado. <paramref name="NomeArquivo"/> é o nome que o navegador informou: só o
+/// último segmento é guardado, e ele nunca é usado como caminho. Quem envia fecha <paramref name="Conteudo"/>.
+/// </summary>
+public sealed record ArquivoParaEnviar(string NomeArquivo, string? TipoConteudo, Stream Conteudo);
+
 /// <summary>Quem recebe fecha <paramref name="Conteudo"/>.</summary>
 public sealed record ArquivoParaBaixar(string NomeArquivo, long TamanhoBytes, Stream Conteudo) : IAsyncDisposable, IDisposable
 {
