@@ -6,6 +6,12 @@ public enum TipoErro
     NaoEncontrado,
     AcessoNegado,
     Conflito,
+
+    /// <summary>
+    /// A operação só segue se o usuário confirmar o que o aviso diz; é uma pergunta, não uma recusa. Quem chama distingue
+    /// as duas pelo tipo, reenvia com a confirmação e, até lá, nada foi gravado.
+    /// </summary>
+    ConfirmacaoNecessaria,
 }
 
 public class Resultado

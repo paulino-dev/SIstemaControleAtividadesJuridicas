@@ -13,6 +13,9 @@ public static class SolicitacoesOpcoes
     public const string Alterada = "A solicitação foi alterada. Recarregue e tente de novo.";
     public const string SoQuemAbriu = "Só quem abriu a solicitação pode alterá-la.";
     public const string LimiteDeDocumentos = "Anexe até 10 documentos por solicitação.";
+    public const string AlteradaDuranteACriacao =
+        "O cliente alterou a solicitação enquanto você criava a atividade. Confira os dados atualizados.";
+    public const string DocumentoForaDaSolicitacao = "Um documento marcado não está mais nesta solicitação.";
 
     /// <summary>
     /// Os primeiros <see cref="TamanhoDoTrecho"/> caracteres da descrição, com "…" quando ela foi cortada. O corte

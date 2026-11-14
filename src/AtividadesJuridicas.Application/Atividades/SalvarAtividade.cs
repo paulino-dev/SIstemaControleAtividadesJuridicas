@@ -3,7 +3,6 @@ using AtividadesJuridicas.Application.Comum;
 using AtividadesJuridicas.Application.Documentos;
 using AtividadesJuridicas.Application.Identidade;
 using AtividadesJuridicas.Domain.Atividades;
-using AtividadesJuridicas.Domain.Cadastros;
 using AtividadesJuridicas.Domain.Comum;
 
 namespace AtividadesJuridicas.Application.Atividades;
@@ -41,28 +40,9 @@ public sealed class SalvarAtividadeManipulador(
                 return Falha(TipoErro.Conflito, AcessoAAtividade.Alterada);
         }
 
-        // Cliente e área inativos não entram em vínculo novo; quem já os tinha pode mantê-los.
-        if (requisicao.ClienteId is { } clienteId)
-        {
-            var cliente = await clientes.ObterPorIdAsync(clienteId, ct);
-            if (cliente is null) return Falha(TipoErro.Validacao, "Cliente não encontrado.");
-            if (!cliente.Ativo && existente?.ClienteId != cliente.Id)
-                return Falha(TipoErro.Validacao, "O cliente está inativo.");
-        }
-
-        Processo? processo = null;
-        if (requisicao.ProcessoId is { } processoId)
-        {
-            processo = await processos.ObterPorIdAsync(processoId, ct);
-            if (processo is null) return Falha(TipoErro.Validacao, "Processo não encontrado.");
-        }
-        else if (requisicao.AreaAtuacaoId is { } areaId)
-        {
-            var area = await areas.ObterPorIdAsync(areaId, ct);
-            if (area is null) return Falha(TipoErro.Validacao, "Área de atuação não encontrada.");
-            if (!area.Ativo && existente?.AreaAtuacaoId != area.Id)
-                return Falha(TipoErro.Validacao, "A área de atuação está inativa.");
-        }
+        var (erro, processo) = await ValidacaoDoVinculo.ValidarAsync(
+            clientes, processos, areas, requisicao.ClienteId, requisicao.ProcessoId, requisicao.AreaAtuacaoId, existente, ct);
+        if (erro is not null) return Falha(TipoErro.Validacao, erro);
 
         try
         {
