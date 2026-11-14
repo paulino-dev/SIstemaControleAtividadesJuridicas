@@ -782,10 +782,12 @@ public sealed class DocumentoRepositorioFalso(AtividadeRepositorioFalso? ativida
         Task.FromResult(DoPortal(
             Enumerable.Reverse(Itens).Where(d => d.Categoria == CategoriaDocumento.DocumentoComum), comAutor, pagina, tamanho));
 
-    // Sem relógio, a ordem de inserção é do mais antigo para o mais novo; o que foi removido sai de Itens.
+    // A mesma ordem da consulta real: CriadoEm, nome e Id. O fake não carimba CriadoEm, então aqui todos têm o mesmo
+    // instante e vêm pelo nome. O que foi removido sai de Itens.
     public Task<IReadOnlyList<DocumentoDoPortal>> ListarDaSolicitacaoAsync(Guid solicitacaoId, CancellationToken ct) =>
         Task.FromResult<IReadOnlyList<DocumentoDoPortal>>([.. Itens
             .Where(d => d.Categoria == CategoriaDocumento.DocumentoDaSolicitacao && d.SolicitacaoId == solicitacaoId)
+            .OrderBy(d => d.CriadoEm).ThenBy(d => d.Nome, StringComparer.Ordinal).ThenBy(d => d.Id)
             .Select(d => new DocumentoDoPortal(d.Id, d.Nome, d.TamanhoBytes, d.CriadoEm))]);
 
     public Task<int> ContarDaSolicitacaoAsync(Guid solicitacaoId, CancellationToken ct) =>

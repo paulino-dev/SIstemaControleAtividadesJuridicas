@@ -9,6 +9,12 @@ public static class DocumentosOpcoes
     public const int TamanhoDaPagina = 20;
     public const string TipoDeConteudoPadrao = "application/octet-stream";
     public const string ConfirmacaoExigida = "Confirme que o documento ficará visível para todos os clientes.";
+
+    /// <summary>
+    /// A recusa da Diretoria ao renomear ou excluir um documento da solicitação: os anexos de uma solicitação só mudam
+    /// pelas mãos do cliente que a abriu, enquanto ela aguarda.
+    /// </summary>
+    public const string DocumentoDaSolicitacaoSoPeloCliente = "Documento de solicitação só é alterado pelo cliente que a abriu.";
 }
 
 /// <summary>Quem está consultando, quando a consulta precisa respeitar a lista de acesso.</summary>
@@ -51,7 +57,8 @@ public interface IDocumentoRepositorio
     Task<Pagina<DocumentoDoPortal>> ListarComunsAsync(bool comAutor, int pagina, int tamanho, CancellationToken ct);
 
     /// <summary>
-    /// Os documentos vivos de uma solicitação, do mais antigo para o mais novo, sem autor. Quem chama já decidiu
+    /// Os documentos vivos de uma solicitação, do mais antigo para o mais novo, sem autor; os gravados no mesmo
+    /// instante (os de uma solicitação aberta com vários arquivos), pelo nome e depois pelo Id. Quem chama já decidiu
     /// que o usuário vê a solicitação.
     /// </summary>
     Task<IReadOnlyList<DocumentoDoPortal>> ListarDaSolicitacaoAsync(Guid solicitacaoId, CancellationToken ct);
@@ -103,9 +110,11 @@ public sealed record DocumentoDoPortal(Guid Id, string Nome, long TamanhoBytes, 
 
 /// <summary>
 /// Um arquivo que chega para ser gravado. <paramref name="NomeArquivo"/> é o nome que o navegador informou: só o
-/// último segmento é guardado, e ele nunca é usado como caminho. Quem envia fecha <paramref name="Conteudo"/>.
+/// último segmento é guardado, e ele nunca é usado como caminho. <paramref name="AbrirConteudo"/> abre o conteúdo só
+/// quando ele vai ser lido: quem recebe abre um arquivo por vez, lê e fecha antes de abrir o próximo (no Blazor Server
+/// a transferência do navegador começa na abertura, e um fluxo aberto à espera estoura o tempo sem dados).
 /// </summary>
-public sealed record ArquivoParaEnviar(string NomeArquivo, string? TipoConteudo, Stream Conteudo);
+public sealed record ArquivoParaEnviar(string NomeArquivo, string? TipoConteudo, Func<Stream> AbrirConteudo);
 
 /// <summary>Quem recebe fecha <paramref name="Conteudo"/>.</summary>
 public sealed record ArquivoParaBaixar(string NomeArquivo, long TamanhoBytes, Stream Conteudo) : IAsyncDisposable, IDisposable

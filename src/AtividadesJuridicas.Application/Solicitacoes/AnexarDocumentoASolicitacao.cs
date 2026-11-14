@@ -48,11 +48,12 @@ public sealed class AnexarDocumentoASolicitacaoManipulador(
         if (ArquivoEnviado.Validar(requisicao.NomeArquivo, requisicao.Conteudo, null, out var nomeDoArquivo) is { } recusaDoArquivo)
             return Resultado<Guid>.Falha(TipoErro.Validacao, recusaDoArquivo);
 
+        // O cliente do documento é o da solicitação.
         try
         {
             return await ArquivoEnviado.GravarAsync(
                 armazenamento, documentos, unidade, nomeDoArquivo, requisicao.TipoConteudo, requisicao.Conteudo,
-                arquivo => Task.FromResult(Documento.CriarDaSolicitacao(solicitacao.Id, clienteId, null, arquivo)), ct);
+                arquivo => Task.FromResult(Documento.CriarDaSolicitacao(solicitacao.Id, solicitacao.ClienteId, null, arquivo)), ct);
         }
         catch (Exception ex) when (ex is ExcecaoDeConcorrencia or ExcecaoDeConflito)
         {

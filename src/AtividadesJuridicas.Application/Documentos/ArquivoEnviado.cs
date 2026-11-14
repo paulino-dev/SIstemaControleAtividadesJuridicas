@@ -16,10 +16,14 @@ internal static class ArquivoEnviado
     /// Valida o arquivo e o nome do documento. Devolve a mensagem de recusa ou nulo, e o nome do arquivo
     /// reduzido ao último segmento do caminho informado.
     /// </summary>
-    public static string? Validar(string? nomeArquivo, Stream? conteudo, string? nome, out string nomeDoArquivo)
+    public static string? Validar(string? nomeArquivo, Stream? conteudo, string? nome, out string nomeDoArquivo) =>
+        Validar(nomeArquivo, conteudo is not null, nome, out nomeDoArquivo);
+
+    /// <summary>A mesma validação, com <paramref name="temConteudo"/> dizendo se o arquivo trouxe conteúdo.</summary>
+    private static string? Validar(string? nomeArquivo, bool temConteudo, string? nome, out string nomeDoArquivo)
     {
         nomeDoArquivo = SoONome(nomeArquivo);
-        if (nomeDoArquivo.Length == 0 || conteudo is null)
+        if (nomeDoArquivo.Length == 0 || !temConteudo)
             return "Informe o arquivo.";
 
         // O domínio também valida, mas só depois de o arquivo estar gravado: o que dá para recusar, recusa-se antes.
@@ -83,9 +87,10 @@ internal static class ArquivoEnviado
     }
 
     /// <summary>
-    /// Grava vários arquivos e o que os registra, tudo ou nada: valida todos antes de gravar o primeiro, grava um a um,
-    /// entrega os gravados a <paramref name="registrar"/> (que cria os documentos e os põe no repositório) e salva. Em
-    /// qualquer recusa ou exceção, remove todos os já gravados.
+    /// Grava vários arquivos e o que os registra, tudo ou nada: valida os nomes de todos antes de abrir o primeiro
+    /// conteúdo; abre, grava e fecha um arquivo por vez (o tamanho é conferido enquanto cada um é gravado); entrega os
+    /// gravados a <paramref name="registrar"/> (que cria os documentos e os põe no repositório) e salva. Em qualquer
+    /// recusa ou exceção, também ao abrir um conteúdo, remove todos os já gravados.
     /// </summary>
     public static async Task<Resultado> GravarVariosAsync(
         IArmazenamentoDeArquivos armazenamento, IUnidadeDeTrabalho unidade, IReadOnlyList<ArquivoParaEnviar> arquivos,
@@ -94,7 +99,7 @@ internal static class ArquivoEnviado
         var nomes = new List<string>(arquivos.Count);
         foreach (var arquivo in arquivos)
         {
-            if (Validar(arquivo.NomeArquivo, arquivo.Conteudo, null, out var nomeDoArquivo) is { } recusa)
+            if (Validar(arquivo.NomeArquivo, arquivo.AbrirConteudo is not null, null, out var nomeDoArquivo) is { } recusa)
                 return Resultado.Falha(TipoErro.Validacao, recusa);
             nomes.Add(nomeDoArquivo);
         }
@@ -104,7 +109,9 @@ internal static class ArquivoEnviado
         {
             for (var i = 0; i < arquivos.Count; i++)
             {
-                var gravado = await armazenamento.GravarAsync(arquivos[i].Conteudo, DocumentosOpcoes.TamanhoMaximoBytes, ct);
+                ArquivoArmazenado gravado;
+                await using (var conteudo = arquivos[i].AbrirConteudo())
+                    gravado = await armazenamento.GravarAsync(conteudo, DocumentosOpcoes.TamanhoMaximoBytes, ct);
                 gravados.Add(new ArquivoDoDocumento(
                     nomes[i], TipoDe(arquivos[i].TipoConteudo), gravado.TamanhoBytes, gravado.HashSha256, gravado.Chave));
             }

@@ -80,11 +80,12 @@ public sealed class DocumentoRepositorio(AppDbContext db) : IDocumentoRepositori
             db.Documentos.AsNoTracking().Where(d => d.Categoria == CategoriaDocumento.DocumentoComum),
             comAutor, pagina, tamanho, ct);
 
-    // O filtro global de exclusão lógica já deixa de fora os documentos removidos. Sem autor, como no portal.
+    // O filtro global de exclusão lógica já deixa de fora os documentos removidos. Sem autor, como no portal. Os
+    // documentos de uma solicitação aberta com vários arquivos têm o mesmo CriadoEm: o nome e o Id desempatam.
     public async Task<IReadOnlyList<DocumentoDoPortal>> ListarDaSolicitacaoAsync(Guid solicitacaoId, CancellationToken ct) =>
         await db.Documentos.AsNoTracking()
             .Where(d => d.Categoria == CategoriaDocumento.DocumentoDaSolicitacao && d.SolicitacaoId == solicitacaoId)
-            .OrderBy(d => d.CriadoEm).ThenBy(d => d.Id)
+            .OrderBy(d => d.CriadoEm).ThenBy(d => d.Nome).ThenBy(d => d.Id)
             .Select(d => new DocumentoDoPortal(d.Id, d.Nome, d.TamanhoBytes, d.CriadoEm, null))
             .ToListAsync(ct);
 

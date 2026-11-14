@@ -45,9 +45,9 @@ public sealed class AbrirSolicitacaoManipulador(
             gravados =>
             {
                 // Todos os documentos são criados antes de qualquer coisa entrar nos repositórios: se um for recusado, a
-                // solicitação também não entra.
+                // solicitação também não entra. O cliente do documento é o da solicitação.
                 var novos = gravados.Select(arquivo =>
-                    Documento.CriarDaSolicitacao(solicitacao.Id, clienteId, null, arquivo)).ToList();
+                    Documento.CriarDaSolicitacao(solicitacao.Id, solicitacao.ClienteId, null, arquivo)).ToList();
 
                 solicitacoes.Adicionar(solicitacao);
                 foreach (var documento in novos) documentos.Adicionar(documento);

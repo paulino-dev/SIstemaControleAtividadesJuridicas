@@ -38,7 +38,7 @@ public class SolicitacoesDoPortalTests
     private static MemoryStream Conteudo(string texto = "conteúdo") => new(Encoding.UTF8.GetBytes(texto));
 
     private static ArquivoParaEnviar Arquivo(string nome = "certidao.pdf", string texto = "conteúdo") =>
-        new(nome, "application/pdf", Conteudo(texto));
+        new(nome, "application/pdf", () => Conteudo(texto));
 
     private static List<ArquivoParaEnviar> Arquivos(int quantidade) =>
         [.. Enumerable.Range(1, quantidade).Select(i => Arquivo($"documento-{i:00}.pdf", $"conteúdo {i}"))];
@@ -351,6 +351,69 @@ public class SolicitacoesDoPortalTests
 
         resultado.Erro.Should().Be(TipoErro.Validacao);
         resultado.Mensagem.Should().Be("O arquivo está vazio.");
+    }
+
+    [Fact]
+    public async Task Abrir_abre_um_conteudo_por_vez_e_fecha_cada_um()
+    {
+        var aberturas = new Aberturas();
+
+        var resultado = await Abrir(_carla, arquivos: [aberturas.Arquivo("um.pdf"), aberturas.Arquivo("dois.pdf"), aberturas.Arquivo("tres.pdf")]);
+
+        resultado.Sucesso.Should().BeTrue(resultado.Mensagem);
+        aberturas.Total.Should().Be(3);
+        aberturas.MaximoAbertas.Should().Be(1, "o conteúdo do próximo arquivo só é aberto depois de o anterior ser gravado e fechado");
+        aberturas.Abertas.Should().Be(0);
+        DocumentosDa(resultado.Valor).Should().HaveCount(3);
+    }
+
+    [Fact]
+    public async Task Abrir_valida_os_nomes_e_a_descricao_antes_de_abrir_qualquer_conteudo()
+    {
+        var aberturas = new Aberturas();
+
+        var semNome = await Abrir(_carla, arquivos: [aberturas.Arquivo("um.pdf"), aberturas.Arquivo("dois.pdf"), aberturas.Arquivo("")]);
+        var semDescricao = await Abrir(_carla, " ", arquivos: [aberturas.Arquivo("um.pdf")]);
+
+        semNome.Mensagem.Should().Be("Informe o arquivo.");
+        semDescricao.Mensagem.Should().Be("A descrição da solicitação é obrigatória.");
+        aberturas.Total.Should().Be(0);
+        _c.Armazenamento.Arquivos.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Abrir_com_o_segundo_arquivo_acima_do_limite_fecha_cada_conteudo_e_remove_o_primeiro()
+    {
+        var aberturas = new Aberturas();
+        var armazenamento = new ArmazenamentoQueFalhaNaGravacao(
+            _c.Armazenamento, 2, new ExcecaoDeArquivoGrandeDemais(DocumentosOpcoes.TamanhoMaximoBytes));
+
+        var resultado = await Abrir(
+            _carla, arquivos: [aberturas.Arquivo("um.pdf"), aberturas.Arquivo("dois.pdf"), aberturas.Arquivo("tres.pdf")],
+            armazenamento: armazenamento);
+
+        resultado.Mensagem.Should().Be("O arquivo passa do limite de 50 MB.");
+        aberturas.Total.Should().Be(2, "o terceiro nem chega a ser aberto");
+        aberturas.MaximoAbertas.Should().Be(1);
+        aberturas.Abertas.Should().Be(0);
+        _c.Armazenamento.Arquivos.Should().BeEmpty();
+        _c.Solicitacoes.Itens.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Abrir_com_falha_ao_abrir_um_conteudo_remove_os_ja_gravados_e_deixa_a_falha_subir()
+    {
+        var aberturas = new Aberturas();
+        var quebrado = new ArquivoParaEnviar("dois.pdf", "application/pdf", () => throw new IOException("o navegador fechou o arquivo"));
+
+        var abrir = () => Abrir(_carla, arquivos: [aberturas.Arquivo("um.pdf"), quebrado, aberturas.Arquivo("tres.pdf")]);
+
+        await abrir.Should().ThrowAsync<IOException>();
+        aberturas.Total.Should().Be(1);
+        aberturas.Abertas.Should().Be(0);
+        _c.Armazenamento.Arquivos.Should().BeEmpty();
+        _c.Solicitacoes.Itens.Should().BeEmpty();
+        _c.Unidade.Salvamentos.Should().Be(0);
     }
 
     // Listar.
@@ -847,6 +910,42 @@ public class SolicitacoesDoPortalTests
     }
 
     /// <summary>Um armazenamento que falha na N-ésima gravação e, nas outras, grava no armazenamento de verdade do cenário.</summary>
+    /// <summary>
+    /// Arquivos cujo conteúdo conta as aberturas, como o do navegador: quantos foram abertos, quantos estão abertos
+    /// agora e o máximo aberto ao mesmo tempo.
+    /// </summary>
+    private sealed class Aberturas
+    {
+        public int Total { get; private set; }
+        public int Abertas { get; private set; }
+        public int MaximoAbertas { get; private set; }
+
+        public ArquivoParaEnviar Arquivo(string nome, string texto = "conteúdo") =>
+            new(nome, "application/pdf", () =>
+            {
+                Total++;
+                Abertas++;
+                MaximoAbertas = Math.Max(MaximoAbertas, Abertas);
+                return new Conteudo(this, Encoding.UTF8.GetBytes(texto));
+            });
+
+        private sealed class Conteudo(Aberturas aberturas, byte[] bytes) : MemoryStream(bytes)
+        {
+            private bool _fechado;
+
+            protected override void Dispose(bool disposing)
+            {
+                if (!_fechado)
+                {
+                    _fechado = true;
+                    aberturas.Abertas--;
+                }
+
+                base.Dispose(disposing);
+            }
+        }
+    }
+
     private sealed class ArmazenamentoQueFalhaNaGravacao(ArmazenamentoFalso interno, int numero, Exception falha)
         : IArmazenamentoDeArquivos
     {

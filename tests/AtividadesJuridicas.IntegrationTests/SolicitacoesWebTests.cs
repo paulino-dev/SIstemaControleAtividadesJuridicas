@@ -27,7 +27,7 @@ public class SolicitacoesWebTests(BancoFixture banco) : IAsyncLifetime
 
         var aberta = await _app.ExecutarAsync(_carla, new AbrirSolicitacao(
             "Preciso de uma certidão atualizada do processo.", UrgenciaDaSolicitacao.Alta,
-            [new ArquivoParaEnviar("rg.pdf", "application/pdf", new MemoryStream(Encoding.UTF8.GetBytes("conteúdo")))]));
+            [new ArquivoParaEnviar("rg.pdf", "application/pdf", () => new MemoryStream(Encoding.UTF8.GetBytes("conteúdo")))]));
         aberta.Sucesso.Should().BeTrue(aberta.Mensagem);
         _solicitacao = aberta.Valor;
     }
@@ -214,8 +214,10 @@ public class SolicitacoesWebTests(BancoFixture banco) : IAsyncLifetime
             .And.NotContain("Nenhuma solicitação.").And.NotContain("Carregando");
         lista.Should().MatchRegex("\\d{2}/\\d{2}/\\d{4}");
 
+        // O aviso de enviada vem por recado, só na navegação logo depois do envio (SolicitacoesInterativasTests): o
+        // endereço, com ou sem o antigo ?enviada=1, não o traz de volta.
         var ficha = await PaginaAsync(carla, $"/minhas-solicitacoes/{_solicitacao}?enviada=1");
-        ficha.Should().Contain("Solicitação enviada. A equipe verifica sua solicitação em até 24 horas úteis.")
+        ficha.Should().NotContain("Solicitação enviada.")
             .And.Contain("Preciso de uma certidão atualizada do processo.")
             .And.MatchRegex("<a href=\"/documentos/[0-9a-f-]{36}/baixar\"[^>]*download[^>]*>rg\\.pdf</a>")
             .And.Contain($"href=\"/minhas-solicitacoes/{_solicitacao}/editar\"").And.Contain(">Cancelar solicitação</button>")

@@ -47,10 +47,17 @@ public class SolicitacoesInterativasTests : TelaInterativa
     public void Cliente_abre_solicitacao_com_arquivo_e_cai_na_ficha_com_o_aviso()
     {
         List<string> nomes = [];
+        List<string> conteudos = [];
         Despachante.Responde<AbrirSolicitacao, Resultado<Guid>>(abrir =>
         {
-            // Os arquivos são lidos enquanto o envio dura: o teste guarda os nomes antes de os fluxos se fecharem.
+            // Os arquivos são lidos enquanto o envio dura: o teste guarda os nomes e lê cada conteúdo, abrindo-o como
+            // quem recebe faz (um por vez, aberto só na hora de ler).
             nomes.AddRange(abrir.Arquivos.Select(a => a.NomeArquivo));
+            foreach (var arquivo in abrir.Arquivos)
+            {
+                using var leitor = new StreamReader(arquivo.AbrirConteudo());
+                conteudos.Add(leitor.ReadToEnd());
+            }
             return Resultado<Guid>.Ok(SolicitacaoId);
         });
         var tela = Desenhar<MinhaSolicitacaoFormulario>();
@@ -69,15 +76,65 @@ public class SolicitacoesInterativasTests : TelaInterativa
 
         tela.Find("form#formulario-da-solicitacao").Submit();
 
-        tela.WaitForAssertion(() => Endereco.Should().EndWith($"/minhas-solicitacoes/{SolicitacaoId}?enviada=1"));
+        tela.WaitForAssertion(() => Endereco.Should().EndWith($"/minhas-solicitacoes/{SolicitacaoId}"));
         var enviada = Despachante.Recebidas.OfType<AbrirSolicitacao>().Should().ContainSingle().Subject;
         enviada.Descricao.Should().Be("Preciso de uma certidão atualizada.");
         enviada.Urgencia.Should().Be(UrgenciaDaSolicitacao.Alta);
         nomes.Should().Equal("rg.pdf");
+        conteudos.Should().Equal("conteúdo");
 
-        // A ficha, aberta com ?enviada=1, avisa que a solicitação foi enviada.
-        var ficha = Ficha(podeAlterar: true, "?enviada=1");
+        // A ficha que vem depois do envio avisa que a solicitação foi enviada, uma vez só: ao voltar a ela (recarregar,
+        // o "Voltar" do navegador), o aviso não reaparece, nem com o antigo ?enviada=1.
+        var ficha = Ficha(podeAlterar: true);
         ficha.Markup.Should().Contain("Solicitação enviada. A equipe verifica sua solicitação em até 24 horas úteis.");
+        Ficha(podeAlterar: true).Markup.Should().NotContain("Solicitação enviada.");
+        Ficha(podeAlterar: true, "?enviada=1").Markup.Should().NotContain("Solicitação enviada.");
+    }
+
+    [Fact]
+    public void Arquivo_vazio_e_recusado_na_tela_pelo_nome_e_os_demais_da_escolha_ficam()
+    {
+        var tela = Desenhar<MinhaSolicitacaoFormulario>();
+
+        // Sozinho, é recusado pelo nome e a lista continua vazia.
+        tela.FindComponents<InputFile>()[^1].UploadFiles(InputFileContent.CreateFromBinary([], "vazio.pdf"));
+
+        tela.Markup.Should().Contain("O arquivo vazio.pdf está vazio.");
+        Escolhidos(tela).Should().BeEmpty();
+
+        // Numa escolha mista, só os vazios saem, todos nomeados; o outro entra na lista.
+        tela.FindComponents<InputFile>()[^1].UploadFiles(
+            InputFileContent.CreateFromBinary([], "a.pdf"), InputFileContent.CreateFromText("conteúdo", "rg.pdf"),
+            InputFileContent.CreateFromBinary([], "b.pdf"));
+
+        tela.Markup.Should().Contain("Os arquivos a.pdf, b.pdf estão vazios.");
+        Escolhidos(tela).Should().Equal("rg.pdf");
+    }
+
+    [Fact]
+    public void Arquivo_vazio_e_acima_de_50_mb_na_mesma_escolha_sao_recusados_juntos()
+    {
+        var grande = InputFileContent.CreateFromBinary(new byte[DocumentosOpcoes.TamanhoMaximoBytes + 1], "grande.pdf");
+        var tela = Desenhar<MinhaSolicitacaoFormulario>();
+
+        tela.FindComponents<InputFile>()[^1].UploadFiles(
+            grande, InputFileContent.CreateFromBinary([], "vazio.pdf"), InputFileContent.CreateFromText("conteúdo", "rg.pdf"));
+
+        tela.Markup.Should().Contain("O arquivo grande.pdf passa do limite de 50 MB. O arquivo vazio.pdf está vazio.");
+        Escolhidos(tela).Should().Equal("rg.pdf");
+    }
+
+    [Fact]
+    public void Anexar_arquivo_vazio_na_edicao_e_recusado_na_tela_sem_enviar()
+    {
+        Despachante.Responde<ObterMinhaSolicitacao, Resultado<MinhaSolicitacaoDetalhe>>(
+            Resultado<MinhaSolicitacaoDetalhe>.Ok(Detalhe(podeAlterar: true)));
+        var tela = Desenhar<MinhaSolicitacaoFormulario>(p => p.Add(x => x.Id, (Guid?)SolicitacaoId));
+
+        tela.FindComponent<InputFile>().UploadFiles(InputFileContent.CreateFromBinary([], "vazio.pdf"));
+
+        tela.Markup.Should().Contain("O arquivo vazio.pdf está vazio.");
+        Despachante.Recebidas.OfType<AnexarDocumentoASolicitacao>().Should().BeEmpty();
     }
 
     [Fact]
@@ -176,7 +233,7 @@ public class SolicitacoesInterativasTests : TelaInterativa
         // A nova tentativa manda o mesmo arquivo, lido de novo do campo em que ele foi escolhido.
         tela.Find("form#formulario-da-solicitacao").Submit();
 
-        tela.WaitForAssertion(() => Endereco.Should().EndWith($"/minhas-solicitacoes/{SolicitacaoId}?enviada=1"));
+        tela.WaitForAssertion(() => Endereco.Should().EndWith($"/minhas-solicitacoes/{SolicitacaoId}"));
         tentativas.Should().HaveCount(2);
         tentativas[1].Should().Equal("rg.pdf");
     }

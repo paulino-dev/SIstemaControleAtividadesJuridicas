@@ -34,10 +34,7 @@ else if (_detalhe is not { } s)
 }
 else
 {
-    @if (_enviada)
-    {
-        <Aviso Tipo="TipoDeAviso.Sucesso">Solicitação enviada. A equipe verifica sua solicitação em até 24 horas úteis.</Aviso>
-    }
+    @* O recado da tela anterior: "Solicitação enviada. …" depois de abrir, ou o motivo de a edição ter voltado. *@
     @if (_recado is { } recado)
     {
         <Aviso Tipo="@recado.Tipo">@recado.Texto</Aviso>
@@ -101,16 +98,12 @@ else
 @code {
     [Parameter] public Guid Id { get; set; }
 
-    /// <summary>Aberta logo depois de enviada (<c>?enviada=1</c>): a ficha avisa que a solicitação chegou.</summary>
-    [SupplyParameterFromQuery(Name = "enviada")] public string? Enviada { get; set; }
-
     private bool _carregado;
     private bool _encerrado;
     private bool _naoEncontrada;
     private string? _erro;
     private MinhaSolicitacaoDetalhe? _detalhe;
     private Guid? _idCarregado;
-    private bool _enviada;
     private Recado? _recado;
 
     private bool _confirmando;
@@ -128,11 +121,7 @@ else
 
         var primeira = _idCarregado is null;
         _idCarregado = Id;
-        if (primeira)
-        {
-            _recado = Recados.Retirar();
-            _enviada = Enviada == "1";
-        }
+        if (primeira) _recado = Recados.Retirar();
         await CarregarAsync();
     }
 
@@ -190,7 +179,6 @@ else
         if (_ocupado || _detalhe is null) return;
 
         _recado = null;
-        _enviada = false;
         _mensagem = null;
         _confirmando = true;
     }

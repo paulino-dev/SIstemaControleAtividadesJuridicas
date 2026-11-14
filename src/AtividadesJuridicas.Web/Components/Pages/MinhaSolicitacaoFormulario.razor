@@ -254,20 +254,29 @@ else
 
         var arquivos = e.GetMultipleFiles(e.FileCount);
         var grandes = arquivos.Where(a => a.Size > DocumentosOpcoes.TamanhoMaximoBytes).Select(a => a.Name).ToList();
-        var aceitos = arquivos.Where(a => a.Size <= DocumentosOpcoes.TamanhoMaximoBytes).ToList();
+        var vazios = arquivos.Where(a => a.Size == 0).Select(a => a.Name).ToList();
+        var aceitos = arquivos.Where(a => a.Size > 0 && a.Size <= DocumentosOpcoes.TamanhoMaximoBytes).ToList();
         _escolhidos.AddRange(aceitos.Select(arquivo => new Escolhido(lote, arquivo)));
 
-        if (grandes.Count > 0)
-            Avisar(grandes.Count == 1
-                ? $"O arquivo {grandes[0]} passa do limite de {DocumentosOpcoes.TamanhoMaximoBytes / UmMegabyte} MB."
-                : $"Os arquivos {string.Join(", ", grandes)} passam do limite de {DocumentosOpcoes.TamanhoMaximoBytes / UmMegabyte} MB.",
-                falhou: true);
+        // Os recusados saem da escolha já aqui, cada um pelo nome: o servidor recusaria o envio inteiro sem dizer qual.
+        var recusas = new List<string>(2);
+        if (grandes.Count > 0) recusas.Add(Grandes(grandes));
+        if (vazios.Count > 0) recusas.Add(Vazios(vazios));
+        if (recusas.Count > 0) Avisar(string.Join(" ", recusas), falhou: true);
 
         // Com arquivo aceito, o campo fica (escondido) com eles e um campo novo entra; sem nenhum, o campo é trocado
         // por um vazio.
         if (aceitos.Count > 0) _lotes.Add(_proximoLote++);
         else TrocarCampo(lote);
     }
+
+    private static string Grandes(IReadOnlyList<string> nomes) => nomes.Count == 1
+        ? $"O arquivo {nomes[0]} passa do limite de {DocumentosOpcoes.TamanhoMaximoBytes / UmMegabyte} MB."
+        : $"Os arquivos {string.Join(", ", nomes)} passam do limite de {DocumentosOpcoes.TamanhoMaximoBytes / UmMegabyte} MB.";
+
+    private static string Vazios(IReadOnlyList<string> nomes) => nomes.Count == 1
+        ? $"O arquivo {nomes[0]} está vazio."
+        : $"Os arquivos {string.Join(", ", nomes)} estão vazios.";
 
     private void TrocarCampo(int lote)
     {
@@ -293,9 +302,9 @@ else
 
         _mensagem = null;
         var arquivo = e.File;
-        if (arquivo.Size > DocumentosOpcoes.TamanhoMaximoBytes)
+        if (arquivo.Size > DocumentosOpcoes.TamanhoMaximoBytes || arquivo.Size == 0)
         {
-            Avisar($"O arquivo {arquivo.Name} passa do limite de {DocumentosOpcoes.TamanhoMaximoBytes / UmMegabyte} MB.", falhou: true);
+            Avisar(arquivo.Size == 0 ? Vazios([arquivo.Name]) : Grandes([arquivo.Name]), falhou: true);
             _versaoDoAnexo++;   // o campo volta vazio
             return;
         }
@@ -416,16 +425,13 @@ else
 
     private async Task<bool> AbrirAsync(UrgenciaDaSolicitacao urgencia)
     {
-        var abertos = new List<Stream>();
         try
         {
-            var arquivos = new List<ArquivoParaEnviar>();
-            foreach (var escolhido in _escolhidos)
-            {
-                var conteudo = escolhido.Arquivo.OpenReadStream(DocumentosOpcoes.TamanhoMaximoBytes);
-                abertos.Add(conteudo);
-                arquivos.Add(new ArquivoParaEnviar(escolhido.Arquivo.Name, escolhido.Arquivo.ContentType, conteudo));
-            }
+            // Nenhum conteúdo é aberto aqui: no Blazor Server a transferência do navegador começa na abertura, e um
+            // fluxo aberto à espera estoura o tempo sem dados. Quem grava abre um por vez, lê e fecha.
+            var arquivos = _escolhidos.Select(escolhido => new ArquivoParaEnviar(
+                escolhido.Arquivo.Name, escolhido.Arquivo.ContentType,
+                () => escolhido.Arquivo.OpenReadStream(DocumentosOpcoes.TamanhoMaximoBytes))).ToList();
 
             var resultado = await Despachante.EnviarAsync(new AbrirSolicitacao(_form.Descricao, urgencia, arquivos));
             if (resultado.Erro == TipoErro.AcessoNegado)
@@ -441,17 +447,15 @@ else
                 return false;
             }
 
-            Navegacao.NavigateTo($"/minhas-solicitacoes/{resultado.Valor}?enviada=1");
+            // O aviso vai por recado: a ficha o mostra uma vez, e recarregar ou voltar a ela não o repete.
+            Recados.Deixar("Solicitação enviada. A equipe verifica sua solicitação em até 24 horas úteis.");
+            Navegacao.NavigateTo($"/minhas-solicitacoes/{resultado.Valor}");
             return true;
         }
         catch (Exception ex) when (ex is IOException or JSException or TimeoutException or OperationCanceledException)
         {
             Avisar("Não foi possível enviar os arquivos. Escolha-os de novo e tente outra vez.", falhou: true);
             return false;
-        }
-        finally
-        {
-            foreach (var conteudo in abertos) await conteudo.DisposeAsync();
         }
     }
 

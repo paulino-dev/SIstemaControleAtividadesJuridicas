@@ -39,7 +39,7 @@ public class SolicitacoesDaDiretoriaTests(BancoFixture banco) : TesteComBanco(ba
             null, new DadosDoClienteEntrada(nome, null, null, new EnderecoEntrada(), null), cpf, null, null))).Valor;
 
     private static ArquivoParaEnviar Arquivo(string nome, string texto = "conteúdo") =>
-        new(nome, "application/pdf", new MemoryStream(Encoding.UTF8.GetBytes(texto)));
+        new(nome, "application/pdf", () => new MemoryStream(Encoding.UTF8.GetBytes(texto)));
 
     private async Task<Guid> AbertaAsync(
         Guid ator, string descricao = Descricao, UrgenciaDaSolicitacao urgencia = UrgenciaDaSolicitacao.Media,
@@ -204,7 +204,8 @@ public class SolicitacoesDaDiretoriaTests(BancoFixture banco) : TesteComBanco(ba
         ficha.AtividadeId.Should().BeNull();
         ficha.AtividadeTitulo.Should().BeNull();
         ficha.Versao.Should().Be(versaoDoPortal, "é a mesma versão que o cliente lê, e a Fase B a devolve ao agir");
-        ficha.Documentos.Select(d => d.Nome).Should().Equal("um.pdf", "dois.pdf");
+        // Os dois foram gravados no mesmo instante: vêm pelo nome.
+        ficha.Documentos.Select(d => d.Nome).Should().Equal("dois.pdf", "um.pdf");
         ficha.Documentos.Should().OnlyContain(d => d.TamanhoBytes > 0 && d.EnviadoPor == null);
     }
 
@@ -260,6 +261,26 @@ public class SolicitacoesDaDiretoriaTests(BancoFixture banco) : TesteComBanco(ba
         baixado.Sucesso.Should().BeTrue(baixado.Mensagem);
         baixado.Valor!.NomeArquivo.Should().Be("um.pdf");
         texto.Should().Be("texto do anexo");
+    }
+
+    [Fact]
+    public async Task Diretoria_nao_renomeia_nem_exclui_documento_da_solicitacao()
+    {
+        var id = await AbertaAsync(_carla, Descricao, UrgenciaDaSolicitacao.Media, Arquivo("um.pdf", "texto do anexo"));
+        var antes = await FichaAsync(id);
+        var documento = antes.Documentos.Single();
+
+        var renomear = await ExecutarAsync(_admin, new RenomearDocumento(documento.Id, "Outro nome"));
+        var excluir = await ExecutarAsync(_admin, new ExcluirDocumento(documento.Id));
+
+        renomear.Erro.Should().Be(TipoErro.Validacao);
+        renomear.Mensagem.Should().Be("Documento de solicitação só é alterado pelo cliente que a abriu.");
+        excluir.Erro.Should().Be(TipoErro.Validacao);
+        excluir.Mensagem.Should().Be("Documento de solicitação só é alterado pelo cliente que a abriu.");
+        var depois = await FichaAsync(id);
+        depois.Versao.Should().Be(antes.Versao);
+        depois.Documentos.Should().ContainSingle().Which.Should().Be(documento);
+        (await BaixarAsync(_carla, documento.Id)).Texto.Should().Be("texto do anexo");
     }
 
     [Fact]

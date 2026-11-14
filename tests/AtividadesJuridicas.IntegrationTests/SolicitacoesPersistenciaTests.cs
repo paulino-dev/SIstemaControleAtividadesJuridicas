@@ -586,6 +586,37 @@ public class SolicitacoesPersistenciaTests(BancoFixture banco) : TesteComBanco(b
         (await EmEscopoAsync(_carla, sp => repositorio(sp).ContarDaSolicitacaoAsync(Guid.CreateVersion7(), default))).Should().Be(0);
     }
 
+    [Fact]
+    public async Task Documentos_gravados_no_mesmo_instante_vem_pelo_nome_e_depois_pelo_id()
+    {
+        // Os documentos de uma solicitação aberta com vários arquivos são gravados juntos e têm o mesmo CriadoEm.
+        var solicitacao = Guid.Empty;
+        var ids = await EmEscopoAsync(_carla, async sp =>
+        {
+            var aberta = SolicitacaoDoCliente.Abrir(_maria, _carla, "Preciso de uma certidão atualizada.", UrgenciaDaSolicitacao.Media);
+            solicitacao = aberta.Id;
+            sp.GetRequiredService<ISolicitacaoRepositorio>().Adicionar(aberta);
+            var documentos = new List<Documento>();
+            foreach (var nome in new[] { "c.pdf", "mesmo.pdf", "a.pdf", "mesmo.pdf", "b.pdf", "mesmo.pdf" })
+            {
+                var documento = Documento.CriarDaSolicitacao(aberta.Id, _maria, null,
+                    new ArquivoDoDocumento(nome, "application/pdf", 10, new string('a', 64), $"2026/11/{Guid.NewGuid():N}"));
+                sp.GetRequiredService<IDocumentoRepositorio>().Adicionar(documento);
+                documentos.Add(documento);
+            }
+            await sp.GetRequiredService<IUnidadeDeTrabalho>().SalvarAsync(default);
+            return documentos.Where(d => d.Nome == "mesmo.pdf").Select(d => d.Id).ToList();
+        });
+
+        var listados = await EmEscopoAsync(_carla, sp =>
+            sp.GetRequiredService<IDocumentoRepositorio>().ListarDaSolicitacaoAsync(solicitacao, default));
+
+        listados.Select(d => d.EnviadoEm).Distinct().Should().ContainSingle("todos foram gravados no mesmo instante");
+        listados.Select(d => d.Nome).Should().Equal("a.pdf", "b.pdf", "c.pdf", "mesmo.pdf", "mesmo.pdf", "mesmo.pdf");
+        // Mesmo instante e mesmo nome: a ordem do Id no banco, que compara os bytes como o texto do Guid.
+        listados.Skip(3).Select(d => d.Id).Should().Equal(ids.OrderBy(id => id.ToString(), StringComparer.Ordinal));
+    }
+
     private Task<Guid> GravarGeralAsync() =>
         EmEscopoAsync(_admin, async sp =>
         {

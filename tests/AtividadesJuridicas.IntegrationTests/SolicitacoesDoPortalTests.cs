@@ -40,7 +40,7 @@ public class SolicitacoesDoPortalTests(BancoFixture banco) : TesteComBanco(banco
             null, new DadosDoClienteEntrada(nome, null, null, new EnderecoEntrada(), null), cpf, null, null))).Valor;
 
     private static ArquivoParaEnviar Arquivo(string nome, string texto = "conteúdo") =>
-        new(nome, "application/pdf", new MemoryStream(Encoding.UTF8.GetBytes(texto)));
+        new(nome, "application/pdf", () => new MemoryStream(Encoding.UTF8.GetBytes(texto)));
 
     private Task<Resultado<Guid>> AbrirAsync(
         Guid ator, string descricao = Descricao, UrgenciaDaSolicitacao urgencia = UrgenciaDaSolicitacao.Media,
@@ -179,7 +179,7 @@ public class SolicitacoesDoPortalTests(BancoFixture banco) : TesteComBanco(banco
         var resultado = await AbrirAsync(
             _carla, Descricao, UrgenciaDaSolicitacao.Media,
             Arquivo("pequeno.pdf"),
-            new ArquivoParaEnviar("enorme.pdf", "application/pdf", new FluxoDeZeros(DocumentosOpcoes.TamanhoMaximoBytes + 1)));
+            new ArquivoParaEnviar("enorme.pdf", "application/pdf", () => new FluxoDeZeros(DocumentosOpcoes.TamanhoMaximoBytes + 1)));
 
         resultado.Erro.Should().Be(TipoErro.Validacao);
         resultado.Mensagem.Should().Be("O arquivo passa do limite de 50 MB.");
