@@ -5,6 +5,7 @@ using AtividadesJuridicas.Domain.Atividades;
 using AtividadesJuridicas.Domain.Auditoria;
 using AtividadesJuridicas.Domain.Cadastros;
 using AtividadesJuridicas.Domain.Identidade;
+using AtividadesJuridicas.Domain.Solicitacoes;
 
 namespace AtividadesJuridicas.UnitTests.Application;
 
@@ -71,7 +72,8 @@ public class AtividadesTests
             .ManipularAsync(new TrocarRevisorDaAtividade(id, revisor.Id), default);
 
     private Task<Resultado> Excluir(Usuario? ator, Guid id) =>
-        new ExcluirAtividadeManipulador(_c.Como(ator), _c.Atividades, _c.Unidade).ManipularAsync(new ExcluirAtividade(id), default);
+        new ExcluirAtividadeManipulador(_c.Como(ator), _c.Atividades, _c.Solicitacoes, _c.Unidade)
+            .ManipularAsync(new ExcluirAtividade(id), default);
 
     private Task<Resultado<AtividadeDetalhe>> Obter(Usuario? ator, Guid id) =>
         new ObterAtividadeManipulador(_c.Como(ator), _c.Atividades, _c.Usuarios, _c.Clientes, _c.Processos, _c.Areas, _c.Calendario, _c.Auditoria)
@@ -82,6 +84,29 @@ public class AtividadesTests
             .ManipularAsync(consulta ?? new ListarAtividades(), default);
 
     private Atividade NoRepositorio(Guid id) => _c.Atividades.Itens.Single(a => a.Id == id);
+
+    /// <summary>Uma atividade nascida da solicitação, do cliente dela, ainda fora dos repositórios (sem vincular).</summary>
+    private Atividade NovaAtividadeDaSolicitacao(SolicitacaoDoCliente solicitacao) =>
+        Atividade.Criar(
+            new DadosDaAtividade("Preparar a certidão", "Prazo de 15 dias.", Entrega, 1),
+            VinculoDaAtividade.Criar(solicitacao.ClienteId, null, null), TipoAutor.Usuario, Diana.Id,
+            _c.Relogio.AgoraUtc, solicitacao.Id);
+
+    /// <summary>
+    /// Uma solicitação da Maria (cancelada pelo cliente, se pedido) já vinculada a uma atividade, direto nos
+    /// repositórios, sem gravar.
+    /// </summary>
+    private (SolicitacaoDoCliente Solicitacao, Atividade Atividade) DaSolicitacao(bool canceladaPeloCliente = false)
+    {
+        var solicitacao = SolicitacaoDoCliente.Abrir(
+            _maria.Id, Guid.CreateVersion7(), "Preciso de uma certidão atualizada.", UrgenciaDaSolicitacao.Media);
+        if (canceladaPeloCliente) solicitacao.Cancelar(_c.Relogio.AgoraUtc);
+        var atividade = NovaAtividadeDaSolicitacao(solicitacao);
+        solicitacao.VincularAtividade(atividade, confirmouCancelada: canceladaPeloCliente);
+        _c.Solicitacoes.Adicionar(solicitacao);
+        _c.Atividades.Adicionar(atividade);
+        return (solicitacao, atividade);
+    }
 
     private async Task<Guid> CriadaAsync(string titulo = "Elaborar contestação", DateOnly? entrega = null)
     {
@@ -426,7 +451,7 @@ public class AtividadesTests
     {
         var id = await CriadaAsync();
         var salvamentos = _c.Unidade.Salvamentos;
-        var manipulador = new ExcluirAtividadeManipulador(_c.Como(Diana), _c.Atividades, _c.Unidade);
+        var manipulador = new ExcluirAtividadeManipulador(_c.Como(Diana), _c.Atividades, _c.Solicitacoes, _c.Unidade);
 
         var velha = await manipulador.ManipularAsync(new ExcluirAtividade(id, 1u), default);
 
@@ -476,6 +501,68 @@ public class AtividadesTests
         (await Excluir(Diana, Guid.CreateVersion7())).Erro.Should().Be(TipoErro.NaoEncontrado);
         (await Excluir(Diana, id)).Sucesso.Should().BeTrue();
         _c.Atividades.Itens.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(false, SituacaoDaSolicitacao.Aguardando)]
+    [InlineData(true, SituacaoDaSolicitacao.Cancelada)]
+    public async Task Excluir_atividade_da_solicitacao_desvincula_na_mesma_gravacao(
+        bool canceladaPeloCliente, SituacaoDaSolicitacao situacaoEsperada)
+    {
+        var (solicitacao, atividade) = DaSolicitacao(canceladaPeloCliente);
+        solicitacao.Situacao.Should().Be(SituacaoDaSolicitacao.EmAtividade);
+
+        var resultado = await Excluir(Diana, atividade.Id);
+
+        resultado.Sucesso.Should().BeTrue(resultado.Mensagem);
+        _c.Atividades.Itens.Should().BeEmpty();
+        solicitacao.AtividadeId.Should().BeNull();
+        solicitacao.Situacao.Should().Be(situacaoEsperada);
+        solicitacao.CanceladaEm.HasValue.Should().Be(canceladaPeloCliente, "o cancelamento do cliente fica registrado");
+        _c.Unidade.Salvamentos.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Excluir_atividade_sem_solicitacao_nao_mexe_em_solicitacao()
+    {
+        var (solicitacao, _) = DaSolicitacao();
+        var avulsa = await CriadaAsync("Atividade avulsa");
+
+        var resultado = await Excluir(Diana, avulsa);
+
+        resultado.Sucesso.Should().BeTrue(resultado.Mensagem);
+        _c.Atividades.Itens.Should().ContainSingle("só a avulsa saiu");
+        solicitacao.Situacao.Should().Be(SituacaoDaSolicitacao.EmAtividade);
+        _c.Unidade.Salvamentos.Should().Be(2, "a criação da avulsa e a exclusão");
+    }
+
+    [Fact]
+    public async Task Excluir_nao_desvincula_solicitacao_ligada_a_outra_atividade()
+    {
+        var (solicitacao, vinculada) = DaSolicitacao();
+        var outra = NovaAtividadeDaSolicitacao(solicitacao);
+        _c.Atividades.Adicionar(outra);
+
+        var resultado = await Excluir(Diana, outra.Id);
+
+        resultado.Sucesso.Should().BeTrue(resultado.Mensagem);
+        _c.Atividades.Itens.Should().ContainSingle().Which.Should().BeSameAs(vinculada);
+        solicitacao.AtividadeId.Should().Be(vinculada.Id, "a solicitação continua apontando para a atividade dela");
+        solicitacao.Situacao.Should().Be(SituacaoDaSolicitacao.EmAtividade);
+        _c.Unidade.Salvamentos.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Excluir_atividade_com_solicitacao_que_ja_nao_existe_so_exclui_a_atividade()
+    {
+        var (solicitacao, atividade) = DaSolicitacao();
+        _c.Solicitacoes.Itens.Remove(solicitacao);
+
+        var resultado = await Excluir(Diana, atividade.Id);
+
+        resultado.Sucesso.Should().BeTrue(resultado.Mensagem);
+        _c.Atividades.Itens.Should().BeEmpty();
+        _c.Unidade.Salvamentos.Should().Be(1);
     }
 
     // ---- Acesso dos comandos ----
@@ -538,6 +625,25 @@ public class AtividadesTests
         detalhe.Acoes.Should().Be(new AcoesDaAtividade(
             Editar: false, DefinirResponsaveis: false, TrocarRevisor: false, ConcluirMinhaParte: true,
             AprovarOuDevolver: false, Reabrir: false, Excluir: false));
+    }
+
+    [Fact]
+    public async Task ObterAtividade_traz_SolicitacaoId_so_para_a_Diretoria()
+    {
+        var (solicitacao, atividade) = DaSolicitacao();
+        var definido = await Definir(Diana, atividade.Id, Diana.Id, (_pedro, "Redigir"));
+        definido.Sucesso.Should().BeTrue(definido.Mensagem);
+
+        (await Obter(Diana, atividade.Id)).Valor!.SolicitacaoId.Should().Be(solicitacao.Id);
+        (await Obter(_pedro, atividade.Id)).Valor!.SolicitacaoId.Should().BeNull("a Produção responsável não vê de onde veio");
+    }
+
+    [Fact]
+    public async Task ObterAtividade_sem_solicitacao_traz_SolicitacaoId_nulo_para_a_Diretoria()
+    {
+        var id = await CriadaAsync();
+
+        (await Obter(Diana, id)).Valor!.SolicitacaoId.Should().BeNull();
     }
 
     [Fact]

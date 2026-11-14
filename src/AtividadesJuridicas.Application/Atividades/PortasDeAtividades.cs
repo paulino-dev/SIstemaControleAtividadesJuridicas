@@ -40,13 +40,16 @@ public sealed record AcoesDaAtividade(
     bool Editar, bool DefinirResponsaveis, bool TrocarRevisor, bool ConcluirMinhaParte, bool AprovarOuDevolver,
     bool Reabrir, bool Excluir);
 
-/// <summary><paramref name="Versao"/>: a versão da linha, que os formulários devolvem como versão esperada.</summary>
+/// <summary>
+/// <paramref name="Versao"/>: a versão da linha, que os formulários devolvem como versão esperada.
+/// <paramref name="SolicitacaoId"/>: a solicitação do cliente de onde a atividade nasceu; só a Diretoria a recebe.
+/// </summary>
 public sealed record AtividadeDetalhe(
     Guid Id, string Titulo, string Descricao, DateOnly? DataEntrega, StatusAtividade Status, bool Atrasada,
     DateTime? ConcluidaEm, Guid? ClienteId, string? ClienteNome, Guid? ProcessoId, string? ProcessoTitulo,
     Guid? AreaAtuacaoId, string? AreaNome, TipoAutor TipoAutor, string? AutorNome, Guid? RevisorId, string? RevisorNome,
     IReadOnlyList<ResponsavelDetalhe> Responsaveis, IReadOnlyList<HistoricoDetalhe> Historico, AcoesDaAtividade Acoes,
-    uint Versao, int Complexidade);
+    uint Versao, int Complexidade, Guid? SolicitacaoId = null);
 
 /// <summary>O cliente que a atividade tem agora, lido do banco sem rastreamento.</summary>
 public sealed record ClienteAtualDaAtividade(Guid? ClienteId);

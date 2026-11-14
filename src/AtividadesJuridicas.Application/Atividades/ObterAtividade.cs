@@ -73,7 +73,8 @@ public sealed class ObterAtividadeManipulador(
             atividade.ClienteId, cliente?.Nome, atividade.ProcessoId, processo?.Titulo,
             atividade.AreaAtuacaoId, area?.Nome, atividade.TipoAutor, NomeDoUsuario(atividade.AutorId),
             atividade.RevisorId, NomeDoUsuario(atividade.RevisorId), responsaveis, historico,
-            Acoes(ator, atividade), atividade.Versao, atividade.Complexidade));
+            Acoes(ator, atividade), atividade.Versao, atividade.Complexidade,
+            ator.EhDiretoria ? atividade.SolicitacaoId : null));
     }
 
     private static AcoesDaAtividade Acoes(UsuarioAutenticado ator, Atividade atividade)

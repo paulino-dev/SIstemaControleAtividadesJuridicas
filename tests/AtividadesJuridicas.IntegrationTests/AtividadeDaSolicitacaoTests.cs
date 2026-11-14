@@ -236,6 +236,52 @@ public class AtividadeDaSolicitacaoTests(BancoFixture banco) : TesteComBanco(ban
     }
 
     [Fact]
+    public async Task Excluir_a_atividade_devolve_a_solicitacao_e_permite_criar_outra()
+    {
+        var id = await AbertaAsync(_carla);
+        var primeira = await CriadaAsync(id);
+        (await ExecutarAsync(_admin, new ObterAtividade(primeira))).Valor!.SolicitacaoId.Should().Be(id);
+
+        var excluida = await ExecutarAsync(_admin, new ExcluirAtividade(primeira));
+
+        excluida.Sucesso.Should().BeTrue(excluida.Mensagem);
+        var devolvida = await FichaAsync(id);
+        devolvida.Situacao.Should().Be(SituacaoDaSolicitacao.Aguardando);
+        devolvida.AtividadeId.Should().BeNull();
+        var doCliente = await ExecutarAsync(_carla, new ObterMinhaSolicitacao(id));
+        doCliente.Valor!.Situacao.Should().Be(SituacaoParaOCliente.AguardandoAnalise);
+        (await AtividadesDaAsync(id)).Should().BeEmpty("a atividade excluída não conta mais");
+
+        var segunda = await CriarAsync(id, devolvida.Versao, titulo: "Preparar a certidão de novo");
+
+        segunda.Sucesso.Should().BeTrue(segunda.Mensagem);
+        segunda.Valor.Should().NotBe(primeira);
+        var depois = await FichaAsync(id);
+        depois.Situacao.Should().Be(SituacaoDaSolicitacao.EmAtividade);
+        depois.AtividadeId.Should().Be(segunda.Valor);
+        (await AtividadesDaAsync(id)).Should().ContainSingle().Which.Id.Should().Be(segunda.Valor);
+    }
+
+    [Fact]
+    public async Task Excluir_a_atividade_de_solicitacao_cancelada_devolve_a_solicitacao_cancelada()
+    {
+        var id = await AbertaAsync(_carla);
+        await CancelarAsync(_carla, id);
+        var versao = (await FichaAsync(id)).Versao;
+        var criada = await CriarAsync(id, versao, confirmou: true);
+        criada.Sucesso.Should().BeTrue(criada.Mensagem);
+
+        var excluida = await ExecutarAsync(_admin, new ExcluirAtividade(criada.Valor));
+
+        excluida.Sucesso.Should().BeTrue(excluida.Mensagem);
+        var devolvida = await FichaAsync(id);
+        devolvida.Situacao.Should().Be(SituacaoDaSolicitacao.Cancelada);
+        devolvida.AtividadeId.Should().BeNull();
+        devolvida.CanceladaEm.Should().NotBeNull("o cancelamento do cliente continua registrado");
+        (await ExecutarAsync(_carla, new ObterMinhaSolicitacao(id))).Valor!.Situacao.Should().Be(SituacaoParaOCliente.Cancelada);
+    }
+
+    [Fact]
     public async Task Documento_levado_baixa_o_mesmo_conteudo()
     {
         var id = await AbertaAsync(_carla, Arquivo("laudo.pdf", "o laudo da Maria"));

@@ -220,7 +220,7 @@ public class ProdutividadeTests
     {
         var id = await ConcluidaAsync("Parecer", 1, Em(10, 5), null, _pedro);
 
-        (await new ExcluirAtividadeManipulador(_c.Como(Diana), _c.Atividades, _c.Unidade)
+        (await new ExcluirAtividadeManipulador(_c.Como(Diana), _c.Atividades, _c.Solicitacoes, _c.Unidade)
             .ManipularAsync(new ExcluirAtividade(id), default)).Sucesso.Should().BeTrue();
 
         (await Obter(Diana, _pedro.Id)).Valor!.Total.Should().Be(0);
