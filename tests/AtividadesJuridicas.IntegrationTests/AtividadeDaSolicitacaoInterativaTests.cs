@@ -362,6 +362,81 @@ public class AtividadeDaSolicitacaoInterativaTests : TelaInterativa
     }
 
     [Fact]
+    public void Ja_virou_atividade_na_gravacao_trava_o_salvar_e_as_caixas_do_bloco()
+    {
+        var tela = DaSolicitacao(Solicitacao(), EmAtividade());
+        Despachante.Responde<CriarAtividadeDaSolicitacao, Resultado<Guid>>(
+            Resultado<Guid>.Falha(TipoErro.Conflito, SolicitacaoDoCliente.JaVirouAtividade));
+        Preencher(tela);
+
+        // Antes da recusa, as três barras (desktop, tablet e mobile) salvam e o bloco mexe.
+        tela.FindAll("button[form=formulario-da-atividade]").Should().HaveCount(3)
+            .And.OnlyContain(b => !b.HasAttribute("disabled"));
+        Bloco(tela).QuerySelectorAll("input, button").Should().NotBeEmpty().And.OnlyContain(e => !e.HasAttribute("disabled"));
+
+        Salvar(tela);
+
+        // Depois dela, salvar de novo só repetiria a recusa: o botão das três barras e o bloco ficam travados, e o que o
+        // diretor digitou continua à vista.
+        tela.WaitForAssertion(() => tela.Find($"a[href='/atividades/{AtividadeNova}']"));
+        tela.WaitForAssertion(() => tela.FindAll("button[form=formulario-da-atividade]").Should().HaveCount(3)
+            .And.OnlyContain(b => b.HasAttribute("disabled")));
+        Bloco(tela).QuerySelectorAll("input, button").Should().NotBeEmpty().And.OnlyContain(e => e.HasAttribute("disabled"));
+        Valor(tela, "Título").Should().Be("Emitir a certidão");
+        Enviadas.Should().ContainSingle();
+    }
+
+    private static readonly Guid AtividadeComProcesso = Guid.Parse("0199a3f2-7c1e-7000-8000-0000000006e3");
+
+    private static readonly ProcessoDetalhe DetalheDoProcessoDoJose = new(
+        ProcessoDoJose, null, "José — despejo", Area, "Cível", StatusProcesso.Ativo,
+        null, null, null, null, null, null,
+        [new ClienteDoProcessoDetalhe(JoseId, "José Souza", "111.444.777-35", PoloProcessual.Ativo, true)]);
+
+    /// <summary>A edição de uma atividade da solicitação (cliente: Maria) que tem <paramref name="processo"/>.</summary>
+    private IRenderedComponent<AtividadeFormulario> EdicaoComProcesso(Guid processoId, string processoTitulo, ProcessoDetalhe processo)
+    {
+        Respostas()
+            .Responde<ObterAtividade, Resultado<AtividadeDetalhe>>(Resultado<AtividadeDetalhe>.Ok(new(
+                AtividadeComProcesso, "Emitir a certidão", Descricao, null, StatusAtividade.Criada, false,
+                null, MariaId, "Maria Silva", processoId, processoTitulo, Area, "Cível", TipoAutor.Usuario, "Diana Diretora", null, null,
+                [], [], new AcoesDaAtividade(true, true, true, false, false, false, true), 7, 2, SolicitacaoId)))
+            .Responde<ObterProcesso, Resultado<ProcessoDetalhe>>(Resultado<ProcessoDetalhe>.Ok(processo));
+        return Desenhar<AtividadeFormulario>(p => p.Add(x => x.Id, (Guid?)AtividadeComProcesso));
+    }
+
+    [Fact]
+    public void Edicao_da_atividade_da_solicitacao_com_o_processo_sem_o_cliente_avisa_junto_do_cliente_travado()
+    {
+        var tela = EdicaoComProcesso(ProcessoDoJose, "José — despejo", DetalheDoProcessoDoJose);
+
+        // O cliente segue só em texto (não há como trocá-lo), e o aviso diz o que fazer.
+        tela.FindAll("div.aj-vinculo__escolhido .aj-vinculo__titulo").Select(t => t.TextContent)
+            .Should().Equal("José — despejo", "Maria Silva");
+        tela.FindAll("label.aj-rotulo").Should().NotContain(l => l.TextContent.StartsWith("Cliente do processo"));
+        tela.FindAll("input[form=busca-de-cliente]").Should().BeEmpty();
+        tela.Find(".aj-campo-erro").TextContent
+            .Should().Be("O cliente desta atividade não é mais cliente deste processo. Escolha outro processo ou remova-o.");
+        tela.FindAll(".aj-campo-erro").Should().ContainSingle();
+
+        // Remover o processo resolve: sem processo, o cliente da solicitação continua e não há o que avisar.
+        tela.Find("button[aria-label='Sem processo']").Click();
+
+        tela.FindAll(".aj-campo-erro").Should().BeEmpty();
+        tela.Find("div.aj-vinculo__escolhido .aj-vinculo__titulo").TextContent.Should().Be("Maria Silva");
+    }
+
+    [Fact]
+    public void Edicao_da_atividade_da_solicitacao_com_o_cliente_no_processo_nao_avisa()
+    {
+        var tela = EdicaoComProcesso(ProcessoDaMaria, "Maria — inventário", DetalheDoProcessoDaMaria);
+
+        tela.FindAll("div.aj-vinculo__escolhido .aj-vinculo__titulo").Select(t => t.TextContent)
+            .Should().Equal("Maria — inventário", "Maria Silva");
+        tela.FindAll(".aj-campo-erro").Should().BeEmpty();
+    }
+
+    [Fact]
     public void Edicao_de_atividade_da_solicitacao_trava_o_cliente()
     {
         var atividadeId = Guid.Parse("0199a3f2-7c1e-7000-8000-0000000006e1");

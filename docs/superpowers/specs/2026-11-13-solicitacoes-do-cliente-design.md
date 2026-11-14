@@ -77,8 +77,9 @@ Operações:
 - `Abrir(clienteId, solicitanteId, descricao, urgencia)`.
 - `Alterar(descricao, urgencia)`: só em `Aguardando`.
 - `Cancelar(agoraUtc)`: só em `Aguardando`. Não há volta.
-- `VincularAtividade(atividadeId, confirmouCancelada)`: em `Aguardando`; em `Cancelada`, só com
-  `confirmouCancelada`; em `EmAtividade`, recusada.
+- `VincularAtividade(atividade, confirmouCancelada)`: antes das regras de situação, recusa a atividade que não nasceu
+  desta solicitação (erro de programação) e a de outro cliente ("A atividade precisa ser do cliente da solicitação.").
+  Depois, em `Aguardando`; em `Cancelada`, só com `confirmouCancelada`; em `EmAtividade`, recusada.
 - `DesvincularAtividade()`: limpa `AtividadeId`. A solicitação volta a `Aguardando` ou a `Cancelada`, conforme
   `CanceladaEm`.
 
@@ -445,8 +446,9 @@ As fases A e B estão concluídas, e a spec do portal e a modelagem de domínio 
   `ExcecaoDeConcorrencia` (a linha da solicitação mudou entre a leitura e a gravação) responde `Conflito` com a mensagem
   de "alterada"; `ExcecaoDeConflito` (o índice único de `atividades.solicitacao_id`) responde `Conflito` com "Esta
   solicitação já virou atividade.", sem olhar qual restrição disparou: hoje é a única alcançável nessa gravação, e se
-  outra passar a ser, vale filtrar por `Restricao`. Duas criações simultâneas: a perdedora cai no índice, o que se
-  verificou em seis execuções seguidas.
+  outra passar a ser, vale filtrar por `Restricao`. Duas criações simultâneas: na gravação, a inserção da atividade vem
+  antes do `UPDATE` da solicitação, então a segunda criação esbarra no índice parcial. O teste da corrida aceita as duas
+  mensagens, a de "alterada" e a de "já virou atividade", porque essa ordem é do EF, e não uma garantia do manipulador.
 - Decisão do plano: a ordem interna do manipulador. Passadas as verificações, ele monta a atividade, o comentário e os
   documentos levados e vincula a solicitação, tudo o que o domínio pode recusar, antes de qualquer `Adicionar` nos
   repositórios, e grava uma vez só: uma recusa do domínio no meio não deixa nada adicionado nem a solicitação alterada em

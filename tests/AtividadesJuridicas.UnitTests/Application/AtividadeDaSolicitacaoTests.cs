@@ -236,6 +236,24 @@ public class AtividadeDaSolicitacaoTests
     }
 
     [Fact]
+    public async Task Lista_nula_de_documentos_cria_sem_documentos()
+    {
+        // O contrato diz lista, mas a requisição pode chegar com nulo (um cliente de API, por exemplo): vale como vazia.
+        var manipulador = new CriarAtividadeDaSolicitacaoManipulador(
+            _c.Como(_c.Diretor), _c.Solicitacoes, _c.Atividades, _c.Clientes, _c.Processos, _c.Areas, _c.Documentos,
+            _c.Comentarios, _c.Relogio, _c.Unidade);
+
+        var resultado = await manipulador.ManipularAsync(new CriarAtividadeDaSolicitacao(
+            _solicitacao.Id, _solicitacao.Versao, "Preparar a certidão", "Prazo de 15 dias.", Entrega,
+            null, null, 1, false, null!), default);
+
+        resultado.Sucesso.Should().BeTrue(resultado.Mensagem);
+        _c.Atividades.Itens.Should().ContainSingle().Which.Id.Should().Be(resultado.Valor);
+        DocumentosDaAtividade().Should().BeEmpty();
+        _c.Unidade.Salvamentos.Should().Be(1);
+    }
+
+    [Fact]
     public async Task Id_repetido_leva_um_so_documento()
     {
         (await Criar(_c.Diretor, documentos: [_certidao.Id, _certidao.Id])).Sucesso.Should().BeTrue();

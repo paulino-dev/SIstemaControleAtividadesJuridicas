@@ -38,7 +38,7 @@
 
         @if (_solicitacao is { } solicitacao)
         {
-            <SolicitacaoNoFormulario Solicitacao="solicitacao" @bind-AnexarComentario="_anexarComentario" @bind-Marcados="_marcados" Desabilitado="_salvando" />
+            <SolicitacaoNoFormulario Solicitacao="solicitacao" @bind-AnexarComentario="_anexarComentario" @bind-Marcados="_marcados" Desabilitado="SalvarTravado" />
         }
 
         <EditForm EditContext="_contexto" OnValidSubmit="SalvarAsync" FormName="atividade" id="formulario-da-atividade" class="aj-lado-a-lado aj-lado-a-lado--formulario">
@@ -82,6 +82,11 @@
                 @if (ClienteTravado)
                 {
                     <div class="aj-vinculo__escolhido aj-vinculo__escolhido--detalhado"><span class="aj-vinculo__texto"><span class="aj-ajuda">Cliente</span><span class="aj-vinculo__titulo">@_clienteNome</span></span></div>
+                    @* Sem o seletor "Cliente do processo", o aviso vem aqui: o processo da atividade perdeu o cliente travado. *@
+                    @if (_processo is { } doProcesso && ClienteForaDoProcesso(doProcesso))
+                    {
+                        <span class="aj-campo-erro">O cliente desta atividade não é mais cliente deste processo. Escolha outro processo ou remova-o.</span>
+                    }
                 }
                 @if (_clienteId != Guid.Empty)
                 {
@@ -126,13 +131,13 @@
 
         @* As barras de ação ficam fora do formulário e o enviam pelo atributo form. *@
         <div class="aj-so-desktop">
-            <div class="aj-acoes aj-acoes--fixa"><a href="@Voltar" class="aj-botao aj-botao--fantasma">Cancelar</a><button type="submit" class="aj-botao aj-botao--primario aj-botao--com-icone" form="formulario-da-atividade" disabled="@_salvando"><Icone Nome="confirmar" />Salvar atividade</button></div>
+            <div class="aj-acoes aj-acoes--fixa"><a href="@Voltar" class="aj-botao aj-botao--fantasma">Cancelar</a><button type="submit" class="aj-botao aj-botao--primario aj-botao--com-icone" form="formulario-da-atividade" disabled="@SalvarTravado"><Icone Nome="confirmar" />Salvar atividade</button></div>
         </div>
         <div class="aj-so-tablet">
-            <div class="aj-acoes aj-acoes--fixa"><a href="@Voltar" class="aj-botao aj-botao--secundario">Cancelar</a><button type="submit" class="aj-botao aj-botao--primario aj-botao--com-icone" form="formulario-da-atividade" disabled="@_salvando"><Icone Nome="confirmar" />Salvar atividade</button></div>
+            <div class="aj-acoes aj-acoes--fixa"><a href="@Voltar" class="aj-botao aj-botao--secundario">Cancelar</a><button type="submit" class="aj-botao aj-botao--primario aj-botao--com-icone" form="formulario-da-atividade" disabled="@SalvarTravado"><Icone Nome="confirmar" />Salvar atividade</button></div>
         </div>
         <div class="aj-so-mobile">
-            <div class="aj-acoes aj-acoes--fixa"><a href="@Voltar" class="aj-botao aj-botao--secundario">Cancelar</a><button type="submit" class="aj-botao aj-botao--primario aj-botao--com-icone" form="formulario-da-atividade" disabled="@_salvando"><Icone Nome="confirmar" />Salvar</button></div>
+            <div class="aj-acoes aj-acoes--fixa"><a href="@Voltar" class="aj-botao aj-botao--secundario">Cancelar</a><button type="submit" class="aj-botao aj-botao--primario aj-botao--com-icone" form="formulario-da-atividade" disabled="@SalvarTravado"><Icone Nome="confirmar" />Salvar</button></div>
         </div>
 
         <form id="busca-de-processo" hidden @onsubmit="ProcurarProcessosAsync" @onsubmit:preventDefault></form>
@@ -206,6 +211,11 @@
 
     // O cliente da solicitação não se troca: nem na criação a partir dela, nem na edição da atividade que veio dela.
     private bool ClienteTravado => _solicitacao is not null || _solicitacaoDaAtividade is not null;
+
+    // O botão Salvar (nas três barras) e o bloco da solicitação ficam travados na gravação em curso e depois que a releitura
+    // achou a solicitação já em atividade (outra aba criou antes): gravar de novo só repetiria a recusa. O aviso com o link
+    // "Ver atividade" é o caminho que sobra.
+    private bool SalvarTravado => _salvando || _solicitacao is { Situacao: SituacaoDaSolicitacao.EmAtividade };
 
     private string Titulo => Id is null ? "Nova atividade" : "Editar atividade";
 

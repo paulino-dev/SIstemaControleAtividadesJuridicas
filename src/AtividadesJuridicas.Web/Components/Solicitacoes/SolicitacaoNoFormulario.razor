@@ -34,7 +34,7 @@
     [Parameter] public IReadOnlySet<Guid> Marcados { get; set; } = new HashSet<Guid>();
     [Parameter] public EventCallback<IReadOnlySet<Guid>> MarcadosChanged { get; set; }
 
-    /// <summary>Com a gravação em curso, as caixas e os botões ficam travados.</summary>
+    /// <summary>Com a gravação em curso, ou com a solicitação já virada em atividade, as caixas e os botões ficam travados.</summary>
     [Parameter] public bool Desabilitado { get; set; }
 
     /// <summary>

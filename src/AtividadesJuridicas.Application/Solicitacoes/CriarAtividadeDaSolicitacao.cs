@@ -53,9 +53,9 @@ public sealed class CriarAtividadeDaSolicitacaoManipulador(
         if (requisicao.VersaoDaSolicitacao != solicitacao.Versao)
             return Falha(TipoErro.Conflito, SolicitacoesOpcoes.AlteradaDuranteACriacao);
 
-        // Só os documentos vivos desta solicitação. Um repetido na lista vale uma vez.
+        // Só os documentos vivos desta solicitação. Um repetido na lista vale uma vez; sem lista (nulo), nenhum.
         var marcados = new List<Documento>();
-        foreach (var id in requisicao.DocumentosDaSolicitacao.Distinct())
+        foreach (var id in (requisicao.DocumentosDaSolicitacao ?? []).Distinct())
         {
             var documento = await documentos.ObterPorIdAsync(id, ct);
             if (documento is not { Categoria: CategoriaDocumento.DocumentoDaSolicitacao } ||
